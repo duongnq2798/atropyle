@@ -171,7 +171,7 @@ const atro = createAtropyle({
 | Nhóm | Hàm | Trả về |
 |---|---|---|
 | Đọc chung | `fees()` | Phí hiện tại theo từng token (đã scale theo decimals) và số suất giá sớm còn lại |
-| | `vaultsOf(account)` | Các vault mà `account` đang giữ vai trò owner, heir hoặc guardian. Lọc theo `heirs()`/`guardians()` hiện tại (quyết định 6 của Plan 1) |
+| | `vaultsOf(account)` | Các vault mà `account` đang giữ vai trò owner, heir hoặc guardian. Đọc theo trang bằng `vaultsOfLength`/`vaultsOfPage` của factory, mặc định tối đa 100 vault mới nhất, vì `vaultsOf` của factory không giới hạn độ dài và ai cũng làm phình nó được bằng Drill miễn phí. Lọc theo `heirs()`/`guardians()` hiện tại (quyết định 6 của Plan 1) |
 | | `predictVault(owner, salt)` | Địa chỉ clone tương lai |
 | | `stats({ fromBlock? })` | Số vault (Drill và trả phí), check-in, báo động, release, đếm từ event |
 | Một vault | `vault(addr).status()` | `VaultStatus`: tên trạng thái, deadline dạng `bigint` giây, độ phủ allowance từng tài sản, metadata token gắn cờ `untrusted` |
@@ -183,7 +183,7 @@ const atro = createAtropyle({
 | | `vault(addr).events({ fromBlock })` | Event đã giải mã |
 | Kế hoạch | `plan.validate(input)` | `{ ok: true, config }` hoặc `{ ok: false, issues: PlanIssue[] }`. Mỗi issue có `path`, `code` và `message`. Luật giống hệt `VaultConfig` |
 | | `plan.template('simple' \| 'guarded', opts)`, `plan.presets` | Template và các preset Drill / 6 tháng / 12 tháng của spec lõi §6 |
-| Chuẩn bị | `prepare.createVault(plan, { salt?, drill, feeToken })` | `TxPlan`: approve phí, `createVault`, rồi approve từng tài sản |
+| Chuẩn bị | `prepare.createVault(plan, { salt?, drill, feeToken })` | `TxPlan`: approve đúng `currentFee(feeToken)`, `createVault`, rồi approve từng tài sản. Salt mặc định là ngẫu nhiên; SDK kiểm địa chỉ `predictVault(owner, salt)` chưa có code trước khi dựng plan |
 | | `vault(addr).prepare.<action>(…)` | `PreparedTx`, với action là `checkIn`, `setHeirs`, `setGuardians`, `setTiming`, `setAssets`, `attestDeath`, `voteRecovery`, `poke`, `distribute` hoặc `revokeAll` |
 | Gửi | `send(prepared, walletClient)` | Gửi từng bước, chờ receipt, giải mã event. Chỉ dùng khi người gọi tự có `WalletClient` (web app, keeper) |
 | Chuyển giao | `handoff.link(plan, base?)` | URL `#/sign?p=…` mở web app để ký (§15) |
@@ -225,7 +225,7 @@ interface TxPlan { steps: PreparedTx[]; summary: string; warnings: Warning[] }
   - Nếu hash không khớp, SDK tải netlist trực tiếp từ chain.
 - Kết quả gồm trạng thái kế tiếp và các cờ đầu ra. Với hành động do người dùng ký, SDK chạy thêm `eth_call` từ địa chỉ `as`, để biết giao dịch có revert hay không và vì sao.
 - **Kiểm thử khác biệt:** trên devnet với các timeline ngẫu nhiên:
-  - `whatIf` phải khớp `status().pending` của contract;
+  - `whatIf` của một `poke` do người không phải owner ký phải khớp `status().pending` của contract (owner ký `poke` là check-in);
   - `timeline` phải khớp kết quả `poke` thật sau khi tua thời gian tới mốc dự đoán (§12.2).
 
 ### 5.4 Kiểm chứng
@@ -271,7 +271,7 @@ Trong trình duyệt, việc duyệt chạy trong Web Worker và có báo tiến
 ### 5.5 Lỗi
 
 - Chỉ có một kiểu lỗi là `AtropyleError`, với `code` lấy từ danh sách cố định:
-  - lỗi contract: `NOT_OWNER`, `NOT_GUARDIAN`, `ALREADY_RELEASED`, `DRILL_EXPIRED`, `INVALID_HEIRS`, `INVALID_GUARDIANS`, `INVALID_TIMING`, `INVALID_ASSETS`, `INVALID_TARGET`, `RECOVERY_DISABLED`, `UNSUPPORTED_FEE_TOKEN`, `NOT_VAULT`, `BAD_POLICY_OUTPUT`;
+  - lỗi contract: `NOT_OWNER`, `NOT_GUARDIAN`, `ALREADY_RELEASED`, `DRILL_EXPIRED`, `INVALID_HEIRS`, `INVALID_GUARDIANS`, `INVALID_TIMING`, `INVALID_ASSETS`, `INVALID_TARGET`, `RECOVERY_DISABLED`, `UNSUPPORTED_FEE_TOKEN`, `NOT_VAULT`, `BAD_POLICY_OUTPUT`, `INSUFFICIENT_GAS` (gas của giao dịch không đủ cho lời gọi có trần kế tiếp trong `distribute`);
   - lỗi môi trường: `WRONG_CHAIN`, `RPC_RATE_LIMITED`, `RPC_UNAVAILABLE`, `RPC_DISAGREEMENT`, `QUORUM_UNAVAILABLE`, `POLICY_MISMATCH`, `POLICY_UNAVAILABLE`, `PLAN_INVALID`, `UNKNOWN`.
 - Mỗi lỗi kèm `message` (tiếng Anh), `hint` (cách sửa), `docsUrl` và `cause`.
 - `decodeError` đổi custom error của contract (`NotOwner()`, `InvalidTarget()`, …) và lỗi của viem thành `AtropyleError`.
@@ -433,7 +433,7 @@ Giữ nguyên hành vi ở spec lõi §7, chỉ chuyển sang D1. Có thêm:
   - `next_check_at` là mốc kế tiếp trong `timeline()`, được tính lại sau mỗi event hoặc mỗi lần keeper gửi giao dịch.
   - Nhờ vậy mỗi phút chỉ phải đọc những vault thật sự đến hạn.
 - **Hành động:**
-  - `status().pending ≠ state` thì `poke`.
+  - `status().pending ≠ state` thì `poke`. `pending` là trạng thái mà một `poke` do người không phải owner ký sẽ tạo ra, đúng với ví keeper.
   - Đã release mà còn độ phủ khác 0 thì `distribute`, và lặp lại mỗi giờ cho tới khi độ phủ về 0.
   - Mọi giao dịch được mô phỏng trước khi gửi.
 - **Giới hạn an toàn:**
@@ -603,7 +603,7 @@ Thiết kế dự kiến được ghi trong roadmap: mã hoá trên trình duy�
 
 ### 12.2 Kiểm thử chéo và ca biên
 
-- **SDK ↔ contract:** fast-check sinh chuỗi hành động và khoảng thời gian ngẫu nhiên trên devnet. Sau mỗi bước, `whatIf` phải khớp `status().pending`, và `timeline` phải khớp kết quả `poke` thật sau khi tua tới mốc dự đoán.
+- **SDK ↔ contract:** fast-check sinh chuỗi hành động và khoảng thời gian ngẫu nhiên trên devnet. Sau mỗi bước, `whatIf` của một `poke` do người không phải owner ký phải khớp `status().pending`, và `timeline` phải khớp kết quả `poke` thật sau khi tua tới mốc dự đoán.
 - **Keeper trên devnet:** chạy một Drill không ai thao tác. Keeper phải bật báo động trong vòng một chu kỳ sau `lateAt`, và phải `distribute` sau khi cửa sổ kết thúc.
 - **Fork mainnet** (bỏ qua khi không có `XLAYER_FORK_RPC`): `verifyPolicy`, `vault.verify` và `integrity()` trên deployment thật.
 - **Ca biên:**

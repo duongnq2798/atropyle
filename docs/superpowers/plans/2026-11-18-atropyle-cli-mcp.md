@@ -1409,9 +1409,11 @@ describe('explainStatus', () => {
     expect(lines).toContain('If nobody acts, the earliest release is 1970-01-01T00:20:40Z.');
   });
 
-  it('points out a transition that anyone can record', () => {
+  it('points out a transition that anyone but the owner can record', () => {
     const lines = explainStatus({ ...status, pending: 'grace', pendingCode: 1 }, config, timeline);
-    expect(lines).toContain('The policy already allows a move to grace. Anyone can call poke to record it.');
+    expect(lines).toContain(
+      'The policy already allows a move to grace. A poke from anyone but the owner records it; from the owner it is a check-in.',
+    );
   });
 
   it('drops guardian counts and release forecasts once released, and flags an expired Drill', () => {
@@ -1654,7 +1656,10 @@ export function explainStatus(s: VaultStatus, c: VaultConfig, t: Timeline): stri
       );
       break;
   }
-  if (s.pending !== s.state) lines.push(`The policy already allows a move to ${s.pending}. Anyone can call poke to record it.`);
+  // status().pending is what a poke from anyone but the owner would produce; the owner's poke is a check-in.
+  if (s.pending !== s.state) {
+    lines.push(`The policy already allows a move to ${s.pending}. A poke from anyone but the owner records it; from the owner it is a check-in.`);
+  }
   if (!released && c.guardians.length > 0) {
     lines.push(`${s.inhVotes} of ${c.guardians.length} guardians have attested death; the vault needs ${c.k}.`);
   }
@@ -7964,10 +7969,10 @@ To check in:
 npx -y atropyle prepare check-in <VAULT> --as <OWNER> --json
 ```
 
-To show what would happen if the owner stopped checking in:
+To show what would happen if the owner stopped checking in, simulate a `poke` from someone else (a `poke` signed by the owner is a check-in):
 
 ```bash
-npx -y atropyle simulate <VAULT> poke --as <OWNER> --at +200d --json
+npx -y atropyle simulate <VAULT> poke --as <HEIR_1> --at +200d --json
 ```
 
 Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle prepare --help` lists their flags.
@@ -8051,7 +8056,7 @@ Durations are seconds, or a number with `s`, `m`, `h`, `d` or `w`.
 
 ## Issue codes
 
-`plan init` and `plan check` report each problem as `{ path, code, message }`. The codes include `REQUIRED`, `SHARES_SUM`, `HEIR_IS_OWNER`, `DUPLICATE`, `K_RANGE`, `RECOVERY_NEEDS_K`, `PERIOD_MIN`, `WINDOW_MIN`, `THRESHOLD_RANGE`, `ASSETS_COUNT`, `ERC20_ID_NONZERO`, `ASSET_HEIR_RANGE` and, on chain only, `TOKEN_NOT_CONTRACT`. Fix the field named by `path`.
+`plan init` and `plan check` report each problem as `{ path, code, message }`. The codes include `REQUIRED`, `SHARES_SUM`, `HEIR_IS_OWNER`, `DUPLICATE`, `K_RANGE`, `RECOVERY_NEEDS_K`, `PERIOD_MIN`, `WINDOW_MIN`, `THRESHOLD_RANGE`, `ASSETS_COUNT`, `ERC20_ID_NONZERO`, `ASSET_HEIR_RANGE` and, on chain only, `TOKEN_NOT_CONTRACT`. `prepare create-vault` also refuses the address the vault will get as an heir or a guardian (`HEIR_IS_VAULT`, `GUARDIAN_IS_VAULT`). Fix the field named by `path`.
 ````
 
 `skills/atropyle-estate-planning/references/pitfalls.md`:
@@ -8194,7 +8199,7 @@ npx -y atropyle prepare poke <GRACE_VAULT> --as <HEIR_1> --json
 npx -y atropyle prepare distribute <GRACE_VAULT> --as <HEIR_1> --json
 ```
 
-- When `status.pending` differs from `status.state`, the policy already allows the next state, and `poke` records it. Anyone can send a `poke`.
+- When `status.pending` differs from `status.state`, the policy already allows the next state, and `poke` records it. Anyone but the owner can send that `poke`: signed by the owner, `poke` (and `distribute` before a release) is a check-in.
 - After the release (`releasedInherit`), `distribute` pays every heir their share. Anyone can call it, and again later for tokens that arrive afterwards.
 - When `blocked` is set, the vault is not released yet. `timeline.earliestRelease` says when it can be.
 
@@ -8246,7 +8251,7 @@ Go through every item with the user before an attestation or a recovery vote. If
 | Heir | Up to 5 wallets with a share | Receives the share when the vault releases to the heirs |
 | Guardian | Up to 5 wallets the owner trusts | Attests a death or withdraws it; votes for recovery or withdraws the vote, when recovery is on |
 | Recovery target | The new wallet that `k` guardians voted for | Receives everything when the vault releases by recovery |
-| Anyone | Any wallet | Sends `poke` to record a state change the policy already allows, and `distribute` after a release |
+| Anyone | Any wallet | Sends `poke` to record a state change the policy already allows, and `distribute` after a release. Signed by the owner before a release, both are a check-in instead |
 
 One wallet can hold several roles. `atropyle status <vault> --as <wallet>` lists them.
 

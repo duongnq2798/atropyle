@@ -171,8 +171,8 @@ Trang Proof tái dùng chính simulator này trong một Web Worker:
 | Trường | Ràng buộc |
 |---|---|
 | `owner` | Bất biến |
-| `heirs[]` `(address, uint16 bps)` | 1–5 người; tổng bps = 10000; không trùng; không phải `0x0` |
-| `guardians[]` | 0–5 người; không trùng; không phải `0x0`; không phải owner. Giám hộ được phép đồng thời là người thừa kế |
+| `heirs[]` `(address, uint16 bps)` | 1–5 người; tổng bps = 10000; không trùng; không phải `0x0`; không phải owner; không phải chính địa chỉ vault (vault không có hàm rút, phần chia gửi vào vault sẽ kẹt vĩnh viễn) |
+| `guardians[]` | 0–5 người; không trùng; không phải `0x0`; không phải owner; không phải chính địa chỉ vault (vault không bao giờ ký được, sẽ thành một ghế chết). Giám hộ được phép đồng thời là người thừa kế |
 | `k` | 0 ≤ k ≤ số giám hộ |
 | `recoveryEnabled` | Chỉ bật được khi k ≥ 1 |
 | `P` (giây) | Vault thường: ≥ 86 400. Drill: ≥ 60 |
@@ -197,10 +197,10 @@ Trang Proof tái dùng chính simulator này trong một Web Worker:
 | owner | `checkIn()` | Gọi `_ownerAlive()`, sau đó `_advance(alive = true)` |
 | owner | `setHeirs`, `setGuardians`, `setTiming`, `setAssets` | Gọi `_ownerAlive()`, kiểm ràng buộc §4.1, `_advance(true)`, rồi gọi `factory.index(...)` cho các vai trò mới |
 | guardian | `attestDeath(bool on)` | Bật hoặc tắt bit của mình trong `inhVotes`, sau đó `_advance(false, 0)` |
-| guardian | `voteRecovery(address target)` | Yêu cầu `recoveryEnabled` và `target` khác `0x0`, owner, và các giám hộ. Ghi `recVote[msg.sender] = target`, sau đó `_advance(false, target)` |
+| guardian | `voteRecovery(address target)` | Yêu cầu `recoveryEnabled` (không thì `RecoveryDisabled`). `target` phải khác owner, chính địa chỉ vault và các giám hộ (không thì `InvalidTarget`); `target = 0x0` là rút phiếu. Ghi `recVote[msg.sender] = target`, sau đó `_advance(false, target)` |
 | bất kỳ ai | `poke()` | Đã Released thì không làm gì. Chưa Released: owner ký thì gọi `_ownerAlive()`, sau đó `_advance(true)`, giống `checkIn`; người khác ký thì `_advance(false, 0)` |
 | bất kỳ ai | `distribute()` | Chưa Released và owner ký: gọi `_ownerAlive()`, sau đó `_advance(true)`, giống `checkIn`, rồi trả về `false`. Người khác ký: `_advance(false, 0)`; nếu vẫn chưa Released thì trả về `false` mà **không revert**, để các chuyển trạng thái báo động vẫn được ghi lại. Khi đã Released thì chuyển tài sản theo §4.4, ai gọi cũng được, kể cả owner |
-| view | `status()` | Trả về trạng thái, `idle`, các mốc hạn chót, phiếu bầu, `recoveryTarget`, và độ phủ allowance của từng tài sản |
+| view | `status()` | Trả về trạng thái, `pending` (trạng thái mà một `poke()` do người không phải owner ký sẽ tạo ra ngay lúc này; bằng `state` khi đã Released hoặc Drill đã hết hạn), `idle`, các mốc hạn chót, phiếu bầu, `recoveryTarget`, và độ phủ allowance của từng tài sản |
 
 `_ownerAlive()` thực hiện:
 1. `lastAlive = now`;
@@ -232,6 +232,7 @@ Mọi hàm thay đổi trạng thái đều có `nonReentrant`. Khi `cls(state) 
 - **ERC-721:** chỉ chuyển khi `ownerOf(id) == owner` và vault đã được approve (theo từng token hoặc ForAll). Dùng `safeTransferFrom(owner → heirs[heir])`.
 - **ERC-1155:** `bal = balanceOf(owner, id)`. Khi `bal > 0` và vault đã được approve ForAll, dùng `safeTransferFrom(owner → heirs[heir], id, bal, "")`.
 - **Xử lý lỗi:** mỗi lần chuyển được bọc riêng; thất bại thì phát `TransferFailed(assetIndex, to)` rồi chạy tiếp. Thành công thì phát `Distributed(assetIndex, to, amountOrId)`.
+- **Trần gas mỗi lời gọi:** view 100 000, `transferFrom` ERC-20 300 000, `safeTransferFrom` ERC-721/1155 500 000. Trước mỗi lời gọi có trần, vault đòi `gasleft() ≥ cap·64/63 + 10 000`; thiếu thì revert `InsufficientGas()` cho cả giao dịch, để người gọi không thể chỉnh gas cho một lần chuyển hết gas (thành `TransferFailed`) rồi lần quét sau chia lại phần đó. Kiểm này cũng chạy trong các lời gọi view của `coverage()` và `status()`.
 - **Giới hạn:** tối đa 20 tài sản × 5 người nhận, ngân sách dưới 6M gas (có gas snapshot trong test).
 
 ### 4.5 Bất biến (kiểm bằng invariant test)
@@ -252,15 +253,16 @@ Mọi hàm thay đổi trạng thái đều có `nonReentrant`. Khi `cls(state) 
   - danh sách token phí {USDT0, USDC, USDG};
   - mức phí theo từng token, tính từ `decimals()` đọc lúc deploy: early = 1.99, full = 9.9;
   - `earlyCount = 100`.
-- **`createVault(cfg, salt, feeToken)`:** `owner = msg.sender`.
+- **`createVault(cfg, salt, drill, feeToken)`:** `owner = msg.sender`.
   - Drill miễn phí.
   - Vault thường: `transferFrom(msg.sender → treasury, paidCount < 100 ? early : full)`, rồi `paidCount++`.
   - Clone vault bằng CREATE2 với salt `keccak(owner, salt)`, gọi `initialize`, ghi chỉ mục.
 - **`predictVault(owner, salt)`:** cho UI biết trước địa chỉ vault.
 - **`vaultsOf(addr)`:** danh sách vault mà `addr` là owner, giám hộ hoặc người thừa kế.
-  - Có thể có trùng lặp hoặc mục cũ; UI tự lọc lại theo cấu hình hiện tại.
+  - Chỉ ghi thêm, không trùng, nhưng có thể có mục cũ; UI tự lọc lại theo cấu hình hiện tại.
+  - Không giới hạn độ dài: ai cũng có thể ghi `addr` làm người thừa kế hay giám hộ của các Drill miễn phí. Nơi đọc không được phép hỏng thì đọc theo trang bằng `vaultsOfLength(addr)` và `vaultsOfPage(addr, start, count)`; hai hàm này kẹp phạm vi và không bao giờ revert (`start` ≥ độ dài thì trả mảng rỗng).
   - `index(addr)` chỉ nhận lời gọi từ vault do chính factory tạo.
-- **Event:** `VaultCreated(owner, vault, drill, paid)`.
+- **Event:** `VaultCreated(address indexed owner, address indexed vault, bool drill, address feeToken, uint256 fee)`. Drill phát `feeToken = 0x0`, `fee = 0`.
 
 Giảm giá khi trả bằng BEM để sang P1, vì cần oracle.
 

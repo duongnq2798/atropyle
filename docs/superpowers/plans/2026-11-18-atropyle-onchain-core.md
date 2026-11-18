@@ -5823,115 +5823,89 @@ git commit -m "feat(contracts): deploy scripts, runbook, CI and gas snapshot" -m
 - Modify: `docs/deployments.md` (điền địa chỉ thật), `contracts/README.md` (số gas `step` trên mainnet nếu khác số fork)
 
 **Interfaces:**
-- Consumes: năm script của Task 13, `ForkTest` (Task 12).
+- Consumes: năm script của Task 13; `ForkTest` (Task 12, 11 test); runbook trong `contracts/README.md`: các mục "Triển khai mainnet", "Kiểm treasury trước bước 04", "Đọc lại từ chain sau mỗi bước" và "Diễn tập trên anvil fork". `createCPU` của factory TapeOut trả `(address transistors, address circuits)` (`script/lib/ITapeOut.sol`); `ATRO_CPU` mà script 01 in ra là địa chỉ `circuits`.
 - Produces: processor `ATRO`, 3 circuit ID, `AtropyleVault` implementation, `AtropyleFactory` trên mainnet. Plan 2 (web app) và Plan 3 (bot) đọc các giá trị này từ `docs/deployments.md`.
 
 Các bước ghi `[USER]` do người dùng tự làm trong terminal của họ. Agent **không** chạy chúng, không đọc keystore, không hỏi private key hay API key. Các bước `[CLAUDE]` chỉ đọc chain hoặc chạy trên anvil local.
 
+**Runbook trong `contracts/README.md` là nguồn chính.** Task này chỉ nêu thứ tự các bước và những con số phải khớp. Lệnh đầy đủ nằm trong README; khi README và task này khác nhau, làm theo README.
+
 - [ ] **Step 1: [USER] Nạp ví deployer**
 
-Ví deployer có ít nhất 0.2 BEM (`0x60e62Efa9405d6873C5deaBD4E6CC91c25363952`) và 0.02 OKB trên X Layer. Ước tính: `deployFee` 0.1 BEM, bốn lần mint × `protocolFee` 0.01 BEM, ba lần tape-out × 0.0013 OKB, cộng gas deploy.
+Ví deployer có ít nhất 0.2 BEM (`0x60e62Efa9405d6873C5deaBD4E6CC91c25363952`) và 0.02 OKB trên X Layer. Ước tính: `deployFee` 0.1 BEM, bốn lần mint × `protocolFee` 0.01 BEM, ba lần tape-out × 0.0013 OKB, cộng gas deploy (README "Số đo": 0,14 BEM + 0,0039 OKB phí tape-out, đo bằng `test_tapeoutBudget`).
 
-Claude kiểm (chỉ đọc), khi người dùng báo đã nạp và đưa địa chỉ:
+Ví deployer phải là EOA không có code, kể cả code EIP-7702 (README "Triển khai mainnet"). Claude kiểm (chỉ đọc), khi người dùng báo đã nạp và đưa địa chỉ:
 
 ```bash
+cast code $DEPLOYER --rpc-url https://rpc.xlayer.tech
 cast balance $DEPLOYER --ether --rpc-url https://rpc.xlayer.tech
 cast call 0x60e62Efa9405d6873C5deaBD4E6CC91c25363952 "balanceOf(address)(uint256)" $DEPLOYER --rpc-url https://rpc.xlayer.tech
 ```
 
-Expected: OKB ≥ 0.02; BEM ≥ 20000000 (0.2 BEM, 8 decimals).
+Expected: `cast code` in đúng `0x` (ví đã nâng cấp EIP-7702 in `0xef0100…`: dừng lại, đổi ví khác); OKB ≥ 0.02; BEM ≥ 20000000 (0.2 BEM, 8 decimals). Kiểm lại `cast code` giữa các bước của Step 5, vì ví có thể bị nâng cấp giữa chừng.
 
 - [ ] **Step 2: [USER] Nhập keystore**
 
-```bash
-cast wallet import atropyle-deployer --interactive
-```
-
-Người dùng tự gõ private key và mật khẩu ở prompt của `cast`. Sau đó `export DEPLOYER=…`, `export TREASURY=…`, `export SMOKE_HEIR=…` (đều là địa chỉ công khai).
+Làm theo đoạn "Chuẩn bị một lần" của README: `cast wallet import atropyle-deployer --interactive`, rồi `export DEPLOYER=…`, `export TREASURY=…`, `export SMOKE_HEIR=…` (đều là địa chỉ công khai). Người dùng tự gõ private key và mật khẩu ở prompt của `cast`. Dùng một shell riêng cho mainnet, không dùng lại shell của phần diễn tập.
 
 - [ ] **Step 3: [CLAUDE] Diễn tập trên anvil fork**
 
-Chạy anvil ở chế độ nền (chainId mặc định 31337, nên artifact không lẫn với mainnet):
+Làm đúng mục "Diễn tập trên anvil fork" của README, trong một shell riêng:
+- `anvil --chain-id 31337 --fork-url https://rpc.xlayer.tech`. Phải có `--chain-id 31337`: anvil fork mặc định báo chainId 196, khi đó `--broadcast` ghi vào `broadcast/<script>/196/`, đúng chỗ của bản ghi mainnet.
+- Chỉ dùng tài khoản anvil mở khoá sẵn có `cast code` = `0x` (vài tài khoản mặc định đã có code EIP-7702 trên mainnet), cấp BEM cho deployer bằng cách mượn một holder, rồi chạy năm script với `--unlocked`.
 
-```bash
-anvil --fork-url https://rpc.xlayer.tech --port 8545
-```
-
-Rồi mạo danh ví deployer trên fork local và chạy cả năm script:
-
-```bash
-cast rpc anvil_impersonateAccount $DEPLOYER --rpc-url http://127.0.0.1:8545
-cd contracts
-forge script script/01_CreateProcessor.s.sol --rpc-url http://127.0.0.1:8545 --sender $DEPLOYER --unlocked --broadcast --slow
-```
-
-Sau mỗi script, `export` các giá trị nó in ra rồi chạy script kế tiếp bằng đúng lệnh trên (đổi tên file). Xong bước 4 thì chạy:
+Sau bước 04, với `DEPLOYER`, `ATRO_CPU`, `KOFN_ID`, `GE4_ID`, `POLICY_ID`, `ATRO_FACTORY`, `VAULT_IMPL` và `TREASURY` của lần diễn tập đã export, chạy:
 
 ```bash
 XLAYER_FORK_RPC=http://127.0.0.1:8545 forge test --match-contract ForkTest -vv
 ```
 
-Expected: cả năm script chạy hết, không `require` nào hỏng; `ForkTest` đi nhánh deployment có sẵn (vì `ATRO_CPU` đã đặt) và 7 test PASS. Ghi lại gas thực tế từ log.
+Expected: cả năm script chạy hết, không `require` nào hỏng; gas từng bước gần số trong README "Số đo" (01 / 02 / 03 / 04 / 05: 845 944 / 989 095 / 852 598 / 4 553 395 / 1 104 004). `ForkTest` chạy ở chế độ live (vì `ATRO_CPU` đã đặt) trên chính factory vừa deploy (vì có `ATRO_FACTORY`): 10 test PASS và 1 SKIP (`test_tapeoutBudget`, chỉ đo khi tự tạo processor). Không đặt `ATRO_CPU` thì `ForkTest` tự tạo processor trên fork và chạy đủ 11 test PASS.
 
-Dọn dẹp, để bước mainnet bắt đầu sạch:
+Dọn dẹp theo README: tắt anvil, chạy đúng lệnh `unset …` và `rm -rf broadcast/*/31337` ở cuối mục "Diễn tập", rồi đóng shell này. Chỉ xoá thư mục `31337`.
 
-```bash
-unset ATRO_CPU KOFN_ID GE4_ID POLICY_ID VAULT_IMPL ATRO_FACTORY SMOKE_VAULT
-```
+- [ ] **Step 4: [CLAUDE] Kiểm treasury thật trước bước 04 (chỉ đọc)**
 
-Rồi dừng tiến trình anvil.
-
-- [ ] **Step 4: [USER] Chạy năm script trên mainnet**
-
-Trong `contracts/`, lần lượt:
+Treasury bất biến sau bước 04. Với `TREASURY` thật của người dùng đã export (và `ATRO_CPU`, `ATRO_FACTORY` chưa đặt), chạy lệnh của mục "Kiểm treasury trước bước 04":
 
 ```bash
-forge script script/01_CreateProcessor.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
+XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest --match-test test_treasuryReceivesEveryFeeToken -vv
 ```
 
-```bash
-forge script script/02_TapeOutSubs.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
-```
+Expected: PASS, in ba dòng `fee paid to treasury …` (USDT0, USDC, USDG). Revert nghĩa là một token phí chặn treasury đó: người dùng chọn ví treasury khác, export lại `TREASURY`, chạy lại.
 
-```bash
-forge script script/03_TapeOutPolicy.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
-```
+- [ ] **Step 5: [USER] Chạy năm script trên mainnet**
 
-```bash
-forge script script/04_DeployAtropyle.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
-```
+Trong `contracts/`, theo bảng và các ghi chú của mục "Triển khai mainnet" trong README: `forge script script/0N_….s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow`, lần lượt 01 tới 05, chạy 02 ngay sau 01 và 03 ngay sau 02. Sau mỗi bước, đọc lại từ chain theo mục "Đọc lại từ chain sau mỗi bước" rồi mới `export`. Những điểm README nêu và Claude nhắc lại khi người dùng hỏi:
+- `cast code $DEPLOYER --rpc-url xlayer` phải in `0x` trước mỗi bước.
+- Script 01 báo `STOP: …` thì dừng toàn bộ và báo Claude. Chỉ dùng `REPLACE_PROCESSOR` trong đúng trường hợp README mô tả (bỏ một processor `Atropyle` cũ không dùng được của cùng ví), và `unset REPLACE_PROCESSOR` ngay sau bước 01 mới.
+- Script 02 hỏng giữa chừng thì đặt `KOFN_ID` theo log rồi chạy lại 02.
+- Không chạy lại 04 khi chưa cần: nó deploy factory thứ hai và ghi đè `broadcast/04_DeployAtropyle.s.sol/196/run-latest.json`. Xong 04 thì sao lưu thư mục `broadcast/`.
 
-```bash
-forge script script/05_SmokeDrill.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
-```
+Expected: gas mỗi bước gần số đo trên fork ở Step 3; `SMOKE_VAULT` ở trạng thái `0`. Bước 05 do `DEPLOYER`, chủ vault, ký `poke()`, nên đó là một lần check-in, vẫn gọi `step()` trên circuit thật.
 
-Sau mỗi lệnh, dán dòng `export …` mà script in ra. RPC từ chối EIP-1559 thì thêm `--legacy`. Script 01 báo `STOP: …` thì dừng toàn bộ và báo Claude. Script 02 hỏng giữa chừng thì đặt `KOFN_ID` theo log rồi chạy lại 02.
+- [ ] **Step 6: [CLAUDE] Kiểm deployment thật (chỉ đọc)**
 
-- [ ] **Step 5: [CLAUDE] Kiểm deployment thật (chỉ đọc)**
-
-Người dùng đưa các giá trị `export` cho Claude. Claude chạy:
+Người dùng đưa các giá trị `export` (đã đọc lại từ chain) cho Claude. Claude chạy, theo đoạn "Kiểm deployment thật" của README:
 
 ```bash
 cd contracts
+export DEPLOYER=0x... ATRO_CPU=0x... KOFN_ID=... GE4_ID=... POLICY_ID=...
+export ATRO_FACTORY=0x... VAULT_IMPL=0x... TREASURY=0x...
 XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv
-cast call $ATRO_FACTORY "cpu()(address)" --rpc-url https://rpc.xlayer.tech
-cast call $ATRO_FACTORY "policyId()(uint256)" --rpc-url https://rpc.xlayer.tech
-cast call $ATRO_FACTORY "vaultImpl()(address)" --rpc-url https://rpc.xlayer.tech
-cast call $ATRO_FACTORY "treasury()(address)" --rpc-url https://rpc.xlayer.tech
-cast call $ATRO_FACTORY "earlyFee(address)(uint256)" 0x779Ded0c9e1022225f8E0630b35a9b54bE713736 --rpc-url https://rpc.xlayer.tech
 cast call $SMOKE_VAULT "state()(uint8)" --rpc-url https://rpc.xlayer.tech
 cast storage $ATRO_CPU 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50 --rpc-url https://rpc.xlayer.tech
 ```
 
-Expected: 7 test PASS trên deployment thật; `cpu` = `ATRO_CPU`; `policyId` = `POLICY_ID`; `vaultImpl` = `VAULT_IMPL`; `treasury` = `TREASURY`; `earlyFee` = `1990000`; `state` của vault Drill = `0`; slot beacon chứa `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` (đệm 0 bên trái).
+Expected: 10 test PASS và 1 SKIP (`test_tapeoutBudget`) trên deployment thật. Với `ATRO_FACTORY`, `VAULT_IMPL` và `TREASURY` đã đặt, `ForkTest` tự kiểm `cpu()` = `ATRO_CPU`, `policyId()` = `POLICY_ID`, `treasury()` = `TREASURY`, `vaultImpl()` = `VAULT_IMPL` và hai mức phí của cả ba token phí. `state` của vault Drill = `0`; slot beacon chứa `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` (đệm 0 bên trái).
 
-- [ ] **Step 6: [USER] Verify trên OKLink**
+- [ ] **Step 7: [USER] Verify trên OKLink**
 
 Người dùng chạy hai lệnh `forge verify-contract` trong mục "Triển khai mainnet" của `contracts/README.md`, với `OKLINK_API_KEY` trong `contracts/.env`.
 
 Expected: OKLink hiện "Verified" cho `AtropyleVault` và `AtropyleFactory`. Claude kiểm bằng cách mở trang contract trên OKLink (chỉ đọc).
 
-- [ ] **Step 7: [CLAUDE] Ghi lại và commit**
+- [ ] **Step 8: [CLAUDE] Ghi lại và commit**
 
 Điền mọi ô `—` trong `docs/deployments.md` bằng giá trị thật và tx hash (lấy từ `contracts/broadcast/<script>/196/run-latest.json`). Cập nhật bảng "Số đo" trong `contracts/README.md` nếu gas `step` trên mainnet khác số đo trên fork.
 
