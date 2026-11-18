@@ -8891,7 +8891,7 @@ git commit -m "feat(sdk): quorum reads, verifyPolicy, integrity and vault.verify
   - `interface KeeperOutcome { vault: Address; decision: KeeperDecision | null; status: KeeperOutcomeStatus; hash?: Hex; error?: AtropyleErrorJson; nextCheckAt: bigint | null }`
   - `interface KeeperReport { ranAt: bigint; dryRun: boolean; keeper: Address | null; balance: bigint | null; stopped: 'LOW_BALANCE' | null; sent: number; outcomes: KeeperOutcome[] }`
   - `interface KeeperOptions { wallet?: WalletClient; maxTx?: number; maxGas?: bigint; minBalance?: bigint; distributeEvery?: bigint; lastDistributeAt?(vault: Address): bigint | null | undefined }`
-  - `KEEPER_DEFAULTS = { maxTx: 20, maxGas: 1_500_000n, minBalance: 5_000_000_000_000_000n }` (0,005 OKB)
+  - `KEEPER_DEFAULTS = { maxTx: 20, maxGas: 4_000_000n, minBalance: 5_000_000_000_000_000n }` (0,005 OKB; `maxGas` phủ `distribute` xấu nhất đo được 3 385 904 gas cho 20 tài sản × 5 heir)
   - `keeperTick(atro: AtropyleClient, vaults: readonly Address[], o?: KeeperOptions): Promise<KeeperReport>`. Không có `wallet` thì chạy dry-run.
 
 Luật quyết định, xét theo thứ tự:
@@ -9090,7 +9090,7 @@ export interface KeeperOptions {
   lastDistributeAt?: (vault: Address) => bigint | null | undefined;
 }
 
-export const KEEPER_DEFAULTS = { maxTx: 20, maxGas: 1_500_000n, minBalance: 5_000_000_000_000_000n } as const;
+export const KEEPER_DEFAULTS = { maxTx: 20, maxGas: 4_000_000n, minBalance: 5_000_000_000_000_000n } as const;
 
 /**
  * One keeper run over vaults that are due (spec §9.4). Vaults are handled one by one so nonces never clash.

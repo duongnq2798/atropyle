@@ -249,7 +249,7 @@ Mọi hàm thay đổi trạng thái đều có `nonReentrant`. Khi `cls(state) 
 ## 5. `AtropyleFactory`
 
 - **Hằng số khởi tạo (immutable):**
-  - `circuits` (địa chỉ circuits của ATRO), `policyId`, `vaultImpl`, `treasury` (ví của người dùng);
+  - `cpu` (địa chỉ processor ATRO), `policyId`, `vaultImpl`, `treasury` (ví của người dùng);
   - danh sách token phí {USDT0, USDC, USDG};
   - mức phí theo từng token, tính từ `decimals()` đọc lúc deploy: early = 1.99, full = 9.9;
   - `earlyCount = 100`.
