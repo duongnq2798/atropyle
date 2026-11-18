@@ -114,6 +114,8 @@ abstract contract VaultConfig {
                 if (g[j] == g[i]) revert InvalidGuardians();
             }
         }
+        // The vault's external setter logs this change as ConfigUpdated(2).
+        // forge-lint: disable-next-line(missing-events-access-control)
         _guardians = g;
         k = k_;
         recoveryEnabled = rec;
