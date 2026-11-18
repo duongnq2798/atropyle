@@ -118,6 +118,21 @@ contract VaultConfigTest is Test {
         h.setHeirs(x);
     }
 
+    function test_rejectsVaultAddressAsHeir() public {
+        VaultConfig.Heir[] memory x = _heirs2();
+        x[0].account = address(h);
+        vm.expectRevert(VaultConfig.InvalidHeirs.selector);
+        h.setHeirs(x);
+
+        x = _heirs2();
+        x[1].account = address(h);
+        vm.expectRevert(VaultConfig.InvalidHeirs.selector);
+        h.setHeirs(x);
+
+        vm.expectRevert(VaultConfig.InvalidHeirs.selector);
+        h.setHeirs(_one(address(h)));
+    }
+
     function test_shrinkingHeirsBelowAnAssetIndexReverts() public {
         h.setHeirs(_heirs2());
         h.setAssets(_asset(VaultConfig.Kind.ERC721, address(nft), 1, 1));

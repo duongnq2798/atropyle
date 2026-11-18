@@ -136,3 +136,60 @@ contract ReentrantERC20 is MockERC20 {
         return super.transferFrom(from, to, value);
     }
 }
+
+/// @notice Burns all forwarded gas on any call; works as a hostile token or as a hostile contract heir.
+contract GasBurner {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
+/// @notice Healthy views (1e18); every other call answers with zeros. Each answer carries `viewSize` /
+///         `callSize` bytes of returndata (default 32 = harmless). A size the per-call gas cap cannot pay for
+///         makes the callee run out of gas; a size it can pay for must still not cost the caller the copy.
+contract MockReturnBombToken {
+    uint256 public viewSize = 0x20;
+    uint256 public callSize = 0x20;
+
+    function setSizes(uint256 viewBytes, uint256 callBytes) external {
+        viewSize = viewBytes;
+        callSize = callBytes;
+    }
+
+    function balanceOf(address) external view {
+        uint256 n = viewSize;
+        assembly {
+            mstore(0, 1000000000000000000)
+            return(0, n)
+        }
+    }
+
+    function allowance(address, address) external view {
+        uint256 n = viewSize;
+        assembly {
+            mstore(0, 1000000000000000000)
+            return(0, n)
+        }
+    }
+
+    fallback() external {
+        uint256 n = callSize;
+        assembly {
+            return(0, n)
+        }
+    }
+}
+
+/// @notice Records the gas it was handed in transferFrom, to check the callee really gets its full cap.
+contract MockGasProbeERC20 is MockERC20 {
+    uint256 public gasAtEntry;
+
+    constructor() MockERC20("Probe", "PRB", 18) {}
+
+    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        gasAtEntry = gasleft();
+        return super.transferFrom(from, to, value);
+    }
+}

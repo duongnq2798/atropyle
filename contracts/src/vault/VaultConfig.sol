@@ -88,7 +88,8 @@ abstract contract VaultConfig {
         uint256 sum = 0;
         for (uint256 i; i < n; ++i) {
             address acct = h[i].account;
-            if (acct == address(0) || acct == owner || h[i].bps == 0) revert InvalidHeirs();
+            // The vault itself is rejected too: a share sent to it could never be withdrawn.
+            if (acct == address(0) || acct == owner || acct == address(this) || h[i].bps == 0) revert InvalidHeirs();
             for (uint256 j; j < i; ++j) {
                 if (h[j].account == acct) revert InvalidHeirs();
             }

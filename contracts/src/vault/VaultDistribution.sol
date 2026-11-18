@@ -13,11 +13,23 @@ abstract contract VaultDistribution is VaultConfig {
     event Distributed(uint256 indexed assetIndex, address indexed to, uint256 amountOrId);
     event TransferFailed(uint256 indexed assetIndex, address indexed to);
 
+    error InsufficientGas();
+
+    /// @dev Per-call gas caps. Config is frozen once released, so one hostile token or contract heir must never be
+    ///      able to burn the whole sweep: it can waste at most its cap (a 20 x 5 sweep stays under ~35M gas).
+    uint256 internal constant VIEW_GAS = 100_000; // balanceOf, allowance, ownerOf, getApproved, isApprovedForAll
+    uint256 internal constant TRANSFER_GAS = 300_000; // ERC-20 transferFrom
+    uint256 internal constant NFT_GAS = 500_000; // ERC-721 / ERC-1155 safeTransferFrom (incl. receiver hook)
+    /// @dev Gas spent between the guard and the CALL opcode (ABI encoding, cold account access, memory growth).
+    ///      Measured about 500 for a warm ERC-20 transfer, plus 2,600 when the token account is still cold.
+    uint256 internal constant GAS_MARGIN = 10_000;
+
     // The sweep deliberately makes one isolated external call per recipient inside loops (calls-loop) and emits
     // its event after each call (reentrancy-events: the vault entry point is nonReentrant, so logs cannot be
     // reordered). The ERC-20 share formula divides before multiplying on purpose to avoid overflow
-    // (divide-before-multiply); the remainder goes to the last heir.
-    // forge-lint: disable-start(calls-loop, reentrancy-events, divide-before-multiply)
+    // (divide-before-multiply); the remainder goes to the last heir. The InsufficientGas guard runs before every
+    // capped call and must abort the whole sweep (require-revert-in-loop).
+    // forge-lint: disable-start(calls-loop, reentrancy-events, divide-before-multiply, require-revert-in-loop)
 
     /// @notice What the vault could move right now, per asset: ERC-20 min(balance, allowance),
     ///         ERC-721 1 or 0, ERC-1155 the approved balance.
@@ -66,9 +78,20 @@ abstract contract VaultDistribution is VaultConfig {
             emit TransferFailed(i, to);
             return;
         }
+        _requireGas(TRANSFER_GAS);
+        bytes memory data = abi.encodeCall(IERC20.transferFrom, (owner, to, amt));
+        bool ok;
+        uint256 size;
+        uint256 word;
         // Low-level call on purpose: tokens may return nothing, a bool, or garbage; none may revert the sweep.
-        (bool ok, bytes memory r) = token.call(abi.encodeCall(IERC20.transferFrom, (owner, to, amt)));
-        if (ok && (r.length == 0 || (r.length >= 32 && abi.decode(r, (uint256)) == 1))) {
+        // At most 32 bytes of returndata are copied (into scratch space), so a returndata bomb costs nothing extra.
+        assembly ("memory-safe") {
+            ok := call(TRANSFER_GAS, token, 0, add(data, 0x20), mload(data), 0x00, 0x20)
+            size := returndatasize()
+            word := mload(0x00)
+        }
+        // Success: no return data (the token has code, checked above), or a first word equal to 1.
+        if (ok && (size == 0 || (size >= 32 && word == 1))) {
             emit Distributed(i, to, amt);
         } else {
             emit TransferFailed(i, to);
@@ -77,7 +100,8 @@ abstract contract VaultDistribution is VaultConfig {
 
     function _send721(uint256 i, address token, uint256 id, address to) private {
         if (!_can721(token, id)) return;
-        try IERC721(token).safeTransferFrom(owner, to, id) {
+        _requireGas(NFT_GAS);
+        try IERC721(token).safeTransferFrom{gas: NFT_GAS}(owner, to, id) {
             emit Distributed(i, to, id);
         } catch {
             emit TransferFailed(i, to);
@@ -87,7 +111,8 @@ abstract contract VaultDistribution is VaultConfig {
     function _send1155(uint256 i, address token, uint256 id, address to) private {
         uint256 bal = _available1155(token, id);
         if (bal == 0) return;
-        try IERC1155(token).safeTransferFrom(owner, to, id, bal, "") {
+        _requireGas(NFT_GAS);
+        try IERC1155(token).safeTransferFrom{gas: NFT_GAS}(owner, to, id, bal, "") {
             emit Distributed(i, to, bal);
         } catch {
             emit TransferFailed(i, to);
@@ -111,11 +136,25 @@ abstract contract VaultDistribution is VaultConfig {
         return _viewWord(token, abi.encodeCall(IERC1155.balanceOf, (owner, id)));
     }
 
-    /// @dev First return word of a static call; 0 when the call fails or returns fewer than 32 bytes.
+    /// @dev First return word of a gas-capped static call; 0 when the call fails or returns fewer than 32 bytes.
+    ///      Only the first 32 bytes of returndata are copied, so a returndata bomb cannot drain the caller.
     function _viewWord(address token, bytes memory data) private view returns (uint256 v) {
-        (bool ok, bytes memory r) = token.staticcall(data);
-        if (ok && r.length >= 32) v = abi.decode(r, (uint256));
+        _requireGas(VIEW_GAS);
+        assembly ("memory-safe") {
+            if staticcall(VIEW_GAS, token, add(data, 0x20), mload(data), 0x00, 0x20) {
+                if gt(returndatasize(), 0x1f) { v := mload(0x00) }
+            }
+        }
     }
 
-    // forge-lint: disable-end(calls-loop, reentrancy-events, divide-before-multiply)
+    /// @dev A callee gets at most 63/64 of the gas left (EIP-150). Revert unless the full `cap` can be handed over,
+    ///      so a failure inside the cap is the callee's own doing. Without this a caller could tune the tx gas so
+    ///      that one heir's transfer runs out of gas (TransferFailed) while the sweep goes on, and the next sweep
+    ///      would re-split that heir's share among the others (including the caller). It also stops eth_estimateGas
+    ///      from settling on a gas amount that silently turns transfers into TransferFailed.
+    function _requireGas(uint256 cap) private view {
+        if (gasleft() < (cap * 64) / 63 + GAS_MARGIN) revert InsufficientGas();
+    }
+
+    // forge-lint: disable-end(calls-loop, reentrancy-events, divide-before-multiply, require-revert-in-loop)
 }
