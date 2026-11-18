@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# Read-only: no job holds a signing key or broadcasts a transaction.
+permissions:
+  contents: read
+
+jobs:
+  circuits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck -w circuits
+      - run: npm test -w circuits
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
+          submodules: true
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - run: forge build --sizes
+        working-directory: contracts
+      - run: forge test
+        working-directory: contracts
