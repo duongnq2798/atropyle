@@ -66,7 +66,7 @@ Chạy lần lượt trong `contracts/`. Mỗi script in dòng `export …`; dá
 
 | # | Script | Cần env | In ra |
 |---|---|---|---|
-| 1 | `01_CreateProcessor` | `DEPLOYER` (`ATRO_CPU` phải chưa đặt) | `ATRO_CPU` |
+| 1 | `01_CreateProcessor` | `DEPLOYER` (`ATRO_CPU` phải chưa đặt; `REPLACE_PROCESSOR` chỉ đặt khi bỏ processor cũ) | `ATRO_CPU` |
 | 2 | `02_TapeOutSubs` | `DEPLOYER`, `ATRO_CPU` | `KOFN_ID`, `GE4_ID` |
 | 3 | `03_TapeOutPolicy` | `DEPLOYER`, `ATRO_CPU`, `KOFN_ID`, `GE4_ID` (`POLICY_ID` phải chưa đặt) | `POLICY_ID` |
 | 4 | `04_DeployAtropyle` | thêm `POLICY_ID`, `TREASURY` (`ATRO_FACTORY` phải chưa đặt) | `VAULT_IMPL`, `ATRO_FACTORY` |
@@ -84,9 +84,30 @@ Các bước 2–5 dùng đúng lệnh này, chỉ đổi tên file.
 - Script 01 không gửi gì nếu beacon circuits không phải bản đóng băng `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` (spec §2). Gặp lỗi `STOP: …` thì dừng hẳn và đánh giá lại. Script 02 và 03 kiểm lại điều này, cùng tên, ký hiệu và creator của processor, trước khi approve hay mint bất cứ thứ gì.
 - Script 02 chạy lại được: nếu KofN5 đã lên chain, đặt `export KOFN_ID=…` rồi chạy lại. Script chỉ tape-out phần còn thiếu và chỉ mint số transistor còn thiếu. Ngược lại, chạy lại script 02 khi đã có đủ cả hai id mà không đặt `KOFN_ID` và `GE4_ID` sẽ tape-out và trả phí thêm một lần nữa (rẻ: một phí tape-out và vài lần mint).
 - Script 01 chặn chạy lại theo hai lớp. Nếu `ATRO_CPU` đã đặt, nó dừng. Nếu mất env sau một lần chạy thành công, nó quét 100 processor mới nhất của factory TapeOut (`cpuCount()` / `cpuAt(i)`) tìm processor tên `Atropyle` do `DEPLOYER` tạo, rồi dừng và in địa chỉ đó: đặt `export ATRO_CPU=<địa chỉ đó>` và sang bước 02, đừng tạo cái thứ hai (0,1 BEM, và hồ sơ nộp bài nêu địa chỉ processor). Lần quét đọc khoảng 100 processor qua RPC nên mô phỏng bước 01 mất chừng một phút.
+- Chạy 02 ngay sau 01, rồi 03 ngay sau 02. Spec §10 cố định `supplyCap = 10 000` (một trần chung cho cả NAND và LATCH) và `mintPrice = 0`, nên trong khoảng chờ giữa các bước, bất kỳ ai cũng có thể mint hết trần chỉ với phí giao thức. Khi đó 02 hoặc 03 dừng (không gửi gì), và processor đó không dùng được nữa.
+- Chỉ trong trường hợp đó (hoặc khi processor `Atropyle` cũ của cùng ví là bản thử không dùng được), bỏ processor cũ bằng `REPLACE_PROCESSOR`. Script 01 chỉ tạo processor mới khi địa chỉ nó tìm thấy trùng đúng `REPLACE_PROCESSOR`, nên lệnh này nói rõ bạn bỏ cái nào; địa chỉ khác, hoặc đặt mà không tìm thấy processor nào, thì script dừng. Cái giá là thêm 0,1 BEM phí `createCPU`, processor cũ bị bỏ hẳn, và hồ sơ nộp bài phải nêu địa chỉ mới. Script in hai dòng `REPLACE_PROCESSOR: ABANDONING …` và `… creating a NEW processor …`; đọc kỹ ở bản mô phỏng trước khi thêm `--broadcast`:
+
+  ```bash
+  unset ATRO_CPU KOFN_ID GE4_ID POLICY_ID
+  export REPLACE_PROCESSOR=0x...   # đúng địa chỉ script 01 vừa in trong lỗi "already exists"
+  forge script script/01_CreateProcessor.s.sol --rpc-url xlayer --sender $DEPLOYER
+  ```
+
+  Xong bước 01 mới thì `unset REPLACE_PROCESSOR`.
 - Script 04 dừng nếu `ATRO_FACTORY` đã đặt. Không chạy lại 04 khi chưa cần: nó sẽ deploy factory thứ hai và ghi đè `broadcast/04_DeployAtropyle.s.sol/196/run-latest.json`, file bản ghi mà bước ghi deployment của SDK đọc, khiến SDK lặng lẽ chuyển sang factory mới. Sau khi 04 chạy xong, sao lưu thư mục `broadcast/` rồi hãy làm việc khác.
 - Script 04 in `deployer` và `treasury (immutable)` trước khi gửi. Trên chainId 196 nó từ chối nếu `TREASURY` hoặc `DEPLOYER` là một trong mười tài khoản mặc định của anvil (khoá riêng công khai, dấu hiệu env còn sót từ lần diễn tập). Treasury không đổi được sau khi deploy, nên đọc kỹ hai dòng đó ở bản mô phỏng.
 - Script 03 kiểm `KOFN_ID` và `GE4_ID` khớp byte-for-byte với KofN5 và Ge4 trước khi mint; script 04 kiểm policy trên chain bằng netlist đã vá và 64 vector, rồi mới deploy. Id sai thì script dừng trong mô phỏng, không gửi giao dịch nào.
+- Script 05 kiểm vault Drill trỏ đúng `cpu` và `policyId` của factory. `poke()` trong 05 do `DEPLOYER`, chủ vault, ký nên là một lần check-in; nó vẫn gọi `step()` trên circuit thật.
+
+### Kiểm treasury trước bước 04
+
+Treasury bất biến sau bước 04. Nếu một token phí (USDT0, USDC, USDG) chặn treasury (blacklist, đóng băng, tạm dừng), mọi vault trả phí bằng token đó sẽ revert mãi mãi. Trước bước 04, với `TREASURY` thật đã export, chạy trên fork (chỉ đọc, không gửi gì):
+
+```bash
+XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest --match-test test_treasuryReceivesEveryFeeToken -vv
+```
+
+Test tạo một vault trả phí cho mỗi token phí trên fork và kiểm số dư treasury tăng đúng `currentFee`. Ba dòng `fee paid to treasury …` phải hiện ra và test phải PASS. Nếu test revert, treasury không nhận được token đó: chọn ví treasury khác, export lại `TREASURY` và chạy lại.
 
 ### Đọc lại từ chain sau mỗi bước
 
@@ -122,11 +143,15 @@ Nếu một id đọc lại khác id đã in (có người tape-out chen vào), 
 
 Receipt đầy đủ nằm ở `broadcast/<script>/196/run-latest.json`. Hash giao dịch ghi vào `../docs/deployments.md`.
 
-Kiểm deployment thật (chỉ đọc, chạy sau bước 4, với `ATRO_CPU`, `KOFN_ID`, `GE4_ID`, `POLICY_ID`, `DEPLOYER` đã đặt):
+Kiểm deployment thật (chỉ đọc, chạy sau bước 4). Export đủ các biến sau, đúng giá trị đã đọc lại từ chain:
 
 ```bash
+export DEPLOYER=0x... ATRO_CPU=0x... KOFN_ID=... GE4_ID=... POLICY_ID=...
+export ATRO_FACTORY=0x... VAULT_IMPL=0x... TREASURY=0x...
 XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv
 ```
+
+Có `ATRO_FACTORY` thì mọi test chạy trên chính factory đã deploy thay vì deploy factory mới trên fork, và kiểm `cpu()` = `ATRO_CPU`, `policyId()` = `POLICY_ID`, `treasury()` = `TREASURY`, `vaultImpl()` = `VAULT_IMPL`, cùng hai mức phí của cả ba token phí theo `decimals()` của từng token. Test khoá implementation chạy trên chính `VAULT_IMPL`. Thiếu `ATRO_CPU` mà có `ATRO_FACTORY` thì setUp dừng. `test_tapeoutBudget` báo SKIP ở chế độ này (nó chỉ đo khi tự tạo processor trên fork).
 
 Verify trên OKLink. Để `OKLINK_API_KEY` trong `contracts/.env` (đã bị `.gitignore` chặn). Bash không tự đọc `.env`, nên nạp nó vào shell trước, nếu không `$OKLINK_API_KEY` sẽ rỗng:
 
@@ -170,11 +195,11 @@ cast send 0x60e62Efa9405d6873C5deaBD4E6CC91c25363952 "transfer(address,uint256)"
 forge script script/01_CreateProcessor.s.sol --rpc-url $RPC --unlocked --sender $DEPLOYER --broadcast --slow
 ```
 
-Dán dòng `export ATRO_CPU=…` rồi chạy tiếp 02, 03, 04, 05 đúng lệnh trên, chỉ đổi tên file. `--unlocked` chỉ dùng với anvil local; trên mainnet luôn dùng `--account`. Diễn tập xong, tắt anvil, xoá `broadcast/` để các bước sau không đọc nhầm, rồi xoá mọi biến của lần diễn tập (hoặc đóng hẳn shell này):
+Dán dòng `export ATRO_CPU=…` rồi chạy tiếp 02, 03, 04, 05 đúng lệnh trên, chỉ đổi tên file. `--unlocked` chỉ dùng với anvil local; trên mainnet luôn dùng `--account`. Diễn tập xong, tắt anvil, xoá bản ghi của lần diễn tập (`broadcast/*/31337`) để các bước sau không đọc nhầm, rồi xoá mọi biến của lần diễn tập (hoặc đóng hẳn shell này). Chỉ xoá thư mục `31337`: `broadcast/*/196/` là bản ghi deploy mainnet, `.gitignore` chặn nên không có bản nào khác, và bước ghi deployment của SDK đọc từ đó.
 
 ```bash
-unset DEPLOYER TREASURY SMOKE_HEIR ATRO_CPU KOFN_ID GE4_ID POLICY_ID VAULT_IMPL ATRO_FACTORY SMOKE_VAULT BEM_HOLDER RPC
-rm -rf broadcast
+unset DEPLOYER TREASURY SMOKE_HEIR ATRO_CPU KOFN_ID GE4_ID POLICY_ID VAULT_IMPL ATRO_FACTORY SMOKE_VAULT BEM_HOLDER RPC REPLACE_PROCESSOR
+rm -rf broadcast/*/31337
 ```
 
 ## Giới hạn đã biết

@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test, console2} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICPU} from "../src/interfaces/ICPU.sol";
 import {PolicyCodec} from "../src/PolicyCodec.sol";
@@ -20,6 +21,9 @@ interface IVmFrameGas {
 
 /// @notice Runs only with XLAYER_FORK_RPC. Without ATRO_CPU it creates a fresh processor on the fork and
 ///         tapes out all three circuits; with ATRO_CPU/KOFN_ID/GE4_ID/POLICY_ID/DEPLOYER it checks the live ones.
+///         With ATRO_FACTORY too, every test runs on the deployed factory instead of a new one, and checks it
+///         against VAULT_IMPL and TREASURY when those are set. Without ATRO_FACTORY a new factory is deployed on the
+///         fork, paying fees to TREASURY when it is set.
 contract ForkTest is Test {
     using SafeERC20 for IERC20;
 
@@ -41,6 +45,9 @@ contract ForkTest is Test {
     uint256 internal ge4Id;
     uint256 internal policyId;
     bool internal fresh; // true when setUp created the processor on the fork
+    address internal liveFactory; // ATRO_FACTORY, or 0 to deploy a new factory on the fork
+    address internal liveImpl; // VAULT_IMPL, or 0
+    address internal liveTreasury; // TREASURY, or 0
 
     function setUp() public {
         string memory rpc = vm.envOr("XLAYER_FORK_RPC", string(""));
@@ -49,6 +56,11 @@ contract ForkTest is Test {
             return;
         }
         vm.createSelectFork(rpc);
+
+        liveFactory = vm.envOr("ATRO_FACTORY", address(0));
+        liveImpl = vm.envOr("VAULT_IMPL", address(0));
+        liveTreasury = vm.envOr("TREASURY", address(0));
+        if (liveTreasury != address(0)) treasury = liveTreasury;
 
         cpu = vm.envOr("ATRO_CPU", address(0));
         if (cpu != address(0)) {
@@ -61,6 +73,8 @@ contract ForkTest is Test {
             return;
         }
 
+        // A deployed factory is wired to the real processor, never to one this setUp creates.
+        require(liveFactory == address(0), "ATRO_FACTORY needs ATRO_CPU, KOFN_ID, GE4_ID, POLICY_ID and DEPLOYER");
         fresh = true;
         deal(TapeoutFlow.BEM, deployer, DEPLOYER_BEM);
         vm.deal(deployer, DEPLOYER_OKB);
@@ -163,12 +177,43 @@ contract ForkTest is Test {
         assertEq(IERC20(TapeoutFlow.USDT0).balanceOf(newWallet), 60e6);
     }
 
-    /// The implementation behind every clone was locked by its constructor.
+    /// The implementation behind every clone was locked by its constructor. With VAULT_IMPL set this checks the
+    /// deployed implementation itself.
     function test_vaultImplementationIsLocked() public {
-        AtropyleVault impl = AtropyleVault(_factory().vaultImpl());
+        AtropyleVault impl = AtropyleVault(liveImpl != address(0) ? liveImpl : _factory().vaultImpl());
+        assertGt(address(impl).code.length, 0, "VAULT_IMPL has no code");
+        assertEq(impl.owner(), address(0));
+        assertEq(impl.factory(), address(0));
         VaultConfig.Config memory c = _cfg(TapeoutFlow.USDT0);
         vm.expectRevert(AtropyleVault.AlreadyInitialized.selector);
         impl.initialize(owner, false, c, cpu, policyId);
+    }
+
+    /// Spec §5 fee path on the real tokens: one paid vault per fee token, and the fee lands in the treasury.
+    /// Run it with the real TREASURY before stage 04: a revert means that token refuses the treasury (blacklisted,
+    /// frozen or paused), and the immutable factory could never collect fees in it.
+    function test_treasuryReceivesEveryFeeToken() public {
+        AtropyleFactory f = _factory();
+        address t = f.treasury();
+        address[] memory fee = TapeoutFlow.feeTokens();
+        for (uint256 i; i < fee.length; ++i) {
+            IERC20 token = IERC20(fee[i]);
+            address payer = makeAddr(string.concat("forkFeePayer", vm.toString(i)));
+            uint256 price = f.currentFee(fee[i]);
+            deal(fee[i], payer, price); // forge-std finds the balance slot behind each token's proxy
+            assertEq(token.balanceOf(payer), price, "deal");
+            uint256 before = token.balanceOf(t);
+
+            vm.startPrank(payer);
+            token.forceApprove(address(f), price);
+            address v = f.createVault(_cfg(fee[i]), bytes32("fee"), false, fee[i]);
+            vm.stopPrank();
+
+            console2.log("fee paid to treasury", IERC20Metadata(fee[i]).symbol(), price);
+            assertEq(token.balanceOf(t) - before, price, "treasury did not receive the fee");
+            assertEq(token.balanceOf(payer), 0);
+            assertTrue(f.isVault(v));
+        }
     }
 
     /// Spec §10 budget, read off the deployer's balances after setUp. Forge runs at gas price 0, so the OKB
@@ -252,22 +297,33 @@ contract ForkTest is Test {
         c.assets[0] = VaultConfig.Asset(VaultConfig.Kind.ERC20, token, 0, 0);
     }
 
-    /// Real factory with the real fee tokens, wired to the circuit under test.
+    /// The deployed factory (ATRO_FACTORY), or a new one with the real fee tokens on the fork. Either way it must
+    /// be wired to the circuit under test and charge the spec §5 fees (1.99 / 9.9 tokens at each token's decimals).
     function _factory() internal returns (AtropyleFactory f) {
         address[] memory fee = TapeoutFlow.feeTokens();
-        f = new AtropyleFactory(address(new AtropyleVault()), cpu, policyId, treasury, fee);
-        assertEq(f.cpu(), cpu);
-        assertEq(f.policyId(), policyId);
+        if (liveFactory != address(0)) {
+            f = AtropyleFactory(liveFactory);
+            if (liveImpl != address(0)) assertEq(f.vaultImpl(), liveImpl, "vaultImpl != VAULT_IMPL");
+            if (liveTreasury != address(0)) assertEq(f.treasury(), liveTreasury, "treasury != TREASURY");
+        } else {
+            f = new AtropyleFactory(address(new AtropyleVault()), cpu, policyId, treasury, fee);
+            assertEq(f.treasury(), treasury);
+        }
+        assertEq(f.cpu(), cpu, "cpu != ATRO_CPU");
+        assertEq(f.policyId(), policyId, "policyId != POLICY_ID");
         for (uint256 i; i < fee.length; ++i) {
-            assertEq(f.earlyFee(fee[i]), 1_990_000);
-            assertEq(f.fullFee(fee[i]), 9_900_000);
+            uint256 unit = 10 ** (IERC20Metadata(fee[i]).decimals() - 2);
+            assertEq(f.earlyFee(fee[i]), 199 * unit, "early fee");
+            assertEq(f.fullFee(fee[i]), 990 * unit, "full fee");
         }
     }
 
-    /// The owner pays the early fee and approves `allowance` to the new vault.
+    /// The owner pays the current fee and approves `allowance` to the new vault.
     function _newVault(uint256 allowance) internal returns (AtropyleVault v) {
         AtropyleFactory f = _factory();
         IERC20 usdt0 = IERC20(TapeoutFlow.USDT0);
+        uint256 price = f.currentFee(address(usdt0));
+        uint256 before = usdt0.balanceOf(f.treasury());
         deal(address(usdt0), owner, 100e6);
         VaultConfig.Config memory c = _cfg(address(usdt0));
         vm.startPrank(owner);
@@ -275,7 +331,7 @@ contract ForkTest is Test {
         v = AtropyleVault(f.createVault(c, bytes32("fork"), false, address(usdt0)));
         usdt0.forceApprove(address(v), allowance);
         vm.stopPrank();
-        assertEq(usdt0.balanceOf(treasury), 1_990_000);
+        assertEq(usdt0.balanceOf(f.treasury()) - before, price);
         // The clone is wired to the taped-out policy, so every transition below runs the real circuit.
         assertEq(address(v.cpu()), cpu);
         assertEq(v.policyId(), policyId);

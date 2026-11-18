@@ -7,7 +7,10 @@ import {AtropyleFactory} from "../src/AtropyleFactory.sol";
 import {PolicyCodec} from "../src/PolicyCodec.sol";
 import {VaultConfig} from "../src/vault/VaultConfig.sol";
 
-/// @notice Free Drill vault with no assets, then one poke(): proves the real circuit answers step() on mainnet.
+/// @notice Free Drill vault with no assets, then one poke() signed by DEPLOYER, the vault's owner. An owner-signed
+///         poke() is a check-in (spec §3.2 bit 21): it still runs step() on the real circuit, with alive = 1, so it
+///         proves the circuit answers step() on mainnet. The vault must also be wired to the factory's processor and
+///         policy, the pair the SDK reads.
 contract SmokeDrill is Script {
     function run() external {
         address me = vm.envAddress("DEPLOYER");
@@ -28,9 +31,14 @@ contract SmokeDrill is Script {
         AtropyleVault(vault).poke();
         vm.stopBroadcast();
 
-        AtropyleVault.Status memory st = AtropyleVault(vault).status();
-        require(AtropyleVault(vault).drill() && st.state == PolicyCodec.ACTIVE, "smoke vault state");
+        AtropyleVault v = AtropyleVault(vault);
+        require(address(v.cpu()) == factory.cpu(), "smoke vault cpu != factory cpu");
+        require(v.policyId() == factory.policyId(), "smoke vault policyId != factory policyId");
+        require(v.owner() == me && v.factory() == address(factory), "smoke vault owner/factory");
+        AtropyleVault.Status memory st = v.status();
+        require(v.drill() && st.state == PolicyCodec.ACTIVE, "smoke vault state");
+        require(st.lastAlive == block.timestamp, "owner poke was not a check-in");
         require(st.expiresAt > block.timestamp, "smoke vault expiry");
-        console2.log(string.concat("export SMOKE_VAULT=", vm.toString(vault)));
+        console2.log(string.concat("export SMOKE_VAULT=", vm.toString(address(v))));
     }
 }
