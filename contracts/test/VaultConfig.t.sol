@@ -228,6 +228,29 @@ contract VaultConfigTest is Test {
         assertEq(uint8(h.assets()[1].kind), uint8(VaultConfig.Kind.ERC721));
     }
 
+    /// Dedupe is on (token, id): two ids of one collection are two assets, the same id twice is one.
+    function test_acceptsTwoIdsOfOneCollection() public {
+        h.setHeirs(_heirs2());
+        VaultConfig.Asset[] memory x = new VaultConfig.Asset[](2);
+        x[0] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 1, 0);
+        x[1] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 2, 1);
+        h.setAssets(x);
+        assertEq(h.assets().length, 2);
+        assertEq(h.assets()[1].id, 2);
+        assertEq(h.assets()[1].heir, 1);
+    }
+
+    function test_rejectsTheSameIdTwice() public {
+        h.setHeirs(_heirs2());
+        VaultConfig.Asset[] memory x = new VaultConfig.Asset[](3);
+        x[0] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 1, 0);
+        x[1] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 2, 0);
+        x[2] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 1, 1); // same id, other heir
+        vm.expectRevert(VaultConfig.InvalidAssets.selector);
+        h.setAssets(x);
+        assertEq(h.assets().length, 0);
+    }
+
     function test_rejectsBadAssets() public {
         h.setHeirs(_heirs2());
 

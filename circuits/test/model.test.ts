@@ -49,6 +49,17 @@ describe('model', () => {
     expect(step(S.RECOVERY, { recVotes: 0b11, alive: true })).toEqual({ next: S.ACTIVE, out: OUT.CANCEL });
   });
 
+  // T = 3 and k = 2: idle 3 makes late true, and votes 0b11 (two of k = 2) make recQ true.
+  it('gives recQ priority over late (§3.4)', () => {
+    expect(step(S.ACTIVE, { idle: 3, recVotes: 0b1 })).toEqual({ next: S.GRACE, out: OUT.ALARM }); // late alone
+    expect(step(S.ACTIVE, { idle: 3, recVotes: 0b11 })).toEqual({ next: S.RECOVERY, out: OUT.ALARM });
+    expect(step(S.RECOVERY, { idle: 3, recVotes: 0b11 })).toEqual({ next: S.RECOVERY, out: 0 });
+    expect(step(S.RECOVERY, { idle: 15, recVotes: 0b11, windowDone: true })).toEqual({
+      next: S.RELEASED_RECOVER,
+      out: OUT.RELEASE,
+    });
+  });
+
   it('treats k = 0 as the Simple template', () => {
     expect(step(S.GRACE, { k: 0, windowDone: true })).toEqual({ next: S.RELEASED_INHERIT, out: OUT.RELEASE });
     expect(step(S.ACTIVE, { k: 0, recVotes: 31 })).toEqual({ next: S.ACTIVE, out: 0 });

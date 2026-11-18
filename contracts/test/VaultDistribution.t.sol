@@ -12,6 +12,7 @@ import {
     MockBlacklistERC20,
     MockFeeERC20,
     MockNoReturnERC20,
+    MockFalseERC20,
     MockGarbageToken,
     NonReceiver,
     GasBurner,
@@ -161,6 +162,51 @@ contract VaultDistributionTest is Test {
         h.run(false, address(0));
         assertEq(t.balanceOf(heirA), 60);
         assertEq(t.balanceOf(heirB), 40);
+    }
+
+    /// A token that answers false moved nothing: TransferFailed for each heir, and the next asset still moves.
+    function test_tokenReturningFalseFailsAndTheSweepGoesOn() public {
+        MockFalseERC20 f = new MockFalseERC20();
+        VaultConfig.Asset[] memory a = new VaultConfig.Asset[](2);
+        a[0] = _erc20(address(f));
+        a[1] = _erc20(address(usdt));
+        h.setAssets(a);
+        _fund(f, 1000, type(uint256).max);
+        _fund(usdt, 1000e6, type(uint256).max);
+
+        vm.expectEmit(address(h));
+        emit VaultDistribution.TransferFailed(0, heirA);
+        vm.expectEmit(address(h));
+        emit VaultDistribution.TransferFailed(0, heirB);
+        vm.expectEmit(address(h));
+        emit VaultDistribution.Distributed(1, heirA, 600e6);
+        vm.expectEmit(address(h));
+        emit VaultDistribution.Distributed(1, heirB, 400e6);
+        h.run(false, address(0));
+        assertEq(f.balanceOf(owner), 1000);
+        assertEq(usdt.balanceOf(heirA), 600e6);
+        assertEq(usdt.balanceOf(heirB), 400e6);
+    }
+
+    /// Inheritance routes each ERC-721 to heirs[asset.heir], not to the first heir.
+    function test_erc721GoesToItsHeirIndex() public {
+        MockERC721 nft = new MockERC721();
+        VaultConfig.Asset[] memory a = new VaultConfig.Asset[](2);
+        a[0] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 1, 1);
+        a[1] = VaultConfig.Asset(VaultConfig.Kind.ERC721, address(nft), 2, 0);
+        h.setAssets(a);
+        nft.mint(owner, 1);
+        nft.mint(owner, 2);
+        vm.prank(owner);
+        nft.setApprovalForAll(address(h), true);
+
+        vm.expectEmit(address(h));
+        emit VaultDistribution.Distributed(0, heirB, 1);
+        vm.expectEmit(address(h));
+        emit VaultDistribution.Distributed(1, heirA, 2);
+        h.run(false, address(0));
+        assertEq(nft.ownerOf(1), heirB);
+        assertEq(nft.ownerOf(2), heirA);
     }
 
     function test_feeOnTransferToken() public {

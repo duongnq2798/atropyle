@@ -93,6 +93,15 @@ contract MockNoReturnERC20 {
     }
 }
 
+/// @notice Signals failure instead of reverting: transferFrom moves nothing and returns false.
+contract MockFalseERC20 is MockERC20 {
+    constructor() MockERC20("False", "FLS", 6) {}
+
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        return false;
+    }
+}
+
 /// @notice Views look healthy, every other call returns a single garbage byte.
 contract MockGarbageToken {
     function balanceOf(address) external pure returns (uint256) {

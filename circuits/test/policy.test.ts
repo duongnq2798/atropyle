@@ -30,6 +30,17 @@ describe('AtropylePolicy v1', () => {
     expect(run(program, S.RELEASED_INHERIT, { alive: true })).toEqual({ next: S.RELEASED_INHERIT, out: 0 });
   });
 
+  // T = 3 and k = 2: idle 3 makes late true, and votes 0b11 (two of k = 2) make recQ true.
+  it('gives recQ priority over late (§3.4)', () => {
+    expect(run(program, S.ACTIVE, { idle: 3, recVotes: 0b1 })).toEqual({ next: S.GRACE, out: OUT.ALARM }); // late alone
+    expect(run(program, S.ACTIVE, { idle: 3, recVotes: 0b11 })).toEqual({ next: S.RECOVERY, out: OUT.ALARM });
+    expect(run(program, S.RECOVERY, { idle: 3, recVotes: 0b11 })).toEqual({ next: S.RECOVERY, out: 0 });
+    expect(run(program, S.RECOVERY, { idle: 15, recVotes: 0b11, windowDone: true })).toEqual({
+      next: S.RELEASED_RECOVER,
+      out: OUT.RELEASE,
+    });
+  });
+
   it('proves P1–P8 over all 2^26 combinations', () => {
     const r = verifyPolicy(program);
     expect(r.combos).toBe(2 ** 26);
