@@ -198,8 +198,8 @@ Trang Proof tái dùng chính simulator này trong một Web Worker:
 | owner | `setHeirs`, `setGuardians`, `setTiming`, `setAssets` | Gọi `_ownerAlive()`, kiểm ràng buộc §4.1, `_advance(true)`, rồi gọi `factory.index(...)` cho các vai trò mới |
 | guardian | `attestDeath(bool on)` | Bật hoặc tắt bit của mình trong `inhVotes`, sau đó `_advance(false, 0)` |
 | guardian | `voteRecovery(address target)` | Yêu cầu `recoveryEnabled` và `target` khác `0x0`, owner, và các giám hộ. Ghi `recVote[msg.sender] = target`, sau đó `_advance(false, target)` |
-| bất kỳ ai | `poke()` | `_advance(false, 0)` |
-| bất kỳ ai | `distribute()` | `_advance(false, 0)`. Nếu chưa Released thì trả về `false` mà **không revert**, để các chuyển trạng thái báo động vẫn được ghi lại. Ngược lại thì chuyển tài sản theo §4.4 |
+| bất kỳ ai | `poke()` | Đã Released thì không làm gì. Chưa Released: owner ký thì gọi `_ownerAlive()`, sau đó `_advance(true)`, giống `checkIn`; người khác ký thì `_advance(false, 0)` |
+| bất kỳ ai | `distribute()` | Chưa Released và owner ký: gọi `_ownerAlive()`, sau đó `_advance(true)`, giống `checkIn`, rồi trả về `false`. Người khác ký: `_advance(false, 0)`; nếu vẫn chưa Released thì trả về `false` mà **không revert**, để các chuyển trạng thái báo động vẫn được ghi lại. Khi đã Released thì chuyển tài sản theo §4.4, ai gọi cũng được, kể cả owner |
 | view | `status()` | Trả về trạng thái, `idle`, các mốc hạn chót, phiếu bầu, `recoveryTarget`, và độ phủ allowance của từng tài sản |
 
 `_ownerAlive()` thực hiện:
@@ -241,7 +241,7 @@ Mọi hàm thay đổi trạng thái đều có `nonReentrant`. Khi `cls(state) 
 | I1 | Token chỉ di chuyển trong `distribute()` và chỉ khi `cls(state) = Released` |
 | I2 | Người nhận ∈ heirs (thừa kế), hoặc người nhận = `recoveryTarget` (khôi phục) |
 | I3 | Sau Released, cấu hình và trạng thái không bao giờ thay đổi |
-| I4 | Chỉ owner sửa được cấu hình, và mọi giao dịch của owner đều là bằng chứng còn sống |
+| I4 | Chỉ owner sửa được cấu hình, và mọi giao dịch owner ký khi chưa Released (`checkIn`, `set*`, `poke`, `distribute`) đều là bằng chứng còn sống: `lastAlive = now` và trạng thái về Active |
 | I5 | Vault không bao giờ giữ token |
 | I6 | Trạng thái được lưu luôn là một mã chuẩn của §3.1 và trùng với kết quả `step` |
 

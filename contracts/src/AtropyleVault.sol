@@ -190,15 +190,29 @@ contract AtropyleVault is VaultDistribution {
 
     // ------------------------------------------------------------------ anyone
 
+    /// @notice Re-evaluates the policy now. Signed by the owner it is a check-in (spec §3.2 bit 21 "signed by the
+    ///         owner", §4.5 I4): proof of life that clears every vote and cancels any alarm. A no-op once released.
     function poke() external nonReentrant notExpired {
         if (PolicyCodec.isReleased(state)) return;
-        _advance(false, address(0));
+        if (msg.sender == owner) {
+            _ownerAlive();
+            _advance(true, address(0));
+        } else {
+            _advance(false, address(0));
+        }
     }
 
+    /// @notice Sweeps the assets once the policy has released; anyone may call it, the owner included.
+    ///         Before release an owner-signed call is a check-in, exactly like poke(), and never releases.
     /// @return released True when a sweep ran; false (no revert) while the policy has not released,
     ///         so alarm transitions triggered by this call are still recorded.
     function distribute() external nonReentrant notExpired returns (bool released) {
         if (!PolicyCodec.isReleased(state)) {
+            if (msg.sender == owner) {
+                _ownerAlive();
+                _advance(true, address(0));
+                return false;
+            }
             _advance(false, address(0));
             if (!PolicyCodec.isReleased(state)) return false;
         }

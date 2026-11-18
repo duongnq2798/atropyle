@@ -125,6 +125,120 @@ contract AtropyleVaultTest is VaultFixture {
         assertEq(v.lastAlive(), block.timestamp);
     }
 
+    // ---- spec §3.2 bit 21 / §4.5 I4: every owner-signed poke() or distribute() before release is a check-in ----
+
+    function test_ownerPokeAfterThresholdIsProofOfLife() public {
+        vm.warp(vm.getBlockTimestamp() + uint256(T) * P);
+        vm.expectEmit(address(v));
+        emit AtropyleVault.Alive(uint64(vm.getBlockTimestamp()));
+        vm.prank(owner);
+        v.poke();
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.lastAlive(), vm.getBlockTimestamp());
+        assertEq(v.alarmAt(), 0);
+    }
+
+    function test_ownerPokeInGraceCancelsTheAlarm() public {
+        _toGrace();
+        _attestTwo();
+        vm.expectEmit(address(v));
+        emit AtropyleVault.AlarmCancelled(true);
+        vm.prank(owner);
+        v.poke();
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.alarmAt(), 0);
+        assertEq(v.inhVotes(), 0);
+        assertEq(v.lastAlive(), vm.getBlockTimestamp());
+    }
+
+    /// The window is over and two guardians attested: a sweep by anyone else would release now.
+    function test_ownerDistributeInGraceCancelsInsteadOfReleasing() public {
+        _toGrace();
+        _attestTwo();
+        vm.warp(vm.getBlockTimestamp() + W);
+        assertEq(v.status().pending, PolicyCodec.RELEASED_INHERIT);
+        vm.expectEmit(address(v));
+        emit AtropyleVault.AlarmCancelled(true);
+        vm.prank(owner);
+        assertFalse(v.distribute());
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.releasedAt(), 0);
+        assertEq(v.inhVotes(), 0);
+        assertEq(v.lastAlive(), vm.getBlockTimestamp());
+        assertEq(usdt.balanceOf(owner), 1000e6);
+        assertEq(nft.ownerOf(1), owner);
+    }
+
+    function test_ownerPokeInRecoveryCancelsAndClearsVotes() public {
+        _toRecovery();
+        vm.expectEmit(address(v));
+        emit AtropyleVault.AlarmCancelled(true);
+        vm.prank(owner);
+        v.poke();
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.recoveryTarget(), address(0));
+        assertEq(v.recVote(g1), address(0));
+        assertEq(v.recVote(g2), address(0));
+        assertEq(v.alarmAt(), 0);
+    }
+
+    function test_ownerDistributeInRecoveryAfterWindowCancels() public {
+        _toRecovery();
+        vm.warp(vm.getBlockTimestamp() + W);
+        vm.prank(owner);
+        assertFalse(v.distribute());
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.recVote(g1), address(0));
+        assertEq(usdt.balanceOf(newWallet), 0);
+    }
+
+    function test_ownerDistributeOnReleasedVaultStillSweeps() public {
+        _toGrace();
+        _attestTwo();
+        vm.warp(vm.getBlockTimestamp() + W);
+        assertTrue(v.distribute());
+        uint64 alive = v.lastAlive();
+
+        usdt.mint(owner, 100e6);
+        vm.prank(owner);
+        assertTrue(v.distribute());
+        assertEq(v.state(), PolicyCodec.RELEASED_INHERIT);
+        assertEq(v.lastAlive(), alive);
+        assertEq(usdt.balanceOf(heirA), 660e6);
+        assertEq(usdt.balanceOf(heirB), 440e6);
+
+        vm.prank(owner);
+        v.poke(); // a no-op once released
+        assertEq(v.state(), PolicyCodec.RELEASED_INHERIT);
+        assertEq(v.lastAlive(), alive);
+    }
+
+    function test_nonOwnerPokeAndDistributeAreNotProofOfLife() public {
+        uint64 alive = v.lastAlive();
+        vm.warp(vm.getBlockTimestamp() + uint256(T) * P);
+        vm.prank(stranger);
+        v.poke();
+        assertEq(v.state(), PolicyCodec.GRACE);
+        assertEq(v.lastAlive(), alive);
+        _attestTwo();
+        vm.warp(vm.getBlockTimestamp() + W);
+        vm.prank(heirA);
+        assertTrue(v.distribute());
+        assertEq(v.state(), PolicyCodec.RELEASED_INHERIT);
+        assertEq(v.lastAlive(), alive);
+    }
+
+    function test_ownerPokeOnExpiredDrillReverts() public {
+        AtropyleVault d = _deploy(_drillCfg(), true);
+        vm.warp(vm.getBlockTimestamp() + 7 days);
+        vm.expectRevert(AtropyleVault.DrillExpired.selector);
+        vm.prank(owner);
+        d.poke();
+        vm.expectRevert(AtropyleVault.DrillExpired.selector);
+        vm.prank(owner);
+        d.distribute();
+    }
+
     /// Review Focus #1
     function test_lateCheckInBeatsUnclaimedRelease() public {
         _toGrace();

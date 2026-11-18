@@ -10,7 +10,7 @@ import {VaultFixture} from "./utils/VaultFixture.sol";
 
 /// @notice Drives one vault through random sequences of role actions and time jumps.
 contract VaultHandler is Test {
-    uint256 internal constant OWNER_GATE = 16;
+    uint256 internal constant OWNER_GATE = 64;
 
     AtropyleVault public immutable vault;
     address public immutable owner;
@@ -27,7 +27,8 @@ contract VaultHandler is Test {
     bool public fixpointBroken;
     bool public strangerEdited;
     bool public aliveBroken;
-    /// @dev Sticky: a balance changed in an action other than distribute() (I1).
+    /// @dev Sticky: a balance changed in an action other than distribute(), or in an owner distribute() made
+    ///      before release (I1).
     bool public movedOutsideDistribute;
     /// @dev Sticky: lastAlive moved without a successful owner call (I4).
     bool public lastAliveMovedByNonOwner;
@@ -61,11 +62,14 @@ contract VaultHandler is Test {
         balanceHash = _balanceHash();
     }
 
-    /// @dev The owner's idle-resetting actions (checkIn, ownerConfig) act only when seed % OWNER_GATE == 0.
-    ///      Inheritance needs T periods of owner silence plus the alarm window, two attestations and a sweep; ungated,
-    ///      the owner resets the clock so often that Released-inherit is reached in only 0-4 of 128 runs. With the
-    ///      gate it is reached in 15+ of 128 runs on every seed tried (1-16). The gate only changes how often owner
-    ///      actions are drawn: every sequence stays possible, and no fuzz seed is pinned.
+    /// @dev The owner's idle-resetting actions (checkIn, ownerConfig, ownerPoke, ownerDistribute) act only when
+    ///      seed % OWNER_GATE == 0. Inheritance needs T periods of owner silence plus the alarm window, two
+    ///      attestations and a sweep; ungated, the owner resets the clock so often that Released-inherit is reached in
+    ///      only 0-4 of 128 runs. The fuzzer draws small seeds such as 0 far more often than 1 in OWNER_GATE, so each
+    ///      gated action still fires often: with four of them a gate of 16 reached Released-inherit in only 4-13 of
+    ///      128 runs (seeds 1-8). At 64 it is reached in 13-26 of 128 runs, and Released-recover in 14-29, on every
+    ///      seed tried (1-16). The gate only changes how often owner actions are drawn: every sequence stays
+    ///      possible, and no fuzz seed is pinned.
     function checkIn(uint256 seed) external {
         if (seed % OWNER_GATE != 0) return;
         vm.prank(owner);
@@ -141,6 +145,36 @@ contract VaultHandler is Test {
         try vault.poke() {
             _afterSuccess();
         } catch {}
+        _record();
+    }
+
+    /// @dev Spec §3.2 bit 21: before release an owner-signed poke() is a check-in. Once released it is a no-op,
+    ///      so it is not proof of life there (and must not move lastAlive).
+    function ownerPoke(uint256 seed) external {
+        if (seed % OWNER_GATE != 0) return;
+        bool wasReleased = PolicyCodec.isReleased(vault.state());
+        vm.prank(owner);
+        try vault.poke() {
+            if (!wasReleased) _ownerTxSucceeded();
+            _afterSuccess();
+        } catch {}
+        _record();
+    }
+
+    /// @dev Before release an owner-signed distribute() is a check-in and must never sweep; once released it
+    ///      sweeps like anyone else's, so only then may balances change.
+    function ownerDistribute(uint256 seed) external {
+        if (seed % OWNER_GATE != 0) return;
+        bool wasReleased = PolicyCodec.isReleased(vault.state());
+        vm.prank(owner);
+        try vault.distribute() returns (bool swept) {
+            if (!wasReleased) {
+                if (swept) aliveBroken = true;
+                _ownerTxSucceeded();
+            }
+            _afterSuccess();
+        } catch {}
+        if (wasReleased) balanceHash = _balanceHash();
         _record();
     }
 
@@ -237,7 +271,7 @@ contract VaultInvariantTest is VaultFixture {
 
         handler = new VaultHandler(v, owner, [g1, g2, g3], [heirA, heirB], [newWallet, stranger], stranger, usdt);
 
-        bytes4[] memory sel = new bytes4[](8);
+        bytes4[] memory sel = new bytes4[](10);
         sel[0] = VaultHandler.checkIn.selector;
         sel[1] = VaultHandler.ownerConfig.selector;
         sel[2] = VaultHandler.strangerConfig.selector;
@@ -246,6 +280,8 @@ contract VaultInvariantTest is VaultFixture {
         sel[5] = VaultHandler.poke.selector;
         sel[6] = VaultHandler.distribute.selector;
         sel[7] = VaultHandler.elapse.selector;
+        sel[8] = VaultHandler.ownerPoke.selector;
+        sel[9] = VaultHandler.ownerDistribute.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
     }
@@ -300,6 +336,42 @@ contract VaultInvariantTest is VaultFixture {
         assertEq(v.state(), PolicyCodec.RELEASED_INHERIT);
         assertEq(usdt.balanceOf(heirA), 600e6);
         assertTrue(handler.releasedSeen());
+        assertFalse(handler.fixpointBroken());
+    }
+
+    /// The owner's poke and distribute handlers really act: each one cancels an alarm the policy would have
+    /// released, and the owner's sweep after release goes through without counting as proof of life.
+    function test_handlerOwnerPokeAndDistributeAreCheckIns() public {
+        handler.elapse(3 days);
+        handler.poke();
+        assertEq(v.state(), PolicyCodec.GRACE);
+        handler.ownerPoke(0);
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(v.lastAlive(), block.timestamp);
+
+        handler.elapse(3 days);
+        handler.poke();
+        handler.attest(0, true);
+        handler.attest(1, true);
+        handler.elapse(3 days);
+        assertEq(v.status().pending, PolicyCodec.RELEASED_INHERIT);
+        handler.ownerDistribute(0);
+        assertEq(v.state(), PolicyCodec.ACTIVE);
+        assertEq(usdt.balanceOf(owner), TOTAL);
+
+        handler.elapse(3 days);
+        handler.poke();
+        handler.attest(0, true);
+        handler.attest(1, true);
+        handler.elapse(3 days);
+        handler.distribute();
+        assertEq(v.state(), PolicyCodec.RELEASED_INHERIT);
+        usdt.mint(owner, 100e6);
+        handler.ownerDistribute(0);
+        assertEq(usdt.balanceOf(heirA), 660e6);
+        assertFalse(handler.aliveBroken());
+        assertFalse(handler.lastAliveMovedByNonOwner());
+        assertFalse(handler.movedOutsideDistribute());
         assertFalse(handler.fixpointBroken());
     }
 
