@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AtropyleVault} from "../src/AtropyleVault.sol";
 import {PolicyCodec} from "../src/PolicyCodec.sol";
 import {VaultConfig} from "../src/vault/VaultConfig.sol";
@@ -9,11 +10,16 @@ import {VaultFixture} from "./utils/VaultFixture.sol";
 
 /// @notice Drives one vault through random sequences of role actions and time jumps.
 contract VaultHandler is Test {
+    uint256 internal constant OWNER_GATE = 16;
+
     AtropyleVault public immutable vault;
     address public immutable owner;
+    IERC20 internal immutable token;
     address[3] internal guardians;
     address[2] internal targets;
     address[7] internal outsiders;
+    /// @dev Every account whose token balance could change if tokens moved: owner, vault, heirs, targets, guardians.
+    address[9] internal watched;
 
     bool public releasedSeen;
     uint8 public releasedState;
@@ -21,9 +27,18 @@ contract VaultHandler is Test {
     bool public fixpointBroken;
     bool public strangerEdited;
     bool public aliveBroken;
+    /// @dev Sticky: a balance changed in an action other than distribute() (I1).
+    bool public movedOutsideDistribute;
+    /// @dev Sticky: lastAlive moved without a successful owner call (I4).
+    bool public lastAliveMovedByNonOwner;
 
     /// @dev Configuration as last written by the owner; any other drift is an unauthorised edit.
     bytes32 internal cfgHash;
+    /// @dev lastAlive as last written by a successful owner call; any other movement is a forged proof of life.
+    uint64 internal lastAliveGhost;
+    /// @dev Balances as left by the last distribute(): nothing else may change them. Because every handler action
+    ///      ends in _record(), comparing against this is the same as snapshotting around each non-distribute action.
+    bytes32 internal balanceHash;
 
     constructor(
         AtropyleVault v,
@@ -31,30 +46,42 @@ contract VaultHandler is Test {
         address[3] memory g,
         address[2] memory heirs_,
         address[2] memory targets_,
-        address stranger
+        address stranger,
+        IERC20 token_
     ) {
         vault = v;
         owner = owner_;
+        token = token_;
         guardians = g;
         targets = targets_;
         outsiders = [g[0], g[1], g[2], heirs_[0], heirs_[1], targets_[0], stranger];
+        watched = [owner_, address(v), heirs_[0], heirs_[1], targets_[0], targets_[1], g[0], g[1], g[2]];
         cfgHash = _configHash();
+        lastAliveGhost = v.lastAlive();
+        balanceHash = _balanceHash();
     }
 
-    function checkIn() external {
+    /// @dev The owner's idle-resetting actions (checkIn, ownerConfig) act only when seed % OWNER_GATE == 0.
+    ///      Inheritance needs T periods of owner silence plus the alarm window, two attestations and a sweep; ungated,
+    ///      the owner resets the clock so often that Released-inherit is reached in only 0-4 of 128 runs. With the
+    ///      gate it is reached in 15+ of 128 runs on every seed tried (1-16). The gate only changes how often owner
+    ///      actions are drawn: every sequence stays possible, and no fuzz seed is pinned.
+    function checkIn(uint256 seed) external {
+        if (seed % OWNER_GATE != 0) return;
         vm.prank(owner);
         try vault.checkIn() {
-            _assertOwnerTxIsAlive();
+            _ownerTxSucceeded();
             _afterSuccess();
         } catch {}
         _record();
     }
 
     function ownerConfig(uint256 seed) external {
+        if (seed % OWNER_GATE != 0) return;
         VaultConfig.Timing memory t = VaultConfig.Timing(uint32(bound(seed, 1 days, 3 days)), 3, 3 days);
         vm.prank(owner);
         try vault.setTiming(t) {
-            _assertOwnerTxIsAlive();
+            _ownerTxSucceeded();
             cfgHash = _configHash();
             _afterSuccess();
         } catch {}
@@ -121,6 +148,7 @@ contract VaultHandler is Test {
         try vault.distribute() {
             _afterSuccess();
         } catch {}
+        balanceHash = _balanceHash(); // the one action that may move tokens
         _record();
     }
 
@@ -159,9 +187,19 @@ contract VaultHandler is Test {
         );
     }
 
+    function _balanceHash() internal view returns (bytes32) {
+        uint256[9] memory b;
+        for (uint256 i; i < b.length; ++i) {
+            b[i] = token.balanceOf(watched[i]);
+        }
+        return keccak256(abi.encode(b));
+    }
+
     /// @dev I4: a successful owner transaction is proof of life, so it stamps lastAlive and returns to Active.
-    function _assertOwnerTxIsAlive() internal {
+    ///      It is also the only thing allowed to move lastAlive, so the ghost follows it.
+    function _ownerTxSucceeded() internal {
         if (vault.lastAlive() != block.timestamp || vault.state() != PolicyCodec.ACTIVE) aliveBroken = true;
+        lastAliveGhost = vault.lastAlive();
     }
 
     /// @dev Right after a successful call nothing has elapsed, so re-evaluating must give the stored state.
@@ -171,6 +209,8 @@ contract VaultHandler is Test {
 
     function _record() internal {
         if (_configHash() != cfgHash) strangerEdited = true;
+        if (vault.lastAlive() != lastAliveGhost) lastAliveMovedByNonOwner = true;
+        if (_balanceHash() != balanceHash) movedOutsideDistribute = true;
         uint8 s = vault.state();
         if (!releasedSeen && PolicyCodec.isReleased(s)) {
             releasedSeen = true;
@@ -195,7 +235,7 @@ contract VaultInvariantTest is VaultFixture {
         vm.prank(owner);
         usdt.approve(address(v), type(uint256).max);
 
-        handler = new VaultHandler(v, owner, [g1, g2, g3], [heirA, heirB], [newWallet, stranger], stranger);
+        handler = new VaultHandler(v, owner, [g1, g2, g3], [heirA, heirB], [newWallet, stranger], stranger, usdt);
 
         bytes4[] memory sel = new bytes4[](8);
         sel[0] = VaultHandler.checkIn.selector;
@@ -210,7 +250,8 @@ contract VaultInvariantTest is VaultFixture {
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
     }
 
-    function invariant_I1_tokensStayWithOwnerUntilReleased() public view {
+    function invariant_I1_tokensMoveOnlyInDistributeAndOnlyWhenReleased() public view {
+        assertFalse(handler.movedOutsideDistribute());
         if (!PolicyCodec.isReleased(v.state())) assertEq(usdt.balanceOf(owner), TOTAL);
     }
 
@@ -236,6 +277,7 @@ contract VaultInvariantTest is VaultFixture {
     function invariant_I4_onlyOwnerConfiguresAndEveryOwnerTxIsAlive() public view {
         assertFalse(handler.strangerEdited());
         assertFalse(handler.aliveBroken());
+        assertFalse(handler.lastAliveMovedByNonOwner());
     }
 
     function invariant_I5_vaultHoldsNothing() public view {
