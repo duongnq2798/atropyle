@@ -425,6 +425,37 @@ contract AtropyleVaultTest is VaultFixture {
         assertEq(d.status().state, PolicyCodec.ACTIVE);
     }
 
+    /// An expired Drill can never transition again (every mutator reverts DrillExpired), so status() must not
+    /// report a pending transition that no poke() could make.
+    function test_expiredDrillHasNothingPending() public {
+        AtropyleVault d = _deploy(_drillCfg(), true);
+        vm.warp(vm.getBlockTimestamp() + 7 days - 1);
+        assertEq(d.status().pending, PolicyCodec.GRACE); // still alive: a poke would raise the alarm
+        vm.warp(vm.getBlockTimestamp() + 1); // block.timestamp == expiresAt: notExpired starts reverting here
+        AtropyleVault.Status memory st = d.status();
+        assertEq(st.state, PolicyCodec.ACTIVE);
+        assertEq(st.pending, PolicyCodec.ACTIVE);
+        assertEq(st.idle, 15);
+        vm.expectRevert(AtropyleVault.DrillExpired.selector);
+        d.poke();
+
+        // A regular vault has no expiry: the same silence leaves its alarm pending.
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        assertEq(v.status().pending, PolicyCodec.GRACE);
+    }
+
+    function test_vaultCannotBeItsOwnGuardian() public {
+        address[] memory g = new address[](3);
+        g[0] = g1;
+        g[1] = g2;
+        g[2] = address(v);
+        vm.expectRevert(VaultConfig.InvalidGuardians.selector);
+        vm.prank(owner);
+        v.setGuardians(g, 3, true);
+        assertEq(v.guardians().length, 3);
+        assertEq(v.guardians()[2], g3);
+    }
+
     function test_drillRunsInMinutes() public {
         AtropyleVault d = _deploy(_drillCfg(), true);
         _approveAll(d);

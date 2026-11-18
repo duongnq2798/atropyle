@@ -109,7 +109,8 @@ abstract contract VaultConfig {
         uint256 n = g.length;
         if (n > MAX_GUARDIANS || k_ > n || (rec && k_ == 0)) revert InvalidGuardians();
         for (uint256 i; i < n; ++i) {
-            if (g[i] == address(0) || g[i] == owner) revert InvalidGuardians();
+            // The vault itself is rejected too: it can never sign, so it would be an inert seat counted in n.
+            if (g[i] == address(0) || g[i] == owner || g[i] == address(this)) revert InvalidGuardians();
             for (uint256 j; j < i; ++j) {
                 if (g[j] == g[i]) revert InvalidGuardians();
             }

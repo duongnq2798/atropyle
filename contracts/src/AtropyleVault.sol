@@ -14,7 +14,7 @@ contract AtropyleVault is VaultDistribution {
 
     struct Status {
         uint8 state;
-        uint8 pending; // state a poke() would produce right now
+        uint8 pending; // state a non-owner poke() would produce right now; = state if released or expired
         uint8 idle;
         uint64 lastAlive;
         uint64 lateAt; // lastAlive + T * P
@@ -69,9 +69,7 @@ contract AtropyleVault is VaultDistribution {
     }
 
     modifier notExpired() {
-        // A Drill lives for days; validator timestamp drift is irrelevant at that scale.
-        // forge-lint: disable-next-line(block-timestamp)
-        if (drill && block.timestamp >= expiresAt) revert DrillExpired();
+        if (_expired()) revert DrillExpired();
         _;
     }
 
@@ -223,7 +221,8 @@ contract AtropyleVault is VaultDistribution {
     function status() external view returns (Status memory st) {
         uint8 s = state;
         st.state = s;
-        if (PolicyCodec.isReleased(s)) st.pending = s;
+        // Released is final and an expired Drill reverts every transition, so neither has anything pending.
+        if (PolicyCodec.isReleased(s) || _expired()) st.pending = s;
         else (st.pending,,) = _evaluate(false, address(0));
         st.idle = _idle();
         st.lastAlive = lastAlive;
@@ -243,6 +242,13 @@ contract AtropyleVault is VaultDistribution {
     }
 
     // ------------------------------------------------------------------ internals
+
+    /// @dev The one expiry condition, shared by notExpired and status().
+    function _expired() internal view returns (bool) {
+        // A Drill lives for days; validator timestamp drift is irrelevant at that scale.
+        // forge-lint: disable-next-line(block-timestamp)
+        return drill && block.timestamp >= expiresAt;
+    }
 
     function _ownerAlive() internal {
         lastAlive = uint64(block.timestamp);

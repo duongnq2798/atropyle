@@ -273,6 +273,72 @@ contract AtropyleFactoryTest is VaultFixture {
         assertEq(factory.vaultsOf(heirA).length, 2);
     }
 
+    // ---- vaultsOf pagination: the list is append-only and anyone can grow it with free Drills ----
+
+    function _drills(uint256 n) internal returns (address[] memory made) {
+        made = new address[](n);
+        VaultConfig.Config memory c = _drillCfg();
+        for (uint256 i; i < n; ++i) {
+            vm.prank(owner);
+            made[i] = factory.createVault(c, bytes32(i), true, address(0));
+        }
+    }
+
+    function test_vaultsOfPageOnEmptyAccount() public view {
+        assertEq(factory.vaultsOfLength(stranger), 0);
+        assertEq(factory.vaultsOfPage(stranger, 0, 10).length, 0);
+        assertEq(factory.vaultsOfPage(stranger, 0, 0).length, 0);
+    }
+
+    function test_vaultsOfPageStartBeyondTheEndIsEmpty() public {
+        _drills(3);
+        assertEq(factory.vaultsOfLength(owner), 3);
+        assertEq(factory.vaultsOfPage(owner, 3, 1).length, 0);
+        assertEq(factory.vaultsOfPage(owner, 100, 5).length, 0);
+        assertEq(factory.vaultsOfPage(owner, type(uint256).max, type(uint256).max).length, 0);
+    }
+
+    function test_vaultsOfPageClampsThePartialLastPage() public {
+        address[] memory made = _drills(5);
+        address[] memory page = factory.vaultsOfPage(owner, 3, 5);
+        assertEq(page.length, 2);
+        assertEq(page[0], made[3]);
+        assertEq(page[1], made[4]);
+        page = factory.vaultsOfPage(owner, 4, type(uint256).max);
+        assertEq(page.length, 1);
+        assertEq(page[0], made[4]);
+    }
+
+    function test_vaultsOfPageExactFullPage() public {
+        address[] memory made = _drills(5);
+        address[] memory page = factory.vaultsOfPage(owner, 0, 5);
+        assertEq(page.length, 5);
+        for (uint256 i; i < 5; ++i) {
+            assertEq(page[i], made[i]);
+        }
+        page = factory.vaultsOfPage(owner, 2, 3);
+        assertEq(page.length, 3);
+        assertEq(page[2], made[4]);
+        assertEq(factory.vaultsOfPage(owner, 1, 0).length, 0);
+    }
+
+    function test_vaultsOfPagesConcatenateToVaultsOf() public {
+        _drills(7);
+        address[] memory all = factory.vaultsOf(owner);
+        assertEq(all.length, factory.vaultsOfLength(owner));
+        uint256 seen;
+        for (uint256 start; start < all.length; start += 3) {
+            address[] memory page = factory.vaultsOfPage(owner, start, 3);
+            for (uint256 i; i < page.length; ++i) {
+                assertEq(page[i], all[seen++]);
+            }
+        }
+        assertEq(seen, 7);
+        // Heirs and guardians are paged the same way.
+        assertEq(factory.vaultsOfLength(heirA), 7);
+        assertEq(factory.vaultsOfPage(g1, 6, 3)[0], all[6]);
+    }
+
     function test_implementationAndCloneCannotBeReinitialized() public {
         AtropyleVault v = AtropyleVault(_create(bytes32("n")));
         VaultConfig.Config memory c = _cfg();

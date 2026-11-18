@@ -179,6 +179,20 @@ contract VaultConfigTest is Test {
         h.setGuardians(_addrs(a, b, a), 2, false);
     }
 
+    /// The vault cannot sign, so as a guardian it would be an inert seat counted in n (k = n would lock quorum).
+    function test_rejectsVaultAddressAsGuardian() public {
+        vm.expectRevert(VaultConfig.InvalidGuardians.selector);
+        h.setGuardians(_addrs(a, b, address(h)), 2, false);
+
+        vm.expectRevert(VaultConfig.InvalidGuardians.selector);
+        h.setGuardians(_addrs(address(h), b, c), 1, true);
+
+        address[] memory only = new address[](1);
+        only[0] = address(h);
+        vm.expectRevert(VaultConfig.InvalidGuardians.selector);
+        h.setGuardians(only, 0, false);
+    }
+
     function test_timingLimits() public {
         h.setTiming(VaultConfig.Timing(1 days, 1, 3 days));
         h.setTiming(VaultConfig.Timing(1 days, 15, 3 days));

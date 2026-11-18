@@ -105,8 +105,32 @@ contract AtropyleFactory is IVaultIndex {
     }
 
     /// @notice Every vault `account` has ever been owner, heir or guardian of (append-only, no duplicates).
+    /// @dev Unbounded: anyone can name `account` as heir or guardian of free Drills and grow this list. Readers
+    ///      that must not fail use vaultsOfLength and vaultsOfPage instead.
     function vaultsOf(address account) external view returns (address[] memory) {
         return _vaultsOf[account];
+    }
+
+    /// @notice Number of entries in vaultsOf(account).
+    function vaultsOfLength(address account) external view returns (uint256) {
+        return _vaultsOf[account].length;
+    }
+
+    /// @notice Entries [start, start + count) of vaultsOf(account), in the same order, clamped to the end of the
+    ///         list. Empty (no revert) when start is at or past the end.
+    function vaultsOfPage(address account, uint256 start, uint256 count)
+        external
+        view
+        returns (address[] memory page)
+    {
+        address[] storage all = _vaultsOf[account];
+        uint256 n = all.length;
+        if (start >= n) return page;
+        if (count > n - start) count = n - start;
+        page = new address[](count);
+        for (uint256 i; i < count; ++i) {
+            page[i] = all[start + i];
+        }
     }
 
     function _salt(address owner, bytes32 salt) private pure returns (bytes32) {
