@@ -16,6 +16,8 @@ contract TapeOutPolicy is Script {
         address cpu = vm.envAddress("ATRO_CPU");
         uint256 kofnId = vm.envUint("KOFN_ID");
         uint256 ge4Id = vm.envUint("GE4_ID");
+        // The wallet may have been upgraded (EIP-7702) since stage 2; transistors are minted to it as ERC-1155.
+        require(me.code.length == 0, "DEPLOYER has code (EIP-7702 delegation?): use a plain EOA");
         TapeoutFlow.requireAtropyleCpu(cpu, me);
         require(me.balance >= ITapeOutCircuits(cpu).TAPEOUT_FEE() + 0.005 ether, "not enough OKB");
 

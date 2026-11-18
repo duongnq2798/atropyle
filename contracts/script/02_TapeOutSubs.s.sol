@@ -15,6 +15,8 @@ contract TapeOutSubs is Script {
     function run() external {
         address me = vm.envAddress("DEPLOYER");
         address cpu = vm.envAddress("ATRO_CPU");
+        // The wallet may have been upgraded (EIP-7702) since stage 1; transistors are minted to it as ERC-1155.
+        require(me.code.length == 0, "DEPLOYER has code (EIP-7702 delegation?): use a plain EOA");
         TapeoutFlow.requireAtropyleCpu(cpu, me);
         uint256 kofnId = vm.envOr("KOFN_ID", uint256(0));
         uint256 ge4Id = vm.envOr("GE4_ID", uint256(0));
