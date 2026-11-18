@@ -38,10 +38,10 @@ Chứng minh exhaustive 2^26 = 67 108 864 tổ hợp: `npm run prove -w circuits
 | Gate của KofN5 / Ge4 | 41 / 25 | `circuitInfo` trên fork |
 | Gas một lần `step` (fork X Layer) | 624 406 | `ForkTest.test_stepGas` |
 | Gas `distribute()` xấu nhất, 20 tài sản × 5 người | 3 385 904 | `test_worstCaseGasUnderSixMillion` (unit test, một số slot đã warm; ngân sách < 6 triệu) |
-| Runtime bytecode Vault / Factory | 15 565 / 3 559 byte (giới hạn 24 576) | `forge build --sizes` |
-| Một vòng đời Drill trên fork (6 giao dịch) | 3 735 522 | `ForkTest.test_drillLifecycleGas`; mỗi giao dịch `poke`/`attestDeath`/`distribute` khoảng 0,65–0,78 triệu |
+| Runtime bytecode Vault / Factory | 15 516 / 4 039 byte (giới hạn 24 576) | `forge build --sizes` |
+| Một vòng đời Drill trên fork (6 giao dịch) | 3 736 276 | `ForkTest.test_drillLifecycleGas`; mỗi giao dịch `poke`/`attestDeath`/`distribute` khoảng 0,66–0,78 triệu |
 | Chi phí tạo processor và 3 circuit | 0,14 BEM (0,1 `createCPU` + 4 lần mint × 0,01) + 0,0039 OKB phí tape-out (3 × 0,0013) | `ForkTest.test_tapeoutBudget` |
-| Gas từng bước 01 / 02 / 03 / 04 / 05 | 845 944 / 989 095 / 852 598 / 4 460 154 / 1 097 155 | diễn tập trên anvil fork (phần "Diễn tập") |
+| Gas từng bước 01 / 02 / 03 / 04 / 05 | 845 944 / 989 095 / 852 598 / 4 553 395 / 1 104 004 | diễn tập trên anvil fork (phần "Diễn tập") |
 
 ## Triển khai mainnet
 
