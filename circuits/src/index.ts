@@ -7,3 +7,5 @@ export * from './model';
 export * from './properties';
 export * from './policy';
 export * from './verify';
+export * from './refs';
+export * from './deployed';
