@@ -29,6 +29,7 @@ const calls: [string, (atro: AtropyleClient) => Promise<unknown>][] = [
   ['vaultsOf', (a) => a.vaultsOf(OWNER)],
   ['predictVault', (a) => a.predictVault(OWNER, SALT)],
   ['stats', (a) => a.stats()],
+  ['scan', (a) => a.scan()],
   ['vault.snapshot', (a) => a.vault(VAULT).snapshot()],
   ['vault.status', (a) => a.vault(VAULT).status()],
   ['vault.config', (a) => a.vault(VAULT).config()],

@@ -38,6 +38,7 @@ import { createReadContext, type ReadContext, type SdkEvent } from './read/conte
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
+import { type ScanOptions, type ScanResult, scanEvents } from './read/scan';
 import { readSnapshot, rolesOf } from './read/snapshot';
 import { readStats, type Stats, type StatsCursor } from './read/stats';
 import type { VaultSnapshot, VaultStatus } from './read/types';
@@ -93,6 +94,8 @@ export interface AtropyleClient {
     resume?: StatsCursor;
     onProgress?: (done: number, total: number) => void;
   }): Promise<Stats>;
+  /** Vault creations and vault events since a cursor, for the Worker's cron and bots (spec §9.5). */
+  scan(o?: ScanOptions): Promise<ScanResult>;
   vault(address: string): VaultHandle;
   /** Exhaustive check of the on-chain policy netlist against this repository, read from two operators (spec §5.4). */
   verifyPolicy(o?: VerifyPolicyOptions): Promise<PolicyVerification>;
@@ -259,6 +262,7 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
         }),
       ),
     stats: (o) => guard(() => readStats(ctx, o)),
+    scan: (o) => guard(() => scanEvents(ctx, o)),
     vault,
     verifyPolicy,
     integrity: () =>

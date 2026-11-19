@@ -31,6 +31,22 @@ export {
 export * from './handoff/index';
 export type { InspectedStep, SignRequestCheck } from './handoff/inspect';
 export { parseBigInt, stringify, toJson } from './json';
+export {
+  DISTRIBUTE_EVERY,
+  KEEPER_DEFAULTS,
+  type KeeperAction,
+  type KeeperDecision,
+  type KeeperOptions,
+  type KeeperOutcome,
+  type KeeperOutcomeStatus,
+  type KeeperPlanOptions,
+  type KeeperReason,
+  type KeeperReport,
+  keeperTick,
+  planKeeperActions,
+  RECHECK_RELEASED,
+  RETRY_AFTER,
+} from './keeper';
 export { DOCS_BASE_URL, errorDocsUrl } from './links';
 export * from './plan/index';
 export {
@@ -67,6 +83,7 @@ export type { PlanCheck, TokenCheck } from './read/check-plan';
 export { createReadContext, type ReadContext, type SdkEvent } from './read/context';
 export { DEFAULT_EVENTS_WINDOW, type VaultEvent } from './read/events';
 export type { FeeOption, FeeQuote } from './read/fees';
+export type { CreatedVault, ScanCursor, ScanOptions, ScanResult } from './read/scan';
 export { rolesOf } from './read/snapshot';
 export type { Stats, StatsCursor } from './read/stats';
 export type { AssetStatus, TokenInfo, VaultBinding, VaultSnapshot, VaultStatus } from './read/types';
