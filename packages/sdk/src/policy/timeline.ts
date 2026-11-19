@@ -89,7 +89,8 @@ export function computeTimeline(engine: PolicyEngine, s: EvalState, now: bigint,
     cur = next;
     t = hit.at;
   }
-  if (expiresAt !== null && !released(cur.state)) {
+  // Also after a release: distribute() has a notExpired guard, so payouts stop at expiresAt.
+  if (expiresAt !== null) {
     const st = stateName(cur.state);
     events.push({
       at: expiresAt,

@@ -10,7 +10,13 @@ declare module 'vitest' {
 
 export default async function setup(project: TestProject) {
   const anvil = await startAnvil();
-  const deployment = await deployLocal(anvil.url);
+  let deployment: Record<string, unknown>;
+  try {
+    deployment = await deployLocal(anvil.url);
+  } catch (e) {
+    await anvil.stop();
+    throw e;
+  }
   project.provide('rpcUrl', anvil.url);
   project.provide('deployment', deployment);
   return () => anvil.stop();

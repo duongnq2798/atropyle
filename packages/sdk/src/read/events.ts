@@ -1,4 +1,4 @@
-import { type Abi, type AbiEvent, type Address, type Hex, type Log, parseEventLogs } from 'viem';
+import { type Abi, type AbiEvent, type Address, getAddress, type Hex, type Log, parseEventLogs } from 'viem';
 import { vaultAbi } from '../abi/index';
 import type { ReadContext } from './context';
 
@@ -20,7 +20,7 @@ export function decodeLogs(abi: Abi, logs: Log[], eventName?: string): VaultEven
   for (const l of parseEventLogs({ abi, logs, strict: true })) {
     if (eventName && l.eventName !== eventName) continue;
     out.push({
-      address: l.address,
+      address: getAddress(l.address),
       name: l.eventName,
       args: l.args as Record<string, unknown>,
       blockNumber: l.blockNumber,

@@ -168,6 +168,8 @@ describe('reads on the devnet', () => {
     expect(t.events.map((e) => [e.kind, e.state, e.at - s0.lastAlive])).toEqual([
       ['alarm', 'grace', 120n],
       ['release', 'releasedInherit', 240n],
+      // A released Drill still ends: distribute() reverts after expiresAt.
+      ['drillExpiry', 'releasedInherit', (s0.expiresAt ?? 0n) - s0.lastAlive],
     ]);
     await warp(env.rpcUrl, 130);
     const s1 = await h.status();

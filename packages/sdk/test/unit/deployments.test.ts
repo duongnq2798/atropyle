@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deploymentToJson, parseDeployment, resolveDeployment } from '../../src/index';
+import { deploymentToJson, getDeployment, parseDeployment, resolveDeployment } from '../../src/index';
 
 const FIXTURE = {
   name: 'xlayer',
@@ -97,6 +97,19 @@ describe('resolveDeployment', () => {
   it('accepts a registry entry or an explicit object', () => {
     expect(resolveDeployment('xlayer', { xlayer: FIXTURE, local: null }).chainId).toBe(196);
     const d = parseDeployment(FIXTURE);
-    expect(resolveDeployment(d, { xlayer: null, local: null })).toBe(d);
+    expect(resolveDeployment(d, { xlayer: null, local: null })).toEqual(d);
+  });
+
+  it('validates an explicit object too: checksums its addresses, rejects logsBlockRange 0', () => {
+    const d = parseDeployment(FIXTURE);
+    const lower = { ...d, factory: d.factory.toLowerCase() as typeof d.factory };
+    expect(resolveDeployment(lower, { xlayer: null, local: null }).factory).toBe(d.factory);
+    expect(getDeployment(lower).factory).toBe(d.factory);
+    for (const call of [
+      () => getDeployment({ ...d, logsBlockRange: 0 }),
+      () => resolveDeployment({ ...d, logsBlockRange: 0 }, { xlayer: null, local: null }),
+    ]) {
+      expect(call).toThrow(expect.objectContaining({ code: 'DEPLOYMENT_INVALID' }));
+    }
   });
 });

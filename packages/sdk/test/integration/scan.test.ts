@@ -35,7 +35,7 @@ describe('scanEvents (cron source, spec §9.5)', () => {
     expect(first.created[0].drill).toBe(true);
     expect(first.events.map((e) => e.name)).toContain('Alive');
     // The token approval in the same plan is not a vault event, so it is filtered out.
-    expect(first.events.every((e) => lower(e.address) === lower(plan.vault))).toBe(true);
+    expect(first.events.every((e) => e.address === plan.vault)).toBe(true);
     expect(first.truncated).toBe(false);
 
     await warp(env.rpcUrl, 130);

@@ -4,21 +4,23 @@ import {
   defineChain,
   encodeAbiParameters,
   encodeErrorResult,
+  encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
+  getAddress,
   type Hex,
   HttpRequestError,
   type PublicClient,
   RpcRequestError,
 } from 'viem';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { revertAbi } from '../../src/abi/index';
+import { revertAbi, vaultAbi } from '../../src/abi/index';
 import { createAtropyle } from '../../src/client';
 import { getDeployment } from '../../src/deployments/index';
 import { AtropyleError } from '../../src/errors';
 import type { Asset } from '../../src/index';
 import { createReadContext } from '../../src/read/context';
-import { blockRanges, getEventsChunked } from '../../src/read/events';
+import { blockRanges, decodeLogs, getEventsChunked } from '../../src/read/events';
 import { netlistSource } from '../../src/read/netlists';
 import { heldBy, readSnapshot } from '../../src/read/snapshot';
 import { readTokenInfo } from '../../src/read/tokens';
@@ -116,6 +118,26 @@ const GARBAGE: [string, Hex][] = [
 
 const erc20: Asset = { kind: 'erc20', token: TOKEN, id: 0n, heir: 0 };
 const nft: Asset = { kind: 'erc721', token: NFT, id: 1n, heir: 0 };
+
+describe('decodeLogs', () => {
+  it('returns checksummed addresses even when the node sends them lowercase', () => {
+    const checksummed = getAddress('0xdead00000000000000000000000000000000beef');
+    const log = {
+      address: checksummed.toLowerCase() as Hex,
+      topics: encodeEventTopics({ abi: vaultAbi, eventName: 'Alive' }),
+      data: encodeAbiParameters([{ type: 'uint64' }], [5n]),
+      blockNumber: 1n,
+      blockHash: `0x${'11'.repeat(32)}` as Hex,
+      logIndex: 0,
+      transactionHash: `0x${'22'.repeat(32)}` as Hex,
+      transactionIndex: 0,
+      removed: false,
+    };
+    const [event] = decodeLogs(vaultAbi, [log as never]);
+    expect(event.address).toBe(checksummed);
+    expect(event.address).not.toBe(log.address);
+  });
+});
 
 describe('blockRanges', () => {
   it('splits into inclusive ranges of at most `size` blocks', () => {

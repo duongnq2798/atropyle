@@ -64,11 +64,19 @@ function addressAt(v: unknown, path: string, issues: Issues): Address | null {
   return a;
 }
 
+function normalized(a: Address): Address {
+  try {
+    return toAddress(a, 'address');
+  } catch {
+    return a;
+  }
+}
+
 export function planError(issues: PlanIssue[]): AtropyleError {
   const first = issues[0];
   return new AtropyleError('PLAN_INVALID', {
     message: first
-      ? `The plan is invalid: ${first.message}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ''}.`
+      ? `The plan is invalid: ${first.message.replace(/.$/, '')}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ''}.`
       : undefined,
     details: { issues },
   });
@@ -137,9 +145,12 @@ function parseHeirs(
     const values = v.map((h) => (isObj(h) ? h.bps : undefined));
     let each = true;
     values.forEach((x, i) => {
-      if (!(Number.isInteger(x) && (x as number) > 0 && (x as number) <= LIMITS.bps)) {
+      if (x === 0) {
         each = false;
-        issues.add(`${path}[${i}].bps`, 'SHARE_ZERO', `${path}[${i}].bps: must be a whole number from 1 to 10000`);
+        issues.add(`${path}[${i}].bps`, 'SHARE_ZERO', `${path}[${i}].bps: a share of 0 is not allowed`);
+      } else if (!(Number.isInteger(x) && (x as number) > 0 && (x as number) <= LIMITS.bps)) {
+        each = false;
+        issues.add(`${path}[${i}].bps`, 'TYPE', `${path}[${i}].bps: must be a whole number from 1 to 10000`);
       }
     });
     if (each) {
@@ -150,9 +161,10 @@ function parseHeirs(
   } else if (usesPercent) {
     const values = v.map((h) => (isObj(h) ? h.percent : undefined));
     const bad = values.findIndex((x) => !(typeof x === 'number' && Number.isFinite(x) && x > 0));
-    if (bad >= 0)
-      issues.add(`${path}[${bad}].percent`, 'SHARE_ZERO', `${path}[${bad}].percent: must be a number above 0`);
-    else {
+    if (bad >= 0) {
+      const code = values[bad] === 0 ? 'SHARE_ZERO' : 'TYPE';
+      issues.add(`${path}[${bad}].percent`, code, `${path}[${bad}].percent: must be a number above 0`);
+    } else {
       try {
         bps = sharesToBps(values as number[]);
       } catch (e) {
@@ -400,10 +412,12 @@ export function validateSection(
 ): SectionResult<Heir[] | GuardianPart | Asset[]> {
   const issues = new Issues();
   let value: Heir[] | GuardianPart | Asset[] | null;
-  const vault = ctx.vault ?? null;
-  if (kind === 'heirs') value = parseHeirs(input, ctx.owner, vault, issues);
+  // Compare in checksum form: a lowercase owner or vault must still be caught as an heir or guardian.
+  const owner = normalized(ctx.owner);
+  const vault = ctx.vault ? normalized(ctx.vault) : null;
+  if (kind === 'heirs') value = parseHeirs(input, owner, vault, issues);
   else if (kind === 'guardians')
-    value = parseGuardians(input, ctx.k ?? 0, ctx.recoveryEnabled ?? false, ctx.owner, vault, issues);
+    value = parseGuardians(input, ctx.k ?? 0, ctx.recoveryEnabled ?? false, owner, vault, issues);
   else value = parseAssets(input, ctx.heirCount, issues);
   return { issues: issues.list, value: issues.list.length > 0 ? null : value };
 }

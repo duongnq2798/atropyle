@@ -70,6 +70,18 @@ describe.each([
     expect(after.nextCheckAt).toBeNull();
   });
 
+  it('a Drill that releases at 240 still ends at its expiry at 1000', () => {
+    const snap = makeSnapshot({ k: 0, recoveryEnabled: false, timing: DRILL, drill: true, expiresAt: 1000n });
+    const t = timelineOf(engine, snap, 10n);
+    expect(brief(t)).toEqual([
+      ['alarm', 'grace', 120n],
+      ['release', 'releasedInherit', 240n],
+      ['drillExpiry', 'releasedInherit', 1000n],
+    ]);
+    expect(t.earliestRelease).toBe(240n);
+    expect(t.nextCheckAt).toBe(120n);
+  });
+
   it('released vaults have no future events', () => {
     const t = timelineOf(engine, makeSnapshot({ state: 'releasedInherit' }), 10n);
     expect(t.events).toEqual([]);

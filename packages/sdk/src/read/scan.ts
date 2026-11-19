@@ -3,6 +3,7 @@ import { factoryAbi, vaultAbi } from '../abi/index';
 import { sameAddress } from '../address';
 import { AtropyleError } from '../errors';
 import type { ReadContext } from './context';
+import { parseScanCursor } from './cursor';
 import { getEventsChunked, type VaultEvent } from './events';
 
 export interface ScanCursor {
@@ -67,11 +68,12 @@ export async function scanEvents(ctx: ReadContext, o: ScanOptions = {}): Promise
       details: { path: 'fromBlock' },
     });
   }
+  const resume = o.resume === undefined ? undefined : parseScanCursor(o.resume);
   const head = o.toBlock ?? (await ctx.client.getBlockNumber());
-  const fromBlock = o.resume ? o.resume.toBlock + 1n : (o.fromBlock ?? ctx.deployment.factoryBlock);
+  const fromBlock = resume ? resume.toBlock + 1n : (o.fromBlock ?? ctx.deployment.factoryBlock);
   const capped = o.maxBlocks === undefined ? head : fromBlock + BigInt(o.maxBlocks) - 1n;
   const toBlock = capped < head ? capped : head;
-  const vaults = [...(o.resume?.vaults ?? [])];
+  const vaults = [...(resume?.vaults ?? [])];
   const known = new Set(vaults.map((v) => v.toLowerCase()));
   const created: CreatedVault[] = [];
   const events: VaultEvent[] = [];

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LIMITS,
   PRESETS,
+  planError,
   planTemplate,
   resolveTiming,
   sharesToBps,
@@ -193,8 +194,8 @@ describe('validatePlan', () => {
       { ...base, guardians: [], k: 0 },
       ['recoveryEnabled:RECOVERY_NEEDS_K'],
     ],
-    ['bps above 10000', { ...base, heirs: [{ account: A, bps: 10001 }], assets: [] }, ['heirs[0].bps:SHARE_ZERO']],
-    ['fractional bps', { ...base, heirs: [{ account: A, bps: 10000.5 }], assets: [] }, ['heirs[0].bps:SHARE_ZERO']],
+    ['bps above 10000', { ...base, heirs: [{ account: A, bps: 10001 }], assets: [] }, ['heirs[0].bps:TYPE']],
+    ['fractional bps', { ...base, heirs: [{ account: A, bps: 10000.5 }], assets: [] }, ['heirs[0].bps:TYPE']],
     [
       'two heirs without shares',
       { ...base, heirs: [{ account: A }, { account: B }], assets: [] },
@@ -449,6 +450,41 @@ describe('templates and sections', () => {
     expect(() => resolveTiming('drill', false)).toThrow(
       expect.objectContaining({ code: 'PLAN_INVALID', details: { issues: expect.any(Array) } }),
     );
+  });
+
+  it('rejects a lowercase owner or vault as an heir or guardian', () => {
+    const heirs = validateSection('heirs', [{ account: OWNER.toLowerCase() }], { owner: OWNER, heirCount: 0 });
+    expect(heirs.issues).toEqual([expect.objectContaining({ path: 'heirs[0].account', code: 'HEIR_IS_OWNER' })]);
+    const owner = validateSection('heirs', [{ account: OWNER }], { owner: OWNER.toLowerCase() as never, heirCount: 0 });
+    expect(owner.issues).toEqual([expect.objectContaining({ code: 'HEIR_IS_OWNER' })]);
+    const vault = validateSection('guardians', [VAULT.toLowerCase()], {
+      owner: OWNER,
+      vault: VAULT,
+      heirCount: 1,
+      k: 1,
+    });
+    expect(vault.issues).toEqual([expect.objectContaining({ code: 'GUARDIAN_IS_VAULT' })]);
+  });
+
+  it('keeps SHARE_ZERO for a real zero share and reports other bad shares as TYPE', () => {
+    const zero = [{ account: A, percent: 0 }];
+    expect(codes({ ...base, heirs: zero, assets: [] })).toEqual(['heirs[0].percent:SHARE_ZERO']);
+    expect(codes({ ...base, heirs: [{ account: A, percent: -5 }], assets: [] })).toEqual(['heirs[0].percent:TYPE']);
+    expect(codes({ ...base, heirs: [{ account: A, bps: '5' }], assets: [] })).toEqual(['heirs[0].bps:TYPE']);
+    expect(codes({ ...base, heirs: [{ account: A, bps: -1 }], assets: [] })).toEqual(['heirs[0].bps:TYPE']);
+  });
+
+  it('ends the plan error message with a single period', () => {
+    const r = validatePlan({
+      ...base,
+      heirs: [
+        { account: A, percent: 50 },
+        { account: B, percent: 60 },
+      ],
+      assets: [],
+    });
+    if (r.ok) throw new Error('expected an invalid plan');
+    expect(planError(r.issues).message).toBe('The plan is invalid: heirs: Percent shares must add up to 100.');
   });
 
   it('validates one section against the current vault', () => {

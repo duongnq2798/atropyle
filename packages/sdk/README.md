@@ -101,6 +101,8 @@ const d = getDeployment('xlayer');
 const client = createPublicClient({
   chain: chainOf(d),
   transport: quorumTransport(d.quorumRpcUrls.map((group) => readTransport(group))),
+  ccipRead: false, // token metadata is hostile input: never let a contract make this client fetch a URL
+  cacheTime: 0,
 });
 worker.postMessage(await readPolicyBundle(client, d, d.quorumRpcUrls.length)); // plain data, bigint included
 

@@ -10,7 +10,7 @@ export type ChainName = 'xlayer' | 'local';
 const cache = new Map<ChainName, Deployment>();
 
 export function resolveDeployment(chain: ChainName | Deployment, registry: Record<ChainName, unknown>): Deployment {
-  if (typeof chain === 'object') return chain;
+  if (typeof chain === 'object') return parseDeployment(chain);
   const raw = registry[chain];
   if (raw === null || raw === undefined) {
     throw new AtropyleError('DEPLOYMENT_MISSING', { message: `There is no Atropyle deployment for "${chain}" yet.` });
@@ -19,7 +19,7 @@ export function resolveDeployment(chain: ChainName | Deployment, registry: Recor
 }
 
 export function getDeployment(chain: ChainName | Deployment): Deployment {
-  if (typeof chain === 'object') return chain;
+  if (typeof chain === 'object') return parseDeployment(chain);
   let d = cache.get(chain);
   if (!d) {
     d = resolveDeployment(chain, { xlayer, local });

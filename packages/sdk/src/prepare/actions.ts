@@ -5,12 +5,12 @@ import { sameAddress, toAddress, ZERO_ADDRESS } from '../address';
 import { appendSuffix } from '../builder-code';
 import { assetsToAbi, heirsToAbi, timingToAbi } from '../encode';
 import { AtropyleError } from '../errors';
-import type { PlanIssue } from '../plan/types';
+import type { GuardianPart, PlanIssue } from '../plan/types';
 import { planError, resolveTiming, validateSection } from '../plan/validate';
 import { predictAction } from '../policy/predict';
 import { readSnapshot } from '../read/snapshot';
 import type { VaultSnapshot } from '../read/types';
-import { isReleasedState, type Warning } from '../types';
+import { type Asset, type Heir, isReleasedState, type Warning } from '../types';
 import { untrusted } from '../untrusted';
 import { approvalDrafts, revokeDrafts } from './approvals';
 import { simulateTxs } from './simulate';
@@ -92,6 +92,84 @@ interface Built {
   warnings: Warning[];
 }
 
+type Of<T extends VaultActionType> = Extract<VaultAction, { type: T }>;
+
+function checkedHeirs(snap: VaultSnapshot, action: Of<'setHeirs'>): Heir[] {
+  const c = snap.config;
+  const r = validateSection('heirs', action.heirs, {
+    owner: c.owner,
+    vault: snap.status.vault,
+    heirCount: c.heirs.length,
+  });
+  const issues: PlanIssue[] = [...r.issues];
+  if (r.value) {
+    const n = r.value.length;
+    c.assets.forEach((a, i) => {
+      if (a.heir >= n) {
+        issues.push({
+          path: 'heirs',
+          code: 'ASSET_HEIR_RANGE',
+          message: `heirs: asset #${i} goes to heir #${a.heir}; keep at least ${a.heir + 1} heirs or change the assets first`,
+        });
+      }
+    });
+  }
+  if (!r.value || issues.length > 0) throw planError(issues);
+  return r.value;
+}
+
+function checkedGuardians(snap: VaultSnapshot, action: Of<'setGuardians'>): GuardianPart {
+  const c = snap.config;
+  // A plan may leave guardians out (none); this action replaces the list, so it must be given.
+  if (action.guardians === undefined) {
+    throw planError([
+      {
+        path: 'guardians',
+        code: 'REQUIRED',
+        message: 'guardians: give the new list of guardians (an empty list removes them all)',
+      },
+    ]);
+  }
+  const r = validateSection('guardians', action.guardians, {
+    owner: c.owner,
+    vault: snap.status.vault,
+    heirCount: c.heirs.length,
+    k: action.k,
+    recoveryEnabled: action.recoveryEnabled,
+  });
+  if (!r.value) throw planError(r.issues);
+  return r.value;
+}
+
+function checkedAssets(snap: VaultSnapshot, action: Of<'setAssets'>): Asset[] {
+  const c = snap.config;
+  const r = validateSection('assets', action.assets, { owner: c.owner, heirCount: c.heirs.length });
+  if (!r.value) throw planError(r.issues);
+  return r.value;
+}
+
+/** The input checks of `build`, without its RPC calls: whatIf runs them before it predicts anything. */
+function validateAction(snap: VaultSnapshot, action: VaultAction): void {
+  switch (action.type) {
+    case 'setHeirs':
+      checkedHeirs(snap, action);
+      return;
+    case 'setGuardians':
+      checkedGuardians(snap, action);
+      return;
+    case 'setTiming':
+      resolveTiming(action.timing, snap.config.drill);
+      return;
+    case 'setAssets':
+      checkedAssets(snap, action);
+      return;
+    case 'voteRecovery':
+      if (action.target !== null) toAddress(action.target, 'target');
+      return;
+    default:
+  }
+}
+
 async function build(
   x: PrepareContext,
   snap: VaultSnapshot,
@@ -130,34 +208,12 @@ async function build(
       };
     }
     case 'setHeirs': {
-      const r = validateSection('heirs', action.heirs, { owner: c.owner, vault: v, heirCount: c.heirs.length });
-      const issues: PlanIssue[] = [...r.issues];
-      if (r.value) {
-        const n = r.value.length;
-        c.assets.forEach((a, i) => {
-          if (a.heir >= n) {
-            issues.push({
-              path: 'heirs',
-              code: 'ASSET_HEIR_RANGE',
-              message: `heirs: asset #${i} goes to heir #${a.heir}; keep at least ${a.heir + 1} heirs or change the assets first`,
-            });
-          }
-        });
-      }
-      if (!r.value || issues.length > 0) throw planError(issues);
-      const data = encodeFunctionData({ abi: vaultAbi, functionName: 'setHeirs', args: [heirsToAbi(r.value)] });
-      return { drafts: [call(data, summarize.setHeirs(v, r.value))], warnings };
+      const heirs = checkedHeirs(snap, action);
+      const data = encodeFunctionData({ abi: vaultAbi, functionName: 'setHeirs', args: [heirsToAbi(heirs)] });
+      return { drafts: [call(data, summarize.setHeirs(v, heirs))], warnings };
     }
     case 'setGuardians': {
-      const r = validateSection('guardians', action.guardians, {
-        owner: c.owner,
-        vault: v,
-        heirCount: c.heirs.length,
-        k: action.k,
-        recoveryEnabled: action.recoveryEnabled,
-      });
-      if (!r.value) throw planError(r.issues);
-      const g = r.value;
+      const g = checkedGuardians(snap, action);
       const data = encodeFunctionData({
         abi: vaultAbi,
         functionName: 'setGuardians',
@@ -171,12 +227,11 @@ async function build(
       return { drafts: [call(data, summarize.setTiming(v, t))], warnings };
     }
     case 'setAssets': {
-      const r = validateSection('assets', action.assets, { owner: c.owner, heirCount: c.heirs.length });
-      if (!r.value) throw planError(r.issues);
-      const data = encodeFunctionData({ abi: vaultAbi, functionName: 'setAssets', args: [assetsToAbi(r.value)] });
-      const ap = await approvalDrafts(approvalCtx, c.owner, v, r.value, opts.allowance ?? 'exact');
+      const assets = checkedAssets(snap, action);
+      const data = encodeFunctionData({ abi: vaultAbi, functionName: 'setAssets', args: [assetsToAbi(assets)] });
+      const ap = await approvalDrafts(approvalCtx, c.owner, v, assets, opts.allowance ?? 'exact');
       return {
-        drafts: [call(data, summarize.setAssets(v, r.value)), ...ap.drafts],
+        drafts: [call(data, summarize.setAssets(v, assets)), ...ap.drafts],
         warnings: [...warnings, ...ap.warnings],
       };
     }
@@ -256,6 +311,7 @@ export async function whatIf(
   assertActionType(action);
   const as = toAddress(opts.as, 'as');
   const snap = await readSnapshot(x, vault);
+  validateAction(snap, action);
   const at = opts.at ?? snap.status.blockTimestamp;
   const engine = await x.engineFor(snap.binding.cpu, snap.binding.policyId);
   const effect = predictAction(engine, snap, action, as, at);

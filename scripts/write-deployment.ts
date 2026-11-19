@@ -17,6 +17,7 @@ import {
   type PublicClient,
 } from 'viem';
 import { cpuAbi, factoryAbi } from '../packages/sdk/src/abi/index';
+import { isBuilderCode } from '../packages/sdk/src/builder-code';
 import {
   type Deployment,
   deploymentToJson,
@@ -49,14 +50,25 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-const { values: args } = parseArgs({
-  options: {
-    'builder-code': { type: 'string' },
-    'web-url': { type: 'string', default: 'https://duongnq2798.github.io/atropyle/' },
-    factory: { type: 'string' },
-    'factory-block': { type: 'string' },
-  },
-});
+function readArgs() {
+  try {
+    return parseArgs({
+      options: {
+        'builder-code': { type: 'string' },
+        'web-url': { type: 'string', default: 'https://duongnq2798.github.io/atropyle/' },
+        factory: { type: 'string' },
+        'factory-block': { type: 'string' },
+      },
+    }).values;
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e));
+  }
+}
+
+const args = readArgs();
+// Before any network access: an empty or malformed code would be written into the deployment file.
+if (args['builder-code'] !== undefined && !isBuilderCode(args['builder-code']))
+  fail('--builder-code must be printable ASCII without spaces or commas (and not empty)');
 
 function fromBroadcast(): { factory: Address; block: bigint } | null {
   if (!existsSync(BROADCAST)) return null;
@@ -101,6 +113,9 @@ const chain = defineChain({
 const client = createPublicClient({
   chain,
   transport: quorumTransport([readTransport(OKX), readTransport(DRPC)]),
+  // No CCIP read: --factory is untrusted input, and a contract must not make this script fetch a URL it picked.
+  ccipRead: false,
+  cacheTime: 0,
 }) as PublicClient;
 
 if ((await client.getChainId()) !== 196) fail('the RPC operators are not on chain 196');

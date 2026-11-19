@@ -175,6 +175,8 @@ interface BroadcastTx {
   contractAddress: string | null;
 }
 
+const FORGE_TIMEOUT_MS = 180_000;
+
 /** Deploys DeployLocal.s.sol through anvil's unlocked account 0 and returns the deployment JSON. */
 export async function deployLocal(rpcUrl: string): Promise<Record<string, unknown>> {
   const r = spawnSync(
@@ -189,8 +191,11 @@ export async function deployLocal(rpcUrl: string): Promise<Record<string, unknow
       '--sender',
       ANVIL_ACCOUNTS[0],
     ],
-    { cwd: CONTRACTS, encoding: 'utf8', windowsHide: true },
+    { cwd: CONTRACTS, encoding: 'utf8', windowsHide: true, timeout: FORGE_TIMEOUT_MS, killSignal: 'SIGKILL' },
   );
+  if (r.error && (r.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    throw new Error(`forge script DeployLocal timed out after ${FORGE_TIMEOUT_MS / 1000} s and was killed`);
+  }
   if (r.error) throw new Error(`could not run forge (is Foundry installed and on PATH?): ${r.error.message}`);
   if (r.status !== 0) throw new Error(`forge script DeployLocal failed:\n${r.stdout}\n${r.stderr}`);
   const file = join(CONTRACTS, 'broadcast/DeployLocal.s.sol/31337/run-latest.json');

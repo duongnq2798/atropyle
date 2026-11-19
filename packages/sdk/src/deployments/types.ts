@@ -67,6 +67,7 @@ function int(v: unknown, path: string, min: number): number {
 }
 
 function big(v: unknown, path: string): bigint {
+  if (typeof v === 'bigint' && v >= 0n) return v;
   if (typeof v !== 'string' || !/^\d+$/.test(v)) fail(path, 'expected a decimal string');
   return BigInt(v);
 }
