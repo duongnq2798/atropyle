@@ -193,7 +193,8 @@ export class AtropyleError extends Error {
 
   toJSON(): AtropyleErrorJson {
     const j: AtropyleErrorJson = { code: this.code, message: this.message, hint: this.hint, docsUrl: this.docsUrl };
-    if (this.details) j.details = this.details;
+    // Details may hold bigint (revert arguments); JSON.stringify throws on those.
+    if (this.details) j.details = toJson(this.details) as Record<string, unknown>;
     return j;
   }
 }
@@ -259,6 +260,15 @@ function hasRpcCode(e: BaseError, code: number): boolean {
   return e.walk((x) => (x as { code?: unknown } | null)?.code === code) !== null;
 }
 
+/**
+ * First numeric HTTP status in the cause chain. For a non-2xx response whose body is a JSON-RPC error, viem 2.58
+ * throws RpcRequestError with the status attached; only a body that is not JSON-RPC gives HttpRequestError.
+ */
+function httpStatusOf(e: BaseError): number | undefined {
+  const hit = e.walk((x) => typeof (x as { status?: unknown } | null)?.status === 'number');
+  return (hit as { status: number } | null)?.status;
+}
+
 const REVERT_HEX = /^0x[0-9a-fA-F]{8,}$/;
 
 /**
@@ -279,6 +289,23 @@ function revertCandidates(e: BaseError): Hex[] {
   return out;
 }
 
+/** A URL can carry an API key (`?dkey=...`), so no URL may reach a message. */
+const URL_IN_TEXT = /[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+
+/**
+ * Message for an error we cannot classify. viem's own `message` repeats the full RPC URL and the request body, so
+ * for viem errors only `shortMessage` and `details` are used; the original stays reachable through `cause`.
+ */
+function unknownMessage(e: unknown): string {
+  let text: string;
+  if (e instanceof BaseError) {
+    text = e.details && e.details !== e.shortMessage ? `${e.shortMessage} (${e.details})` : e.shortMessage;
+  } else {
+    text = e instanceof Error ? e.message : String(e);
+  }
+  return text.replace(URL_IN_TEXT, '<url>').slice(0, 500) || ERROR_INFO.UNKNOWN.message;
+}
+
 /** Turns any thrown value (viem, wallet, contract revert) into an AtropyleError. */
 export function decodeError(e: unknown): AtropyleError {
   if (e instanceof AtropyleError) return e;
@@ -289,6 +316,10 @@ export function decodeError(e: unknown): AtropyleError {
     // A throttled or unavailable endpoint is a transport failure. Check before any revert data is read.
     if (hasRpcCode(e, RPC_LIMIT_EXCEEDED)) return new AtropyleError('RPC_RATE_LIMITED', { cause: e });
     if (hasRpcCode(e, RPC_RESOURCE_UNAVAILABLE)) return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
+    const status = httpStatusOf(e);
+    if (status === 429) return new AtropyleError('RPC_RATE_LIMITED', { cause: e });
+    if (status !== undefined && status >= 500 && status <= 599)
+      return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
     const reverted = e.walk((x) => x instanceof ContractFunctionRevertedError);
     if (reverted instanceof ContractFunctionRevertedError) {
       const name = reverted.data?.errorName;
@@ -301,11 +332,9 @@ export function decodeError(e: unknown): AtropyleError {
     }
     if (e.walk((x) => x instanceof UserRejectedRequestError)) return new AtropyleError('USER_REJECTED', { cause: e });
     if (e.walk((x) => x instanceof ChainMismatchError)) return new AtropyleError('WRONG_CHAIN', { cause: e });
-    const http = e.walk((x) => x instanceof HttpRequestError);
-    if (http instanceof HttpRequestError && http.status === 429)
-      return new AtropyleError('RPC_RATE_LIMITED', { cause: e });
-    if (http || e.walk((x) => x instanceof TimeoutError)) return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
+    if (e.walk((x) => x instanceof HttpRequestError || x instanceof TimeoutError)) {
+      return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
+    }
   }
-  const message = e instanceof Error ? e.message : String(e);
-  return new AtropyleError('UNKNOWN', { cause: e, message: message.slice(0, 500) || ERROR_INFO.UNKNOWN.message });
+  return new AtropyleError('UNKNOWN', { cause: e, message: unknownMessage(e) });
 }

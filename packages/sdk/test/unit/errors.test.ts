@@ -1,9 +1,11 @@
 import {
+  BaseError,
   ContractFunctionRevertedError,
   createPublicClient,
   custom,
   encodeErrorResult,
   HttpRequestError,
+  http,
   LimitExceededRpcError,
   ResourceUnavailableRpcError,
   RpcRequestError,
@@ -195,5 +197,147 @@ describe('decodeError revert data', () => {
     expect(decodeError(Object.assign(nested, { data: '0xdeadbeef' })).code).toBe('NOT_OWNER');
     const unknownRaw = new ContractFunctionRevertedError({ abi: [], data: '0xdeadbeef', functionName: 'f' });
     expect(decodeError(unknownRaw).code).toBe('UNKNOWN');
+  });
+});
+
+/** viem 2.58 throws RpcRequestError, carrying `.status`, for a non-2xx response whose body is a JSON-RPC error. */
+const httpFailure = (status: number, code: number) =>
+  new RpcRequestError({
+    status,
+    body: { method: 'eth_call' },
+    error: { code, message: 'upstream failure' },
+    url: 'https://rpc.example',
+  });
+
+const jsonRpcResponse = (status: number, code: number, message: string) =>
+  new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code, message } }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+const clientAnswering = (status: number, code: number, message: string) =>
+  createPublicClient({
+    transport: http('https://rpc.example/?dkey=SECRET', {
+      retryCount: 0,
+      fetchFn: async () => jsonRpcResponse(status, code, message),
+    }),
+  });
+
+describe('decodeError HTTP status', () => {
+  it('maps HTTP 429 with a JSON-RPC body to RPC_RATE_LIMITED whatever the body code', () => {
+    // 429 in the body, dRPC style 29, and a generic server code.
+    for (const code of [429, 29, -32000]) {
+      const decoded = decodeError(httpFailure(429, code));
+      expect(decoded.code, `body code ${code}`).toBe('RPC_RATE_LIMITED');
+      expect(isTransportError(decoded)).toBe(true);
+    }
+  });
+
+  it('maps HTTP 5xx with a JSON-RPC body to RPC_UNAVAILABLE', () => {
+    for (const [status, code] of [
+      [500, -32603],
+      [502, -32000],
+      [503, -32000],
+      [504, -32000],
+      [599, -32000],
+    ] as const) {
+      const decoded = decodeError(httpFailure(status, code));
+      expect(decoded.code, `${status} / ${code}`).toBe('RPC_UNAVAILABLE');
+      expect(isTransportError(decoded)).toBe(true);
+    }
+  });
+
+  it('reads the status through wrappers and does not read such an error as a revert', () => {
+    const wrapped = new UnknownRpcError(Object.assign(httpFailure(503, -32000), { data: NOT_OWNER_DATA }));
+    expect(decodeError(wrapped).code).toBe('RPC_UNAVAILABLE');
+    const limited = new UnknownRpcError(Object.assign(httpFailure(429, 29), { data: NOT_OWNER_DATA }));
+    expect(decodeError(limited).code).toBe('RPC_RATE_LIMITED');
+  });
+
+  it('keeps the HttpRequestError mapping and leaves other client errors alone', () => {
+    expect(decodeError(new HttpRequestError({ url: 'https://rpc.example', status: 429 })).code).toBe(
+      'RPC_RATE_LIMITED',
+    );
+    expect(decodeError(new HttpRequestError({ url: 'https://rpc.example', status: 502 })).code).toBe('RPC_UNAVAILABLE');
+    expect(decodeError(new HttpRequestError({ url: 'https://rpc.example' })).code).toBe('RPC_UNAVAILABLE');
+    expect(decodeError(httpFailure(400, -32602)).code).toBe('UNKNOWN');
+  });
+
+  it('maps a 429 with a JSON-RPC body returned to a real client', async () => {
+    const client = clientAnswering(429, 29, 'Too many requests');
+    const viaBlock = decodeError(await client.getBlockNumber().catch((e: unknown) => e));
+    expect(viaBlock.code).toBe('RPC_RATE_LIMITED');
+    expect(isTransportError(viaBlock)).toBe(true);
+    // The same failure inside a contract read is wrapped by viem and must stay a transport error.
+    const viaRead = decodeError(
+      await client
+        .readContract({
+          abi: [{ type: 'function', name: 'f', stateMutability: 'view', inputs: [], outputs: [] }] as const,
+          address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          functionName: 'f',
+        })
+        .catch((e: unknown) => e),
+    );
+    expect(viaRead.code).toBe('RPC_RATE_LIMITED');
+  });
+
+  it('maps a 503 with a JSON-RPC body returned to a real client', async () => {
+    const decoded = decodeError(
+      await clientAnswering(503, -32000, 'upstream unavailable')
+        .getBlockNumber()
+        .catch((e: unknown) => e),
+    );
+    expect(decoded.code).toBe('RPC_UNAVAILABLE');
+    expect(isTransportError(decoded)).toBe(true);
+  });
+});
+
+describe('decodeError UNKNOWN message', () => {
+  const leaks = (text: string) => /http|SECRET/i.test(text);
+
+  it('never carries the RPC URL or the request body of a viem error', () => {
+    const e = new RpcRequestError({
+      body: { method: 'eth_call', params: ['SECRETBODY'] },
+      error: { code: -32000, message: 'execution failed upstream' },
+      url: 'https://rpc.example/?dkey=SECRET',
+    });
+    expect(leaks(e.message)).toBe(true); // viem's own message does leak, which is why it is not used
+    const decoded = decodeError(e);
+    expect(decoded.code).toBe('UNKNOWN');
+    expect(leaks(decoded.message)).toBe(false);
+    expect(decoded.message).toContain('execution failed upstream');
+    // The JSON form carries the docs link (an https URL) but never the RPC URL or the request body.
+    expect(JSON.stringify(decoded.toJSON())).not.toMatch(/SECRET|rpc\.example/);
+    expect(decoded.cause).toBe(e);
+  });
+
+  it('redacts a URL that a viem error repeats inside its details', () => {
+    const e = new BaseError('Request failed.', { details: 'bad key at https://rpc.example/?dkey=SECRET' });
+    const decoded = decodeError(e);
+    expect(decoded.code).toBe('UNKNOWN');
+    expect(leaks(decoded.message)).toBe(false);
+    expect(decoded.message).toContain('Request failed.');
+  });
+
+  it('keeps a sliced message for other errors and redacts URLs there too', () => {
+    expect(decodeError(new Error('boom')).message).toBe('boom');
+    expect(decodeError(new Error('x'.repeat(1000))).message).toHaveLength(500);
+    expect(leaks(decodeError(new Error('fetch failed: https://rpc.example/?dkey=SECRET')).message)).toBe(false);
+    expect(decodeError('plain string').message).toBe('plain string');
+    expect(decodeError(new Error('')).message).toBe(ERROR_INFO.UNKNOWN.message);
+  });
+});
+
+describe('AtropyleError.toJSON', () => {
+  it('turns bigint details into decimal strings so JSON.stringify never throws', () => {
+    const e = new AtropyleError('NOT_OWNER', { details: { n: 1n, nested: { big: 2n ** 70n }, list: [3n] } });
+    expect(() => JSON.stringify(e)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(e)).details).toEqual({
+      n: '1',
+      nested: { big: '1180591620717411303424' },
+      list: ['3'],
+    });
+    // The in-memory details keep their original types.
+    expect(e.details?.n).toBe(1n);
   });
 });
