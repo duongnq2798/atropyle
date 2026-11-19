@@ -88,7 +88,7 @@ Các mục "đã xác minh" được kiểm ngày 18/11/2026, chỉ đọc.
     - Cron cần `toBlock = scan.toBlock`, để stats không đọc vượt khoảng `maxBlocks` mà scan vừa đọc.
     - Chữ ký đề xuất: `stats(o?: { fromBlock?: bigint; toBlock?: bigint; resume?: StatsCursor; onProgress?: (done: number, total: number) => void }): Promise<Stats>`.
     - Người điều phối đã thêm `toBlock` vào kiểu `AtropyleClient.stats(o?)` của Plan 2 theo đúng chữ ký trên, nên `src/chain/sdk.ts` gọi thẳng `atro.stats({ resume, toBlock })`, không cần ép kiểu.
-11. **Gap G2 (đã vá trong Plan 2):** năm mã lỗi riêng của API là `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHORIZED`, `NOT_READY` và `FORBIDDEN` (403, của Task 17). Người điều phối đã thêm cả năm vào `ERROR_INFO`/`ERROR_CODES` của SDK (Plan 2, Quyết định 8; tổng 37 mã), nên trang Errors của Plan 6 tự sinh anchor cho chúng. Worker vẫn giữ bảng `API_ERRORS` để biết HTTP status và `title` của từng mã. `ProblemCode = ErrorCode | ApiCode` vẫn đúng, vì `ApiCode` giờ là tập con của `ErrorCode`. `type` là `errorDocsUrl(code)`.
+11. **Gap G2 (đã vá trong Plan 2):** năm mã lỗi riêng của API là `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHORIZED`, `NOT_READY` và `FORBIDDEN` (403, của Task 17). Người điều phối đã thêm cả năm vào `ERROR_INFO`/`ERROR_CODES` của SDK (Plan 2, Quyết định 8; tổng 38 mã, gồm `INSUFFICIENT_GAS` của contract), nên trang Errors của Plan 6 tự sinh anchor cho chúng. Worker vẫn giữ bảng `API_ERRORS` để biết HTTP status và `title` của từng mã. `ProblemCode = ErrorCode | ApiCode` vẫn đúng, vì `ApiCode` giờ là tập con của `ErrorCode`. `type` là `errorDocsUrl(code)`.
 12. **Ngân sách mỗi invocation (`Budget`):**
     - Đếm fetch thật qua `onFetchRequest` của transport `http` của viem, cộng với mỗi lần gọi Telegram và mỗi lần dò RPC.
     - Đếm truy vấn D1 bằng wrapper `metered()`; `batch` tính là một truy vấn.
@@ -7112,7 +7112,7 @@ Expected: lệnh đầu liệt kê `0002_reminders.sql` là migration mới và 
 
 **Interfaces:**
 - Consumes:
-  - Plan 2: `vault(a).snapshot(): Promise<VaultSnapshot>`, `vaultsOf(account: string): Promise<VaultRef[]>`, kiểu `VaultStatus`, `VaultRef`, `toAddress`, `toJson`, `sameAddress`, `AtropyleError`.
+  - Plan 2: `vault(a).snapshot(): Promise<VaultSnapshot>`, `vaultsOf(account: string, o?: { limit?: number }): Promise<VaultRef[]>` (mặc định 100 vault mới nhất), kiểu `VaultStatus`, `VaultRef`, `toAddress`, `toJson`, `sameAddress`, `AtropyleError`.
   - Task 7: `problemFromError` (đã map `INVALID_ADDRESS` → 400, `NOT_VAULT` → 404, lỗi transport → 503).
   - Task 8: kiểu `Health`. Task 14: `/v1/badge/*` (nếu Task 14 bị cắt, xem Step 5).
 - Produces:
@@ -7126,7 +7126,7 @@ Expected: lệnh đầu liệt kê `0002_reminders.sql` là migration mới và 
 Quyết định riêng của task:
 - `VaultStatusJson` bỏ `token.symbol` và `token.name`. Đó là chuỗi untrusted lấy từ chain (ràng buộc của plan), còn API chỉ trả dữ liệu có cấu trúc. Mỗi tài sản giữ `kind`, `token`, `id`, `heir`, `decimals`, `coverage`, `held`.
 - Route đọc chain trực tiếp mỗi lần gọi, không qua D1, nên luôn là giá trị ở block mới nhất. Cache 15 s đủ chặn việc gọi dồn dập.
-- `vaultsOf` đọc 5 giá trị cho mỗi vault. Transport gom 20 lệnh JSON-RPC vào một request, nên một tài khoản có 100 vault tốn khoảng 25 subrequest, vẫn dưới trần 50 của gói Free.
+- `vaultsOf` của SDK không gọi `vaultsOf` của factory (không giới hạn độ dài, ai cũng làm phình được bằng Drill miễn phí). Nó đọc `vaultsOfLength`, rồi một trang `vaultsOfPage` gồm tối đa 100 vault mới nhất, rồi 5 giá trị cho mỗi vault và lọc theo vai trò hiện tại. Transport gom 20 lệnh JSON-RPC vào một request, nên kể cả tài khoản bị spam cũng chỉ tốn khoảng 27 subrequest, vẫn dưới trần 50 của gói Free.
 
 - [ ] **Step 1: Cài zod**
 
@@ -7456,7 +7456,9 @@ export const VaultStatusSchema = z.object({
   blockNumber: Uint,
   blockTimestamp: Uint,
   state: StateName,
-  pending: StateName.meta({ description: 'The state a poke() would produce at this block' }),
+  pending: StateName.meta({
+    description: 'The state a poke() from anyone but the owner would produce at this block; equals state once released or after a Drill expired',
+  }),
   lastAlive: Uint,
   lateAt: Uint,
   alarmAt: Uint.nullable(),

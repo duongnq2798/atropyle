@@ -75,7 +75,7 @@
    - `sixMonths`: P = 30 ngày, T = 6, W = 14 ngày.
    - `twelveMonths`: P = 30 ngày, T = 12, W = 30 ngày.
    - Spec lõi chỉ nêu tên hai preset dài, chưa có số cụ thể.
-8. **Mã lỗi bổ sung** ngoài danh sách §5.5: `INVALID_ADDRESS`, `DEPLOYMENT_MISSING`, `DEPLOYMENT_INVALID`, `WRONG_ACCOUNT`, `USER_REJECTED`, `LINK_INVALID`, `FEE_TRANSFER_FAILED`, `REENTRANCY`, `ALREADY_INITIALIZED`. Thêm năm mã của HTTP API (Worker, Plan 5): `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_READY`. SDK không ném năm mã này. Chúng nằm trong cùng bảng để `code` trong problem+json luôn là một `ErrorCode`, client hiện được message và hint, và trang Errors (Plan 6) tự sinh anchor cho chúng. Tổng cộng 37 mã.
+8. **Mã lỗi bổ sung** ngoài danh sách §5.5 (danh sách đó có 14 mã contract, gồm `INSUFFICIENT_GAS` của `distribute`, và 9 mã môi trường): `INVALID_ADDRESS`, `INVALID_OPTIONS`, `DEPLOYMENT_MISSING`, `DEPLOYMENT_INVALID`, `WRONG_ACCOUNT`, `USER_REJECTED`, `LINK_INVALID`, `FEE_TRANSFER_FAILED`, `REENTRANCY`, `ALREADY_INITIALIZED`. Thêm năm mã của HTTP API (Worker, Plan 5): `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_READY`. SDK không ném năm mã này. Chúng nằm trong cùng bảng để `code` trong problem+json luôn là một `ErrorCode`, client hiện được message và hint, và trang Errors (Plan 6) tự sinh anchor cho chúng. Tổng cộng 38 mã (23 + 10 + 5).
 9. **Nguồn địa chỉ:**
    - `deployments/local.json` sinh từ file broadcast của forge.
    - `deployments/xlayer.json` sinh bằng `scripts/write-deployment.ts`, đọc thẳng từ chain sau Plan 1 Task 14.
@@ -721,7 +721,7 @@ describe('generated ABIs', () => {
     const fns = names(factoryAbi, 'function');
     for (const f of [
       'createVault', 'predictVault', 'currentFee', 'earlyFee', 'fullFee', 'paidCount', 'isVault', 'vaultsOf',
-      'vaultImpl', 'cpu', 'policyId', 'treasury', 'EARLY_COUNT',
+      'vaultsOfLength', 'vaultsOfPage', 'vaultImpl', 'cpu', 'policyId', 'treasury', 'EARLY_COUNT',
     ]) {
       expect(fns).toContain(f);
     }
@@ -737,7 +737,7 @@ describe('generated ABIs', () => {
     for (const e of [
       'NotOwner', 'NotGuardian', 'AlreadyReleased', 'DrillExpired', 'InvalidHeirs', 'InvalidGuardians',
       'InvalidTiming', 'InvalidAssets', 'InvalidTarget', 'RecoveryDisabled', 'BadPolicyOutput', 'Reentrancy',
-      'AlreadyInitialized', 'UnsupportedFeeToken', 'NotVault', 'ERC20InsufficientAllowance',
+      'AlreadyInitialized', 'InsufficientGas', 'UnsupportedFeeToken', 'NotVault', 'ERC20InsufficientAllowance',
       'ERC20InsufficientBalance',
     ]) {
       expect(errors).toContain(e);
@@ -886,7 +886,7 @@ export const revertAbi = [
 Run: `npm test -w packages/sdk -- abi && npm run abi:sync -- --check`
 Expected: 4 test PASS; in `abi: up to date`.
 
-Nếu thiếu `AlreadyInitialized` hoặc `Reentrancy`, kiểm lại xem `AtropyleVault.sol` của Plan 1 có khai báo hai error đó không. Không được sửa test cho khớp.
+Nếu thiếu `AlreadyInitialized` hoặc `Reentrancy`, kiểm lại xem `AtropyleVault.sol` của Plan 1 có khai báo hai error đó không; thiếu `InsufficientGas` thì kiểm `vault/VaultDistribution.sol`, mà vault kế thừa. Thiếu `vaultsOfLength` hoặc `vaultsOfPage` thì kiểm `AtropyleFactory.sol`. Không được sửa test cho khớp.
 
 - [ ] **Step 6: Commit**
 
@@ -1071,6 +1071,7 @@ const CASES: Array<[string, string, readonly unknown[]]> = [
   ['BadPolicyOutput', 'BAD_POLICY_OUTPUT', [2]],
   ['Reentrancy', 'REENTRANCY', []],
   ['AlreadyInitialized', 'ALREADY_INITIALIZED', []],
+  ['InsufficientGas', 'INSUFFICIENT_GAS', []],
   ['ERC20InsufficientAllowance', 'FEE_TRANSFER_FAILED', ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 0n, 1990000n]],
   ['SafeERC20FailedOperation', 'FEE_TRANSFER_FAILED', ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8']],
 ];
@@ -1120,7 +1121,7 @@ describe('decodeError', () => {
   });
 
   it('every code has an English message and hint', () => {
-    expect(ERROR_CODES.length).toBe(37);
+    expect(ERROR_CODES.length).toBe(38);
     for (const c of ERROR_CODES) {
       expect(ERROR_INFO[c].message).toMatch(/\.$/);
       expect(ERROR_INFO[c].hint.length).toBeGreaterThan(10);
@@ -1394,11 +1395,11 @@ export const ERROR_INFO = {
   DRILL_EXPIRED: { message: 'This Drill vault has expired.', hint: 'Drill vaults live 7 days. Create a new Drill to practise again.' },
   INVALID_HEIRS: {
     message: 'The heir list breaks the vault rules.',
-    hint: '1 to 5 distinct heirs, none is the owner, each share above 0, shares sum to 10000 bps, every asset points to an existing heir.',
+    hint: '1 to 5 distinct heirs, none is the owner or the vault itself, each share above 0, shares sum to 10000 bps, every asset points to an existing heir.',
   },
   INVALID_GUARDIANS: {
     message: 'The guardian list breaks the vault rules.',
-    hint: 'At most 5 distinct guardians, none is the owner, k at most the number of guardians, and recovery needs k of at least 1.',
+    hint: 'At most 5 distinct guardians, none is the owner or the vault itself, k at most the number of guardians, and recovery needs k of at least 1.',
   },
   INVALID_TIMING: {
     message: 'The timing breaks the vault rules.',
@@ -1415,6 +1416,10 @@ export const ERROR_INFO = {
   BAD_POLICY_OUTPUT: {
     message: 'The policy circuit returned a non-canonical state.',
     hint: 'This cannot happen with the verified circuit. Run `atropyle verify` and report it.',
+  },
+  INSUFFICIENT_GAS: {
+    message: 'The transaction gas cannot cover the next capped transfer of the sweep.',
+    hint: 'Send distribute again with a higher gas limit: before each transfer the vault needs its full cap (up to 500,000 gas) plus a margin.',
   },
   REENTRANCY: { message: 'The vault rejected a re-entrant call.', hint: 'A token tried to call back into the vault. Remove that asset.' },
   ALREADY_INITIALIZED: { message: 'This vault is already initialized.', hint: 'Vaults are created only through the factory.' },
@@ -1535,6 +1540,7 @@ const REVERTS: Record<string, ErrorCode> = {
   BadPolicyOutput: 'BAD_POLICY_OUTPUT',
   Reentrancy: 'REENTRANCY',
   AlreadyInitialized: 'ALREADY_INITIALIZED',
+  InsufficientGas: 'INSUFFICIENT_GAS',
   ERC20InsufficientAllowance: 'FEE_TRANSFER_FAILED',
   ERC20InsufficientBalance: 'FEE_TRANSFER_FAILED',
   SafeERC20FailedOperation: 'FEE_TRANSFER_FAILED',
@@ -1623,11 +1629,11 @@ export { type Untrusted, untrusted } from './untrusted';
 
 Run: `npm test -w packages/sdk && npm run typecheck -w packages/sdk && npx biome check packages`
 Expected:
-- toàn bộ test PASS, gồm 17 ca `decodeRevertData`;
+- toàn bộ test PASS, gồm 18 ca `decodeRevertData`;
 - `tsc` sạch;
 - Biome không báo lỗi.
 
-Nếu `ERROR_CODES.length` khác 37, nghĩa là bảng `ERROR_INFO` thiếu hoặc thừa mã. Phải đối chiếu lại với danh sách §5.5 của spec cộng các mã trong quyết định 8, không được sửa con số trong test.
+Nếu `ERROR_CODES.length` khác 38, nghĩa là bảng `ERROR_INFO` thiếu hoặc thừa mã. Phải đối chiếu lại với danh sách §5.5 của spec cộng các mã trong quyết định 8, không được sửa con số trong test.
 
 - [ ] **Step 7: Commit**
 
@@ -2537,15 +2543,15 @@ git commit -m "feat(devnet): anvil devnet with DeployLocal, warp and vitest inte
     - `type TimingInput = PresetName | { period: number | string; threshold: number; window: number | string }`
     - `interface AssetInput { kind: AssetKind; token: string; id?: string | number; heir?: number }`
     - `interface PlanInput { version?: 1; owner?: string; drill?: boolean; heirs: HeirInput[]; guardians?: string[]; k?: number; recoveryEnabled?: boolean; timing: TimingInput; assets?: AssetInput[] }`
-  - `type PlanIssueCode = 'REQUIRED' | 'TYPE' | 'UNKNOWN_FIELD' | 'INVALID_ADDRESS' | 'ZERO_ADDRESS' | 'DUPLICATE' | 'HEIRS_COUNT' | 'HEIR_IS_OWNER' | 'SHARE_FORMAT' | 'SHARE_ZERO' | 'SHARES_SUM' | 'GUARDIANS_COUNT' | 'GUARDIAN_IS_OWNER' | 'K_RANGE' | 'RECOVERY_NEEDS_K' | 'UNKNOWN_PRESET' | 'PERIOD_MIN' | 'WINDOW_MIN' | 'THRESHOLD_RANGE' | 'DURATION_MAX' | 'ASSETS_COUNT' | 'ASSET_KIND' | 'ERC20_ID_NONZERO' | 'ASSET_HEIR_RANGE' | 'TOKEN_NOT_CONTRACT'`. Mã cuối chỉ do `checkPlan` (Task 10) sinh ra.
+  - `type PlanIssueCode = 'REQUIRED' | 'TYPE' | 'UNKNOWN_FIELD' | 'INVALID_ADDRESS' | 'ZERO_ADDRESS' | 'DUPLICATE' | 'HEIRS_COUNT' | 'HEIR_IS_OWNER' | 'HEIR_IS_VAULT' | 'SHARE_FORMAT' | 'SHARE_ZERO' | 'SHARES_SUM' | 'GUARDIANS_COUNT' | 'GUARDIAN_IS_OWNER' | 'GUARDIAN_IS_VAULT' | 'K_RANGE' | 'RECOVERY_NEEDS_K' | 'UNKNOWN_PRESET' | 'PERIOD_MIN' | 'WINDOW_MIN' | 'THRESHOLD_RANGE' | 'DURATION_MAX' | 'ASSETS_COUNT' | 'ASSET_KIND' | 'ERC20_ID_NONZERO' | 'ASSET_HEIR_RANGE' | 'TOKEN_NOT_CONTRACT'`. Mã cuối chỉ do `checkPlan` (Task 10) sinh ra.
   - `interface PlanIssue { path: string; code: PlanIssueCode; message: string }`
   - `interface PlanConfig extends VaultParams { owner: Address | null; drill: boolean }`
   - `type PlanResult = { ok: true; config: PlanConfig; warnings: Warning[] } | { ok: false; issues: PlanIssue[] }`
   - Các hàm:
-    - `validatePlan(input: unknown, ctx?: { owner?: string | null; drill?: boolean }): PlanResult`. Gom **mọi** issue chứ không dừng ở lỗi đầu tiên; `ctx` ghi đè `owner`/`drill` trong file.
+    - `validatePlan(input: unknown, ctx?: { owner?: string | null; drill?: boolean; vault?: string | null }): PlanResult`. Gom **mọi** issue chứ không dừng ở lỗi đầu tiên; `ctx` ghi đè `owner`/`drill` trong file. `ctx.vault` là địa chỉ vault sẽ được tạo (`factory.predictVault(owner, salt)`, Task 10 truyền vào): có thì heir hoặc guardian trùng địa chỉ đó báo `HEIR_IS_VAULT`/`GUARDIAN_IS_VAULT`, như `_setHeirs`/`_setGuardians` của contract từ chối `address(this)`.
     - `sharesToBps(percents: readonly number[]): number[]`
     - `resolveTiming(input: TimingInput, drill: boolean): Timing`, ném `PLAN_INVALID` với `details.issues`
-    - `validateSection(kind, input, ctx: SectionContext)`, dùng cho `prepare` của `setHeirs`/`setGuardians`/`setAssets`. Hàm có overload: `'heirs'` → `SectionResult<Heir[]>`, `'guardians'` → `SectionResult<GuardianPart>`, `'assets'` → `SectionResult<Asset[]>`. Trong đó `type SectionResult<T> = { issues: PlanIssue[]; value: T | null }`, `interface GuardianPart { guardians: Address[]; k: number; recoveryEnabled: boolean }`, `SectionContext = { owner: Address; heirCount: number; k?: number; recoveryEnabled?: boolean }`.
+    - `validateSection(kind, input, ctx: SectionContext)`, dùng cho `prepare` của `setHeirs`/`setGuardians`/`setAssets`. Hàm có overload: `'heirs'` → `SectionResult<Heir[]>`, `'guardians'` → `SectionResult<GuardianPart>`, `'assets'` → `SectionResult<Asset[]>`. Trong đó `type SectionResult<T> = { issues: PlanIssue[]; value: T | null }`, `interface GuardianPart { guardians: Address[]; k: number; recoveryEnabled: boolean }`, `SectionContext = { owner: Address; vault?: Address; heirCount: number; k?: number; recoveryEnabled?: boolean }` (`vault` là chính vault đang sửa).
     - `planTemplate(name: 'simple' | 'guarded', opts: TemplateOptions): PlanInput`, với `TemplateOptions = { heirs: HeirInput[]; guardians?: string[]; k?: number; recoveryEnabled?: boolean; timing?: TimingInput; assets?: AssetInput[]; drill?: boolean }`
     - `toVaultParams(c: PlanConfig): VaultParams`
     - `planError(issues: PlanIssue[]): AtropyleError`, trả `PLAN_INVALID` với `details.issues`
@@ -2566,6 +2572,7 @@ const D = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
 const E = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
 const F = '0x976EA74026E726554dB657fA54763abd0C3a0aa9';
 const TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const VAULT = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 
 const base = {
   heirs: [
@@ -2582,7 +2589,7 @@ const base = {
   ],
 };
 
-const codes = (input: unknown, ctx: { owner?: string; drill?: boolean } = { owner: OWNER }) => {
+const codes = (input: unknown, ctx: { owner?: string; drill?: boolean; vault?: string } = { owner: OWNER, vault: VAULT }) => {
   const r = validatePlan(input, ctx);
   return r.ok ? [] : r.issues.map((i) => `${i.path}:${i.code}`);
 };
@@ -2607,6 +2614,7 @@ describe('validatePlan', () => {
     ['no heirs', { ...base, heirs: [] }, ['heirs:HEIRS_COUNT']],
     ['six heirs', { ...base, heirs: [A, B, C, D, E, F].map((account) => ({ account, bps: 1000 })), assets: [] }, ['heirs:HEIRS_COUNT']],
     ['owner as heir', { ...base, heirs: [{ account: OWNER, bps: 10000 }], assets: [] }, ['heirs[0].account:HEIR_IS_OWNER']],
+    ['vault as heir', { ...base, heirs: [{ account: VAULT, bps: 10000 }], assets: [] }, ['heirs[0].account:HEIR_IS_VAULT']],
     ['zero heir', { ...base, heirs: [{ account: `0x${'0'.repeat(40)}`, bps: 10000 }], assets: [] }, ['heirs[0].account:ZERO_ADDRESS']],
     ['duplicate heir', { ...base, heirs: [{ account: A, bps: 5000 }, { account: A, bps: 5000 }] }, ['heirs[1].account:DUPLICATE']],
     ['bps zero', { ...base, heirs: [{ account: A, bps: 0 }, { account: B, bps: 10000 }] }, ['heirs[0].bps:SHARE_ZERO']],
@@ -2614,6 +2622,7 @@ describe('validatePlan', () => {
     ['mixed shares', { ...base, heirs: [{ account: A, bps: 6000 }, { account: B, percent: 40 }] }, ['heirs:SHARE_FORMAT']],
     ['six guardians', { ...base, guardians: [A, B, C, D, E, F] }, ['guardians:GUARDIANS_COUNT']],
     ['owner as guardian', { ...base, guardians: [OWNER, C] }, ['guardians[0]:GUARDIAN_IS_OWNER']],
+    ['vault as guardian', { ...base, guardians: [VAULT, C] }, ['guardians[0]:GUARDIAN_IS_VAULT']],
     ['duplicate guardian', { ...base, guardians: [C, C] }, ['guardians[1]:DUPLICATE']],
     ['k above n', { ...base, k: 4 }, ['k:K_RANGE']],
     ['recovery with k 0', { ...base, k: 0 }, ['recoveryEnabled:RECOVERY_NEEDS_K']],
@@ -2715,6 +2724,12 @@ describe('templates and sections', () => {
       issues: [],
       value: [{ account: A, bps: 10000 }],
     });
+    expect(validateSection('heirs', [{ account: VAULT }], { owner: OWNER, vault: VAULT, heirCount: 0 }).issues).toEqual([
+      expect.objectContaining({ path: 'heirs[0].account', code: 'HEIR_IS_VAULT' }),
+    ]);
+    expect(validateSection('guardians', [VAULT], { owner: OWNER, vault: VAULT, heirCount: 1, k: 1 }).issues).toEqual([
+      expect.objectContaining({ path: 'guardians[0]', code: 'GUARDIAN_IS_VAULT' }),
+    ]);
     const assets = validateSection('assets', [{ kind: 'erc721', token: TOKEN, id: 1, heir: 3 }], { owner: OWNER, heirCount: 2 });
     expect(assets.value).toBeNull();
     expect(assets.issues).toEqual([expect.objectContaining({ path: 'assets[0].heir', code: 'ASSET_HEIR_RANGE' })]);
@@ -2798,11 +2813,13 @@ export type PlanIssueCode =
   | 'DUPLICATE'
   | 'HEIRS_COUNT'
   | 'HEIR_IS_OWNER'
+  | 'HEIR_IS_VAULT'
   | 'SHARE_FORMAT'
   | 'SHARE_ZERO'
   | 'SHARES_SUM'
   | 'GUARDIANS_COUNT'
   | 'GUARDIAN_IS_OWNER'
+  | 'GUARDIAN_IS_VAULT'
   | 'K_RANGE'
   | 'RECOVERY_NEEDS_K'
   | 'UNKNOWN_PRESET'
@@ -2831,6 +2848,8 @@ export type PlanResult = { ok: true; config: PlanConfig; warnings: Warning[] } |
 
 export interface SectionContext {
   owner: Address;
+  /** The vault being edited: the contract rejects it as an heir or a guardian (address(this)). */
+  vault?: Address;
   heirCount: number;
   k?: number;
   recoveryEnabled?: boolean;
@@ -2921,7 +2940,7 @@ export function sharesToBps(percents: readonly number[]): number[] {
   return bps;
 }
 
-function parseHeirs(v: unknown, owner: Address | null, issues: Issues, path = 'heirs'): Heir[] | null {
+function parseHeirs(v: unknown, owner: Address | null, vault: Address | null, issues: Issues, path = 'heirs'): Heir[] | null {
   if (!Array.isArray(v)) {
     issues.add(path, 'REQUIRED', `${path}: list 1 to ${LIMITS.maxHeirs} heirs`);
     return null;
@@ -2942,6 +2961,8 @@ function parseHeirs(v: unknown, owner: Address | null, issues: Issues, path = 'h
     unknownKeys(h, ['account', 'bps', 'percent'], p, issues);
     const a = addressAt(h.account, `${p}.account`, issues);
     if (a && owner && a === owner) issues.add(`${p}.account`, 'HEIR_IS_OWNER', `${p}.account: the owner cannot be an heir`);
+    // The vault rejects itself as an heir: a share sent to it could never be withdrawn.
+    else if (a && vault && a === vault) issues.add(`${p}.account`, 'HEIR_IS_VAULT', `${p}.account: the vault itself cannot be an heir`);
     else if (a && accounts.includes(a)) issues.add(`${p}.account`, 'DUPLICATE', `${p}.account: this heir is listed twice`);
     accounts.push(a);
   });
@@ -2985,7 +3006,14 @@ function parseHeirs(v: unknown, owner: Address | null, issues: Issues, path = 'h
   return accounts.map((a, i) => ({ account: a as Address, bps: (bps as number[])[i] }));
 }
 
-function parseGuardians(gv: unknown, kv: unknown, rv: unknown, owner: Address | null, issues: Issues): GuardianPart | null {
+function parseGuardians(
+  gv: unknown,
+  kv: unknown,
+  rv: unknown,
+  owner: Address | null,
+  vault: Address | null,
+  issues: Issues,
+): GuardianPart | null {
   const before = issues.list.length;
   const list = gv === undefined ? [] : gv;
   const guardians: Address[] = [];
@@ -2998,6 +3026,8 @@ function parseGuardians(gv: unknown, kv: unknown, rv: unknown, owner: Address | 
       const a = addressAt(g, p, issues);
       if (!a) return;
       if (owner && a === owner) issues.add(p, 'GUARDIAN_IS_OWNER', `${p}: the owner cannot be a guardian`);
+      // The vault can never sign, so the contract rejects it as a guardian too.
+      else if (vault && a === vault) issues.add(p, 'GUARDIAN_IS_VAULT', `${p}: the vault itself cannot be a guardian`);
       else if (guardians.includes(a)) issues.add(p, 'DUPLICATE', `${p}: this guardian is listed twice`);
       else guardians.push(a);
     });
@@ -3125,18 +3155,23 @@ function planWarnings(c: PlanConfig): Warning[] {
 
 const TOP = ['version', 'owner', 'drill', 'heirs', 'guardians', 'k', 'recoveryEnabled', 'timing', 'assets'] as const;
 
-export function validatePlan(input: unknown, ctx: { owner?: string | null; drill?: boolean } = {}): PlanResult {
+export function validatePlan(
+  input: unknown,
+  ctx: { owner?: string | null; drill?: boolean; vault?: string | null } = {},
+): PlanResult {
   if (!isObj(input)) return { ok: false, issues: [{ path: '', code: 'TYPE', message: 'The plan must be a JSON object.' }] };
   const issues = new Issues();
   unknownKeys(input, TOP, '', issues);
   if (input.version !== undefined && input.version !== 1) issues.add('version', 'TYPE', 'version: only version 1 is supported');
   const ownerRaw = ctx.owner !== undefined ? ctx.owner : input.owner;
   const owner = ownerRaw === undefined || ownerRaw === null ? null : addressAt(ownerRaw, 'owner', issues);
+  // At creation this is factory.predictVault(owner, salt); without it the vault-address checks are skipped.
+  const vault = ctx.vault === undefined || ctx.vault === null ? null : addressAt(ctx.vault, 'vault', issues);
   const drillRaw = ctx.drill ?? input.drill ?? false;
   if (typeof drillRaw !== 'boolean') issues.add('drill', 'TYPE', 'drill: expected true or false');
   const drill = drillRaw === true;
-  const heirs = parseHeirs(input.heirs, owner, issues);
-  const g = parseGuardians(input.guardians, input.k, input.recoveryEnabled, owner, issues);
+  const heirs = parseHeirs(input.heirs, owner, vault, issues);
+  const g = parseGuardians(input.guardians, input.k, input.recoveryEnabled, owner, vault, issues);
   const timing = parseTiming(input.timing, drill, issues);
   const heirCount = heirs ? heirs.length : Array.isArray(input.heirs) && input.heirs.length > 0 ? input.heirs.length : null;
   const assets = parseAssets(input.assets, heirCount, issues);
@@ -3163,8 +3198,9 @@ export function validateSection(
 ): SectionResult<Heir[] | GuardianPart | Asset[]> {
   const issues = new Issues();
   let value: Heir[] | GuardianPart | Asset[] | null;
-  if (kind === 'heirs') value = parseHeirs(input, ctx.owner, issues);
-  else if (kind === 'guardians') value = parseGuardians(input, ctx.k ?? 0, ctx.recoveryEnabled ?? false, ctx.owner, issues);
+  const vault = ctx.vault ?? null;
+  if (kind === 'heirs') value = parseHeirs(input, ctx.owner, vault, issues);
+  else if (kind === 'guardians') value = parseGuardians(input, ctx.k ?? 0, ctx.recoveryEnabled ?? false, ctx.owner, vault, issues);
   else value = parseAssets(input, ctx.heirCount, issues);
   return { issues: issues.list, value: issues.list.length > 0 ? null : value };
 }
@@ -3250,7 +3286,7 @@ Trong `packages/sdk/tsdown.config.ts`, đổi `entry` thành:
 
 Run: `npm test -w packages/sdk -- plan && npm run typecheck -w packages/sdk && npm run build -w circuits && npm run build -w packages/sdk && npx biome check packages`
 Expected:
-- 38 test PASS;
+- 40 test PASS;
 - `tsc` sạch;
 - tạo `packages/sdk/dist/plan.js` và `plan.cjs`;
 - Biome sạch.
@@ -3305,17 +3341,17 @@ git commit -m "feat(sdk): plan validation mirroring VaultConfig, presets and tem
     - `interface EvalState { state: number; owner: Address; lastAlive: bigint; alarmAt: bigint; timing: Timing; k: number; recoveryEnabled: boolean; guardians: Address[]; inhVotes: number; recVotes: (Address | null)[]; recoveryTarget: Address | null }`. Ở đây `alarmAt` dùng `0n` cho trường hợp không có báo động.
     - `evalStateOf(s: VaultSnapshot): EvalState`
     - `deriveInputs(s: EvalState, now: bigint, opts?: { alive?: boolean; candidate?: Address | null }): PolicyInputs`
-    - `applyAction(s: EvalState, action: VaultAction, as: Address, at: bigint, drill: boolean): { next: EvalState; alive: boolean; candidate: Address | null } | null`. Trả `null` khi action chắc chắn revert vì sai vai trò, hoặc không đổi trạng thái (`revokeAll`).
+    - `applyAction(s: EvalState, action: VaultAction, as: Address, at: bigint, drill: boolean): { next: EvalState; alive: boolean; candidate: Address | null } | null`. Trả `null` khi action chắc chắn revert vì sai vai trò, hoặc không đổi trạng thái (`revokeAll`). `poke`/`distribute` do owner ký trên vault chưa Released là check-in (`alive: true`, xoá phiếu), như `AtropyleVault`.
   - **`policy/predict.ts`**:
     - `interface Recipient { assetIndex: number; kind: AssetKind; token: Address; to: Address; amount: bigint }`
     - `interface WhatIfResult { at: bigint; engine: EngineKind; from: StateName; next: StateName; alarm: boolean; cancel: boolean; release: boolean; recoveryTarget: Address | null; recipients: Recipient[]; inputs: PolicyInputs }`
-    - `predictAction(engine, snap: VaultSnapshot, action: VaultAction, as: Address, at: bigint): WhatIfResult | null`
+    - `predictAction(engine, snap: VaultSnapshot, action: VaultAction, as: Address, at: bigint): WhatIfResult | null`. Trả `null` cả khi `voteRecovery` nhắm tới owner, chính vault (`snap.status.vault`) hoặc một giám hộ, vì contract revert `InvalidTarget`.
     - `recipientsFor(snap: VaultSnapshot, next: StateName, recoveryTarget: Address | null): Recipient[]`. Hàm dùng đúng công thức chia của `_split20`.
   - **`policy/timeline.ts`**:
     - `type TimelineEventKind = 'alarm' | 'release' | 'drillExpiry'`
     - `interface TimelineEvent { at: bigint; kind: TimelineEventKind; from: StateName; state: StateName; note: string }`
     - `interface Timeline { now: bigint; engine: EngineKind; milestones: { lateAt: bigint; maxedAt: bigint; windowEndsAt: bigint | null; expiresAt: bigint | null }; events: TimelineEvent[]; earliestRelease: bigint | null; nextCheckAt: bigint | null }`
-    - `computeTimeline(engine, s: EvalState, now: bigint, expiresAt: bigint | null): Timeline`. Hàm giả định không ai thao tác, chỉ có `poke` đúng lúc. `nextCheckAt` là mốc chuyển trạng thái kế tiếp, không tính `drillExpiry`.
+    - `computeTimeline(engine, s: EvalState, now: bigint, expiresAt: bigint | null): Timeline`. Hàm giả định không ai thao tác, chỉ có `poke` do người không phải owner ký đúng lúc (owner ký `poke` là check-in). `nextCheckAt` là mốc chuyển trạng thái kế tiếp, không tính `drillExpiry`.
     - `timelineOf(engine, snap: VaultSnapshot, now?: bigint): Timeline`
 
 - [ ] **Step 1: Viết fixture và test thất bại**
@@ -3520,7 +3556,7 @@ describe('policy engines', () => {
 ```ts
 import { describe, expect, it } from 'vitest';
 import { applyAction, deriveInputs, evalStateOf, modelEngine, predictAction } from '../../src/index';
-import { DAY, G1, G2, G3, HEIR_A, HEIR_B, makeSnapshot, NEW_WALLET, NFT, OWNER, TOKEN } from './fixtures';
+import { DAY, G1, G2, G3, HEIR_A, HEIR_B, makeSnapshot, NEW_WALLET, NFT, OWNER, TOKEN, VAULT } from './fixtures';
 
 const engine = modelEngine();
 
@@ -3547,6 +3583,8 @@ describe('deriveInputs', () => {
     expect(applyAction(s, { type: 'checkIn' }, HEIR_A, 50n, false)).toBeNull();
     expect(applyAction(s, { type: 'attestDeath', on: true }, HEIR_A, 50n, false)).toBeNull();
     expect(applyAction(s, { type: 'revokeAll' }, OWNER, 50n, false)).toBeNull();
+    expect(applyAction(s, { type: 'poke' }, OWNER, 50n, false)).toMatchObject({ alive: true, next: { lastAlive: 50n, inhVotes: 0 } });
+    expect(applyAction(s, { type: 'distribute' }, HEIR_A, 50n, false)).toEqual({ next: s, alive: false, candidate: null });
     const g = applyAction(s, { type: 'setGuardians', guardians: [G2], k: 1, recoveryEnabled: false }, OWNER, 50n, false);
     expect(g?.next.guardians).toEqual([G2]);
     expect(g?.next.recVotes).toEqual([null]);
@@ -3558,6 +3596,14 @@ describe('predictAction', () => {
     const snap = makeSnapshot({ state: 'grace', lastAlive: 0n, alarmAt: 3n * DAY, now: 4n * DAY });
     const r = predictAction(engine, snap, { type: 'checkIn' }, OWNER, 4n * DAY);
     expect(r).toMatchObject({ from: 'grace', next: 'active', cancel: true, alarm: false, release: false, recoveryTarget: null });
+  });
+
+  it('poke and distribute signed by the owner are check-ins', () => {
+    const snap = makeSnapshot({ state: 'grace', lastAlive: 0n, alarmAt: 3n * DAY, now: 4n * DAY });
+    for (const type of ['poke', 'distribute'] as const) {
+      expect(predictAction(engine, snap, { type }, OWNER, 4n * DAY)).toMatchObject({ from: 'grace', next: 'active', cancel: true, recipients: [] });
+      expect(predictAction(engine, snap, { type }, HEIR_A, 4n * DAY)).toMatchObject({ from: 'grace', next: 'grace', cancel: false });
+    }
   });
 
   it('the k-th attestation after the window releases to heirs with the on-chain split', () => {
@@ -3589,6 +3635,14 @@ describe('predictAction', () => {
     const snap = makeSnapshot({ drill: true, expiresAt: 100n, now: 100n, lastAlive: 0n, timing: { period: 60, threshold: 2, window: 120 } });
     const r = predictAction(engine, snap, { type: 'poke' }, G1, 100n);
     expect(r).toMatchObject({ from: 'active', next: 'active', alarm: false, release: false });
+  });
+
+  it('recovery targets the vault refuses: owner, the vault itself, a guardian', () => {
+    const snap = makeSnapshot();
+    for (const target of [OWNER, VAULT, G2]) {
+      expect(predictAction(engine, snap, { type: 'voteRecovery', target }, G1, 10n)).toBeNull();
+    }
+    expect(predictAction(engine, snap, { type: 'voteRecovery', target: null }, G1, 10n)).toMatchObject({ next: 'active' });
   });
 
   it('non-guardians and released vaults', () => {
@@ -3713,7 +3767,10 @@ export interface VaultStatus {
   blockTimestamp: bigint;
   state: StateName;
   stateCode: number;
-  /** State a poke() would produce at this block (computed on chain). */
+  /**
+   * State a poke() from anyone but the owner would produce at this block (computed on chain); equals state once
+   * released or after a Drill expired. An owner-signed poke is a check-in instead.
+   */
   pending: StateName;
   pendingCode: number;
   idle: number;
@@ -3995,7 +4052,8 @@ export function applyAction(s: EvalState, action: VaultAction, as: Address, at: 
     }
     case 'poke':
     case 'distribute':
-      return { next: s, alive: false, candidate: null };
+      // Signed by the owner of a vault that is not released, both are a check-in (AtropyleVault.poke/distribute).
+      return isOwner ? { next: ownerAlive(s, at), alive: true, candidate: null } : { next: s, alive: false, candidate: null };
     case 'revokeAll':
       return null;
   }
@@ -4010,6 +4068,7 @@ export function applyAction(s: EvalState, action: VaultAction, as: Address, at: 
 import type { PolicyInputs } from '@atropyle/circuits';
 import type { Address } from 'viem';
 import type { VaultAction } from '../actions';
+import { sameAddress } from '../address';
 import type { VaultSnapshot } from '../read/types';
 import { type AssetKind, isReleasedState, OUT_FLAGS, type StateName, stateName } from '../types';
 import type { EngineKind, PolicyEngine } from './engine';
@@ -4080,6 +4139,11 @@ export function predictAction(engine: PolicyEngine, snap: VaultSnapshot, action:
     const recipients = action.type === 'distribute' ? recipientsFor(snap, from, s.recoveryTarget) : [];
     return { ...base, next: from, recoveryTarget: s.recoveryTarget, recipients, inputs: deriveInputs(s, at) };
   }
+  if (action.type === 'voteRecovery' && action.target !== null) {
+    // Mirrors the InvalidTarget check of voteRecovery; a null target withdraws the vote and is always allowed.
+    const t = action.target;
+    if (sameAddress(t, s.owner) || sameAddress(t, snap.status.vault) || s.guardians.some((g) => sameAddress(g, t))) return null;
+  }
   const applied = applyAction(s, action, as, at, snap.config.drill);
   if (!applied) return null;
   const inputs = deriveInputs(applied.next, at, { alive: applied.alive, candidate: applied.candidate });
@@ -4127,7 +4191,7 @@ export interface Timeline {
   now: bigint;
   engine: EngineKind;
   milestones: { lateAt: bigint; maxedAt: bigint; windowEndsAt: bigint | null; expiresAt: bigint | null };
-  /** What happens if nobody signs anything and someone pokes at each moment. */
+  /** What happens if nobody signs anything and someone other than the owner pokes at each moment. */
   events: TimelineEvent[];
   earliestRelease: bigint | null;
   /** Next policy transition (not drill expiry); what a keeper schedules on. */
@@ -4239,7 +4303,7 @@ export type { PolicyInputs } from '@atropyle/circuits';
 Run: `npm test -w packages/sdk -- engine predict timeline && npm run typecheck -w packages/sdk && npx biome check packages`
 Expected:
 - 5 test `engine` PASS;
-- 8 test `predict` PASS;
+- 10 test `predict` PASS;
 - 14 test `timeline` PASS (7 ca × 2 engine);
 - `tsc` và Biome sạch.
 
@@ -4282,7 +4346,7 @@ git commit -m "feat(sdk): policy engine on the on-chain netlist, action predicti
     - Mọi `eth_call`/`eth_getCode` dùng đúng một `blockNumber`.
     - Địa chỉ không có code, hoặc là contract không trả lời đúng ABI vault, thì ném `NOT_VAULT`.
   - `read/fees.ts`: `interface FeeOption { token: Address; symbol: Untrusted; decimals: number | null; fee: bigint; early: bigint; full: bigint }`, `interface FeeQuote { blockNumber: bigint; paidCount: bigint; earlyCount: bigint; earlyRemaining: bigint; tokens: FeeOption[] }`, `readFees(ctx)`.
-  - `read/vaults.ts`: `interface VaultRef { vault: Address; owner: Address; drill: boolean; state: StateName; roles: Role[] }`, `readVaultsOf(ctx, account)`.
+  - `read/vaults.ts`: `interface VaultRef { vault: Address; owner: Address; drill: boolean; state: StateName; roles: Role[] }`, `readVaultsOf(ctx, account, o?: { limit?: number })`. Đọc chỉ mục của factory theo trang bằng `vaultsOfLength`/`vaultsOfPage` (không dùng `vaultsOf`, vốn không giới hạn và ai cũng làm phình được bằng Drill miễn phí): tối đa `limit` mục mới nhất (mặc định 100), mới nhất trước, rồi lọc theo vai trò hiện tại.
   - `read/events.ts`:
     - `interface VaultEvent { address: Address; name: string; args: Record<string, unknown>; blockNumber: bigint; logIndex: number; transactionHash: Hex }`
     - `decodeLogs(abi: Abi, logs: Log[], eventName?: string): VaultEvent[]`
@@ -4297,7 +4361,7 @@ git commit -m "feat(sdk): policy engine on the on-chain netlist, action predicti
   - `client.ts`:
     - `interface AtropyleOptions { chain: ChainName | Deployment; transport?: Transport; verifyTransports?: Transport[]; builderCode?: string | null; logger?: (e: SdkEvent) => void }`. Với `builderCode`: `undefined` thì dùng mặc định trong deployment, `null` thì tắt.
     - `interface VaultHandle { address; snapshot(o?); status(); config(); roleOf(account); timeline(o?: { now?: bigint }); events(o?) }`. Task 10, 12 và 13 thêm method.
-    - `interface AtropyleClient { deployment; chain; publicClient; builderCode; plan: { validate; template; presets }; engine(); engineFor(cpu, policyId); fees(); vaultsOf(account); predictVault(owner, salt); stats(o?); vault(address) }`. Task 10–13 thêm method.
+    - `interface AtropyleClient { deployment; chain; publicClient; builderCode; plan: { validate; template; presets }; engine(); engineFor(cpu, policyId); fees(); vaultsOf(account, o?: { limit? }); predictVault(owner, salt); stats(o?); vault(address) }`. Task 10–13 thêm method.
     - `createAtropyle(opts): AtropyleClient`
   - Helper test, thêm vào `test/integration/helpers.ts`:
     - `sendRaw(env, { from, to, data }): Promise<TransactionReceipt>`
@@ -4450,6 +4514,8 @@ describe('reads on the devnet', () => {
     const mine = (await atro.vaultsOf(HEIR2)).find((v) => v.vault === vault);
     expect(mine).toMatchObject({ owner: OWNER, drill: true, state: 'active', roles: ['heir', 'guardian'] });
     expect((await atro.vaultsOf(OWNER)).find((v) => v.vault === vault)?.roles).toEqual(['owner']);
+    const newer = await createVaultRaw(env, { owner: OWNER, params });
+    expect((await atro.vaultsOf(OWNER, { limit: 1 })).map((v) => v.vault)).toEqual([newer]);
   });
 
   it('reads fees and counts stats from events', async () => {
@@ -4818,6 +4884,7 @@ export async function readFees(ctx: ReadContext): Promise<FeeQuote> {
 import type { Address } from 'viem';
 import { factoryAbi, vaultAbi } from '../abi/index';
 import { sameAddress, toAddress } from '../address';
+import { AtropyleError } from '../errors';
 import { type Role, type StateName, stateName } from '../types';
 import type { ReadContext } from './context';
 
@@ -4829,18 +4896,28 @@ export interface VaultRef {
   roles: Role[];
 }
 
-/** The factory index only grows; current roles come from each vault's present lists (Plan 1 decision 6). */
-export async function readVaultsOf(ctx: ReadContext, account: string): Promise<VaultRef[]> {
+/** Vaults read per call by default. */
+const VAULTS_PAGE = 100;
+
+/**
+ * The factory index only grows (no duplicates, but stale entries) and has no length cap: anyone can name `account`
+ * as heir or guardian of free Drills. So it is paged with vaultsOfLength/vaultsOfPage, which clamp and never revert,
+ * reading only the newest `limit` entries, newest first. Current roles come from each vault's present lists
+ * (Plan 1 decision 6).
+ */
+export async function readVaultsOf(ctx: ReadContext, account: string, o: { limit?: number } = {}): Promise<VaultRef[]> {
   const a = toAddress(account, 'account');
+  const limit = o.limit ?? VAULTS_PAGE;
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new AtropyleError('INVALID_OPTIONS', { message: 'limit must be a whole number of at least 1.' });
+  }
   const c = ctx.client;
   const blockNumber = await c.getBlockNumber();
-  const list = await c.readContract({
-    address: ctx.deployment.factory,
-    abi: factoryAbi,
-    functionName: 'vaultsOf',
-    args: [a],
-    blockNumber,
-  });
+  const f = { address: ctx.deployment.factory, abi: factoryAbi, blockNumber } as const;
+  const length = await c.readContract({ ...f, functionName: 'vaultsOfLength', args: [a] });
+  const count = length < BigInt(limit) ? length : BigInt(limit);
+  const page = await c.readContract({ ...f, functionName: 'vaultsOfPage', args: [a, length - count, count] });
+  const list = [...page].reverse();
   const refs = await Promise.all(
     list.map(async (vault) => {
       const v = { address: vault, abi: vaultAbi, blockNumber } as const;
@@ -5114,7 +5191,8 @@ export interface AtropyleClient {
   engine(): Promise<PolicyEngine>;
   engineFor(cpu: Address, policyId: bigint): Promise<PolicyEngine>;
   fees(): Promise<FeeQuote>;
-  vaultsOf(account: string): Promise<VaultRef[]>;
+  /** Newest `limit` (default 100) vaults of the factory index where `account` still has a role, newest first. */
+  vaultsOf(account: string, o?: { limit?: number }): Promise<VaultRef[]>;
   predictVault(owner: string, salt: Hex): Promise<Address>;
   stats(o?: { fromBlock?: bigint; toBlock?: bigint; resume?: StatsCursor; onProgress?: (done: number, total: number) => void }): Promise<Stats>;
   vault(address: string): VaultHandle;
@@ -5176,7 +5254,7 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     engine: () => engineFor(deployment.cpu, deployment.policyId),
     engineFor,
     fees: () => readFees(ctx),
-    vaultsOf: (account) => readVaultsOf(ctx, account),
+    vaultsOf: (account, o) => readVaultsOf(ctx, account, o),
     predictVault: (owner, salt) =>
       publicClient.readContract({
         address: deployment.factory,
@@ -5558,8 +5636,9 @@ export const summarize = {
     target
       ? `As guardian, vote to move the assets of vault ${vault} to the new wallet ${target}.`
       : `As guardian, withdraw your recovery vote for vault ${vault}.`,
-  poke: (vault: Address) => `Ask vault ${vault} to apply its policy now (anyone can do this).`,
-  distribute: (vault: Address) => `Distribute the released assets of vault ${vault} (anyone can do this).`,
+  poke: (vault: Address) => `Ask vault ${vault} to apply its policy now (anyone can do this; signed by the owner it is a check-in).`,
+  distribute: (vault: Address) =>
+    `Distribute the released assets of vault ${vault} (anyone can do this; before release, signed by the owner it is a check-in).`,
   approve20: (vault: Address, token: Address, amount: bigint | null, decimals: number | null) =>
     amount === null
       ? `Allow vault ${vault} to move an unlimited amount of ERC-20 token ${token}.`
@@ -5852,7 +5931,7 @@ export async function revokeDrafts(x: ApprovalContext, owner: Address, vault: Ad
 import { type Address, encodeFunctionData, type Hex } from 'viem';
 import { vaultAbi } from '../abi/index';
 import type { VaultAction } from '../actions';
-import { toAddress, ZERO_ADDRESS } from '../address';
+import { sameAddress, toAddress, ZERO_ADDRESS } from '../address';
 import { appendSuffix } from '../builder-code';
 import { assetsToAbi, heirsToAbi, timingToAbi } from '../encode';
 import type { PlanIssue } from '../plan/types';
@@ -5860,7 +5939,7 @@ import { planError, resolveTiming, validateSection } from '../plan/validate';
 import { predictAction } from '../policy/predict';
 import { readSnapshot } from '../read/snapshot';
 import type { VaultSnapshot } from '../read/types';
-import type { Warning } from '../types';
+import { isReleasedState, type Warning } from '../types';
 import { approvalDrafts, revokeDrafts } from './approvals';
 import { simulateTxs } from './simulate';
 import { summarize } from './summary';
@@ -5933,7 +6012,7 @@ async function build(x: PrepareContext, snap: VaultSnapshot, action: VaultAction
       return { drafts: [call(encodeFunctionData({ abi: vaultAbi, functionName: 'checkIn' }), summarize.checkIn(v))], warnings };
     }
     case 'setHeirs': {
-      const r = validateSection('heirs', action.heirs, { owner: c.owner, heirCount: c.heirs.length });
+      const r = validateSection('heirs', action.heirs, { owner: c.owner, vault: v, heirCount: c.heirs.length });
       const issues: PlanIssue[] = [...r.issues];
       if (r.value) {
         const n = r.value.length;
@@ -5954,6 +6033,7 @@ async function build(x: PrepareContext, snap: VaultSnapshot, action: VaultAction
     case 'setGuardians': {
       const r = validateSection('guardians', action.guardians, {
         owner: c.owner,
+        vault: v,
         heirCount: c.heirs.length,
         k: action.k,
         recoveryEnabled: action.recoveryEnabled,
@@ -6000,7 +6080,9 @@ export async function prepareAction(x: PrepareContext, vault: Address, action: V
   const engine = await x.engineFor(snap.binding.cpu, snap.binding.policyId);
   const effect = predictAction(engine, snap, action, as, opts.at ?? snap.status.blockTimestamp);
   if (effect && drafts[0]?.to === vault) drafts[0].effect = effect;
-  if ((action.type === 'poke' || action.type === 'distribute') && effect && effect.next === effect.from && effect.recipients.length === 0) {
+  // Signed by the owner of a vault that is not released, poke and distribute are a check-in, which always has an effect.
+  const ownerCheckIn = sameAddress(as, snap.config.owner) && !isReleasedState(snap.status.state);
+  if ((action.type === 'poke' || action.type === 'distribute') && !ownerCheckIn && effect && effect.next === effect.from && effect.recipients.length === 0) {
     warnings.push({ code: 'NO_EFFECT', message: 'Nothing would change right now: no policy transition is due and nothing is left to distribute.' });
   }
   const summary =
@@ -6056,18 +6138,21 @@ function randomSalt(): Hex {
 /** TxPlan: approve the fee (paid vaults), createVault, then approve each asset to the predicted vault. */
 export async function prepareCreateVault(x: PrepareContext, plan: unknown, opts: CreateVaultOptions): Promise<TxPlan> {
   const owner = toAddress(opts.owner, 'owner');
-  const r = validatePlan(plan, { owner, drill: opts.drill });
-  if (!r.ok) throw planError(r.issues);
-  const cfg = r.config;
   const d = x.deployment;
   const c = x.client;
   const blockNumber = await c.getBlockNumber();
+  // A fresh random salt unless the caller pins one. A reused (owner, salt) burns about 63/64 of the gas inside CREATE2
+  // and then reverts ERC1167FailedCreateClone, so the predicted address must still be empty.
   const salt = opts.salt ?? randomSalt();
   const vault = await c.readContract({ address: d.factory, abi: factoryAbi, functionName: 'predictVault', args: [owner, salt], blockNumber });
   const code = await c.getCode({ address: vault, blockNumber });
   if (code && code !== '0x') {
     throw new AtropyleError('INVALID_OPTIONS', { message: `A vault already exists for this owner and salt (${vault}). Use another salt.` });
   }
+  // The vault rejects its own address as an heir or a guardian (address(this)), so validate against the prediction.
+  const r = validatePlan(plan, { owner, drill: opts.drill, vault });
+  if (!r.ok) throw planError(r.issues);
+  const cfg = r.config;
   const drafts: Draft[] = [];
   let fee = 0n;
   let feeToken: Address = ZERO_ADDRESS;
@@ -6082,6 +6167,8 @@ export async function prepareCreateVault(x: PrepareContext, plan: unknown, opts:
     ]);
     fee = f;
     feeDecimals = info.decimals;
+    // Approve exactly currentFee, never more. The price switches from early to full at the 100th paid vault and
+    // createVault takes no maxFee, so send() simulates createVault again right before sending it (Task 11).
     if (allowance < fee) {
       drafts.push({
         to: feeToken,
@@ -6365,6 +6452,16 @@ describe('prepare on the devnet', () => {
     const v = atro.vault(plan.vault);
     const bad = await v.prepare({ type: 'checkIn' }, { as: STRANGER });
     expect(bad.steps[0].simulation).toMatchObject({ ok: false, error: { code: 'NOT_OWNER' } });
+    const selfTarget = await v.prepare({ type: 'voteRecovery', target: plan.vault }, { as: G1 });
+    expect(selfTarget.steps[0].simulation).toMatchObject({ ok: false, error: { code: 'INVALID_TARGET' } });
+    const ownerPoke = await v.prepare({ type: 'poke' }, { as: OWNER });
+    expect(ownerPoke.warnings.map((w) => w.code)).not.toContain('NO_EFFECT');
+    const salt = keccak256(toHex('self-heir'));
+    const self = await atro.predictVault(OWNER, salt);
+    await expect(atro.prepare.createVault({ ...drillPlan, heirs: [{ account: self }] }, { owner: OWNER, drill: true, salt })).rejects.toMatchObject({
+      code: 'PLAN_INVALID',
+      details: { issues: [expect.objectContaining({ path: 'heirs[0].account', code: 'HEIR_IS_VAULT' })] },
+    });
     const vote = await v.prepare({ type: 'voteRecovery', target: NEW_WALLET }, { as: G1 });
     expect(vote.warnings.map((w) => w.code)).toContain('GUARDIAN_VERIFY_OUT_OF_BAND');
     expect(vote.steps[0].effect).toMatchObject({ from: 'active', next: 'active' });
@@ -6487,7 +6584,7 @@ git commit -m "feat(sdk): prepare with simulation, typed summaries, ERC-8021 suf
     - `interface SendResult { vault: Address; steps: SentStep[] }`
     - `type SendPhase = 'signing' | 'pending' | 'confirmed'`
     - `interface SendOptions { onStep?(e: { index: number; total: number; step: PreparedTx; phase: SendPhase; hash?: Hex }): void; gasBuffer?: number }`
-    - `sendPlan(ctx: ReadContext, plan: TxPlan, wallet: WalletClient, o?: SendOptions): Promise<SendResult>`. Ném `WRONG_ACCOUNT`, `WRONG_CHAIN`, mã lỗi của bước có mô phỏng thất bại (kèm `details.index`, `details.completed`), hoặc `USER_REJECTED`.
+    - `sendPlan(ctx: ReadContext, plan: TxPlan, wallet: WalletClient, o?: SendOptions): Promise<SendResult>`. Ném `WRONG_ACCOUNT`, `WRONG_CHAIN`, mã lỗi của bước có mô phỏng thất bại (kèm `details.index`, `details.completed`), hoặc `USER_REJECTED`. Bước `createVault` được mô phỏng lại (`estimateGas`) ngay trước khi gửi, sau khi bước approve phí đã xác nhận: phí đổi từ giá sớm sang giá đủ ở vault trả phí thứ 100 và factory không có `maxFee`.
   - **`handoff/payload.ts`**
     - `interface SignStep { to: Address; data: Hex; value: bigint }`, `interface SignPayload { chainId: number; from: Address; steps: SignStep[] }`
     - `PAYLOAD_VERSION = 1`, `PAYLOAD_LIMITS = { steps: 32, stepData: 32768, bytes: 98304 }`
@@ -6900,6 +6997,20 @@ export async function sendPlan(ctx: ReadContext, plan: TxPlan, wallet: WalletCli
         message: `Step ${index + 1} (${step.action}) would revert: ${sim.error.message}`,
         details: { ...sim.error.details, index, completed: steps.length },
       });
+    }
+    if (step.action === 'createVault') {
+      // Simulate again right before sending, after the fee approval above has confirmed: the fee switches from early
+      // to full at the 100th paid vault, createVault takes no maxFee, and a vault may already sit at the address.
+      try {
+        await ctx.client.estimateGas({ account: address, to: step.to, data: step.data, value: step.value });
+      } catch (e) {
+        const err = decodeError(e);
+        throw new AtropyleError(err.code, {
+          message: `Step ${index + 1} (createVault) would revert now: ${err.message}`,
+          cause: e,
+          details: { ...err.details, index, completed: steps.length },
+        });
+      }
     }
     o.onStep?.({ index, total, step, phase: 'signing' });
     let hash: Hex;
@@ -7391,6 +7502,10 @@ describe('send on the devnet', () => {
     await expect(atro.send(plan, walletOf(env.rpcUrl, STRANGER))).rejects.toMatchObject({ code: 'WRONG_ACCOUNT' });
     await expect(atro.send({ ...plan, chainId: 196 }, walletOf(env.rpcUrl, OWNER))).rejects.toMatchObject({ code: 'WRONG_CHAIN' });
     await atro.send(plan, walletOf(env.rpcUrl, OWNER));
+    // createVault is simulated again right before sending: the vault now exists, so nothing is sent.
+    const ownerNonce = await env.publicClient.getTransactionCount({ address: OWNER });
+    await expect(atro.send(plan, walletOf(env.rpcUrl, OWNER))).rejects.toMatchObject({ details: { index: 0, completed: 0 } });
+    expect(await env.publicClient.getTransactionCount({ address: OWNER })).toBe(ownerNonce);
     const bad = await atro.vault(plan.vault).prepare({ type: 'checkIn' }, { as: STRANGER });
     const nonce = await env.publicClient.getTransactionCount({ address: STRANGER });
     await expect(atro.send(bad, walletOf(env.rpcUrl, STRANGER))).rejects.toMatchObject({
@@ -7512,7 +7627,8 @@ type Cmd =
   | { kind: 'checkIn' }
   | { kind: 'attest'; g: number; on: boolean }
   | { kind: 'vote'; g: number; target: 'new' | 'heir' | null }
-  | { kind: 'poke' };
+  // Signed by the owner, poke is a check-in (Plan 1); signed by anyone else it only applies the policy.
+  | { kind: 'poke'; byOwner: boolean };
 
 const cmd: fc.Arbitrary<Cmd> = fc.oneof(
   { weight: 4, arbitrary: fc.record({ kind: fc.constant('wait' as const), seconds: fc.integer({ min: 1, max: 200 }) }) },
@@ -7526,7 +7642,7 @@ const cmd: fc.Arbitrary<Cmd> = fc.oneof(
       target: fc.constantFrom('new' as const, 'heir' as const, null),
     }),
   },
-  { weight: 2, arbitrary: fc.constant({ kind: 'poke' as const }) },
+  { weight: 2, arbitrary: fc.record({ kind: fc.constant('poke' as const), byOwner: fc.boolean() }) },
 );
 
 function toAction(c: Exclude<Cmd, { kind: 'wait' }>): { action: VaultAction; as: Address } {
@@ -7536,7 +7652,7 @@ function toAction(c: Exclude<Cmd, { kind: 'wait' }>): { action: VaultAction; as:
     const target = c.target === 'new' ? NEW_WALLET : c.target === 'heir' ? HEIR : null;
     return { action: { type: 'voteRecovery', target }, as: GUARDIANS[c.g] };
   }
-  return { action: { type: 'poke' }, as: STRANGER };
+  return { action: { type: 'poke' }, as: c.byOwner ? OWNER : STRANGER };
 }
 
 describe('SDK prediction matches the contract (spec §12.2)', () => {
@@ -7607,7 +7723,7 @@ describe('SDK prediction matches the contract (spec §12.2)', () => {
 });
 ```
 
-Trên devnet, engine là model tham chiếu chạy trong TS, còn contract gọi `MockPolicyCPU`, tức model viết bằng Solidity. Test này vì vậy kiểm đúng phần có thể lệch giữa SDK và contract: cách SDK dựng lại đầu vào policy so với `_evaluate`, cùng với `applyAction` và phần chia trạng thái sau action. Ngoài ra, P8 của Plan 1 đã chứng minh netlist thật khớp model.
+Trên devnet, engine là model tham chiếu chạy trong TS, còn contract gọi `MockPolicyCPU`, tức model viết bằng Solidity. Test này vì vậy kiểm đúng phần có thể lệch giữa SDK và contract: cách SDK dựng lại đầu vào policy so với `_evaluate`, cùng với `applyAction` và phần chia trạng thái sau action. Ngoài ra, P8 của Plan 1 đã chứng minh netlist thật khớp model. `status().pending` là kết quả của một `poke` do người không phải owner ký, nên `whatIf` để so luôn ký bằng `STRANGER`; lệnh `poke` ngẫu nhiên thì có cả lần do owner ký, để kiểm owner ký `poke` là check-in.
 
 - [ ] **Step 10: Chạy toàn bộ test**
 
@@ -8775,7 +8891,7 @@ git commit -m "feat(sdk): quorum reads, verifyPolicy, integrity and vault.verify
   - `interface KeeperOutcome { vault: Address; decision: KeeperDecision | null; status: KeeperOutcomeStatus; hash?: Hex; error?: AtropyleErrorJson; nextCheckAt: bigint | null }`
   - `interface KeeperReport { ranAt: bigint; dryRun: boolean; keeper: Address | null; balance: bigint | null; stopped: 'LOW_BALANCE' | null; sent: number; outcomes: KeeperOutcome[] }`
   - `interface KeeperOptions { wallet?: WalletClient; maxTx?: number; maxGas?: bigint; minBalance?: bigint; distributeEvery?: bigint; lastDistributeAt?(vault: Address): bigint | null | undefined }`
-  - `KEEPER_DEFAULTS = { maxTx: 20, maxGas: 1_500_000n, minBalance: 5_000_000_000_000_000n }` (0,005 OKB)
+  - `KEEPER_DEFAULTS = { maxTx: 20, maxGas: 4_000_000n, minBalance: 5_000_000_000_000_000n }` (0,005 OKB; `maxGas` phủ `distribute` xấu nhất đo được 3 385 904 gas cho 20 tài sản × 5 heir)
   - `keeperTick(atro: AtropyleClient, vaults: readonly Address[], o?: KeeperOptions): Promise<KeeperReport>`. Không có `wallet` thì chạy dry-run.
 
 Luật quyết định, xét theo thứ tự:
@@ -8791,6 +8907,8 @@ Luật quyết định, xét theo thứ tự:
 | Còn lại | `null` | `WAITING` | `timeline.nextCheckAt`, hoặc `expiresAt` của Drill; luôn lớn hơn `now` |
 
 `distribute()` của vault tự gọi `_advance` trước khi chia (Plan 1), nên khi đến hạn release mà vault còn tài sản thì chỉ cần một giao dịch.
+
+`status().pending` là trạng thái mà một `poke` do người không phải owner ký sẽ tạo ra (owner ký `poke`/`distribute` là check-in). Ví keeper không phải owner của vault nó xét, nên `pending` đúng là kết quả giao dịch keeper gửi.
 
 - [ ] **Step 1: Viết test thất bại cho luật quyết định**
 
@@ -8972,7 +9090,7 @@ export interface KeeperOptions {
   lastDistributeAt?: (vault: Address) => bigint | null | undefined;
 }
 
-export const KEEPER_DEFAULTS = { maxTx: 20, maxGas: 1_500_000n, minBalance: 5_000_000_000_000_000n } as const;
+export const KEEPER_DEFAULTS = { maxTx: 20, maxGas: 4_000_000n, minBalance: 5_000_000_000_000_000n } as const;
 
 /**
  * One keeper run over vaults that are due (spec §9.4). Vaults are handled one by one so nonces never clash.

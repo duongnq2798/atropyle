@@ -7624,7 +7624,7 @@ Khi `apps/docs` đã có: `[CLAUDE]` chạy `npm run site:build -- --target dewe
 
 **Interfaces:**
 - Consumes:
-  - SDK: `type Stats`, `type StatsCursor`, `type VaultRef { vault; owner; drill; state: StateName; roles: Role[] }`, `type StateName`, `type Role`; `AtropyleClient.stats({ resume?, onProgress?(done, total) })`, `AtropyleClient.vaultsOf(account)`.
+  - SDK: `type Stats`, `type StatsCursor`, `type VaultRef { vault; owner; drill; state: StateName; roles: Role[] }`, `type StateName`, `type Role`; `AtropyleClient.stats({ resume?, onProgress?(done, total) })`, `AtropyleClient.vaultsOf(account, o?: { limit? })`. `vaultsOf` của SDK đọc chỉ mục factory theo trang bằng `vaultsOfLength`/`vaultsOfPage` (mặc định tối đa 100 vault mới nhất, mới nhất trước) rồi lọc theo vai trò hiện tại, vì `vaultsOf` của factory không giới hạn và ai cũng làm phình được bằng Drill miễn phí.
   - Task 1: `href`, `KV`, `readJson`, `writeJson`, `defineMessages`. Task 2: `useApp`, `useT`, `useAsync`, `RequireSdk`, `ErrorBox`, `AddressText`, `Sdk`, `fixtureDeployment`. Task 6: fixture e2e `test`, `ANVIL`, `state`, `wallet`, `atro`.
 - Produces:
   - `stats-view.ts`: `type StatsSnapshot = Omit<Stats, 'cursor'>`; `interface CachedStats { version: 1; savedAtMs: number; stats: StatsSnapshot; cursor: StatsCursor }`; `statsKey(chainId: number, factory: string): string`; `toCache(s: Stats, nowMs: number): CachedStats`; `reviveCache(raw: unknown): CachedStats | null`; `loadStats(kv, chainId, factory): CachedStats | null`; `saveStats(kv, chainId, factory, s: Stats, nowMs: number): CachedStats`; `type StatTileId`; `statsTiles(s: StatsSnapshot): { id: StatTileId; value: number }[]`.
@@ -8293,7 +8293,7 @@ git commit -m "feat(web): home page with the Drill call to action, my vaults and
 
 **Interfaces:**
 - Consumes:
-  - SDK: `validatePlan(input: unknown, ctx?: { owner?: string | null; drill?: boolean }): PlanResult`; `planTemplate(name: 'simple' | 'guarded', o: TemplateOptions): PlanInput`; `PRESETS`, `LIMITS`, `formatDuration`; kiểu `PresetName`, `PlanInput`, `HeirInput`, `AssetInput`, `TimingInput`, `PlanIssue`, `AssetKind`, `Deployment`, `PlanCheck`, `TxPlan`.
+  - SDK: `validatePlan(input: unknown, ctx?: { owner?: string | null; drill?: boolean; vault?: string | null }): PlanResult` (wizard không truyền `vault`, vì salt ngẫu nhiên chỉ có trong `prepare.createVault`; bước đó kiểm thêm heir và giám hộ khác địa chỉ vault dự đoán, sai thì ném `PLAN_INVALID` với `HEIR_IS_VAULT`/`GUARDIAN_IS_VAULT`); `planTemplate(name: 'simple' | 'guarded', o: TemplateOptions): PlanInput`; `PRESETS`, `LIMITS`, `formatDuration`; kiểu `PresetName`, `PlanInput`, `HeirInput`, `AssetInput`, `TimingInput`, `PlanIssue`, `AssetKind`, `Deployment`, `PlanCheck`, `TxPlan`.
   - SDK client: `AtropyleClient.checkPlan(plan, { owner, drill? }): Promise<PlanCheck>` (`PlanCheck { ok; issues; warnings; config; tokens: TokenCheck[]; fees: FeeQuote; contractHeirs }`, `TokenCheck { index; token; kind; isContract; info: TokenInfo | null; held: bigint | null }`, `FeeOption { token; symbol: Untrusted; decimals; fee; early; full }`); `AtropyleClient.prepare.createVault(plan, { owner, drill?, feeToken?, salt?, allowance? }): Promise<TxPlan>`; e2e: `VaultHandle.config()`, `VaultHandle.status()`.
   - Task 1: `href`, `formatAmount`, `defineMessages`, `memoryKV`, `readEnv`. Task 2: `useApp`, `useT`, `RequireSdk`, `AddressText`, `Banner`, `ErrorBox`, `TokenAmount`, `UntrustedText`, `telegramLink`, `Sdk`, `fixtureDeployment`, `messages` của `common.messages.ts` (`back`, `next`, `baseUnits`, `unknown`, `untrustedNote`). Task 3: `TxRunner({ plan, label, onDone?, testid? })`. Task 6: fixture e2e `test`, `ANVIL`, `state`, `wallet`, `atro`.
 - Produces:
@@ -11027,6 +11027,8 @@ git commit -m "feat(web): vault page with countdown, coverage and the owner pane
   - `pages/heir-panel.tsx`: `HeirPanel({ sdk, view, account, onChanged })`. Test id: `heir-panel`, `heir-poke…`, `heir-claim…`, `heir-results`, `heir-results-<i>` (`data-ok`), `heir-history`, `heir-history-list…`.
 
 Chống lừa đảo giám hộ (spec §16.3, Quyết định 20): địa chỉ bầu không bao giờ lấy từ URL; phải gõ hai lần và hai lần phải trùng; bảng hiện phiếu của mọi giám hộ; luôn hiện cảnh báo `GUARDIAN_VERIFY_OUT_OF_BAND` của SDK kèm lời dặn bằng ngôn ngữ thường. Luật của contract (đích không được là chủ, vault hay một giám hộ) nằm ở SDK: bước mô phỏng của `prepare` báo lỗi đã giải mã. Bảng của người thừa kế cũng hiện cho đích khôi phục (`recoveryTarget`), vì người đó cũng nhận tài sản bằng `distribute`.
+
+Chủ vault không bao giờ thấy bảng này: contract không cho chủ làm người thừa kế hay đích khôi phục. Với chủ, `poke` hay `distribute` khi vault chưa Released là check-in (Plan 1), không phải báo động, nên chủ chỉ thấy nút Check-in của `OwnerPanel` (Task 12). "Raise alarm" và "Claim" dành cho người khác. Đừng thêm cảnh báo nào cho chủ trước `poke`/`distribute`: với chủ, đó là một lần check-in.
 
 - [ ] **Step 1: Viết test (sẽ hỏng)**
 
