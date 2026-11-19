@@ -1,6 +1,7 @@
 export type { PolicyInputs } from '@atropyle/circuits';
 export { GUARDIAN_ACTIONS, OWNER_ACTIONS, VAULT_ACTIONS, type VaultAction, type VaultActionType } from './actions';
 export { sameAddress, toAddress, ZERO_ADDRESS } from './address';
+export { appendSuffix, builderCodeSuffix, ERC8021_MARKER, parseBuilderCodeSuffix } from './builder-code';
 export { chainOf } from './chain';
 export { type AtropyleClient, type AtropyleOptions, createAtropyle, type VaultHandle } from './client';
 export {
@@ -48,6 +49,19 @@ export {
   type TimelineEventKind,
   timelineOf,
 } from './policy/timeline';
+export { GUARDIAN_WARNING } from './prepare/actions';
+export type {
+  ActionName,
+  AllowanceMode,
+  CreateVaultOptions,
+  PreparedTx,
+  PrepareOptions,
+  Simulation,
+  SkipReason,
+  TxPlan,
+  WhatIfReport,
+} from './prepare/types';
+export type { PlanCheck, TokenCheck } from './read/check-plan';
 export { createReadContext, type ReadContext, type SdkEvent } from './read/context';
 export { DEFAULT_EVENTS_WINDOW, type VaultEvent } from './read/events';
 export type { FeeOption, FeeQuote } from './read/fees';

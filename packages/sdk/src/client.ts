@@ -1,13 +1,20 @@
 import { type Address, type Chain, createPublicClient, type Hex, type PublicClient, type Transport } from 'viem';
 import { factoryAbi } from './abi/index';
+import type { VaultAction } from './actions';
 import { toAddress } from './address';
+import { builderCodeSuffix } from './builder-code';
 import { chainOf } from './chain';
 import { type ChainName, type Deployment, getDeployment } from './deployments/index';
+import { decodeError } from './errors';
 import { planTemplate } from './plan/templates';
 import { PRESETS } from './plan/types';
 import { validatePlan } from './plan/validate';
 import { fetchPolicyProgram, modelEngine, type PolicyEngine, programEngine } from './policy/engine';
 import { type Timeline, timelineOf } from './policy/timeline';
+import { prepareAction, whatIf } from './prepare/actions';
+import { prepareCreateVault } from './prepare/create';
+import type { CreateVaultOptions, PrepareContext, PrepareOptions, TxPlan, WhatIfReport } from './prepare/types';
+import { checkPlan, type PlanCheck } from './read/check-plan';
 import { createReadContext, type SdkEvent } from './read/context';
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
@@ -38,6 +45,10 @@ export interface VaultHandle {
   roleOf(account: string): Promise<Role[]>;
   timeline(o?: { now?: bigint }): Promise<Timeline>;
   events(o?: { fromBlock?: bigint; toBlock?: bigint }): Promise<VaultEvent[]>;
+  /** Predicted effect of `action` signed by `o.as`, plus a simulation of the call (spec §5.2). */
+  whatIf(action: VaultAction, o: { as: string; at?: bigint }): Promise<WhatIfReport>;
+  /** Calldata, simulation and typed summaries for `action`, as one or more transactions `o.as` must sign. */
+  prepare(action: VaultAction, o: PrepareOptions): Promise<TxPlan>;
 }
 
 export interface AtropyleClient {
@@ -60,6 +71,20 @@ export interface AtropyleClient {
     onProgress?: (done: number, total: number) => void;
   }): Promise<Stats>;
   vault(address: string): VaultHandle;
+  readonly prepare: { createVault(plan: unknown, o: CreateVaultOptions): Promise<TxPlan> };
+  checkPlan(plan: unknown, o: { owner: string; drill?: boolean }): Promise<PlanCheck>;
+}
+
+/**
+ * Error boundary of the client: whatever a read or a prepare throws (a viem error from the RPC, a bug) leaves as an
+ * AtropyleError, so callers never see a raw viem error. An AtropyleError passes through unchanged.
+ */
+async function guard<T>(f: () => Promise<T>): Promise<T> {
+  try {
+    return await f();
+  } catch (e) {
+    throw decodeError(e);
+  }
 }
 
 export function createAtropyle(options: AtropyleOptions): AtropyleClient {
@@ -90,20 +115,30 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     return e;
   }
 
+  const px: PrepareContext = { ...ctx, suffix: builderCode ? builderCodeSuffix(builderCode) : null, engineFor };
+
   function vault(address: string): VaultHandle {
     const addr = toAddress(address, 'vault');
-    const snapshot = (o?: { blockNumber?: bigint }) => readSnapshot(ctx, addr, o?.blockNumber);
+    const snapshot = (o?: { blockNumber?: bigint }) => guard(() => readSnapshot(ctx, addr, o?.blockNumber));
     return {
       address: addr,
       snapshot,
       status: async () => (await snapshot()).status,
       config: async () => (await snapshot()).config,
-      roleOf: async (account) => rolesOf(await snapshot(), account),
-      timeline: async (o) => {
-        const s = await snapshot();
-        return timelineOf(await engineFor(s.binding.cpu, s.binding.policyId), s, o?.now);
-      },
-      events: (o) => readEvents(ctx, addr, o),
+      roleOf: (account) =>
+        guard(async () => {
+          // Validated before any RPC call: a malformed address fails the same way whatever the network does.
+          const who = toAddress(account, 'account');
+          return rolesOf(await readSnapshot(ctx, addr), who);
+        }),
+      timeline: (o) =>
+        guard(async () => {
+          const s = await readSnapshot(ctx, addr);
+          return timelineOf(await engineFor(s.binding.cpu, s.binding.policyId), s, o?.now);
+        }),
+      events: (o) => guard(() => readEvents(ctx, addr, o)),
+      whatIf: (action, o) => guard(() => whatIf(px, addr, action, o)),
+      prepare: (action, o) => guard(() => prepareAction(px, addr, action, o)),
     };
   }
 
@@ -113,18 +148,22 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     publicClient,
     builderCode,
     plan: { validate: validatePlan, template: planTemplate, presets: PRESETS },
-    engine: () => engineFor(deployment.cpu, deployment.policyId),
-    engineFor,
-    fees: () => readFees(ctx),
-    vaultsOf: (account, o) => readVaultsOf(ctx, account, o),
+    engine: () => guard(() => engineFor(deployment.cpu, deployment.policyId)),
+    engineFor: (cpu, policyId) => guard(() => engineFor(cpu, policyId)),
+    fees: () => guard(() => readFees(ctx)),
+    vaultsOf: (account, o) => guard(() => readVaultsOf(ctx, account, o)),
     predictVault: (owner, salt) =>
-      publicClient.readContract({
-        address: deployment.factory,
-        abi: factoryAbi,
-        functionName: 'predictVault',
-        args: [toAddress(owner, 'owner'), salt],
-      }),
-    stats: (o) => readStats(ctx, o),
+      guard(async () =>
+        publicClient.readContract({
+          address: deployment.factory,
+          abi: factoryAbi,
+          functionName: 'predictVault',
+          args: [toAddress(owner, 'owner'), salt],
+        }),
+      ),
+    stats: (o) => guard(() => readStats(ctx, o)),
     vault,
+    prepare: { createVault: (plan, o) => guard(() => prepareCreateVault(px, plan, o)) },
+    checkPlan: (plan, o) => guard(() => checkPlan(ctx, plan, o)),
   };
 }

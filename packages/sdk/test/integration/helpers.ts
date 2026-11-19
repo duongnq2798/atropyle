@@ -2,7 +2,10 @@
 //
 // Rule: every integration test file reverts the anvil snapshots it takes (snapshotChain in beforeAll or
 // beforeEach, revertChain in afterAll or afterEach), so each file sees a clean chain whatever ran before it.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
+  type Abi,
   type Address,
   createPublicClient,
   createWalletClient,
@@ -21,7 +24,7 @@ import { inject } from 'vitest';
 import { rpc } from '../../../../scripts/lib/anvil';
 import { factoryAbi } from '../../src/abi/index';
 import { paramsToAbi } from '../../src/encode';
-import { type Deployment, parseDeployment, type VaultParams, ZERO_ADDRESS } from '../../src/index';
+import { type Deployment, parseDeployment, type TxPlan, type VaultParams, ZERO_ADDRESS } from '../../src/index';
 
 export { increaseTime as warp } from '../../../../scripts/lib/anvil';
 
@@ -86,4 +89,27 @@ export async function createVaultRaw(
   const r = await sendRaw(env, { from: o.owner, to: env.deployment.factory, data });
   const [ev] = parseEventLogs({ abi: factoryAbi, logs: r.logs, eventName: 'VaultCreated' });
   return ev.args.vault;
+}
+
+/** Sends every step of a prepared plan in order, each from the account that must sign it. */
+export async function sendPlanRaw(env: Env, plan: TxPlan): Promise<TransactionReceipt[]> {
+  const out: TransactionReceipt[] = [];
+  for (const s of plan.steps) out.push(await sendRaw(env, { from: s.from, to: s.to, data: s.data }));
+  return out;
+}
+
+/** Deploys contracts/out/Tokens.sol/MockERC20 with any name, e.g. a prompt-injection string. */
+export async function deployToken(env: Env, name: string, symbol: string, decimals: number): Promise<Address> {
+  const file = fileURLToPath(new URL('../../../../contracts/out/Tokens.sol/MockERC20.json', import.meta.url));
+  const art = JSON.parse(readFileSync(file, 'utf8')) as { abi: Abi; bytecode: { object: Hex } };
+  const deployer = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as Address;
+  const hash = await walletOf(env.rpcUrl, deployer).deployContract({
+    abi: art.abi,
+    bytecode: art.bytecode.object,
+    args: [name, symbol, decimals],
+    account: deployer,
+    chain: anvilChain,
+  });
+  const r = await env.publicClient.waitForTransactionReceipt({ hash });
+  return r.contractAddress as Address;
 }

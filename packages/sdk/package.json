@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
+    "ox": "0.14.67",
     "publint": "0.3.25",
     "viem": "2.58.0"
   }
