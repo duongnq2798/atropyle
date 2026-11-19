@@ -10,13 +10,16 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  encodeAbiParameters,
   encodeFunctionData,
+  getAddress,
   type Hex,
   http,
   keccak256,
   type PublicClient,
   parseEventLogs,
   type TransactionReceipt,
+  toFunctionSelector,
   toHex,
   type WalletClient,
 } from 'viem';
@@ -112,4 +115,67 @@ export async function deployToken(env: Env, name: string, symbol: string, decima
   });
   const r = await env.publicClient.waitForTransactionReceipt({ hash });
   return r.contractAddress as Address;
+}
+
+/** Jump table assembler: '@x' is a JUMPDEST labelled x, '#x' a label without code, '>x' a PUSH2 of the offset of x. */
+function assemble(parts: string[]): Hex {
+  const offsets = new Map<string, number>();
+  const size = (p: string) => (p.startsWith('@') ? 1 : p.startsWith('#') ? 0 : p.startsWith('>') ? 3 : p.length / 2);
+  let at = 0;
+  for (const p of parts) {
+    if (p.startsWith('@') || p.startsWith('#')) offsets.set(p.slice(1), at);
+    at += size(p);
+  }
+  const hex = parts.map((p) => {
+    if (p.startsWith('@')) return '5b';
+    if (p.startsWith('#')) return '';
+    if (p.startsWith('>')) return `61${(offsets.get(p.slice(1)) as number).toString(16).padStart(4, '0')}`;
+    return p;
+  });
+  return `0x${hex.join('')}`;
+}
+
+/**
+ * Puts a token at a fixed address (anvil_setCode) whose approve() always reverts with Error(reason), so a test can
+ * choose the revert text. balanceOf is 5,000,000, allowance 1, decimals 6; every other call reverts without data.
+ * Hand-assembled because no mock in contracts/ reverts with a reason of its own.
+ */
+export async function etchApproveReverter(env: Env, reason: string): Promise<Address> {
+  const address = getAddress('0x000000000000000000000000000000000000bad1');
+  const payload = `08c379a0${encodeAbiParameters([{ type: 'string' }], [reason]).slice(2)}`;
+  const length = (payload.length / 2).toString(16).padStart(4, '0');
+  const answer = (value: string) => [`62${value.padStart(6, '0')}`, '600052', '60206000f3'];
+  const whenSelector = (signature: string, label: string) => [
+    '80',
+    `63${toFunctionSelector(signature).slice(2)}`,
+    '14',
+    `>${label}`,
+    '57',
+  ];
+  const code = assemble([
+    ...['600035', '60e0', '1c'],
+    ...whenSelector('approve(address,uint256)', 'approve'),
+    ...whenSelector('balanceOf(address)', 'balance'),
+    ...whenSelector('decimals()', 'decimals'),
+    ...whenSelector('allowance(address,address)', 'allowance'),
+    ...['6000', '80', 'fd'],
+    '@balance',
+    ...answer('4c4b40'),
+    '@decimals',
+    ...answer('06'),
+    '@allowance',
+    ...answer('01'),
+    '@approve',
+    `61${length}`,
+    '>data',
+    '6000',
+    '39',
+    `61${length}`,
+    '6000',
+    'fd',
+    '#data',
+    payload,
+  ]);
+  await rpc(env.rpcUrl, 'anvil_setCode', [address, code]);
+  return address;
 }

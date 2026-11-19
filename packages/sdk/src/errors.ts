@@ -17,6 +17,7 @@ import {
 import { revertAbi } from './abi/index';
 import { toJson } from './json';
 import { errorDocsUrl } from './links';
+import { untrusted } from './untrusted';
 
 export const ERROR_INFO = {
   NOT_OWNER: {
@@ -276,6 +277,9 @@ const REVERTED_TEXT = /execution reverted/i;
  */
 const STALE_NODE = /header not found|unknown block|missing trie node/i;
 
+/** Wider than REVERTED_TEXT: any node wording of a revert (geth, hardhat, anvil), for text that must be treated as the contract's. */
+const ANY_REVERT_TEXT = /revert/i;
+
 /** True when the `details` of some error in the cause chain match `re` (details carry the node's own message). */
 function detailsMatch(e: BaseError, re: RegExp): boolean {
   return e.walk((x) => re.test(String((x as { details?: unknown } | null)?.details ?? ''))) !== null;
@@ -333,17 +337,37 @@ function revertCandidates(e: BaseError): Hex[] {
 const URL_IN_TEXT = /[a-z][a-z0-9+.-]*:\/\/\S+/gi;
 
 /**
- * Message for an error we cannot classify. viem's own `message` repeats the full RPC URL and the request body, so
- * for viem errors only `shortMessage` and `details` are used; the original stays reachable through `cause`.
+ * Text for an error we cannot classify. viem's own `message` repeats the full RPC URL and the request body, so for
+ * viem errors only `shortMessage` and `details` are used; the original stays reachable through `cause`.
  */
-function unknownMessage(e: unknown): string {
+function describe(e: unknown): string {
   let text: string;
   if (e instanceof BaseError) {
     text = e.details && e.details !== e.shortMessage ? `${e.shortMessage} (${e.details})` : e.shortMessage;
   } else {
     text = e instanceof Error ? e.message : String(e);
   }
-  return text.replace(URL_IN_TEXT, '<url>').slice(0, 500) || ERROR_INFO.UNKNOWN.message;
+  return text.replace(URL_IN_TEXT, '<url>');
+}
+
+/** Message for an error we cannot classify: the description cut to 500 characters. */
+function unknownMessage(e: unknown): string {
+  return describe(e).slice(0, 500) || ERROR_INFO.UNKNOWN.message;
+}
+
+/**
+ * The call reverted with something the SDK has no code for. The reason is text chosen by the contract (a token can
+ * say anything, including instructions for a reader that is a language model), so it never becomes the message: that
+ * is a fixed sentence, and the reason travels only as cleaned, cut `Untrusted` text in `details.reason`.
+ */
+function unknownRevert(e: BaseError): AtropyleError {
+  const reverted = e.walk((x) => x instanceof ContractFunctionRevertedError);
+  const reason = reverted instanceof ContractFunctionRevertedError && reverted.reason ? reverted.reason : describe(e);
+  return new AtropyleError('UNKNOWN', {
+    cause: e,
+    message: 'The call reverted with a reason this SDK does not recognize.',
+    details: { reason: untrusted(reason) },
+  });
 }
 
 /** Turns any thrown value (viem, wallet, contract revert) into an AtropyleError. */
@@ -376,6 +400,7 @@ export function decodeError(e: unknown): AtropyleError {
     if (e.walk((x) => x instanceof HttpRequestError || x instanceof TimeoutError)) {
       return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
     }
+    if (isRevertAnswer(e) || detailsMatch(e, ANY_REVERT_TEXT)) return unknownRevert(e);
   }
   return new AtropyleError('UNKNOWN', { cause: e, message: unknownMessage(e) });
 }

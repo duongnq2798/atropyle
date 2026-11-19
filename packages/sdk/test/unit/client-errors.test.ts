@@ -53,6 +53,24 @@ describe('the client leaves every read and prepare as an AtropyleError', () => {
     expect(err).toBeInstanceOf(AtropyleError);
   });
 
+  it('rejects an action type it does not know by name, before any RPC call', async () => {
+    const atro = failing(() => new Error('never reached'));
+    const hidden = `drop table\u{202E}\u{0007}${'x'.repeat(500)}`;
+    for (const action of [{ type: hidden }, {}, null, 'checkIn']) {
+      for (const call of [
+        () => atro.vault(VAULT).prepare(action as never, { as: OWNER }),
+        () => atro.vault(VAULT).whatIf(action as never, { as: OWNER }),
+      ]) {
+        const err = await call().catch((e: unknown) => e);
+        expect(err).toMatchObject({ code: 'INVALID_OPTIONS', details: { path: 'type' } });
+        const { message } = err as AtropyleError;
+        expect(message).toMatch(/^type: unknown action ".{0,41}"; use one of checkIn, /);
+        expect(message).not.toContain('\u{202E}');
+        expect(message).not.toContain('\u{0007}');
+      }
+    }
+  });
+
   it('rejects, rather than throws, for a bad address argument', async () => {
     const atro = failing(() => new Error('never reached'));
     await expect(atro.predictVault('nope', SALT)).rejects.toMatchObject({ code: 'INVALID_ADDRESS' });

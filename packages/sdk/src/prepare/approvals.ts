@@ -1,7 +1,8 @@
 import { type Address, encodeFunctionData, erc20Abi, erc721Abi, maxUint256, type PublicClient } from 'viem';
 import { erc1155Abi } from '../abi/index';
 import { sameAddress, ZERO_ADDRESS } from '../address';
-import { decodeError, isTransportError } from '../errors';
+import { decodeError, isContractAnswer } from '../errors';
+import { heldBy } from '../read/snapshot';
 import type { TokenInfo } from '../read/types';
 import type { Asset, Warning } from '../types';
 import { summarize } from './summary';
@@ -13,13 +14,16 @@ export interface ApprovalContext {
   blockNumber: bigint;
 }
 
-/** A token that reverts reads as `fallback`; a failing RPC is rethrown, it must not read as "nothing held". */
+/**
+ * A token that answers a read with a revert or nothing reads as `fallback`. Any other failure (a throttled or
+ * refusing RPC, a method the node does not offer, a malformed response) is rethrown: it says nothing about the
+ * token, and reading it as "no approval" or "nothing held" would drop a revocation or an approval from the plan.
+ */
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   try {
     return await p;
   } catch (e) {
-    const err = decodeError(e);
-    if (isTransportError(err)) throw err;
+    if (!isContractAnswer(e)) throw decodeError(e);
     return fallback;
   }
 }
@@ -47,10 +51,7 @@ export async function approvalDrafts(
   for (const [index, a] of assets.entries()) {
     if (a.kind === 'erc20') {
       const [balance, allowance, info] = await Promise.all([
-        safe(
-          c.readContract({ address: a.token, abi: erc20Abi, functionName: 'balanceOf', args: [owner], blockNumber }),
-          0n,
-        ),
+        heldBy(c, owner, a, blockNumber),
         safe(
           c.readContract({
             address: a.token,
@@ -85,31 +86,28 @@ export async function approvalDrafts(
               ]
             : [],
       });
-    } else if (a.kind === 'erc721') {
-      const holder = await safe(
-        c.readContract({ address: a.token, abi: erc721Abi, functionName: 'ownerOf', args: [a.id], blockNumber }),
+      continue;
+    }
+    if ((await heldBy(c, owner, a, blockNumber)) === 0n) {
+      warnings.push(notHeld(index, a));
+      continue;
+    }
+    // setApprovalForAll and isApprovedForAll have the same selector in ERC-721 and ERC-1155.
+    const all = await safe(
+      c.readContract({
+        address: a.token,
+        abi: erc1155Abi,
+        functionName: 'isApprovedForAll',
+        args: [owner, vault],
+        blockNumber,
+      }),
+      false,
+    );
+    if (a.kind === 'erc721') {
+      const approved = await safe(
+        c.readContract({ address: a.token, abi: erc721Abi, functionName: 'getApproved', args: [a.id], blockNumber }),
         ZERO_ADDRESS,
       );
-      if (!sameAddress(holder, owner)) {
-        warnings.push(notHeld(index, a));
-        continue;
-      }
-      const [approved, all] = await Promise.all([
-        safe(
-          c.readContract({ address: a.token, abi: erc721Abi, functionName: 'getApproved', args: [a.id], blockNumber }),
-          ZERO_ADDRESS,
-        ),
-        safe(
-          c.readContract({
-            address: a.token,
-            abi: erc721Abi,
-            functionName: 'isApprovedForAll',
-            args: [owner, vault],
-            blockNumber,
-          }),
-          false,
-        ),
-      ]);
       if (sameAddress(approved, vault) || all) continue;
       drafts.push({
         to: a.token,
@@ -119,54 +117,31 @@ export async function approvalDrafts(
         summary: summarize.approve721(vault, a.token, a.id),
         warnings: [],
       });
-    } else {
-      const [balance, all] = await Promise.all([
-        safe(
-          c.readContract({
-            address: a.token,
-            abi: erc1155Abi,
-            functionName: 'balanceOf',
-            args: [owner, a.id],
-            blockNumber,
-          }),
-          0n,
-        ),
-        safe(
-          c.readContract({
-            address: a.token,
-            abi: erc1155Abi,
-            functionName: 'isApprovedForAll',
-            args: [owner, vault],
-            blockNumber,
-          }),
-          false,
-        ),
-      ]);
-      if (balance === 0n) {
-        warnings.push(notHeld(index, a));
-        continue;
-      }
-      if (all || forAll.has(a.token)) continue;
-      forAll.add(a.token);
-      drafts.push({
-        to: a.token,
-        value: 0n,
-        action: 'setApprovalForAll',
-        data: encodeFunctionData({ abi: erc1155Abi, functionName: 'setApprovalForAll', args: [vault, true] }),
-        summary: summarize.approveAll(vault, a.token),
-        warnings: [
-          {
-            code: 'APPROVAL_FOR_ALL',
-            message: `ERC-1155 approvals cover every token id of ${a.token}, not only id ${a.id}. Use revokeAll if you cancel the plan.`,
-          },
-        ],
-      });
+      continue;
     }
+    if (all || forAll.has(a.token)) continue;
+    forAll.add(a.token);
+    drafts.push({
+      to: a.token,
+      value: 0n,
+      action: 'setApprovalForAll',
+      data: encodeFunctionData({ abi: erc1155Abi, functionName: 'setApprovalForAll', args: [vault, true] }),
+      summary: summarize.approveAll(vault, a.token),
+      warnings: [
+        {
+          code: 'APPROVAL_FOR_ALL',
+          message: `ERC-1155 approvals cover every token id of ${a.token}, not only id ${a.id}. Use revokeAll if you cancel the plan.`,
+        },
+      ],
+    });
   }
   return { drafts, warnings };
 }
 
-/** Removes every approval the vault holds over the owner's assets. */
+/**
+ * Removes every approval the vault holds over the owner's assets. An ERC-20 whose allowance cannot be read (the token
+ * reverted) still gets its `approve(vault, 0)`: a revocation is never skipped on a guess.
+ */
 export async function revokeDrafts(
   x: ApprovalContext,
   owner: Address,
@@ -190,7 +165,7 @@ export async function revokeDrafts(
   };
   for (const a of assets) {
     if (a.kind === 'erc20') {
-      const allowance = await safe(
+      const allowance = await safe<bigint | null>(
         c.readContract({
           address: a.token,
           abi: erc20Abi,
@@ -198,7 +173,7 @@ export async function revokeDrafts(
           args: [owner, vault],
           blockNumber,
         }),
-        0n,
+        null,
       );
       if (allowance === 0n) continue;
       drafts.push({

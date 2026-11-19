@@ -1,6 +1,6 @@
 import { type Address, encodeFunctionData, type Hex } from 'viem';
 import { vaultAbi } from '../abi/index';
-import type { VaultAction } from '../actions';
+import { VAULT_ACTIONS, type VaultAction, type VaultActionType } from '../actions';
 import { sameAddress, toAddress, ZERO_ADDRESS } from '../address';
 import { appendSuffix } from '../builder-code';
 import { assetsToAbi, heirsToAbi, timingToAbi } from '../encode';
@@ -11,6 +11,7 @@ import { predictAction } from '../policy/predict';
 import { readSnapshot } from '../read/snapshot';
 import type { VaultSnapshot } from '../read/types';
 import { isReleasedState, type Warning } from '../types';
+import { untrusted } from '../untrusted';
 import { approvalDrafts, revokeDrafts } from './approvals';
 import { simulateTxs } from './simulate';
 import { summarize } from './summary';
@@ -28,6 +29,16 @@ function drillExpired(): Simulation {
     ok: false,
     error: new AtropyleError('DRILL_EXPIRED', { details: { error: 'DrillExpired', args: [] } }).toJSON(),
   };
+}
+
+/** Callers without types (an MCP tool, a JSON file) can send any `type`: reject it by name before any RPC call. */
+function assertActionType(action: unknown): void {
+  const type = typeof action === 'object' && action !== null ? (action as { type?: unknown }).type : undefined;
+  if (VAULT_ACTIONS.includes(type as VaultActionType)) return;
+  throw new AtropyleError('INVALID_OPTIONS', {
+    message: `type: unknown action "${untrusted(type, 40).value}"; use one of ${VAULT_ACTIONS.join(', ')}.`,
+    details: { path: 'type' },
+  });
 }
 
 function dedupe(ws: Warning[]): Warning[] {
@@ -199,6 +210,7 @@ export async function prepareAction(
   action: VaultAction,
   opts: PrepareOptions,
 ): Promise<TxPlan> {
+  assertActionType(action);
   const as = toAddress(opts.as, 'as');
   const snap = await readSnapshot(x, vault);
   const { drafts, warnings } = await build(x, snap, action, opts);
@@ -241,6 +253,7 @@ export async function whatIf(
   action: VaultAction,
   opts: { as: string; at?: bigint },
 ): Promise<WhatIfReport> {
+  assertActionType(action);
   const as = toAddress(opts.as, 'as');
   const snap = await readSnapshot(x, vault);
   const at = opts.at ?? snap.status.blockTimestamp;
