@@ -1,5 +1,5 @@
-import { custom, HttpRequestError, type Transport, type WalletClient } from 'viem';
-import { describe, expect, it } from 'vitest';
+import { custom, encodeErrorResult, HttpRequestError, RpcRequestError, type Transport, type WalletClient } from 'viem';
+import { describe, expect, it, vi } from 'vitest';
 import { type AtropyleClient, createAtropyle } from '../../src/client';
 import { AtropyleError } from '../../src/errors';
 import type { SignPayload, TxPlan } from '../../src/index';
@@ -128,5 +128,56 @@ describe('the client leaves every read and prepare as an AtropyleError', () => {
     expect(atro.handoff.calls(SIGN_REQUEST).chainId).toBe('0x7a69');
     if (atro.deployment.webUrl) expect(atro.handoff.link(SIGN_REQUEST)).toContain('#/sign?p=');
     else expect(() => atro.handoff.link(SIGN_REQUEST)).toThrow(expect.objectContaining({ code: 'INVALID_OPTIONS' }));
+  });
+});
+
+describe('CCIP read', () => {
+  it('is off: a hostile OffchainLookup revert is an error and nothing is fetched', async () => {
+    // OffchainLookup(address sender, string[] urls, bytes callData, bytes4 callbackFunction, bytes extraData)
+    const lookup = encodeErrorResult({
+      abi: [
+        {
+          type: 'error',
+          name: 'OffchainLookup',
+          inputs: [
+            { type: 'address', name: 'sender' },
+            { type: 'string[]', name: 'urls' },
+            { type: 'bytes', name: 'callData' },
+            { type: 'bytes4', name: 'callbackFunction' },
+            { type: 'bytes', name: 'extraData' },
+          ],
+        },
+      ],
+      errorName: 'OffchainLookup',
+      args: [TOKEN, ['https://attacker.invalid/{sender}/{data}'], '0x1234', '0x12345678', '0x'],
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no network in tests'));
+    const methods: string[] = [];
+    const transport: Transport = custom(
+      {
+        request: async ({ method }: { method: string }) => {
+          methods.push(method);
+          if (method === 'eth_call') {
+            throw new RpcRequestError({
+              body: { method },
+              error: { code: 3, message: 'execution reverted', data: lookup },
+              url: 'https://rpc.example',
+            });
+          }
+          if (method === 'eth_blockNumber') return '0x5';
+          if (method === 'eth_getBlockByNumber') return { number: '0x5', timestamp: '0x64', transactions: [] };
+          if (method === 'eth_getCode') return '0x6001';
+          throw new Error(`unexpected ${method}`);
+        },
+      },
+      { retryCount: 0 },
+    );
+    const atro = createAtropyle({ chain: 'local', transport });
+    expect(atro.publicClient.ccipRead).toBe(false);
+    const err = await atro.publicClient.call({ to: TOKEN, data: '0x70a08231' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(methods).toContain('eth_call');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

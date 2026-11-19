@@ -19,6 +19,7 @@ import {
 } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { revertAbi } from '../../src/abi/index';
+import { isContractAnswer } from '../../src/errors';
 import {
   AtropyleError,
   decodeError,
@@ -443,17 +444,25 @@ describe('decodeError: a revert reason is the contract text, never the message',
 describe('decodeError: a backend error that viem wraps as a revert', () => {
   const TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
   // The error a read gives when the node answers with this JSON-RPC error: it comes out of a real viem client.
-  async function readFailure(error: RpcRequestError): Promise<unknown> {
+  async function readFailure(error: RpcRequestError, fn: 'decimals' | 'balanceOf' = 'decimals'): Promise<unknown> {
     const provider = {
       request: async () => {
         throw error;
       },
     };
     const client = createPublicClient({ transport: custom(provider as never, { retryCount: 0 }) });
-    return client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }).catch((e: unknown) => e);
+    const read =
+      fn === 'decimals'
+        ? client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' })
+        : client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [TOKEN] });
+    return read.catch((e: unknown) => e);
   }
-  const rpcError = (code: number, message: string, data?: `0x${string}`) =>
-    new RpcRequestError({ body: { method: 'eth_call' }, error: { code, message, data }, url: 'https://rpc.example' });
+  const rpcError = (code: number, message: string, data?: unknown) =>
+    new RpcRequestError({
+      body: { method: 'eth_call' },
+      error: { code, message, data: data as `0x${string}` | undefined },
+      url: 'https://rpc.example',
+    });
 
   it('maps a bare -32603 Internal error to RPC_UNAVAILABLE, a transport error', async () => {
     const failure = await readFailure(rpcError(-32603, 'Internal error'));
@@ -481,5 +490,51 @@ describe('decodeError: a backend error that viem wraps as a revert', () => {
         ),
       ).code,
     ).toBe('UNKNOWN');
+  });
+
+  it.each(['panic: runtime error', 'req-8f3a', '0x1'])(
+    'does not read a -32603 with the data %j as a revert, on decimals() or balanceOf',
+    async (data) => {
+      for (const fn of ['decimals', 'balanceOf'] as const) {
+        const failure = await readFailure(rpcError(-32603, 'Internal error', data), fn);
+        expect(isContractAnswer(failure), fn).toBe(false);
+        const decoded = decodeError(failure);
+        expect(decoded.code, fn).toBe('RPC_UNAVAILABLE');
+        expect(isTransportError(decoded)).toBe(true);
+      }
+    },
+  );
+
+  it('still reads a -32603 whose data is a real revert as a revert', async () => {
+    const custom = encodeErrorResult({ abi: revertAbi, errorName: 'NotOwner' });
+    const reason = encodeErrorResult({
+      abi: [{ type: 'error', name: 'Error', inputs: [{ type: 'string', name: 'message' }] }],
+      errorName: 'Error',
+      args: ['nope'],
+    });
+    for (const fn of ['decimals', 'balanceOf'] as const) {
+      const a = await readFailure(rpcError(-32603, 'Internal error', custom), fn);
+      expect(isContractAnswer(a), fn).toBe(true);
+      expect(decodeError(a).code).toBe('NOT_OWNER');
+      const b = await readFailure(rpcError(-32603, 'Internal error', reason), fn);
+      expect(isContractAnswer(b), fn).toBe(true);
+      expect(decodeError(b).code).toBe('UNKNOWN');
+    }
+  });
+
+  it('reads a revert nested one level down (the MetaMask shape) as the contract answering', async () => {
+    const data = encodeErrorResult({ abi: revertAbi, errorName: 'NotOwner' });
+    const nested = (inner: unknown) =>
+      rpcError(-32603, 'Internal JSON-RPC error', { code: 3, message: 'execution reverted', data: inner });
+    const ok = await readFailure(nested(data));
+    expect(decodeError(ok).code).toBe('NOT_OWNER');
+    expect(isContractAnswer(ok)).toBe(true);
+    for (const bad of ['0x1', 'req-8f3a', undefined]) {
+      const failure = await readFailure(
+        rpcError(-32603, 'Internal JSON-RPC error', { code: -32603, message: 'boom', data: bad }),
+      );
+      expect(decodeError(failure).code, String(bad)).toBe('RPC_UNAVAILABLE');
+      expect(isContractAnswer(failure), String(bad)).toBe(false);
+    }
   });
 });

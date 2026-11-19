@@ -290,7 +290,14 @@ function detailsMatch(e: BaseError, re: RegExp): boolean {
  * class alone proves nothing. A revert has evidence: revert data, or the node saying so in words.
  */
 function hasRevertEvidence(x: ContractFunctionRevertedError): boolean {
-  return (!!x.raw && x.raw !== '0x') || REVERT_TEXT.test(x.reason ?? '');
+  return (typeof x.raw === 'string' && REVERT_HEX.test(x.raw)) || REVERT_TEXT.test(x.reason ?? '');
+}
+
+/** Revert data a wallet nests one level down (MetaMask: -32603 with `data: { code: 3, message, data: '0x...' }`). */
+function nestedRevertData(x: unknown): Hex | null {
+  const inner = (x as { data?: unknown } | null)?.data;
+  const v = typeof inner === 'object' && inner !== null ? (inner as { data?: unknown }).data : undefined;
+  return typeof v === 'string' && REVERT_HEX.test(v) ? (v as Hex) : null;
 }
 
 /** The node answered that the call reverted, whatever code and layout it uses to say so. */
@@ -298,6 +305,7 @@ function isRevertAnswer(e: BaseError): boolean {
   return (
     hasRpcCode(e, RPC_EXECUTION_REVERTED) ||
     detailsMatch(e, REVERT_TEXT) ||
+    e.walk((x) => nestedRevertData(x) !== null) !== null ||
     e.walk((x) => x instanceof ContractFunctionRevertedError && hasRevertEvidence(x)) !== null
   );
 }
@@ -336,6 +344,8 @@ function revertCandidates(e: BaseError): Hex[] {
       const v = (x as Record<string, unknown> | null)?.[key];
       if (typeof v === 'string' && REVERT_HEX.test(v)) out.push(v as Hex);
     }
+    const nested = nestedRevertData(x);
+    if (nested) out.push(nested);
     return false;
   });
   return out;
@@ -440,6 +450,10 @@ function isRpcLayerError(x: unknown): boolean {
  * The decode case is recognised structurally: viem failed after the node answered, so no error of the RPC layer is
  * in the cause chain. Listing viem's decode error classes instead would miss some (IntegerOutOfRangeError,
  * PositionOutOfBoundsError, InvalidBytesBooleanError, ...).
+ *
+ * Known fail-open edge: because the check is structural, a non-hex node result (`'garbage'`, `{a:1}`, `123`) and a
+ * local `InvalidAddressError` also read as answers. That is accepted: the public API validates addresses before any
+ * call, and a node result that is not hex never reaches here as such, since viem's own parsing fails first.
  */
 export function isContractAnswer(e: unknown): boolean {
   if (!(e instanceof BaseError)) return false;

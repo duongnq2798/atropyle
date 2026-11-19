@@ -136,6 +136,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     chain,
     transport: options.transport ?? readTransport(deployment.rpcUrls),
     cacheTime: 0,
+    // A hostile token can revert with OffchainLookup; following it would make the host fetch an attacker-chosen URL.
+    ccipRead: false,
   }) as PublicClient;
   const builderCode = options.builderCode === undefined ? deployment.builderCode : options.builderCode;
   const ctx = createReadContext(deployment, publicClient, options.logger);

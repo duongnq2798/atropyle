@@ -68,6 +68,7 @@ const NOT_ANSWERS: [string, () => Error][] = [
         functionName: 'f',
       }),
   ],
+  ['a backend error (-32603)', () => rpcError(undefined, -32603, 'Internal error')],
   ['a malformed response', () => new Error('malformed response')],
   ['a rate limit', () => new HttpRequestError({ url: 'https://rpc.example', status: 429 })],
 ];
