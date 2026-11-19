@@ -1,5 +1,5 @@
-import { type Address, keccak256 } from 'viem';
-import { cpuAbi, factoryAbi } from '../abi/index';
+import { type Address, bytesToHex, keccak256 } from 'viem';
+import { factoryAbi } from '../abi/index';
 import { AtropyleError, type AtropyleErrorJson, decodeError } from '../errors';
 import { fetchPolicyProgram, modelEngine, programEngine } from '../policy/engine';
 import { type Timeline, timelineOf } from '../policy/timeline';
@@ -75,22 +75,26 @@ export async function verifyVault(
       ),
     ];
 
+    // Every read pinned to this block happens before the (long) policy proof: a node that keeps only recent state
+    // could no longer serve this block afterwards.
+    const fetched = await fetchPolicyProgram(
+      snapshot.binding.cpu,
+      snapshot.binding.policyId,
+      netlistSource(c, snapshot.binding.cpu, blockNumber),
+    );
+    const timeline = timelineOf(fetched ? programEngine(fetched.program) : modelEngine(), snapshot);
+
     let part: PolicyPart = { status: 'skipped' };
     if (policy) {
       try {
         const result = await policy();
+        // The netlists the proof ran on must be the ones this vault's CPU holds at this block.
         let unchanged =
           result.cpu.toLowerCase() === snapshot.binding.cpu.toLowerCase() &&
           result.policyId === snapshot.binding.policyId;
         for (const n of result.netlists) {
-          const bytes = await c.readContract({
-            address: snapshot.binding.cpu,
-            abi: cpuAbi,
-            functionName: 'netlist',
-            args: [n.id],
-            blockNumber,
-          });
-          if (keccak256(bytes) !== n.keccak) unchanged = false;
+          const now = fetched?.netlists.get(n.id);
+          if (!now || keccak256(bytesToHex(now)) !== n.keccak) unchanged = false;
         }
         part = { status: 'verified', result, unchanged };
       } catch (e) {
@@ -101,12 +105,6 @@ export async function verifyVault(
       }
     }
 
-    const fetched = await fetchPolicyProgram(
-      snapshot.binding.cpu,
-      snapshot.binding.policyId,
-      netlistSource(c, snapshot.binding.cpu, blockNumber),
-    );
-    const timeline = timelineOf(fetched ? programEngine(fetched.program) : modelEngine(), snapshot);
     const policyOk = part.status === 'skipped' || (part.status === 'verified' && part.result.ok && part.unchanged);
     return {
       ok: checks.every((x) => x.ok) && policyOk,

@@ -47,7 +47,16 @@ function bundle(over: Partial<PolicyBundle> = {}): PolicyBundle {
         gateCount: sub(src.ge4),
       },
     ],
-    cpuCheck: null,
+    cpuCheck: {
+      ok: true,
+      isTapeoutCpu: true,
+      nameMatches: true,
+      symbolMatches: true,
+      beacon: OTHER,
+      beaconMatches: true,
+      beaconFrozen: true,
+      transistorsPaired: true,
+    },
     ...over,
   };
 }
@@ -100,6 +109,24 @@ describe('evaluatePolicyBundle', () => {
     await expect(evaluatePolicyBundle(b)).rejects.toMatchObject({ code: 'POLICY_UNAVAILABLE' });
   });
 
+  it('flags a policy whose two REF roles use the same circuit id', async () => {
+    const same = deployedNetlists(CPU, [IDS[0], IDS[0]]);
+    const b = bundle();
+    b.expected = { ...b.expected, ge4: null, keccak: null };
+    b.netlists[0] = { ...b.netlists[0], bytes: bytesToHex(same.policy) };
+    const r = await evaluatePolicyBundle(b, { blocks: 64 });
+    expect(r.ok).toBe(false);
+    expect(r.issues).toContain('KofN5 and Ge4 use the same circuit id');
+  });
+
+  it('does not accept a mainnet bundle without a CPU check, but a devnet one is unchanged', async () => {
+    const m = await evaluatePolicyBundle(bundle({ cpuCheck: null }), { blocks: 64 });
+    expect(m.ok).toBe(false);
+    expect(m.issues.join(' ')).toContain('no TapeOut info');
+    const d = await evaluatePolicyBundle(bundle({ chainId: 31337, cpuCheck: null }), { blocks: 64 });
+    expect(d.ok).toBe(true);
+  });
+
   it('does not accept a mainnet deployment that records no circuits, but a devnet one is unchanged', async () => {
     const none = { kofn5: null, ge4: null, keccak: null };
     const main = bundle();
@@ -141,10 +168,11 @@ describe('readIntegrity without recorded circuits', () => {
     ...over,
   });
 
-  it('fails on X Layer mainnet', async () => {
+  it('fails on X Layer mainnet without TapeOut info or circuits', async () => {
     const r = await readIntegrity(client, deployment({ chainId: 196 }), 2);
     expect(r.ok).toBe(false);
     expect(r.checks.filter((c) => !c.ok)).toEqual([
+      { name: 'deployment.tapeout', ok: false, expected: 'present', actual: 'missing' },
       { name: 'deployment.circuits', ok: false, expected: 'present', actual: 'missing' },
     ]);
   });

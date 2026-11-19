@@ -301,7 +301,7 @@ function nestedRevertData(x: unknown): Hex | null {
 }
 
 /** The node answered that the call reverted, whatever code and layout it uses to say so. */
-function isRevertAnswer(e: BaseError): boolean {
+export function isRevertAnswer(e: BaseError): boolean {
   return (
     hasRpcCode(e, RPC_EXECUTION_REVERTED) ||
     detailsMatch(e, REVERT_TEXT) ||
@@ -337,7 +337,7 @@ const REVERT_HEX = /^0x[0-9a-fA-F]{8,}$/;
  * does not know the error (for example a vault error raised through a factory call), because viem then drops the
  * original RPC error from the chain.
  */
-function revertCandidates(e: BaseError): Hex[] {
+export function revertCandidates(e: BaseError): Hex[] {
   const out: Hex[] = [];
   e.walk((x) => {
     for (const key of ['data', 'raw'] as const) {

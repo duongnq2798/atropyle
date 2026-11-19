@@ -1,5 +1,5 @@
-import { createTransport, type EIP1193RequestFn, type Transport } from 'viem';
-import { AtropyleError } from '../errors';
+import { BaseError, createTransport, type EIP1193RequestFn, type Transport } from 'viem';
+import { AtropyleError, isRevertAnswer, revertCandidates } from '../errors';
 
 export interface QuorumOptions {
   /** Extra attempts when an operator fails (it may not have reached the pinned block yet). Default 3. */
@@ -21,31 +21,34 @@ type Outcome = { ok: true; value: unknown } | { ok: false; revert: string | null
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const num = (v: unknown): string => {
+  try {
+    return BigInt(v as string).toString();
+  } catch {
+    return String(v);
+  }
+};
+
+/**
+ * What the operators must agree on. A block is compared by the fields the SDK reads from it (hash, number,
+ * timestamp), so one operator cannot move a deadline under a true hash; provider extras (totalDifficulty, mixHash,
+ * ...) are ignored.
+ */
 function canonical(method: string, v: unknown): string {
-  if (method === 'eth_getBlockByNumber') return String((v as { hash?: string } | null)?.hash ?? null).toLowerCase();
+  if (method === 'eth_getBlockByNumber') {
+    const b = v as { hash?: unknown; number?: unknown; timestamp?: unknown };
+    return `${String(b.hash).toLowerCase()}:${num(b.number)}:${num(b.timestamp)}`;
+  }
   return typeof v === 'string' ? v.toLowerCase() : JSON.stringify(v);
 }
 
-/** Revert data when the error is an execution revert ('0x' if the node gives none), else null. */
+/**
+ * Revert data when the error is the node saying the call reverted ('0x' if it gives none), else null. The
+ * classification is the one of errors.ts, so the quorum and decodeError can never disagree about what a revert is.
+ */
 function revertData(e: unknown): string | null {
-  let cur = e as { code?: unknown; data?: unknown; message?: unknown; details?: unknown; cause?: unknown } | undefined;
-  let found: string | null = null;
-  for (let depth = 0; cur && typeof cur === 'object' && depth < 6; depth++) {
-    const text = `${String(cur.message ?? '')} ${String(cur.details ?? '')}`;
-    if (cur.code === 3 || /execution reverted/i.test(text)) {
-      const d = cur.data as unknown;
-      const hex =
-        typeof d === 'string'
-          ? d
-          : typeof (d as { data?: unknown })?.data === 'string'
-            ? (d as { data: string }).data
-            : null;
-      if (hex) return hex.toLowerCase();
-      found ??= '0x';
-    }
-    cur = cur.cause as typeof cur;
-  }
-  return found;
+  if (!(e instanceof BaseError) || !isRevertAnswer(e)) return null;
+  return (revertCandidates(e)[0] ?? '0x').toLowerCase();
 }
 
 /**
@@ -62,7 +65,14 @@ export function quorumTransport(transports: readonly Transport[], o: QuorumOptio
     const members = transports.map((t) => t({ chain, pollingInterval, retryCount: 0, timeout }));
     const request = (async ({ method, params }: { method: string; params?: unknown }) => {
       const list = (params ?? []) as unknown[];
-      if (!COMPARED.has(method)) return members[0].request({ method, params } as never);
+      if (method === 'eth_blockNumber') return members[0].request({ method, params } as never);
+      // Anything else would silently be answered by one operator: refuse it instead.
+      if (!COMPARED.has(method)) {
+        throw new AtropyleError('INVALID_OPTIONS', {
+          message: `${method} is not a read a quorum can compare.`,
+          details: { method },
+        });
+      }
       const at = PINNED[method];
       if (at !== undefined && !(typeof list[at] === 'string' && /^0x[0-9a-fA-F]+$/.test(list[at] as string))) {
         throw new AtropyleError('INVALID_OPTIONS', {
@@ -81,13 +91,14 @@ export function quorumTransport(transports: readonly Transport[], o: QuorumOptio
             }
           }),
         );
-        const dead = outcomes.findIndex((x) => !x.ok && x.revert === null);
+        // A lagging node answers a pinned block read with null instead of an error: that is no answer either.
+        const dead = outcomes.findIndex((x) => (x.ok ? at !== undefined && x.value === null : x.revert === null));
         if (dead === -1) break;
         if (attempt >= retries) {
           throw new AtropyleError('QUORUM_UNAVAILABLE', {
             message: `RPC operator #${dead + 1} did not answer ${method}.`,
-            cause: (outcomes[dead] as { error: unknown }).error,
-            details: { method, operator: dead },
+            cause: (outcomes[dead] as { error?: unknown }).error,
+            details: { method, operator: dead + 1 },
           });
         }
         await sleep(delay);

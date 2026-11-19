@@ -199,6 +199,9 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
     if (ids[target] === null) ids[target] = r.id;
     else if (ids[target] !== r.id) issues.push(`REFs to ${target} use different circuit ids`);
   }
+  if (ids.KofN5 === null) issues.push('the policy has no REF to KofN5');
+  if (ids.Ge4 === null) issues.push('the policy has no REF to Ge4');
+  if (ids.KofN5 !== null && ids.KofN5 === ids.Ge4) issues.push('KofN5 and Ge4 use the same circuit id');
   if (b.expected.kofn5 !== null && ids.KofN5 !== b.expected.kofn5) {
     issues.push(`KofN5 is circuit ${ids.KofN5}; expected ${b.expected.kofn5}`);
   }
@@ -261,6 +264,10 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
     properties.P8 = { ok: report.mismatches === 0, violations: report.mismatches };
   } catch (e) {
     issues.push(`the policy could not be checked: ${(e as Error).message}`);
+  }
+  // On mainnet the frozen-beacon check is what ties this proof to the code that runs the netlists: it cannot be skipped.
+  if (b.chainId === MAINNET_CHAIN_ID && b.cpuCheck === null) {
+    issues.push('the deployment records no TapeOut info, so the frozen CPU could not be checked');
   }
   if (b.cpuCheck && !b.cpuCheck.ok) issues.push('the CPU is not the frozen Atropyle processor (see cpuCheck)');
   const allProps = NAMES.every((p) => properties[p].ok);

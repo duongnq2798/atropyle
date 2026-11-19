@@ -76,6 +76,9 @@ export async function readIntegrity(c: PublicClient, d: Deployment, rpcs: number
         { name: 'beacon.frozen', ok: cc.beaconFrozen },
         { name: 'cpu.transistors', ok: cc.transistorsPaired },
       );
+    } else if (d.chainId === MAINNET_CHAIN_ID) {
+      // Without TapeOut info the frozen-CPU check cannot run: not verifiable.
+      checks.push({ name: 'deployment.tapeout', ok: false, expected: 'present', actual: 'missing' });
     }
     if (d.circuits) {
       const at = { address: d.cpu, abi: cpuAbi, blockNumber } as const;
