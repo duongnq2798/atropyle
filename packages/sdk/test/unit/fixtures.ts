@@ -29,6 +29,7 @@ export interface SnapOptions {
   drill?: boolean;
   expiresAt?: bigint | null;
   coverage?: [bigint, bigint];
+  owner?: Address;
 }
 
 /** Guarded vault: heirs A 60% / B 40%, guardians G1-G3, assets [ERC-20 split, NFT #1 → B]. */
@@ -46,7 +47,7 @@ export function makeSnapshot(o: SnapOptions = {}): VaultSnapshot {
   return {
     binding: { factory: VAULT, cpu: VAULT, policyId: 1n },
     config: {
-      owner: OWNER,
+      owner: o.owner ?? OWNER,
       drill: o.drill ?? false,
       heirs: [
         { account: HEIR_A, bps: 6000 },

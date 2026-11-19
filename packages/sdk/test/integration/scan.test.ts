@@ -64,4 +64,20 @@ describe('scanEvents (cron source, spec §9.5)', () => {
       cursor: { toBlock: head - 5n },
     });
   });
+
+  it('only returns events of vaults the factory created', async () => {
+    const plan = await atro.prepare.createVault(drillPlan, { owner: OWNER, drill: true });
+    await sendPlanRaw(env, plan);
+    const afterCreate = await atro.scan({ fromBlock: 0n });
+    await warp(env.rpcUrl, 130);
+    await sendRaw(env, {
+      from: POKER,
+      to: plan.vault,
+      data: encodeFunctionData({ abi: vaultAbi, functionName: 'poke' }),
+    });
+    // A cursor that does not know the vault: its poke events are not a factory vault's, so nothing is returned.
+    const r = await atro.scan({ resume: { toBlock: afterCreate.toBlock, vaults: [] } });
+    expect(r.events).toEqual([]);
+    expect(r.created).toEqual([]);
+  });
 });

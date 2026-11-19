@@ -98,4 +98,21 @@ describe('keeper on the devnet (spec §12.2)', () => {
     expect((await atro.vault(vault).status()).state).toBe('active');
     expect((await keeperTick(atro, [vault], { wallet: keeper() })).sent).toBe(1);
   });
+
+  it('never checks the owner in when the keeper runs with the owner wallet', async () => {
+    const vault = await newDrill();
+    const s0 = await atro.vault(vault).status();
+    await warp(env.rpcUrl, Number(s0.lateAt - s0.blockTimestamp));
+    const r = await keeperTick(atro, [vault], { wallet: walletOf(env.rpcUrl, OWNER) });
+    expect(r).toMatchObject({
+      sent: 0,
+      outcomes: [{ status: 'owner-wallet', error: { code: 'WRONG_ACCOUNT' }, decision: { action: 'poke' } }],
+    });
+    expect((await atro.vault(vault).status()).lastAlive).toBe(s0.lastAlive);
+  });
+
+  it('records a vault that is not a vault as read-failed and never looks at it again', async () => {
+    const r = await keeperTick(atro, [env.deployment.factory], { wallet: keeper() });
+    expect(r.outcomes[0]).toMatchObject({ status: 'read-failed', nextCheckAt: null });
+  });
 });

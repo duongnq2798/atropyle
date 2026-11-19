@@ -124,7 +124,7 @@ feed = await atro.scan({ resume: feed.cursor, maxBlocks: 600 });
 const report = await keeperTick(atro, feed.cursor.vaults, { wallet }); // omit wallet for a dry run
 ```
 
-`poke` and `distribute` are permissionless and only ever pay heirs or the recovery wallet, so a keeper key can burn gas but cannot move assets. Defaults: 20 transactions per run, a cap of 4,000,000 on the estimated gas of each transaction (`send()` still applies its 1.3x buffer to the gas limit), stop below 0.005 OKB.
+`poke` and `distribute` are permissionless and only ever pay heirs or the recovery wallet, so a keeper key can burn gas but cannot move assets. Use a wallet that is not a vault owner: before release an owner-signed poke or distribute is a check-in, so such a vault gets the outcome `owner-wallet` and nothing is sent. Every vault ends in one outcome with its own `nextCheckAt`, RPC failures included (`read-failed`, `send-failed`), so one rate limit never loses the hashes already sent. Pass either `resume` or `fromBlock` to `scan`, not both, and on a load-balanced RPC pass `toBlock` as the head minus a few blocks. Defaults: 20 attempts per run (a simulated or sent vault counts), a cap of 4,000,000 on the estimated gas of each transaction (`send()` still applies its 1.3x buffer to the gas limit), stop below 0.005 OKB.
 
 ## Entry points
 

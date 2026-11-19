@@ -8,7 +8,7 @@ import { getEventsChunked, type VaultEvent } from './events';
 export interface ScanCursor {
   /** Last block included. */
   toBlock: bigint;
-  /** Every vault the factory has created up to toBlock. */
+  /** Every vault the factory created from the first block of the scan (the factory block for a full scan) to toBlock. */
   vaults: Address[];
 }
 
@@ -34,7 +34,13 @@ export interface ScanResult {
 }
 
 export interface ScanOptions {
+  /** First block; the factory's deployment block by default. Not allowed together with `resume`. */
   fromBlock?: bigint;
+  /**
+   * Last block; the chain head by default. Behind a load-balanced RPC the head comes from one node and a lagging node
+   * may clamp eth_getLogs to its own head, so a cron should pass `head - margin` (a few blocks) to be sure the
+   * cursor never moves past events that were not served.
+   */
   toBlock?: bigint;
   resume?: ScanCursor;
   /** At most this many blocks in one run (a whole number from 1), so a cron catches up in steps after an outage. */
@@ -53,6 +59,12 @@ export async function scanEvents(ctx: ReadContext, o: ScanOptions = {}): Promise
     throw new AtropyleError('INVALID_OPTIONS', {
       message: `maxBlocks must be a whole number of at least 1, got ${String(o.maxBlocks)}.`,
       details: { path: 'maxBlocks' },
+    });
+  }
+  if (o.resume && o.fromBlock !== undefined) {
+    throw new AtropyleError('INVALID_OPTIONS', {
+      message: 'Pass either resume or fromBlock, not both: resume decides where the scan starts.',
+      details: { path: 'fromBlock' },
     });
   }
   const head = o.toBlock ?? (await ctx.client.getBlockNumber());

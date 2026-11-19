@@ -1,7 +1,7 @@
 import type { Address, Hex, WalletClient } from 'viem';
-import { ZERO_ADDRESS } from './address';
+import { sameAddress, toAddress, ZERO_ADDRESS } from './address';
 import type { AtropyleClient } from './client';
-import { AtropyleError, type AtropyleErrorJson, decodeError, isTransportError } from './errors';
+import { AtropyleError, type AtropyleErrorJson, decodeError } from './errors';
 import { type Timeline, timelineOf } from './policy/timeline';
 import type { VaultStatus } from './read/types';
 import { isReleasedState } from './types';
@@ -76,7 +76,8 @@ export type KeeperOutcomeStatus =
   | 'gas-cap'
   | 'send-failed'
   | 'limit'
-  | 'read-failed';
+  | 'read-failed'
+  | 'owner-wallet';
 
 export interface KeeperOutcome {
   vault: Address;
@@ -99,9 +100,14 @@ export interface KeeperReport {
 }
 
 export interface KeeperOptions {
-  /** Signs poke/distribute. Without it the tick is a dry run: decisions and simulations, nothing sent. */
+  /**
+   * Signs poke/distribute. Without it the tick is a dry run: decisions and simulations, nothing sent.
+   * It must not be the owner's wallet: before release an owner-signed poke or distribute is a check-in, which would
+   * keep the vault alive for ever. A vault whose owner is this wallet gets status `owner-wallet` (error
+   * WRONG_ACCOUNT) and nothing is sent; a released vault is fine, since nothing is left to check in.
+   */
   wallet?: WalletClient;
-  /** Transactions per tick (default 20). */
+  /** Attempts per tick (default 20): a vault simulated or sent counts, whatever the result, so skips use the budget too. */
   maxTx?: number;
   /**
    * Cap on the estimated gas of one transaction (default 4,000,000): a simulation above it is skipped (`gas-cap`).
@@ -122,9 +128,12 @@ export const KEEPER_DEFAULTS = { maxTx: 20, maxGas: 4_000_000n, minBalance: 5_00
  * poke and distribute are permissionless and only pay heirs or the recovery wallet, so a stolen keeper key
  * can burn gas but cannot move assets.
  *
- * A vault-level failure becomes an outcome. An RPC failure (rate limit, outage, disagreement) is thrown instead, as
- * an AtropyleError, and ends the tick: it says nothing about the vault, and a report that treated it as a skip reason
- * would hide a dead endpoint. Transactions already sent by then are on chain; the next tick sees their effect.
+ * Every per-vault failure (a read, a simulation, a send, a receipt) becomes an outcome with the decoded error, RPC
+ * failures included, so the sent hashes and the next-check times already collected are never lost; the vault is looked
+ * at again in RETRY_AFTER seconds. A receipt that cannot be read after the broadcast is `send-failed` with the hash in
+ * `error.details.hash`. Only the failures before the first vault (the latest block, the keeper balance, invalid
+ * options) throw, as an AtropyleError. A vault listed twice is handled once; an address that is not valid is a
+ * `read-failed` outcome that never comes back.
  */
 export async function keeperTick(
   atro: AtropyleClient,
@@ -138,7 +147,28 @@ export async function keeperTick(
   }
 }
 
+function checkOptions(o: KeeperOptions): void {
+  const bad = (path: string, rule: string, value: unknown) =>
+    new AtropyleError('INVALID_OPTIONS', {
+      message: `${path} must be ${rule}, got ${String(value)}.`,
+      details: { path },
+    });
+  if (o.maxTx !== undefined && !(Number.isSafeInteger(o.maxTx) && o.maxTx >= 0)) {
+    throw bad('maxTx', 'a whole number of at least 0', o.maxTx);
+  }
+  if (o.maxGas !== undefined && !(typeof o.maxGas === 'bigint' && o.maxGas > 0n)) {
+    throw bad('maxGas', 'a bigint above 0', o.maxGas);
+  }
+  if (o.minBalance !== undefined && !(typeof o.minBalance === 'bigint' && o.minBalance >= 0n)) {
+    throw bad('minBalance', 'a bigint of at least 0', o.minBalance);
+  }
+  if (o.distributeEvery !== undefined && !(typeof o.distributeEvery === 'bigint' && o.distributeEvery > 0n)) {
+    throw bad('distributeEvery', 'a bigint above 0', o.distributeEvery);
+  }
+}
+
 async function runTick(atro: AtropyleClient, vaults: readonly Address[], o: KeeperOptions): Promise<KeeperReport> {
+  checkOptions(o);
   const maxTx = o.maxTx ?? KEEPER_DEFAULTS.maxTx;
   const maxGas = o.maxGas ?? KEEPER_DEFAULTS.maxGas;
   const minBalance = o.minBalance ?? KEEPER_DEFAULTS.minBalance;
@@ -164,25 +194,43 @@ async function runTick(atro: AtropyleClient, vaults: readonly Address[], o: Keep
   }
   const retry = report.ranAt + RETRY_AFTER;
   let attempts = 0;
-  for (const vault of vaults) {
+  const seen = new Set<Address>();
+  for (const input of vaults) {
+    let vault = input;
     let decision: KeeperDecision;
+    let owner: Address;
+    let released: boolean;
     try {
+      vault = toAddress(input, 'vault');
+      if (seen.has(vault)) continue;
+      seen.add(vault);
       const snap = await atro.vault(vault).snapshot();
       const engine = await atro.engineFor(snap.binding.cpu, snap.binding.policyId);
       const now = snap.status.blockTimestamp;
+      owner = snap.config.owner;
+      released = isReleasedState(snap.status.state);
       decision = planKeeperActions(snap.status, timelineOf(engine, snap, now), now, {
         distributeEvery: o.distributeEvery,
         lastDistributeAt: o.lastDistributeAt?.(vault) ?? null,
       });
     } catch (e) {
       const err = decodeError(e);
-      if (isTransportError(err)) throw err;
-      const nextCheckAt = err.code === 'NOT_VAULT' ? null : retry;
+      const permanent = err.code === 'NOT_VAULT' || err.code === 'INVALID_ADDRESS';
+      const nextCheckAt = permanent ? null : retry;
       report.outcomes.push({ vault, decision: null, status: 'read-failed', error: err.toJSON(), nextCheckAt });
       continue;
     }
     if (decision.action === null) {
       report.outcomes.push({ vault, decision, status: 'idle', nextCheckAt: decision.nextCheckAt });
+      continue;
+    }
+    if (keeper && sameAddress(keeper, owner) && !released) {
+      // Before release an owner-signed poke or distribute is a check-in: sending it would reset the vault's clock.
+      const error = new AtropyleError('WRONG_ACCOUNT', {
+        message: `The keeper wallet ${keeper} owns this vault; its poke or distribute would check the owner in.`,
+        hint: 'Run the keeper with a wallet that is not the vault owner.',
+      }).toJSON();
+      report.outcomes.push({ vault, decision, status: 'owner-wallet', error, nextCheckAt: decision.nextCheckAt });
       continue;
     }
     if (attempts >= maxTx) {
@@ -196,6 +244,11 @@ async function runTick(atro: AtropyleClient, vaults: readonly Address[], o: Keep
       if (sim.ok === false) {
         const nextCheckAt = sim.error.code === 'DRILL_EXPIRED' ? null : retry;
         report.outcomes.push({ vault, decision, status: 'simulation-failed', error: sim.error, nextCheckAt });
+        continue;
+      }
+      if (plan.warnings.some((w) => w.code === 'NO_EFFECT')) {
+        // Someone else advanced the vault between the decision and prepare's own read: a poke now would do nothing.
+        report.outcomes.push({ vault, decision, status: 'idle', nextCheckAt: decision.nextCheckAt });
         continue;
       }
       if (sim.ok === true && sim.gas > maxGas) {
@@ -217,9 +270,13 @@ async function runTick(atro: AtropyleClient, vaults: readonly Address[], o: Keep
         nextCheckAt: decision.nextCheckAt,
       });
     } catch (e) {
-      const err = decodeError(e);
-      if (isTransportError(err)) throw err;
-      report.outcomes.push({ vault, decision, status: 'send-failed', error: err.toJSON(), nextCheckAt: retry });
+      report.outcomes.push({
+        vault,
+        decision,
+        status: 'send-failed',
+        error: decodeError(e).toJSON(),
+        nextCheckAt: retry,
+      });
     }
   }
   return report;

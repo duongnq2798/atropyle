@@ -21,4 +21,11 @@ describe('scanEvents options', () => {
       });
     },
   );
+
+  it('rejects resume together with fromBlock before any RPC call', async () => {
+    await expect(atro.scan({ resume: { toBlock: 5n, vaults: [] }, fromBlock: 1n })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+      details: { path: 'fromBlock' },
+    });
+  });
 });
