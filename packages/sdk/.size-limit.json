@@ -1,0 +1,8 @@
+[
+  {
+    "name": "core: @atropyle/sdk entry and its shared chunks",
+    "path": ["dist/index.js", "dist/*-*.js"],
+    "limit": "30 kB",
+    "gzip": true
+  }
+]

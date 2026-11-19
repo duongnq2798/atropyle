@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "paths": { "@atropyle/circuits": ["../circuits/src/index.ts"] }
+  },
+  "include": ["**/*.ts"]
+}

@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Atropyle policy circuit: NetlistVM builder, bitsliced simulator, reference model and exhaustive proof.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duongnq2798/atropyle.git",
+    "directory": "circuits"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -10,7 +18,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

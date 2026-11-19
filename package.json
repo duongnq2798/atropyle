@@ -14,7 +14,8 @@
   "scripts": {
     "build": "npm run build -w circuits && npm run build -w packages/sdk",
     "test": "npm test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:scripts",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "lint": "biome check .",
     "format": "biome format --write .",
     "abi:sync": "tsx scripts/abi-sync.ts",

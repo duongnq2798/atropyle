@@ -35,3 +35,80 @@ jobs:
         working-directory: contracts
       - run: forge test
         working-directory: contracts
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx biome ci .
+      - run: npm run typecheck:scripts
+      - run: npm run deployments:sync -- --check
+
+  # tsdown 0.23 needs Node ^22.18 or ^24.11, so everything is built on Node 24. The Node 20 job then runs the tests and
+  # the smoke test against those build outputs, which checks the `engines` floor of the published packages.
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w circuits
+      - run: npm run typecheck -w packages/sdk
+      - run: npm test -w packages/sdk
+      - run: npm run build -w packages/sdk
+      - run: npm run smoke -w packages/sdk
+      - run: npm run size -w packages/sdk
+      - run: npm run check:pkg -w packages/sdk
+      - run: npm run check:pkg -w circuits
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-dist
+          path: |
+            circuits/dist
+            packages/sdk/dist
+
+  sdk-node20:
+    needs: sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # The root package asks for Node 24 (development); npm only warns (EBADENGINE) on Node 20.
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-dist
+          path: .
+      - run: npm test -w packages/sdk
+      - run: npm run smoke -w packages/sdk
+
+  sdk-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - run: npm ci
+      - run: forge build
+        working-directory: contracts
+      - run: npm run abi:sync -- --check
+      - run: npm run test:integration -w packages/sdk

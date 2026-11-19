@@ -1,4 +1,15 @@
 export type { PolicyInputs } from '@atropyle/circuits';
+export {
+  beaconAbi,
+  cpuAbi,
+  erc1155Abi,
+  factoryAbi,
+  revertAbi,
+  tapeoutCircuitsAbi,
+  tapeoutFactoryAbi,
+  transistorsAbi,
+  vaultAbi,
+} from './abi/index';
 export { GUARDIAN_ACTIONS, OWNER_ACTIONS, VAULT_ACTIONS, type VaultAction, type VaultActionType } from './actions';
 export { sameAddress, toAddress, ZERO_ADDRESS } from './address';
 export { appendSuffix, builderCodeSuffix, ERC8021_MARKER, parseBuilderCodeSuffix } from './builder-code';
