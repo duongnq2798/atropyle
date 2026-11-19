@@ -487,6 +487,21 @@ describe('templates and sections', () => {
     expect(planError(r.issues).message).toBe('The plan is invalid: heirs: Percent shares must add up to 100.');
   });
 
+  it('keeps a plan error message that does not end in a period intact', () => {
+    const r = validatePlan({
+      ...base,
+      heirs: [
+        { account: A, bps: 2000 },
+        { account: B, bps: 3000 },
+      ],
+      assets: [],
+    });
+    if (r.ok) throw new Error('expected an invalid plan');
+    const message = planError(r.issues).message;
+    expect(message).toContain('(got 5000)');
+    expect(message).not.toContain('..');
+  });
+
   it('validates one section against the current vault', () => {
     expect(validateSection('heirs', [{ account: A }], { owner: OWNER, heirCount: 0 })).toEqual({
       issues: [],

@@ -76,7 +76,7 @@ export function planError(issues: PlanIssue[]): AtropyleError {
   const first = issues[0];
   return new AtropyleError('PLAN_INVALID', {
     message: first
-      ? `The plan is invalid: ${first.message.replace(/.$/, '')}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ''}.`
+      ? `The plan is invalid: ${first.message.replace(/\.$/, '')}${issues.length > 1 ? ` (+${issues.length - 1} more)` : ''}.`
       : undefined,
     details: { issues },
   });
