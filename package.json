@@ -18,6 +18,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "abi:sync": "tsx scripts/abi-sync.ts",
+    "deployments:sync": "tsx scripts/deployments-sync.ts",
     "devnet": "tsx scripts/devnet.ts",
     "devnet:fork": "tsx scripts/devnet.ts --fork",
     "devnet:warp": "tsx scripts/devnet-warp.ts",

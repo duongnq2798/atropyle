@@ -1,4 +1,14 @@
 export { sameAddress, toAddress, ZERO_ADDRESS } from './address';
+export {
+  type ChainName,
+  type DeployedCircuits,
+  type Deployment,
+  deploymentToJson,
+  getDeployment,
+  parseDeployment,
+  resolveDeployment,
+  type TapeoutInfo,
+} from './deployments/index';
 export { formatDuration, parseDuration } from './duration';
 export {
   AtropyleError,
