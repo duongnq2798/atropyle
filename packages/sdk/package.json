@@ -1,0 +1,55 @@
+{
+  "name": "@atropyle/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Atropyle: verifiable inheritance and wallet-recovery vaults on X Layer.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./plan": {
+      "import": "./dist/plan.js",
+      "require": "./dist/plan.cjs"
+    },
+    "./handoff": {
+      "import": "./dist/handoff.js",
+      "require": "./dist/handoff.cjs"
+    },
+    "./verify": {
+      "import": "./dist/verify.js",
+      "require": "./dist/verify.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:pkg": "publint && attw --pack . --profile node16"
+  },
+  "dependencies": {
+    "@atropyle/circuits": "0.1.0"
+  },
+  "peerDependencies": {
+    "viem": "^2.45.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "publint": "0.3.25",
+    "viem": "2.58.0"
+  }
+}
