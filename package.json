@@ -1,9 +1,38 @@
 {
-  "name": "atropyle",
+  "name": "atropyle-monorepo",
   "private": true,
-  "workspaces": ["circuits"],
-  "engines": { "node": ">=24" },
+  "type": "module",
+  "workspaces": [
+    "circuits",
+    "packages/*",
+    "apps/*",
+    "examples/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "test": "npm test -w circuits"
+    "build": "npm run build -w circuits && npm run build -w packages/sdk",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:scripts",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "abi:sync": "tsx scripts/abi-sync.ts",
+    "deployments:sync": "tsx scripts/deployments-sync.ts",
+    "devnet": "npm run build -w circuits && tsx scripts/devnet.ts",
+    "devnet:fork": "npm run build -w circuits && tsx scripts/devnet.ts --fork",
+    "devnet:warp": "tsx scripts/devnet-warp.ts",
+    "devnet:seed": "npm run build -w circuits && tsx scripts/devnet-seed.ts",
+    "deployment:write": "npm run build -w circuits && tsx scripts/write-deployment.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@types/node": "24.19.2",
+    "tsdown": "0.23.7",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "viem": "2.58.0",
+    "vitest": "3.2.7"
   }
 }

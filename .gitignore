@@ -6,3 +6,4 @@ broadcast/
 *.local
 dist/
 .wrangler/
+*.tsbuildinfo

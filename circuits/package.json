@@ -1,16 +1,48 @@
 {
   "name": "@atropyle/circuits",
   "version": "0.1.0",
-  "private": true,
+  "description": "Atropyle policy circuit: NetlistVM builder, bitsliced simulator, reference model and exhaustive proof.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duongnq2798/atropyle.git",
+    "directory": "circuits"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
+    "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "export": "tsx src/export.ts",
-    "prove": "tsx src/prove.ts"
+    "prove": "tsx src/prove.ts",
+    "check:pkg": "publint && attw --pack . --profile node16"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@types/node": "24.19.2",
+    "publint": "0.3.25",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vitest": "3.2.7"

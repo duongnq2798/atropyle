@@ -1,0 +1,8 @@
+[
+  {
+    "name": "core: @atropyle/sdk entry, handoff and every shared chunk",
+    "path": ["dist/index.js", "dist/handoff.js", "dist/*-*.js"],
+    "limit": "50 kB",
+    "gzip": true
+  }
+]
