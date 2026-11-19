@@ -1,6 +1,8 @@
 export type { PolicyInputs } from '@atropyle/circuits';
 export { GUARDIAN_ACTIONS, OWNER_ACTIONS, VAULT_ACTIONS, type VaultAction, type VaultActionType } from './actions';
 export { sameAddress, toAddress, ZERO_ADDRESS } from './address';
+export { chainOf } from './chain';
+export { type AtropyleClient, type AtropyleOptions, createAtropyle, type VaultHandle } from './client';
 export {
   type ChainName,
   type DeployedCircuits,
@@ -12,6 +14,7 @@ export {
   type TapeoutInfo,
 } from './deployments/index';
 export { formatDuration, parseDuration } from './duration';
+export { assetsToAbi, heirsToAbi, paramsToAbi, timingToAbi } from './encode';
 export {
   AtropyleError,
   type AtropyleErrorJson,
@@ -45,7 +48,14 @@ export {
   type TimelineEventKind,
   timelineOf,
 } from './policy/timeline';
+export { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+export { DEFAULT_EVENTS_WINDOW, type VaultEvent } from './read/events';
+export type { FeeOption, FeeQuote } from './read/fees';
+export { rolesOf } from './read/snapshot';
+export type { Stats, StatsCursor } from './read/stats';
 export type { AssetStatus, TokenInfo, VaultBinding, VaultSnapshot, VaultStatus } from './read/types';
+export type { VaultRef } from './read/vaults';
+export { httpTransport, readTransport } from './transports';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
 export { VERSION } from './version';
