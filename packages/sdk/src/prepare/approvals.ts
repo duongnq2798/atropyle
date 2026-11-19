@@ -28,6 +28,21 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+/** Shared with handoff inspection, so a signing page shows the same warnings as the plan that produced the link. */
+export function unlimitedApprovalWarning(token: Address): Warning {
+  return {
+    code: 'UNLIMITED_APPROVAL',
+    message: `The vault may move every unit of ERC-20 token ${token} you will ever hold until you revoke it.`,
+  };
+}
+
+export function approvalForAllWarning(token: Address): Warning {
+  return {
+    code: 'APPROVAL_FOR_ALL',
+    message: `ERC-1155 approvals cover every token id of ${token}, not only the ones in your plan. Use revokeAll if you cancel the plan.`,
+  };
+}
+
 function notHeld(index: number, a: Asset): Warning {
   return {
     code: 'TOKEN_NOT_HELD',
@@ -76,15 +91,7 @@ export async function approvalDrafts(
         action: 'approve',
         data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [vault, need] }),
         summary: summarize.approve20(vault, a.token, mode === 'unlimited' ? null : need, info.decimals),
-        warnings:
-          mode === 'unlimited'
-            ? [
-                {
-                  code: 'UNLIMITED_APPROVAL',
-                  message: `The vault may move every unit of ERC-20 token ${a.token} you will ever hold until you revoke it.`,
-                },
-              ]
-            : [],
+        warnings: mode === 'unlimited' ? [unlimitedApprovalWarning(a.token)] : [],
       });
       continue;
     }
@@ -127,12 +134,7 @@ export async function approvalDrafts(
       action: 'setApprovalForAll',
       data: encodeFunctionData({ abi: erc1155Abi, functionName: 'setApprovalForAll', args: [vault, true] }),
       summary: summarize.approveAll(vault, a.token),
-      warnings: [
-        {
-          code: 'APPROVAL_FOR_ALL',
-          message: `ERC-1155 approvals cover every token id of ${a.token}, not only id ${a.id}. Use revokeAll if you cancel the plan.`,
-        },
-      ],
+      warnings: [approvalForAllWarning(a.token)],
     });
   }
   return { drafts, warnings };

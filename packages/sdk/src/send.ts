@@ -103,6 +103,21 @@ export async function sendPlan(
       }
       if (sim.ok === false) throw wouldRevert(sim.error);
     }
+    // The user may switch chain in the wallet between two steps; every step is signed on the plan's chain.
+    if (index > 0) {
+      let now: number;
+      try {
+        now = await wallet.getChainId();
+      } catch (e) {
+        const err = decodeError(e);
+        throw failure(err.code, err.message, at, { cause: e, details: err.details });
+      }
+      if (now !== plan.chainId) {
+        throw failure('WRONG_CHAIN', `This plan is for chain ${plan.chainId}; the wallet is now on chain ${now}.`, at, {
+          details: { expected: plan.chainId, actual: now },
+        });
+      }
+    }
     o.onStep?.({ index, total, step, phase: 'signing' });
     let hash: Hex;
     try {

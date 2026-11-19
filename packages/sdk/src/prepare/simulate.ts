@@ -1,4 +1,4 @@
-import { type Address, BaseError, type Hex, type PublicClient } from 'viem';
+import { type Address, BaseError, type Hex, type PublicClient, UnknownRpcError } from 'viem';
 import { decodeError, decodeRevertData, httpStatusOf, isTransportError } from '../errors';
 import type { Simulation } from './types';
 
@@ -33,12 +33,13 @@ function isMethodUnsupported(e: unknown): boolean {
 /**
  * The endpoint refused to answer, or the failure did not come from viem at all (a bug, a broken fetch). Such an error
  * says nothing about the transaction, so it is never read as one: a 401 or 403 (wrong or missing credentials), "no such
- * method", and anything that is not a viem error.
+ * method", and anything that is not a viem error. A real PublicClient wraps a plain error thrown by a custom or EIP-1193
+ * transport as UnknownRpcError, so that counts as well.
  */
 function isRefusal(e: unknown): boolean {
   if (!(e instanceof BaseError)) return true;
   const status = httpStatusOf(e);
-  return isMethodUnsupported(e) || status === 401 || status === 403;
+  return isMethodUnsupported(e) || status === 401 || status === 403 || !!e.walk((x) => x instanceof UnknownRpcError);
 }
 
 /**

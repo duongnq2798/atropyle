@@ -44,6 +44,23 @@ describe('inspecting signing links', () => {
     expect(check.steps.map((s) => s.action)).toEqual(['approve', 'createVault', 'approve', 'approve']);
     expect(check.steps.map((s) => s.summary)).toEqual(plan.steps.map((s) => s.summary));
     expect(check.steps.every((s) => s.builderCodes?.[0] === 'atropyle-test')).toBe(true);
+    expect(check.steps.map((s) => s.warnings)).toEqual(plan.steps.map((s) => s.warnings));
+  });
+
+  it('rebuilds the unlimited-approval warning of the plan', async () => {
+    const plan = await atro.prepare.createVault(guarded, { owner: OWNER, drill: true, allowance: 'unlimited' });
+    expect(plan.steps.flatMap((s) => s.warnings.map((w) => w.code))).toContain('UNLIMITED_APPROVAL');
+    const check = await atro.handoff.inspect(toPayload(plan));
+    expect(check.ok).toBe(true);
+    expect(check.steps.map((s) => s.warnings)).toEqual(plan.steps.map((s) => s.warnings));
+  });
+
+  it('rejects a request that is not a valid payload, however it arrives', async () => {
+    const p = toPayload(await atro.prepare.createVault(guarded, { owner: OWNER, drill: true }));
+    await expect(atro.handoff.inspect({ ...p, steps: [] })).rejects.toMatchObject({ code: 'LINK_INVALID' });
+    await expect(atro.handoff.inspect({} as never)).rejects.toMatchObject({ code: 'LINK_INVALID' });
+    const lower = { ...p, from: p.from.toLowerCase() as typeof p.from };
+    expect((await atro.handoff.inspect(lower)).from).toBe(p.from);
   });
 
   it('refuses tampered approvals, unknown targets and the wrong chain', async () => {

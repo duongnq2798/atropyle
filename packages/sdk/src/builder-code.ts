@@ -6,6 +6,9 @@ export const ERC8021_MARKER = '80218021802180218021802180218021';
 
 const CODE = /^[\x21-\x2b\x2d-\x7e]+$/;
 
+/** Whether `code` is one the encoder would write: printable ASCII, no space, no comma. */
+export const isBuilderCode = (code: string): boolean => CODE.test(code);
+
 /** codes (ASCII, comma-joined) ‖ codesLength (1 byte) ‖ schemaId 0x00 ‖ marker. Same bytes as ox Attribution.toDataSuffix. */
 export function builderCodeSuffix(codes: string | readonly string[]): Hex {
   const list = typeof codes === 'string' ? [codes] : [...codes];

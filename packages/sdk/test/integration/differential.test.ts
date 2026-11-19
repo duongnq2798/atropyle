@@ -1,9 +1,9 @@
 import fc from 'fast-check';
-import { type Address, encodeFunctionData } from 'viem';
+import { type Address, encodeFunctionData, type Hex } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { ANVIL_ACCOUNTS, rpc } from '../../../../scripts/lib/anvil';
 import { vaultAbi } from '../../src/abi/index';
-import { createAtropyle, PRESETS, type VaultAction } from '../../src/index';
+import { createAtropyle, decodeError, isTransportError, PRESETS, type VaultAction } from '../../src/index';
 import { createVaultRaw, devnet, revertChain, sendRaw, snapshotChain, walletOf } from './helpers';
 
 const [, OWNER, HEIR, G1, G2, G3, NEW_WALLET, , STRANGER] = ANVIL_ACCOUNTS as unknown as Address[];
@@ -53,6 +53,7 @@ describe('SDK prediction matches the contract (spec §12.2)', () => {
   const atro = createAtropyle({ chain: env.deployment, builderCode: null });
   const setNext = (t: bigint) => rpc(env.rpcUrl, 'evm_setNextBlockTimestamp', [Number(t)]);
   const poke = encodeFunctionData({ abi: vaultAbi, functionName: 'poke' });
+  let sent = 0;
 
   it('whatIf equals status().pending after every step, and timeline equals a real poke', async () => {
     await fc.assert(
@@ -89,9 +90,22 @@ describe('SDK prediction matches the contract (spec §12.2)', () => {
             await setNext(at);
             try {
               await atro.send(plan, walletOf(env.rpcUrl, as));
-            } catch {
-              continue; // reverted only because of the extra second; the next whatIf check still runs
+            } catch (e) {
+              // Only a revert caused by the pinned timestamp may be skipped. A transport failure, or a step that ran
+              // out of gas, is a real failure: swallowing it would let the property pass without checking anything.
+              const err = decodeError(e);
+              if (isTransportError(err)) throw e;
+              const hash = err.details?.hash as Hex | undefined;
+              if (hash) {
+                const [receipt, tx] = await Promise.all([
+                  env.publicClient.getTransactionReceipt({ hash }),
+                  env.publicClient.getTransaction({ hash }),
+                ]);
+                if (receipt.gasUsed >= tx.gas) throw e;
+              }
+              continue;
             }
+            sent++;
             const after = await v.status();
             expect(after.state).toBe(step.effect.next);
             expect(after.recoveryTarget?.toLowerCase() ?? null).toBe(step.effect.recoveryTarget?.toLowerCase() ?? null);
@@ -112,5 +126,7 @@ describe('SDK prediction matches the contract (spec §12.2)', () => {
       }),
       { numRuns: 20 },
     );
+    // A property that never sent anything proves nothing.
+    expect(sent).toBeGreaterThan(0);
   }, 300_000);
 });

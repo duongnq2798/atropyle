@@ -39,10 +39,18 @@ export function signLink(plan: TxPlan | SignPayload, base: string): string {
 
 export function parseSignLink(link: string): SignPayload {
   const hash = link.includes('#') ? link.slice(link.indexOf('#') + 1) : link;
-  const m = /^\/sign\?(?:[^#]*&)?p=([A-Za-z0-9_-]+)(?:&[^#]*)?$/.exec(hash);
-  if (!m)
+  const m = /^\/sign\?([^#]*)$/.exec(hash);
+  const ps = m ? m[1].split('&').filter((x) => x.startsWith('p=')) : [];
+  if (ps.length === 0) {
     throw new AtropyleError('LINK_INVALID', { message: 'The signing link is invalid: it has no #/sign?p= part.' });
-  return decodePayload(m[1]);
+  }
+  // A browser reads the first p, a regex the last: a link with two would show one request and sign another.
+  if (ps.length > 1) {
+    throw new AtropyleError('LINK_INVALID', {
+      message: 'The signing link is invalid: it has more than one p parameter.',
+    });
+  }
+  return decodePayload(ps[0].slice(2));
 }
 
 const SAFE_URL = /^https?:\/\/[A-Za-z0-9.\-:/_]+$/;

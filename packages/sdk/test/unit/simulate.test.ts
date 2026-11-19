@@ -1,5 +1,7 @@
 import {
   ContractFunctionRevertedError,
+  createPublicClient,
+  custom,
   encodeErrorResult,
   HttpRequestError,
   InsufficientFundsError,
@@ -241,6 +243,17 @@ describe('estimate tells a refusing endpoint from an answer about the transactio
 
   it.each(refusals)('throws %s', async (_name, error) => {
     await expect(simulateTxs(single(error), OWNER, [tx(TOKEN)])).rejects.toBeInstanceOf(AtropyleError);
+  });
+
+  it('throws a plain error from a custom transport, as a real client wraps it', async () => {
+    const client = createPublicClient({
+      transport: custom({
+        request: async () => {
+          throw new TypeError('fetch failed');
+        },
+      }),
+    }) as PublicClient;
+    await expect(simulateTxs(client, OWNER, [tx(TOKEN)])).rejects.toBeInstanceOf(AtropyleError);
   });
 
   it('throws a refusal from the fallback estimates of a multi-step plan', async () => {

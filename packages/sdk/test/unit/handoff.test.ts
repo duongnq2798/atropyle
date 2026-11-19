@@ -92,6 +92,16 @@ describe('handoff formats', () => {
     expect(() => parseSignLink('https://x.test/#/v/0xabc')).toThrow(invalid);
   });
 
+  it('reads a link with other parameters, and refuses one with two p parameters', () => {
+    const p = encodePayload(one);
+    expect(parseSignLink(`https://x.test/#/sign?a=1&p=${p}&b=2`)).toEqual(one);
+    expect(() => parseSignLink(`https://x.test/#/sign?p=${p}&p=${p}`)).toThrow(invalid);
+    expect(() => parseSignLink(`https://x.test/#/sign?p=${p}&a=1&p=${encodePayload({ ...one, from: B })}`)).toThrow(
+      invalid,
+    );
+    expect(() => parseSignLink('https://x.test/#/sign?p=')).toThrow(invalid);
+  });
+
   it('only builds links on an http(s) base', () => {
     expect(signLink(one, 'http://localhost:5173')).toMatch(/^http:\/\/localhost:5173\/#\/sign\?p=/);
     for (const base of ['javascript:alert(1)//', 'atropyle.okx', '', 'ftp://x.test']) {

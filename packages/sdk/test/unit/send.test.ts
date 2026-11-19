@@ -42,13 +42,13 @@ type SendArgs = { account: unknown; gas?: bigint; to: Address };
 
 function fakeWallet(
   send: (args: SendArgs, n: number) => Promise<Hex> = async () => HASH,
-  o: { account?: Address | null; addresses?: Address[]; chainId?: number } = {},
+  o: { account?: Address | null; addresses?: Address[]; chainId?: number; chainNow?: () => number } = {},
 ) {
   const calls: SendArgs[] = [];
   const wallet = {
     account: o.account === null ? undefined : { address: o.account ?? OWNER },
     getAddresses: async () => o.addresses ?? [OWNER],
-    getChainId: async () => o.chainId ?? 31337,
+    getChainId: async () => o.chainNow?.() ?? o.chainId ?? 31337,
     sendTransaction: async (args: SendArgs) => {
       calls.push(args);
       return send(args, calls.length);
@@ -111,6 +111,22 @@ describe('sendPlan accounts and chains', () => {
       details: { expected: 31337, actual: 196 },
     });
     expect(stranger.calls.length + elsewhere.calls.length).toBe(0);
+  });
+
+  it('checks the chain again before every step, so a switch after step 0 stops the plan', async () => {
+    let chain = 31337;
+    const { wallet, calls } = fakeWallet(
+      async () => {
+        chain = 196;
+        return HASH;
+      },
+      { chainNow: () => chain },
+    );
+    await expect(sendPlan(fakeCtx().ctx, planOf(step(), step(), step()), wallet)).rejects.toMatchObject({
+      code: 'WRONG_CHAIN',
+      details: { expected: 31337, actual: 196, index: 1, completed: 1 },
+    });
+    expect(calls).toHaveLength(1);
   });
 
   it('finds the signer among the accounts of a wallet that has none selected', async () => {

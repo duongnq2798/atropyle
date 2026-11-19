@@ -1,13 +1,16 @@
 import { type Address, decodeFunctionData, erc20Abi, type Hex, maxUint256, toFunctionSelector } from 'viem';
 import { erc1155Abi, factoryAbi, vaultAbi } from '../abi/index';
 import { sameAddress, ZERO_ADDRESS } from '../address';
-import { parseBuilderCodeSuffix } from '../builder-code';
+import { isBuilderCode, parseBuilderCodeSuffix } from '../builder-code';
+import { AtropyleError } from '../errors';
+import { GUARDIAN_WARNING } from '../prepare/actions';
+import { approvalForAllWarning, unlimitedApprovalWarning } from '../prepare/approvals';
 import { simulateTxs } from '../prepare/simulate';
 import { summarize } from '../prepare/summary';
 import type { ActionName, Simulation } from '../prepare/types';
 import type { ReadContext } from '../read/context';
-import { ASSET_KINDS, type Asset } from '../types';
-import type { SignPayload } from './payload';
+import { ASSET_KINDS, type Asset, type Warning } from '../types';
+import { parsePayloadBytes, payloadBytes, type SignPayload } from './payload';
 
 export interface InspectedStep {
   index: number;
@@ -16,6 +19,8 @@ export interface InspectedStep {
   action: ActionName | null;
   /** Rebuilt from the decoded calldata and chain reads; nothing in the link is shown as is. */
   summary: string | null;
+  /** The warnings the plan that produced this step would carry, rebuilt from the decoded calldata. */
+  warnings: Warning[];
   allowed: boolean;
   /** Why the step is refused; null when allowed. */
   reason: string | null;
@@ -37,7 +42,26 @@ interface KnownVault {
   assets: Asset[];
 }
 
-type Verdict = { action: ActionName; summary: string; vault?: Address } | { refuse: string };
+type Verdict = { action: ActionName; summary: string; vault?: Address; warnings?: Warning[] } | { refuse: string };
+
+const MAX_BUILDER_CODES = 8;
+const MAX_BUILDER_CODE_LENGTH = 64;
+
+/** A request from outside is validated like a link is: the same checks, the same limits, checksummed addresses. */
+function normalize(request: SignPayload): SignPayload {
+  try {
+    return parsePayloadBytes(payloadBytes(request));
+  } catch (e) {
+    throw new AtropyleError('LINK_INVALID', {
+      message: `The signing request is invalid: ${e instanceof AtropyleError ? e.message : 'it is not a sign payload'}`,
+      cause: e,
+    });
+  }
+}
+
+/** Codes read from calldata are shown to people: only what the encoder itself would write, and not many. */
+const validCodes = (codes: readonly string[]) =>
+  codes.length <= MAX_BUILDER_CODES && codes.every((c) => c.length <= MAX_BUILDER_CODE_LENGTH && isBuilderCode(c));
 
 const APPROVE = toFunctionSelector('function approve(address,uint256)');
 const SET_APPROVAL_FOR_ALL = toFunctionSelector('function setApprovalForAll(address,bool)');
@@ -51,7 +75,8 @@ const toAssets = (a: readonly { kind: number; token: Address; id: bigint; heir: 
  * token to the factory (at most the full fee); approving an asset to a vault owned by the signer (including the one
  * the same link creates). Everything else is refused.
  */
-export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<SignRequestCheck> {
+export async function inspectPayload(ctx: ReadContext, request: SignPayload): Promise<SignRequestCheck> {
+  const p = normalize(request);
   const d = ctx.deployment;
   const c = ctx.client;
   const chainOk = p.chainId === d.chainId;
@@ -165,13 +190,19 @@ export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<
         return { action: 'setAssets', summary: summarize.setAssets(to, assets), vault: to };
       }
       case 'attestDeath':
-        return { action: 'attestDeath', summary: summarize.attestDeath(to, call.args[0]), vault: to };
+        return {
+          action: 'attestDeath',
+          summary: summarize.attestDeath(to, call.args[0]),
+          vault: to,
+          warnings: [GUARDIAN_WARNING],
+        };
       case 'voteRecovery': {
         const target = call.args[0];
         return {
           action: 'voteRecovery',
           summary: summarize.voteRecovery(to, sameAddress(target, ZERO_ADDRESS) ? null : target),
           vault: to,
+          warnings: [GUARDIAN_WARNING],
         };
       }
       case 'poke':
@@ -225,6 +256,7 @@ export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<
             action: 'approve',
             summary: summarize.approve20(spender, to, amount === maxUint256 ? null : amount, decimals),
             vault: spender,
+            warnings: amount === maxUint256 ? [unlimitedApprovalWarning(to)] : [],
           };
         }
         return { refuse: `token ${to} is not an ERC-20 or ERC-721 asset of vault ${spender}` };
@@ -239,7 +271,12 @@ export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<
         if (!v.assets.some((a) => a.kind !== 'erc20' && sameAddress(a.token, to))) {
           return { refuse: `contract ${to} is not an NFT asset of vault ${operator}` };
         }
-        return { action: 'setApprovalForAll', summary: summarize.approveAll(operator, to), vault: operator };
+        return {
+          action: 'setApprovalForAll',
+          summary: summarize.approveAll(operator, to),
+          vault: operator,
+          warnings: [approvalForAllWarning(to)],
+        };
       }
     } catch {
       return { refuse: 'malformed calldata' };
@@ -250,10 +287,12 @@ export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<
   const steps: InspectedStep[] = [];
   let vault: Address | null = null;
   for (const [index, s] of p.steps.entries()) {
-    const suffix = parseBuilderCodeSuffix(s.data);
+    const parsed = parseBuilderCodeSuffix(s.data);
+    const suffix = parsed && validCodes(parsed.codes) ? parsed : null;
     const data = suffix?.data ?? s.data;
     let v: Verdict;
-    if (!chainOk) v = { refuse: `the link is for chain ${p.chainId}, but this app works on chain ${d.chainId}` };
+    if (parsed && !suffix) v = { refuse: 'the calldata ends with a builder code suffix that is not valid' };
+    else if (!chainOk) v = { refuse: `the link is for chain ${p.chainId}, but this app works on chain ${d.chainId}` };
     else if (s.value !== 0n) v = { refuse: 'the step sends native currency' };
     else if (sameAddress(s.to, d.factory)) v = await factoryCall(data);
     else {
@@ -262,10 +301,17 @@ export async function inspectPayload(ctx: ReadContext, p: SignPayload): Promise<
     }
     const base = { index, to: s.to, value: s.value, builderCodes: suffix?.codes ?? null, simulation: SKIPPED };
     if ('refuse' in v) {
-      steps.push({ ...base, action: null, summary: null, allowed: false, reason: v.refuse });
+      steps.push({ ...base, action: null, summary: null, warnings: [], allowed: false, reason: v.refuse });
     } else {
       vault ??= v.vault ?? null;
-      steps.push({ ...base, action: v.action, summary: v.summary, allowed: true, reason: null });
+      steps.push({
+        ...base,
+        action: v.action,
+        summary: v.summary,
+        warnings: v.warnings ?? [],
+        allowed: true,
+        reason: null,
+      });
     }
   }
   if (steps.every((s) => s.allowed)) {
