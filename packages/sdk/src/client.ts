@@ -34,7 +34,7 @@ import { prepareAction, whatIf } from './prepare/actions';
 import { prepareCreateVault } from './prepare/create';
 import type { CreateVaultOptions, PrepareContext, PrepareOptions, TxPlan, WhatIfReport } from './prepare/types';
 import { checkPlan, type PlanCheck } from './read/check-plan';
-import { createReadContext, type SdkEvent } from './read/context';
+import { createReadContext, type ReadContext, type SdkEvent } from './read/context';
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
@@ -45,6 +45,7 @@ import { readVaultsOf, type VaultRef } from './read/vaults';
 import { type SendOptions, type SendResult, sendPlan } from './send';
 import { readTransport } from './transports';
 import type { Role, VaultConfig } from './types';
+import type { IntegrityReport, PolicyVerification, VaultVerification, VerifyPolicyOptions } from './verify/index';
 
 export interface AtropyleOptions {
   chain: ChainName | Deployment;
@@ -69,6 +70,8 @@ export interface VaultHandle {
   whatIf(action: VaultAction, o: { as: string; at?: bigint }): Promise<WhatIfReport>;
   /** Calldata, simulation and typed summaries for `action`, as one or more transactions `o.as` must sign. */
   prepare(action: VaultAction, o: PrepareOptions): Promise<TxPlan>;
+  /** Spec §5.4. `policy: false` skips the 2^26 proof (structure, binding and timeline only). */
+  verify(o?: { policy?: boolean }): Promise<VaultVerification>;
 }
 
 export interface AtropyleClient {
@@ -91,6 +94,10 @@ export interface AtropyleClient {
     onProgress?: (done: number, total: number) => void;
   }): Promise<Stats>;
   vault(address: string): VaultHandle;
+  /** Exhaustive check of the on-chain policy netlist against this repository, read from two operators (spec §5.4). */
+  verifyPolicy(o?: VerifyPolicyOptions): Promise<PolicyVerification>;
+  /** Cheap deployment checks (code hashes, factory wiring, CPU), read from two operators. */
+  integrity(): Promise<IntegrityReport>;
   readonly prepare: { createVault(plan: unknown, o: CreateVaultOptions): Promise<TxPlan> };
   checkPlan(plan: unknown, o: { owner: string; drill?: boolean }): Promise<PlanCheck>;
   /** Sends each step with `wallet` in order and waits for the receipts (spec §5.2). Nothing is retried. */
@@ -157,6 +164,49 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     return e;
   }
 
+  // The verify code (simulator included) is loaded on first use, so the main entry stays small (spec §5.1).
+  type VerifyModule = typeof import('./verify/index');
+  let verifyEnv: Promise<{ v: VerifyModule; vctx: ReadContext; rpcs: number }> | null = null;
+  const loadVerify = () => {
+    const p = import('./verify/index').then((v) => {
+      const transports = options.verifyTransports ?? deployment.quorumRpcUrls.map((group) => readTransport(group));
+      const client = createPublicClient({
+        chain,
+        transport: v.quorumTransport(transports),
+        cacheTime: 0,
+        // Same reason as the read client: never follow an OffchainLookup to an attacker-chosen URL.
+        ccipRead: false,
+      }) as PublicClient;
+      return { v, vctx: createReadContext(deployment, client, options.logger), rpcs: transports.length };
+    });
+    verifyEnv = p;
+    // A failed load or setup must not stay cached.
+    p.catch(() => {
+      if (verifyEnv === p) verifyEnv = null;
+    });
+    return p;
+  };
+  const verifyContext = () => verifyEnv ?? loadVerify();
+  let policyCache: Promise<PolicyVerification> | null = null;
+  const verifyPolicy = (o: VerifyPolicyOptions = {}): Promise<PolicyVerification> =>
+    guard(async () => {
+      const run = async () => {
+        const { v, vctx, rpcs } = await verifyContext();
+        vctx.log({ type: 'verify', what: 'policy' });
+        return v.evaluatePolicyBundle(await v.readPolicyBundle(vctx.client, deployment, rpcs), o);
+      };
+      if (o.blocks !== undefined) return run();
+      if (!policyCache) {
+        const p = run();
+        policyCache = p;
+        // A failure (a quorum outage, a dead RPC) must not stay cached: the next call asks again.
+        p.catch(() => {
+          if (policyCache === p) policyCache = null;
+        });
+      }
+      return policyCache;
+    });
+
   const px: PrepareContext = { ...ctx, suffix: builderCode ? builderCodeSuffix(builderCode) : null, engineFor };
 
   function vault(address: string): VaultHandle {
@@ -181,6 +231,11 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       events: (o) => guard(() => readEvents(ctx, addr, o)),
       whatIf: (action, o) => guard(() => whatIf(px, addr, action, o)),
       prepare: (action, o) => guard(() => prepareAction(px, addr, action, o)),
+      verify: (o) =>
+        guard(async () => {
+          const { v, vctx, rpcs } = await verifyContext();
+          return v.verifyVault(vctx, addr, rpcs, o?.policy === false ? null : () => verifyPolicy());
+        }),
     };
   }
 
@@ -205,6 +260,12 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       ),
     stats: (o) => guard(() => readStats(ctx, o)),
     vault,
+    verifyPolicy,
+    integrity: () =>
+      guard(async () => {
+        const { v, vctx, rpcs } = await verifyContext();
+        return v.readIntegrity(vctx.client, deployment, rpcs);
+      }),
     prepare: { createVault: (plan, o) => guard(() => prepareCreateVault(px, plan, o)) },
     checkPlan: (plan, o) => guard(() => checkPlan(ctx, plan, o)),
     send: (plan, wallet, o) => guard(() => sendPlan(ctx, plan, wallet, o)),

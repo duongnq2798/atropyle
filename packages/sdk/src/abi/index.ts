@@ -78,3 +78,14 @@ export const revertAbi = [
   ...factoryAbi.filter((x) => x.type === 'error'),
   ...ozErc20ErrorsAbi,
 ] as const;
+
+/** name()/symbol() of a TapeOut Circuits (CPU) contract. */
+export const tapeoutCircuitsAbi = [
+  { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  { type: 'function', name: 'symbol', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+] as const;
+
+/** The Transistors contract paired with a CPU (Plan 1 ITransistors). */
+export const transistorsAbi = [
+  { type: 'function', name: 'circuits', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+] as const;

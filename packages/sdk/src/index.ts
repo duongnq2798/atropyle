@@ -75,4 +75,14 @@ export type { SendOptions, SendPhase, SendResult, SentStep } from './send';
 export { httpTransport, readTransport } from './transports';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
+export type {
+  IntegrityCheck,
+  IntegrityReport,
+  NetlistReport,
+  PolicyPart,
+  PolicyVerification,
+  PropertyName,
+  VaultVerification,
+  VerifyPolicyOptions,
+} from './verify/index';
 export { VERSION } from './version';
