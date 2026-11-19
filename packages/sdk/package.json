@@ -47,6 +47,7 @@
     "build": "tsdown",
     "test": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
+    "test:mainnet": "vitest run -c vitest.mainnet.config.ts",
     "typecheck": "tsc -p tsconfig.json",
     "check:pkg": "publint && attw --pack . --profile node16",
     "size": "size-limit",

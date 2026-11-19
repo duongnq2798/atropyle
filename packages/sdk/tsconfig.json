@@ -4,5 +4,12 @@
     "types": ["node"],
     "paths": { "@atropyle/circuits": ["../../circuits/src/index.ts"] }
   },
-  "include": ["src", "test", "tsdown.config.ts", "vitest.config.ts", "vitest.integration.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "vitest.mainnet.config.ts"
+  ]
 }
