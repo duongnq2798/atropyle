@@ -10,7 +10,7 @@ import {
   toHex,
 } from 'viem';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ANVIL_ACCOUNTS } from '../../../../scripts/lib/anvil';
+import { ANVIL_ACCOUNTS, rpc } from '../../../../scripts/lib/anvil';
 import { vaultAbi } from '../../src/abi/index';
 import { createAtropyle, PRESETS, predictAction, type VaultParams } from '../../src/index';
 import { createVaultRaw, devnet, revertChain, sendRaw, snapshotChain, warp } from './helpers';
@@ -268,11 +268,11 @@ describe('reads on the devnet', () => {
     const balanceCall = encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [OWNER] });
     const callOf = (req: Seen) => req.params[0] as { to: string; data: Hex };
 
-    /** A client whose eth_calls matching `broken` get "header not found" until `heal()` is called. */
-    function lagging(broken: (call: { to: string; data: Hex }) => boolean) {
+    /** A client whose eth_calls matching `broken` fail with `failure` until `heal()` is called. */
+    function lagging(broken: (call: { to: string; data: Hex }) => boolean, failure: () => Error = stale) {
       let healthy = false;
       const { transport } = spy(env.rpcUrl, async (req) => {
-        if (!healthy && req.method === 'eth_call' && broken(callOf(req))) throw stale();
+        if (!healthy && req.method === 'eth_call' && broken(callOf(req))) throw failure();
       });
       const heal = () => {
         healthy = true;
@@ -296,6 +296,27 @@ describe('reads on the devnet', () => {
       expect((await lag.vault(vault).snapshot()).status.assets[0].held).toBe(10_000_000_000n);
     });
 
+    it('treats a backend error (-32603) the same way: viem calls it a revert, the SDK does not', async () => {
+      const internal = () =>
+        new RpcRequestError({
+          body: { method: 'eth_call' },
+          error: { code: -32603, message: 'Internal error' },
+          url: env.rpcUrl,
+        });
+      const vault = await createVaultRaw(env, { owner: OWNER, params: drill });
+      for (const broken of [
+        (c: { to: string; data: Hex }) => c.data === decimalsCall,
+        (c: { to: string; data: Hex }) => c.data === balanceCall,
+        (c: { to: string; data: Hex }) => c.to.toLowerCase() === vault.toLowerCase(),
+      ]) {
+        const { atro: lag, heal } = lagging(broken, internal);
+        await expect(lag.vault(vault).snapshot()).rejects.toMatchObject({ code: 'RPC_UNAVAILABLE' });
+        heal();
+        const s = await lag.vault(vault).snapshot();
+        expect(s.status.assets[0]).toMatchObject({ held: 10_000_000_000n, token: { decimals: 6 } });
+      }
+    });
+
     it('makes the snapshot fail instead of caching a token without decimals', async () => {
       const vault = await createVaultRaw(env, { owner: OWNER, params: drill });
       const { atro: lag, heal } = lagging((c) => c.data === decimalsCall);
@@ -307,6 +328,18 @@ describe('reads on the devnet', () => {
         symbol: { value: 'USDT0' },
       });
     });
+  });
+
+  it('reads a token whose name() and symbol() are a bytes32 as empty text instead of failing the snapshot', async () => {
+    // MKR and the old DAI return a bytes32 for name() and symbol(), which viem cannot decode as a string. This stand-in
+    // answers every call with that one word: PUSH32 word, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN.
+    const mkr = '0x0000000000000000000000000000000000004d4B' as const;
+    const word = Buffer.from('MKR').toString('hex').padEnd(64, '0');
+    await rpc(env.rpcUrl, 'anvil_setCode', [mkr, `0x7f${word}60005260206000f3`]);
+    const params: VaultParams = { ...drill, assets: [{ kind: 'erc20', token: mkr, id: 0n, heir: 0 }] };
+    const vault = await createVaultRaw(env, { owner: OWNER, params });
+    const [a] = (await atro.vault(vault).status()).assets;
+    expect(a.token).toMatchObject({ decimals: null, symbol: { value: '' }, name: { value: '' } });
   });
 
   it('reads real reverts of a token as its answer: no decimals, no symbol, balance 0', async () => {

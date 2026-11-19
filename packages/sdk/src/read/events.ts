@@ -73,11 +73,11 @@ export async function getEventsChunked(
           : await ctx.client.getLogs({ address: p.address, fromBlock, toBlock });
         if (failed) return;
         results[i] = decodeLogs(p.abi, logs as Log[], p.eventName);
+        p.onProgress?.(++done, ranges.length);
       } catch (e) {
         failed = true;
         throw e;
       }
-      p.onProgress?.(++done, ranges.length);
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ranges.length) }, worker));

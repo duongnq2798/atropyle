@@ -42,7 +42,8 @@ const ctx = (over: Record<string, () => unknown> = {}) => ({
 const failing = (fn: string, error: () => Error) => ctx({ [fn]: () => Promise.reject(error()) });
 
 /** The contract's own answers to a read. */
-const reverted = () => new ContractFunctionRevertedError({ abi: [], data: '0x', functionName: 'f' });
+const reverted = () =>
+  new ContractFunctionRevertedError({ abi: [], data: '0x', functionName: 'f', message: 'execution reverted' });
 const silent = () => new ContractFunctionZeroDataError({ functionName: 'f' });
 
 const rpcError = (status: number | undefined, code: number, message: string) =>

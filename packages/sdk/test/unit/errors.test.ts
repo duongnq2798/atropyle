@@ -7,6 +7,7 @@ import {
   custom,
   encodeAbiParameters,
   encodeErrorResult,
+  erc20Abi,
   HttpRequestError,
   http,
   InvalidInputRpcError,
@@ -436,5 +437,49 @@ describe('decodeError: a revert reason is the contract text, never the message',
   it('still maps a revert it knows to its own code', () => {
     const data = encodeErrorResult({ abi: revertAbi, errorName: 'NotOwner' });
     expect(decodeError(new ContractFunctionRevertedError({ abi: [], data, functionName: 'f' })).code).toBe('NOT_OWNER');
+  });
+});
+
+describe('decodeError: a backend error that viem wraps as a revert', () => {
+  const TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  // The error a read gives when the node answers with this JSON-RPC error: it comes out of a real viem client.
+  async function readFailure(error: RpcRequestError): Promise<unknown> {
+    const provider = {
+      request: async () => {
+        throw error;
+      },
+    };
+    const client = createPublicClient({ transport: custom(provider as never, { retryCount: 0 }) });
+    return client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }).catch((e: unknown) => e);
+  }
+  const rpcError = (code: number, message: string, data?: `0x${string}`) =>
+    new RpcRequestError({ body: { method: 'eth_call' }, error: { code, message, data }, url: 'https://rpc.example' });
+
+  it('maps a bare -32603 Internal error to RPC_UNAVAILABLE, a transport error', async () => {
+    const failure = await readFailure(rpcError(-32603, 'Internal error'));
+    // viem really does give it the shape of a revert; that is what the SDK must not believe.
+    expect(failure).toBeInstanceOf(ContractFunctionExecutionError);
+    expect(
+      (failure as ContractFunctionExecutionError).walk((x) => x instanceof ContractFunctionRevertedError),
+    ).not.toBeNull();
+    const decoded = decodeError(failure);
+    expect(decoded.code).toBe('RPC_UNAVAILABLE');
+    expect(isTransportError(decoded)).toBe(true);
+    // The same error from a call that is not a contract read.
+    expect(decodeError(rpcError(-32603, 'Internal error')).code).toBe('RPC_UNAVAILABLE');
+  });
+
+  it('keeps a revert that has data or words as the contract answering, whatever the code', async () => {
+    const data = encodeErrorResult({ abi: revertAbi, errorName: 'NotOwner' });
+    expect(decodeError(await readFailure(rpcError(3, 'execution reverted', data))).code).toBe('NOT_OWNER');
+    expect(decodeError(await readFailure(rpcError(-32603, 'internal error', data))).code).toBe('NOT_OWNER');
+    expect(decodeError(await readFailure(rpcError(3, 'execution reverted'))).code).toBe('UNKNOWN');
+    expect(
+      decodeError(
+        await readFailure(
+          rpcError(-32603, "VM Exception while processing transaction: reverted with reason string 'x'"),
+        ),
+      ).code,
+    ).toBe('UNKNOWN');
   });
 });

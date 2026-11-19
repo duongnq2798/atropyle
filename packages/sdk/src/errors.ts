@@ -1,18 +1,17 @@
 import {
-  AbiDecodingDataSizeInvalidError,
-  AbiDecodingDataSizeTooSmallError,
-  AbiDecodingZeroDataError,
   BaseError,
   BlockNotFoundError,
   ChainMismatchError,
   ContractFunctionRevertedError,
-  ContractFunctionZeroDataError,
   decodeErrorResult,
   type Hex,
   HttpRequestError,
-  InvalidAbiDecodingTypeError,
+  RpcError,
+  RpcRequestError,
+  SocketClosedError,
   TimeoutError,
   UserRejectedRequestError,
+  WebSocketRequestError,
 } from 'viem';
 import { revertAbi } from './abi/index';
 import { toJson } from './json';
@@ -262,6 +261,8 @@ export function decodeRevertData(data: Hex): AtropyleError | null {
 /** JSON-RPC codes that mean the endpoint, not the contract, failed (EIP-1474). */
 const RPC_LIMIT_EXCEEDED = -32005;
 const RPC_RESOURCE_UNAVAILABLE = -32002;
+/** The standard "something broke in the backend" code of public RPCs; it says nothing about the contract. */
+const RPC_INTERNAL_ERROR = -32603;
 
 function hasRpcCode(e: BaseError, code: number): boolean {
   return e.walk((x) => (x as { code?: unknown } | null)?.code === code) !== null;
@@ -269,7 +270,6 @@ function hasRpcCode(e: BaseError, code: number): boolean {
 
 /** JSON-RPC code of an `execution reverted` answer (EIP-1474 leaves it open; geth, anvil and the OP stack use 3). */
 const RPC_EXECUTION_REVERTED = 3;
-const REVERTED_TEXT = /execution reverted/i;
 
 /**
  * What a node answers when it is not at the block you asked for (a load-balanced pool where one node lags, a pruned
@@ -277,20 +277,28 @@ const REVERTED_TEXT = /execution reverted/i;
  */
 const STALE_NODE = /header not found|unknown block|missing trie node/i;
 
-/** Wider than REVERTED_TEXT: any node wording of a revert (geth, hardhat, anvil), for text that must be treated as the contract's. */
-const ANY_REVERT_TEXT = /revert/i;
+/** Any node wording of a revert ("execution reverted", "VM Exception ... reverted with reason string", ...). */
+const REVERT_TEXT = /revert/i;
 
 /** True when the `details` of some error in the cause chain match `re` (details carry the node's own message). */
 function detailsMatch(e: BaseError, re: RegExp): boolean {
   return e.walk((x) => re.test(String((x as { details?: unknown } | null)?.details ?? ''))) !== null;
 }
 
+/**
+ * viem wraps a `-32603 Internal error` in a ContractFunctionRevertedError just like a real revert (code 3), so the
+ * class alone proves nothing. A revert has evidence: revert data, or the node saying so in words.
+ */
+function hasRevertEvidence(x: ContractFunctionRevertedError): boolean {
+  return (!!x.raw && x.raw !== '0x') || REVERT_TEXT.test(x.reason ?? '');
+}
+
 /** The node answered that the call reverted, whatever code and layout it uses to say so. */
 function isRevertAnswer(e: BaseError): boolean {
   return (
     hasRpcCode(e, RPC_EXECUTION_REVERTED) ||
-    detailsMatch(e, REVERTED_TEXT) ||
-    e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
+    detailsMatch(e, REVERT_TEXT) ||
+    e.walk((x) => x instanceof ContractFunctionRevertedError && hasRevertEvidence(x)) !== null
   );
 }
 
@@ -400,29 +408,44 @@ export function decodeError(e: unknown): AtropyleError {
     if (e.walk((x) => x instanceof HttpRequestError || x instanceof TimeoutError)) {
       return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
     }
-    if (isRevertAnswer(e) || detailsMatch(e, ANY_REVERT_TEXT)) return unknownRevert(e);
+    if (isRevertAnswer(e)) return unknownRevert(e);
+    // A bare internal error (viem may have wrapped it as a revert) is the backend failing, not the contract talking.
+    if (hasRpcCode(e, RPC_INTERNAL_ERROR) || e.walk((x) => x instanceof ContractFunctionRevertedError) !== null) {
+      return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
+    }
   }
   return new AtropyleError('UNKNOWN', { cause: e, message: unknownMessage(e) });
 }
 
+/** The node, or the connection to it, failed: such an error says nothing about the contract. */
+function isRpcLayerError(x: unknown): boolean {
+  return (
+    x instanceof RpcError ||
+    x instanceof RpcRequestError ||
+    x instanceof HttpRequestError ||
+    x instanceof TimeoutError ||
+    x instanceof WebSocketRequestError ||
+    x instanceof SocketClosedError ||
+    x instanceof AtropyleError
+  );
+}
+
 /**
- * True when `e` is the contract's own answer to a read: it reverted, returned nothing, or returned bytes the ABI
- * cannot decode. Anything else (a throttled or lagging RPC, a malformed response, a method the node does not offer)
- * is a failure to ask, and says nothing about the contract: callers rethrow `decodeError(e)` instead of reading it
- * as "balance 0", "no decimals" or "not a vault".
+ * True when `e` is the contract's own answer to a read: it reverted (with data or in words), returned nothing, or
+ * returned bytes the ABI cannot decode (an ERC-20 whose name() is a bytes32 makes viem throw while decoding). Anything
+ * else is a failure to ask and says nothing about the contract: a throttled or lagging RPC, a backend error
+ * (-32603), a malformed response, a method the node does not offer. Callers rethrow `decodeError(e)` for those
+ * instead of reading them as "balance 0", "no decimals" or "not a vault".
+ *
+ * The decode case is recognised structurally: viem failed after the node answered, so no error of the RPC layer is
+ * in the cause chain. Listing viem's decode error classes instead would miss some (IntegerOutOfRangeError,
+ * PositionOutOfBoundsError, InvalidBytesBooleanError, ...).
  */
 export function isContractAnswer(e: unknown): boolean {
   if (!(e instanceof BaseError)) return false;
   if (isTransportError(decodeError(e))) return false;
-  return (
-    isRevertAnswer(e) ||
-    e.walk(
-      (x) =>
-        x instanceof ContractFunctionZeroDataError ||
-        x instanceof AbiDecodingZeroDataError ||
-        x instanceof AbiDecodingDataSizeTooSmallError ||
-        x instanceof AbiDecodingDataSizeInvalidError ||
-        x instanceof InvalidAbiDecodingTypeError,
-    ) !== null
-  );
+  if (isRevertAnswer(e)) return true;
+  // A revert without evidence is a disguised backend error, whatever class viem gave it.
+  if (e.walk((x) => x instanceof ContractFunctionRevertedError) !== null) return false;
+  return e.walk(isRpcLayerError) === null;
 }
