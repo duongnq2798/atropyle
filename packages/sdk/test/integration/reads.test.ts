@@ -1,4 +1,14 @@
-import { encodeFunctionData, erc20Abi, type Hex, http, keccak256, type Transport, toHex } from 'viem';
+import {
+  encodeFunctionData,
+  erc20Abi,
+  type Hex,
+  http,
+  InvalidInputRpcError,
+  keccak256,
+  RpcRequestError,
+  type Transport,
+  toHex,
+} from 'viem';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ANVIL_ACCOUNTS } from '../../../../scripts/lib/anvil';
 import { vaultAbi } from '../../src/abi/index';
@@ -228,6 +238,93 @@ describe('reads on the devnet', () => {
     expect(events).toEqual(await atro.vault(vault).events());
     expect(events.map((e) => e.blockNumber)).toEqual(events.map((e) => e.blockNumber).sort((a, b) => Number(a - b)));
     expect(stats).toEqual(await atro.stats());
+  });
+
+  it('never moves the stats cursor back, so a lagging head cannot double count', async () => {
+    await createVaultRaw(env, { owner: OWNER, params: drill });
+    await createVaultRaw(env, { owner: G1, params: drill });
+    const st = await atro.stats();
+    // A node behind the cursor (or an explicit older toBlock): nothing new to read, the cursor stays where it was.
+    const behind = await atro.stats({ resume: st.cursor, toBlock: st.cursor.toBlock - 1n });
+    expect(behind).toEqual(st);
+    const v3 = await createVaultRaw(env, { owner: OWNER, params: drill });
+    await sendRaw(env, { from: OWNER, to: v3, data: encodeFunctionData({ abi: vaultAbi, functionName: 'checkIn' }) });
+    const resumed = await atro.stats({ resume: behind.cursor });
+    expect(resumed.vaults.total).toBe(3);
+    expect(resumed.checkIns).toBe(1);
+    expect(resumed).toEqual(await atro.stats());
+  });
+
+  describe('a node that has not reached the block', () => {
+    const stale = () =>
+      new InvalidInputRpcError(
+        new RpcRequestError({
+          body: { method: 'eth_call' },
+          error: { code: -32000, message: 'header not found' },
+          url: env.rpcUrl,
+        }),
+      );
+    const decimalsCall = encodeFunctionData({ abi: erc20Abi, functionName: 'decimals' });
+    const balanceCall = encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [OWNER] });
+    const callOf = (req: Seen) => req.params[0] as { to: string; data: Hex };
+
+    /** A client whose eth_calls matching `broken` get "header not found" until `heal()` is called. */
+    function lagging(broken: (call: { to: string; data: Hex }) => boolean) {
+      let healthy = false;
+      const { transport } = spy(env.rpcUrl, async (req) => {
+        if (!healthy && req.method === 'eth_call' && broken(callOf(req))) throw stale();
+      });
+      const heal = () => {
+        healthy = true;
+      };
+      return { atro: createAtropyle({ chain: env.deployment, transport }), heal };
+    }
+
+    it('makes the snapshot fail instead of reading the vault as NOT_VAULT', async () => {
+      const vault = await createVaultRaw(env, { owner: OWNER, params: drill });
+      const { atro: lag, heal } = lagging((c) => c.to.toLowerCase() === vault.toLowerCase());
+      await expect(lag.vault(vault).snapshot()).rejects.toMatchObject({ code: 'RPC_UNAVAILABLE' });
+      heal();
+      expect((await lag.vault(vault).snapshot()).config.owner).toBe(OWNER);
+    });
+
+    it('makes the snapshot fail instead of reading the balance as 0', async () => {
+      const vault = await createVaultRaw(env, { owner: OWNER, params: drill });
+      const { atro: lag, heal } = lagging((c) => c.data === balanceCall);
+      await expect(lag.vault(vault).snapshot()).rejects.toMatchObject({ code: 'RPC_UNAVAILABLE' });
+      heal();
+      expect((await lag.vault(vault).snapshot()).status.assets[0].held).toBe(10_000_000_000n);
+    });
+
+    it('makes the snapshot fail instead of caching a token without decimals', async () => {
+      const vault = await createVaultRaw(env, { owner: OWNER, params: drill });
+      const { atro: lag, heal } = lagging((c) => c.data === decimalsCall);
+      await expect(lag.vault(vault).snapshot()).rejects.toMatchObject({ code: 'RPC_UNAVAILABLE' });
+      heal();
+      // The same client, once the node has caught up: the failed read was not cached.
+      expect((await lag.vault(vault).snapshot()).status.assets[0].token).toMatchObject({
+        decimals: 6,
+        symbol: { value: 'USDT0' },
+      });
+    });
+  });
+
+  it('reads real reverts of a token as its answer: no decimals, no symbol, balance 0', async () => {
+    const { nft, multi } = env.deployment.mocks ?? { nft: usdt0, multi: usdt0 };
+    const params: VaultParams = {
+      ...drill,
+      assets: [
+        // An ERC-721 contract has name and symbol but no decimals().
+        { kind: 'erc20', token: nft, id: 0n, heir: 0 },
+        // An ERC-1155 contract has none of name, symbol, decimals or an ERC-20 balanceOf.
+        { kind: 'erc20', token: multi, id: 0n, heir: 0 },
+      ],
+    };
+    const vault = await createVaultRaw(env, { owner: OWNER, params });
+    const [a, b] = (await atro.vault(vault).status()).assets;
+    expect(a.token).toMatchObject({ decimals: null, symbol: { value: 'MNFT' } });
+    expect(b.token).toMatchObject({ decimals: null, symbol: { value: '' }, name: { value: '' } });
+    expect(b.held).toBe(0n);
   });
 
   it('rejects addresses that are not vaults', async () => {

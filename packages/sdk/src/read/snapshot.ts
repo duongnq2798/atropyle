@@ -1,7 +1,7 @@
 import { type Address, erc20Abi, erc721Abi, type PublicClient } from 'viem';
 import { erc1155Abi, vaultAbi } from '../abi/index';
 import { sameAddress, toAddress, ZERO_ADDRESS } from '../address';
-import { AtropyleError, decodeError, isTransportError } from '../errors';
+import { AtropyleError, decodeError, isContractAnswer } from '../errors';
 import { ASSET_KINDS, type Asset, type Role, stateName, type VaultConfig } from '../types';
 import type { ReadContext } from './context';
 import type { VaultSnapshot, VaultStatus } from './types';
@@ -10,8 +10,9 @@ const orNull = (a: Address): Address | null => (a === ZERO_ADDRESS ? null : a);
 const big = (x: bigint): bigint | null => (x === 0n ? null : x);
 
 /**
- * What the owner holds of one asset at `blockNumber`. A token that reverts reads as 0, but a failing RPC is rethrown:
- * it must not be mistaken for an empty balance.
+ * What the owner holds of one asset at `blockNumber`. A token that answers with a revert or nothing reads as 0. Any
+ * other failure (a throttled or lagging RPC, a malformed response) is rethrown: it must not be mistaken for an empty
+ * balance.
  */
 export async function heldBy(c: PublicClient, owner: Address, a: Asset, blockNumber: bigint): Promise<bigint> {
   try {
@@ -42,9 +43,8 @@ export async function heldBy(c: PublicClient, owner: Address, a: Asset, blockNum
       blockNumber,
     });
   } catch (e) {
-    const err = decodeError(e);
-    if (isTransportError(err)) throw err;
-    return 0n;
+    if (isContractAnswer(e)) return 0n;
+    throw decodeError(e);
   }
 }
 
@@ -84,8 +84,8 @@ export async function readSnapshot(ctx: ReadContext, vault: Address, blockNumber
   try {
     raw = await readVaultState(c, vault, bn);
   } catch (e) {
-    const err = decodeError(e);
-    if (isTransportError(err)) throw err;
+    // Only the contract's own answer (a revert, no data, undecodable data) means "not a vault"; a failing RPC does not.
+    if (!isContractAnswer(e)) throw decodeError(e);
     throw new AtropyleError('NOT_VAULT', {
       message: `${vault} does not answer like an Atropyle vault.`,
       cause: e,

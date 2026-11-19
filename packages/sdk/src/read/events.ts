@@ -59,15 +59,24 @@ export async function getEventsChunked(
   const results: VaultEvent[][] = new Array(ranges.length);
   let next = 0;
   let done = 0;
+  // After the first failure no worker takes another range or reports progress: Promise.all below has already
+  // rejected, and a caller that retries would otherwise run alongside the leftovers, past the cap of 8 in flight.
+  let failed = false;
   const t0 = Date.now();
   async function worker() {
-    while (next < ranges.length) {
+    while (!failed && next < ranges.length) {
       const i = next++;
       const [fromBlock, toBlock] = ranges[i];
-      const logs = p.events
-        ? await ctx.client.getLogs({ address: p.address, events: p.events, fromBlock, toBlock })
-        : await ctx.client.getLogs({ address: p.address, fromBlock, toBlock });
-      results[i] = decodeLogs(p.abi, logs as Log[], p.eventName);
+      try {
+        const logs = p.events
+          ? await ctx.client.getLogs({ address: p.address, events: p.events, fromBlock, toBlock })
+          : await ctx.client.getLogs({ address: p.address, fromBlock, toBlock });
+        if (failed) return;
+        results[i] = decodeLogs(p.abi, logs as Log[], p.eventName);
+      } catch (e) {
+        failed = true;
+        throw e;
+      }
       p.onProgress?.(++done, ranges.length);
     }
   }

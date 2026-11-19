@@ -47,7 +47,10 @@ export async function readStats(
     onProgress?: (done: number, total: number) => void;
   } = {},
 ): Promise<Stats> {
-  const toBlock = o.toBlock ?? (await ctx.client.getBlockNumber());
+  const head = o.toBlock ?? (await ctx.client.getBlockNumber());
+  // The cursor never moves back: a head behind it (a lagging node in a pool, an explicit older toBlock) would make the
+  // next resume read the same blocks again and count their events twice.
+  const toBlock = o.resume && head < o.resume.toBlock ? o.resume.toBlock : head;
   const start = o.resume ? o.resume.toBlock + 1n : (o.fromBlock ?? ctx.deployment.factoryBlock);
   const cur: StatsCursor = o.resume
     ? { ...o.resume, vaults: [...o.resume.vaults], toBlock }

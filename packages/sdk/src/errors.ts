@@ -1,10 +1,16 @@
 import {
+  AbiDecodingDataSizeInvalidError,
+  AbiDecodingDataSizeTooSmallError,
+  AbiDecodingZeroDataError,
   BaseError,
+  BlockNotFoundError,
   ChainMismatchError,
   ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
   decodeErrorResult,
   type Hex,
   HttpRequestError,
+  InvalidAbiDecodingTypeError,
   TimeoutError,
   UserRejectedRequestError,
 } from 'viem';
@@ -260,6 +266,40 @@ function hasRpcCode(e: BaseError, code: number): boolean {
   return e.walk((x) => (x as { code?: unknown } | null)?.code === code) !== null;
 }
 
+/** JSON-RPC code of an `execution reverted` answer (EIP-1474 leaves it open; geth, anvil and the OP stack use 3). */
+const RPC_EXECUTION_REVERTED = 3;
+const REVERTED_TEXT = /execution reverted/i;
+
+/**
+ * What a node answers when it is not at the block you asked for (a load-balanced pool where one node lags, a pruned
+ * node). The call never reached the contract, so this says nothing about it.
+ */
+const STALE_NODE = /header not found|unknown block|missing trie node/i;
+
+/** True when the `details` of some error in the cause chain match `re` (details carry the node's own message). */
+function detailsMatch(e: BaseError, re: RegExp): boolean {
+  return e.walk((x) => re.test(String((x as { details?: unknown } | null)?.details ?? ''))) !== null;
+}
+
+/** The node answered that the call reverted, whatever code and layout it uses to say so. */
+function isRevertAnswer(e: BaseError): boolean {
+  return (
+    hasRpcCode(e, RPC_EXECUTION_REVERTED) ||
+    detailsMatch(e, REVERTED_TEXT) ||
+    e.walk((x) => x instanceof ContractFunctionRevertedError) !== null
+  );
+}
+
+/**
+ * True when the RPC node, not the contract, failed to answer because it lacks the block. Only the node's own error
+ * counts: a contract that reverts with the text "header not found" (a token can say anything) must not read as an
+ * unavailable RPC, so any revert in the chain rules it out.
+ */
+function isStaleNode(e: BaseError): boolean {
+  if (isRevertAnswer(e)) return false;
+  return e.walk((x) => x instanceof BlockNotFoundError) !== null || detailsMatch(e, STALE_NODE);
+}
+
 /**
  * First numeric HTTP status in the cause chain. For a non-2xx response whose body is a JSON-RPC error, viem 2.58
  * throws RpcRequestError with the status attached; only a body that is not JSON-RPC gives HttpRequestError.
@@ -316,6 +356,7 @@ export function decodeError(e: unknown): AtropyleError {
     // A throttled or unavailable endpoint is a transport failure. Check before any revert data is read.
     if (hasRpcCode(e, RPC_LIMIT_EXCEEDED)) return new AtropyleError('RPC_RATE_LIMITED', { cause: e });
     if (hasRpcCode(e, RPC_RESOURCE_UNAVAILABLE)) return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
+    if (isStaleNode(e)) return new AtropyleError('RPC_UNAVAILABLE', { cause: e });
     const status = httpStatusOf(e);
     if (status === 429) return new AtropyleError('RPC_RATE_LIMITED', { cause: e });
     if (status !== undefined && status >= 500 && status <= 599)
@@ -337,4 +378,26 @@ export function decodeError(e: unknown): AtropyleError {
     }
   }
   return new AtropyleError('UNKNOWN', { cause: e, message: unknownMessage(e) });
+}
+
+/**
+ * True when `e` is the contract's own answer to a read: it reverted, returned nothing, or returned bytes the ABI
+ * cannot decode. Anything else (a throttled or lagging RPC, a malformed response, a method the node does not offer)
+ * is a failure to ask, and says nothing about the contract: callers rethrow `decodeError(e)` instead of reading it
+ * as "balance 0", "no decimals" or "not a vault".
+ */
+export function isContractAnswer(e: unknown): boolean {
+  if (!(e instanceof BaseError)) return false;
+  if (isTransportError(decodeError(e))) return false;
+  return (
+    isRevertAnswer(e) ||
+    e.walk(
+      (x) =>
+        x instanceof ContractFunctionZeroDataError ||
+        x instanceof AbiDecodingZeroDataError ||
+        x instanceof AbiDecodingDataSizeTooSmallError ||
+        x instanceof AbiDecodingDataSizeInvalidError ||
+        x instanceof InvalidAbiDecodingTypeError,
+    ) !== null
+  );
 }

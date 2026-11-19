@@ -1,11 +1,14 @@
 import {
   BaseError,
+  BlockNotFoundError,
+  ContractFunctionExecutionError,
   ContractFunctionRevertedError,
   createPublicClient,
   custom,
   encodeErrorResult,
   HttpRequestError,
   http,
+  InvalidInputRpcError,
   LimitExceededRpcError,
   ResourceUnavailableRpcError,
   RpcRequestError,
@@ -339,5 +342,49 @@ describe('AtropyleError.toJSON', () => {
     });
     // The in-memory details keep their original types.
     expect(e.details?.n).toBe(1n);
+  });
+});
+
+describe('decodeError: a node that lacks the block', () => {
+  const nodeError = (message: string) =>
+    new InvalidInputRpcError(
+      new RpcRequestError({
+        body: { method: 'eth_call' },
+        error: { code: -32000, message },
+        url: 'https://rpc.example',
+      }),
+    );
+
+  it('maps header not found, unknown block and missing trie node to RPC_UNAVAILABLE, a transport error', () => {
+    for (const message of ['header not found', 'unknown block', 'missing trie node abc (path )']) {
+      const decoded = decodeError(nodeError(message));
+      expect(decoded.code).toBe('RPC_UNAVAILABLE');
+      expect(isTransportError(decoded)).toBe(true);
+      const inCall = new ContractFunctionExecutionError(nodeError(message), { abi: [], functionName: 'f' });
+      expect(decodeError(inCall).code).toBe('RPC_UNAVAILABLE');
+    }
+  });
+
+  it('maps the viem BlockNotFoundError', () => {
+    expect(decodeError(new BlockNotFoundError({ blockNumber: 5n })).code).toBe('RPC_UNAVAILABLE');
+  });
+
+  it('does not read a contract revert as an unavailable RPC, whatever its reason says', () => {
+    const lying = new ContractFunctionRevertedError({
+      abi: [],
+      data: '0x',
+      functionName: 'f',
+      message: 'execution reverted: header not found',
+    });
+    expect(decodeError(lying).code).toBe('UNKNOWN');
+    const inLayout32000 = new ContractFunctionExecutionError(nodeError('execution reverted: unknown block'), {
+      abi: [],
+      functionName: 'f',
+    });
+    expect(decodeError(inLayout32000).code).toBe('UNKNOWN');
+  });
+
+  it('leaves other -32000 answers alone', () => {
+    expect(decodeError(nodeError('nonce too low')).code).toBe('UNKNOWN');
   });
 });
