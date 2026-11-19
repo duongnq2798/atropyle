@@ -1,3 +1,5 @@
+export type { PolicyInputs } from '@atropyle/circuits';
+export { GUARDIAN_ACTIONS, OWNER_ACTIONS, VAULT_ACTIONS, type VaultAction, type VaultActionType } from './actions';
 export { sameAddress, toAddress, ZERO_ADDRESS } from './address';
 export {
   type ChainName,
@@ -25,6 +27,25 @@ export {
 export { parseBigInt, stringify, toJson } from './json';
 export { DOCS_BASE_URL, errorDocsUrl } from './links';
 export * from './plan/index';
+export {
+  type EngineKind,
+  type FetchedPolicy,
+  fetchPolicyProgram,
+  modelEngine,
+  type NetlistSource,
+  type PolicyEngine,
+  programEngine,
+} from './policy/engine';
+export { type Applied, applyAction, deriveInputs, type EvalState, evalStateOf } from './policy/inputs';
+export { predictAction, type Recipient, recipientsFor, type WhatIfResult } from './policy/predict';
+export {
+  computeTimeline,
+  type Timeline,
+  type TimelineEvent,
+  type TimelineEventKind,
+  timelineOf,
+} from './policy/timeline';
+export type { AssetStatus, TokenInfo, VaultBinding, VaultSnapshot, VaultStatus } from './read/types';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
 export { VERSION } from './version';
