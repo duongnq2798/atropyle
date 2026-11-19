@@ -1,9 +1,11 @@
-// npm run devnet: anvil on :8545 + DeployLocal + deployments/local.json (spec §10.3).
+// npm run devnet: anvil on :8545 + DeployLocal + deployments/local.json + three seeded vaults (spec §10.3); --no-seed skips them.
 // npm run devnet -- --fork: fork X Layer mainnet (real CPU and circuits) on :8545, nothing deployed.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseDeployment } from '../packages/sdk/src/index';
 import { deployLocal, startAnvil } from './lib/anvil';
 import { syncDeployments } from './lib/deployment-files';
+import { seedDevnet } from './lib/seed';
 
 const ROOT = join(import.meta.dirname, '..');
 const fork = process.argv.includes('--fork');
@@ -27,6 +29,10 @@ try {
     mkdirSync(join(ROOT, 'deployments'), { recursive: true });
     writeFileSync(join(ROOT, 'deployments/local.json'), `${JSON.stringify(json, null, 2)}\n`);
     syncDeployments(false);
+    if (!process.argv.includes('--no-seed')) {
+      const seeded = await seedDevnet(anvil.url, parseDeployment(json));
+      console.log(`seeded vaults: simple ${seeded.simple}, guarded ${seeded.guarded}, grace ${seeded.grace}`);
+    }
     console.log(
       `devnet on ${anvil.url}: factory ${json.factory}, fee tokens ${(json.feeTokens as string[]).join(', ')}`,
     );

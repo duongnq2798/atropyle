@@ -316,7 +316,7 @@ function isStaleNode(e: BaseError): boolean {
  * First numeric HTTP status in the cause chain. For a non-2xx response whose body is a JSON-RPC error, viem 2.58
  * throws RpcRequestError with the status attached; only a body that is not JSON-RPC gives HttpRequestError.
  */
-function httpStatusOf(e: BaseError): number | undefined {
+export function httpStatusOf(e: BaseError): number | undefined {
   const hit = e.walk((x) => typeof (x as { status?: unknown } | null)?.status === 'number');
   return (hit as { status: number } | null)?.status;
 }

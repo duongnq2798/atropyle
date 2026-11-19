@@ -1,5 +1,5 @@
 import { type Address, BaseError, type Hex, type PublicClient } from 'viem';
-import { decodeError, decodeRevertData, isTransportError } from '../errors';
+import { decodeError, decodeRevertData, httpStatusOf, isTransportError } from '../errors';
 import type { Simulation } from './types';
 
 interface Tx {
@@ -30,13 +30,28 @@ function isMethodUnsupported(e: unknown): boolean {
   );
 }
 
+/**
+ * The endpoint refused to answer, or the failure did not come from viem at all (a bug, a broken fetch). Such an error
+ * says nothing about the transaction, so it is never read as one: a 401 or 403 (wrong or missing credentials), "no such
+ * method", and anything that is not a viem error.
+ */
+function isRefusal(e: unknown): boolean {
+  if (!(e instanceof BaseError)) return true;
+  const status = httpStatusOf(e);
+  return isMethodUnsupported(e) || status === 401 || status === 403;
+}
+
+/**
+ * One estimateGas. Only an answer about the transaction (a revert, insufficient funds, a nonce or intrinsic gas
+ * error) is a failed simulation. A throttled, unavailable or refusing endpoint is thrown as what it is: send() and the
+ * MCP tools gate on `simulation.ok`, so it must not read as "this transaction would fail".
+ */
 async function estimate(c: PublicClient, from: Address, t: Tx): Promise<Simulation> {
   try {
     return { ok: true, gas: await c.estimateGas({ account: from, to: t.to, data: t.data, value: t.value }) };
   } catch (e) {
     const err = decodeError(e);
-    // A failing RPC says nothing about the transaction: it is never turned into a failed simulation.
-    if (isTransportError(err)) throw err;
+    if (isTransportError(err) || isRefusal(e)) throw err;
     return { ok: false, error: err.toJSON() };
   }
 }

@@ -1,11 +1,30 @@
-import { type Address, type Chain, createPublicClient, type Hex, type PublicClient, type Transport } from 'viem';
+import {
+  type Address,
+  type Chain,
+  createPublicClient,
+  type Hex,
+  type PublicClient,
+  type Transport,
+  type WalletClient,
+} from 'viem';
 import { factoryAbi } from './abi/index';
 import type { VaultAction } from './actions';
 import { toAddress } from './address';
 import { builderCodeSuffix } from './builder-code';
 import { chainOf } from './chain';
 import { type ChainName, type Deployment, getDeployment } from './deployments/index';
-import { decodeError } from './errors';
+import { AtropyleError, decodeError } from './errors';
+import {
+  type CastTx,
+  castCommand,
+  okxCommand,
+  parseSignLink,
+  type SendCallsParams,
+  type SignPayload,
+  sendCallsParams,
+  signLink,
+} from './handoff/index';
+import { inspectPayload, type SignRequestCheck } from './handoff/inspect';
 import { planTemplate } from './plan/templates';
 import { PRESETS } from './plan/types';
 import { validatePlan } from './plan/validate';
@@ -23,6 +42,7 @@ import { readSnapshot, rolesOf } from './read/snapshot';
 import { readStats, type Stats, type StatsCursor } from './read/stats';
 import type { VaultSnapshot, VaultStatus } from './read/types';
 import { readVaultsOf, type VaultRef } from './read/vaults';
+import { type SendOptions, type SendResult, sendPlan } from './send';
 import { readTransport } from './transports';
 import type { Role, VaultConfig } from './types';
 
@@ -73,6 +93,17 @@ export interface AtropyleClient {
   vault(address: string): VaultHandle;
   readonly prepare: { createVault(plan: unknown, o: CreateVaultOptions): Promise<TxPlan> };
   checkPlan(plan: unknown, o: { owner: string; drill?: boolean }): Promise<PlanCheck>;
+  /** Sends each step with `wallet` in order and waits for the receipts (spec §5.2). Nothing is retried. */
+  send(plan: TxPlan, wallet: WalletClient, o?: SendOptions): Promise<SendResult>;
+  readonly handoff: {
+    link(plan: TxPlan | SignPayload, base?: string): string;
+    parse(link: string): SignPayload;
+    cast(tx: CastTx, rpcUrl?: string): string;
+    calls(plan: TxPlan | SignPayload): SendCallsParams;
+    okx(tx: CastTx): string;
+    /** Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. */
+    inspect(request: SignPayload | string): Promise<SignRequestCheck>;
+  };
 }
 
 /**
@@ -82,6 +113,15 @@ export interface AtropyleClient {
 async function guard<T>(f: () => Promise<T>): Promise<T> {
   try {
     return await f();
+  } catch (e) {
+    throw decodeError(e);
+  }
+}
+
+/** The same boundary for the pure handoff functions. */
+function guardSync<T>(f: () => T): T {
+  try {
+    return f();
   } catch (e) {
     throw decodeError(e);
   }
@@ -165,5 +205,22 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     vault,
     prepare: { createVault: (plan, o) => guard(() => prepareCreateVault(px, plan, o)) },
     checkPlan: (plan, o) => guard(() => checkPlan(ctx, plan, o)),
+    send: (plan, wallet, o) => guard(() => sendPlan(ctx, plan, wallet, o)),
+    handoff: {
+      link: (plan, base) =>
+        guardSync(() => {
+          const root = base ?? deployment.webUrl;
+          if (!root) {
+            throw new AtropyleError('INVALID_OPTIONS', { message: 'This deployment has no web app URL; pass `base`.' });
+          }
+          return signLink(plan, root);
+        }),
+      parse: (link) => guardSync(() => parseSignLink(link)),
+      cast: (tx, rpcUrl) => guardSync(() => castCommand(tx, rpcUrl ?? deployment.rpcUrls[0])),
+      calls: (plan) => guardSync(() => sendCallsParams(plan)),
+      okx: (tx) => guardSync(() => okxCommand(tx)),
+      inspect: (request) =>
+        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request)),
+    },
   };
 }

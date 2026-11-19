@@ -1,11 +1,25 @@
-import { custom, HttpRequestError, type Transport } from 'viem';
+import { custom, HttpRequestError, type Transport, type WalletClient } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { type AtropyleClient, createAtropyle } from '../../src/client';
 import { AtropyleError } from '../../src/errors';
+import type { SignPayload, TxPlan } from '../../src/index';
 import { HEIR_A, OWNER, TOKEN, VAULT } from './fixtures';
 
 const SALT = `0x${'11'.repeat(32)}` as const;
 const PLAN = { heirs: [{ account: HEIR_A }], timing: 'drill' };
+const SIGN_REQUEST: SignPayload = {
+  chainId: 31337,
+  from: OWNER,
+  steps: [{ to: VAULT, data: '0x183ff085', value: 0n }],
+};
+const SENT_PLAN = {
+  chainId: 31337,
+  from: OWNER,
+  vault: VAULT,
+  steps: [],
+  summary: 'A plan.',
+  warnings: [],
+} satisfies TxPlan;
 
 const calls: [string, (atro: AtropyleClient) => Promise<unknown>][] = [
   ['engine', (a) => a.engine()],
@@ -24,6 +38,7 @@ const calls: [string, (atro: AtropyleClient) => Promise<unknown>][] = [
   ['vault.prepare', (a) => a.vault(VAULT).prepare({ type: 'checkIn' }, { as: OWNER })],
   ['prepare.createVault', (a) => a.prepare.createVault(PLAN, { owner: OWNER, drill: true })],
   ['checkPlan', (a) => a.checkPlan(PLAN, { owner: OWNER, drill: true })],
+  ['handoff.inspect', (a) => a.handoff.inspect(SIGN_REQUEST)],
 ];
 
 /** A client whose RPC always fails with `error`. */
@@ -75,5 +90,43 @@ describe('the client leaves every read and prepare as an AtropyleError', () => {
     const atro = failing(() => new Error('never reached'));
     await expect(atro.predictVault('nope', SALT)).rejects.toMatchObject({ code: 'INVALID_ADDRESS' });
     await expect(atro.vault(VAULT).roleOf('nope')).rejects.toMatchObject({ code: 'INVALID_ADDRESS' });
+  });
+
+  it('send reports a failing wallet as an AtropyleError', async () => {
+    const wallet = {
+      account: { address: OWNER },
+      getChainId: async () => {
+        throw new HttpRequestError({ url: 'https://rpc.example', status: 429 });
+      },
+    } as unknown as WalletClient;
+    const err = await failing(() => new Error('never reached'))
+      .send(SENT_PLAN, wallet)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AtropyleError);
+    expect(err).toMatchObject({ code: 'RPC_RATE_LIMITED' });
+  });
+
+  it('the handoff formats reject bad input as AtropyleErrors', () => {
+    const atro = failing(() => new Error('never reached'));
+    const tx = { chainId: 31337, from: OWNER, to: VAULT, data: '0x183ff085', value: 0n } as const;
+    expect(() => atro.handoff.parse('https://x.test/#/v/0xabc')).toThrow(
+      expect.objectContaining({ code: 'LINK_INVALID' }),
+    );
+    expect(() => atro.handoff.link(SIGN_REQUEST, 'not a url')).toThrow(
+      expect.objectContaining({ code: 'INVALID_OPTIONS' }),
+    );
+    expect(() => atro.handoff.cast(tx, 'https://x.test; rm -rf ~')).toThrow(
+      expect.objectContaining({ code: 'INVALID_OPTIONS' }),
+    );
+    expect(() => atro.handoff.okx({ ...tx, value: 1n })).toThrow(expect.objectContaining({ code: 'INVALID_OPTIONS' }));
+  });
+
+  it('the handoff formats default to the deployment', () => {
+    const atro = failing(() => new Error('never reached'));
+    const tx = { chainId: 31337, from: OWNER, to: VAULT, data: '0x183ff085', value: 0n } as const;
+    expect(atro.handoff.cast(tx)).toContain(`--rpc-url ${atro.deployment.rpcUrls[0]}`);
+    expect(atro.handoff.calls(SIGN_REQUEST).chainId).toBe('0x7a69');
+    if (atro.deployment.webUrl) expect(atro.handoff.link(SIGN_REQUEST)).toContain('#/sign?p=');
+    else expect(() => atro.handoff.link(SIGN_REQUEST)).toThrow(expect.objectContaining({ code: 'INVALID_OPTIONS' }));
   });
 });

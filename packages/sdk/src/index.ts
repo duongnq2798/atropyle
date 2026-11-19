@@ -28,6 +28,8 @@ export {
   isTransportError,
   TRANSPORT_ERROR_CODES,
 } from './errors';
+export * from './handoff/index';
+export type { InspectedStep, SignRequestCheck } from './handoff/inspect';
 export { parseBigInt, stringify, toJson } from './json';
 export { DOCS_BASE_URL, errorDocsUrl } from './links';
 export * from './plan/index';
@@ -69,6 +71,7 @@ export { rolesOf } from './read/snapshot';
 export type { Stats, StatsCursor } from './read/stats';
 export type { AssetStatus, TokenInfo, VaultBinding, VaultSnapshot, VaultStatus } from './read/types';
 export type { VaultRef } from './read/vaults';
+export type { SendOptions, SendPhase, SendResult, SentStep } from './send';
 export { httpTransport, readTransport } from './transports';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';

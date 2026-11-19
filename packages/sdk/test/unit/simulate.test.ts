@@ -2,7 +2,10 @@ import {
   ContractFunctionRevertedError,
   encodeErrorResult,
   HttpRequestError,
+  InsufficientFundsError,
+  IntrinsicGasTooLowError,
   MethodNotFoundRpcError,
+  NonceTooLowError,
   type PublicClient,
   RpcRequestError,
 } from 'viem';
@@ -23,13 +26,21 @@ const notWhitelisted = () =>
     url: 'https://rpc.example',
   });
 
+/** What a node answers when the call reverts with a reason this SDK has no code for: JSON-RPC code 3. */
+const reverted = () =>
+  new RpcRequestError({
+    body: { method: 'eth_estimateGas' },
+    error: { code: 3, message: 'execution reverted' },
+    url: 'https://rpc.example',
+  });
+
 function fakeClient(failing: string): PublicClient {
   return {
     simulateCalls: async () => {
       throw notWhitelisted();
     },
     estimateGas: async ({ to }: { to: string }) => {
-      if (to === failing) throw new Error('execution reverted');
+      if (to === failing) throw reverted();
       return 21_000n;
     },
   } as unknown as PublicClient;
@@ -199,5 +210,62 @@ describe('simulateTxs keeps the reason chosen by a contract out of the message',
       },
     } as unknown as PublicClient;
     expectContained((await simulateTxs(fallback, OWNER, [tx(TOKEN), tx(VAULT)]))[0]);
+  });
+});
+
+describe('estimate tells a refusing endpoint from an answer about the transaction', () => {
+  const single = (error: () => unknown) =>
+    ({
+      estimateGas: async () => {
+        throw error();
+      },
+    }) as unknown as PublicClient;
+  const refuse = (status: number | undefined, code: number, message: string) => () =>
+    new RpcRequestError({
+      status,
+      body: { method: 'eth_estimateGas' },
+      error: { code, message },
+      url: 'https://rpc.example',
+    });
+
+  /** The endpoint says nothing about the transaction: it must not read as "this transaction would fail". */
+  const refusals: [string, () => unknown][] = [
+    ['HTTP 403 with a JSON-RPC body', refuse(403, -32000, 'forbidden')],
+    ['HTTP 401 with a JSON-RPC body', refuse(401, -32000, 'unauthorized')],
+    ['a method that is not whitelisted (403, -32601)', refuse(403, -32601, 'rpc method is not whitelisted')],
+    ['method not found', refuse(undefined, -32601, 'the method eth_estimateGas does not exist')],
+    ['method not supported', refuse(undefined, -32004, 'method not supported')],
+    ['a method-not-found error wrapped by viem', () => new MethodNotFoundRpcError(notWhitelisted(), { method: 'x' })],
+    ['an error that does not come from viem', () => new TypeError('fetch failed')],
+  ];
+
+  it.each(refusals)('throws %s', async (_name, error) => {
+    await expect(simulateTxs(single(error), OWNER, [tx(TOKEN)])).rejects.toBeInstanceOf(AtropyleError);
+  });
+
+  it('throws a refusal from the fallback estimates of a multi-step plan', async () => {
+    const client = {
+      simulateCalls: async () => {
+        throw notWhitelisted();
+      },
+      estimateGas: async () => {
+        throw refuse(403, -32000, 'forbidden')();
+      },
+    } as unknown as PublicClient;
+    await expect(simulateTxs(client, OWNER, [tx(TOKEN), tx(VAULT)])).rejects.toBeInstanceOf(AtropyleError);
+  });
+
+  /** The node ran the transaction and says it would not go through: that is the answer a simulation is asked for. */
+  const answers: [string, () => unknown][] = [
+    ['a revert with a reason the SDK has no code for', reverted],
+    ['insufficient funds', () => new InsufficientFundsError()],
+    ['a nonce that is too low', () => new NonceTooLowError()],
+    ['an intrinsic gas that is too low', () => new IntrinsicGasTooLowError()],
+  ];
+
+  it.each(answers)('reports %s as a failed simulation', async (_name, error) => {
+    expect(await simulateTxs(single(error), OWNER, [tx(TOKEN)])).toEqual([
+      { ok: false, error: expect.objectContaining({ code: 'UNKNOWN' }) },
+    ]);
   });
 });

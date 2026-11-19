@@ -57,6 +57,7 @@ export const summarize = {
   revoke20: (vault: Address, token: Address) => `Set the allowance of vault ${vault} for ERC-20 token ${token} to 0.`,
   revoke721: (vault: Address, token: Address, id: bigint) =>
     `Remove the approval of vault ${vault} for ERC-721 token ${token} #${id}.`,
+  clear721: (token: Address, id: bigint) => `Remove the current approval of ERC-721 token ${token} #${id}.`,
   revokeAll: (vault: Address, token: Address) => `Stop vault ${vault} from moving your tokens of contract ${token}.`,
   approveFee: (factory: Address, token: Address, fee: bigint, decimals: number | null) =>
     `Allow the Atropyle factory ${factory} to take the creation fee of ${units(fee, decimals)} in token ${token}.`,
