@@ -24,6 +24,7 @@ export {
 } from './errors';
 export { parseBigInt, stringify, toJson } from './json';
 export { DOCS_BASE_URL, errorDocsUrl } from './links';
+export * from './plan/index';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
 export { VERSION } from './version';
