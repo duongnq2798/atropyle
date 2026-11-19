@@ -65,15 +65,15 @@ jobs:
       - run: npm test -w packages/sdk
       - run: npm run build -w packages/sdk
       - run: npm run smoke -w packages/sdk
-      - run: npm run size -w packages/sdk
-      - run: npm run check:pkg -w packages/sdk
-      - run: npm run check:pkg -w circuits
       - uses: actions/upload-artifact@v4
         with:
           name: sdk-dist
           path: |
             circuits/dist
             packages/sdk/dist
+      - run: npm run size -w packages/sdk
+      - run: npm run check:pkg -w packages/sdk
+      - run: npm run check:pkg -w circuits
 
   sdk-node20:
     needs: sdk
