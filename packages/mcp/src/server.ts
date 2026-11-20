@@ -27,6 +27,8 @@ import {
   type VerifyInput,
   verify,
 } from './ops/index';
+import { registerPrompts } from './prompts';
+import { registerResources } from './resources';
 import { REMOTE_INTEGRITY_TOOL, TOOL_DEFINITIONS, type ToolDefinition } from './tools';
 import { VERSION } from './version';
 
@@ -113,6 +115,8 @@ export function buildMcpServer(atro: AtropyleClient, o: AtropyleMcpOptions): Mcp
       },
     );
   }
+  registerResources(server, atro);
+  registerPrompts(server);
   return server;
 }
 
