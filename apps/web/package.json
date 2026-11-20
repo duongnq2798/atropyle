@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "viem": "2.58.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@testing-library/preact": "3.2.6",
     "happy-dom": "21.0.4",
     "typescript": "5.9.3",

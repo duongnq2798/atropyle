@@ -2,7 +2,7 @@ import type { Deployment } from '@atropyle/sdk';
 import type { Target } from '../env';
 
 /** Nodes the TapeKit gateway counts as the site's own chain (sw.js `siteNodes` for X Layer, read 18/11/2026). */
-const ONCHAIN_RPCS: readonly string[] = ['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com'];
+export const ONCHAIN_RPCS: readonly string[] = ['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com'];
 
 export interface RpcPlan {
   read: string[];
