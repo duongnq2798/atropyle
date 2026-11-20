@@ -19,7 +19,7 @@ export function okxAppLink(link: string): string | null {
 
 const CAST_NOTE = 'The cast commands carry no signer. Add your own, such as --ledger or --account <name>.';
 export const OKX_NOTE =
-  'The onchainos commands sign from the OKX Agentic Wallet account, so prepare as that address (--as). The first run of a command may answer "confirming" and exit with code 2: show its message to the user, and run the same command again with --force only after they agree. Never use --force on the first run.';
+  'The onchainos commands sign and broadcast from the OKX Agentic Wallet account, so prepare as that address (`as`, or `owner` for create-vault; `--as` on the CLI). Run a command only after the user has seen the summary and every warning and agreed to sign that step. Not verified: the Agentic Wallet may be an ERC-4337 smart account, which OKX Builder Codes do not support yet, and the backend may drop the Builder Code suffix. The first run of a command may answer "confirming" and exit with code 2: show its message to the user, and run the same command again with --force only after they agree. Never use --force on the first run.';
 
 /** One onchainos command per step; null when a step sends native value, which okxCommand refuses. */
 export function okxCommands(atro: Pick<AtropyleClient, 'handoff'>, plan: Pick<TxPlan, 'steps'>): string[] | null {

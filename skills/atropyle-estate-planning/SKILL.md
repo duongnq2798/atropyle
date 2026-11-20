@@ -92,10 +92,12 @@ Without `--drill`, an approval of the fee comes first, only when the allowance i
 
 Only when the user chose to sign with their own OKX Agentic Wallet (`onchainos`). It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
 
-1. Run the first command. It may answer `confirming` and exit with code 2, with a message for the user.
-2. Show that message to the user and wait for a clear yes.
+These commands sign and broadcast from the user's wallet, so the user's yes comes before every run. For an existing vault, run `verify --vault` first, as in §6. For create-vault, the Agentic Wallet becomes the vault's owner, because `createVault` uses the sender: its address belongs in `plan init --owner`, and its tokens are what the vault covers.
+
+1. Show the user the step (its `action`, `summary` and `simulation`), the `summary` and every entry of `warnings`, and ask for a clear yes to sign it. Run its command only after that yes.
+2. The command may answer `confirming` and exit with code 2, with a message for the user. Show that message to the user and wait for a clear yes.
 3. Only then run the same command again with `--force`. Never add `--force` on the first run.
-4. Repeat for the next step.
+4. Repeat for the next step, with its own yes.
 
 This path is not tested end to end. Two points are not verified: the Agentic Wallet may be a smart account (ERC-4337), and OKX Builder Codes do not support ERC-4337 user operations yet; and it is unknown whether the backend keeps the Builder Code suffix in the calldata. The attribution may be lost on this path. The vault works the same.
 

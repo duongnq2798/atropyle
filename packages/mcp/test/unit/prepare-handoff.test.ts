@@ -1,6 +1,6 @@
 import { type AtropyleClient, AtropyleError, type TxPlan } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { prepareCreateVault } from '../../src/ops/index';
+import { OKX_NOTE, prepareCreateVault } from '../../src/ops/index';
 
 const A = (n: number) => `0x${n.toString(16).padStart(40, '0')}` as const;
 const step = {
@@ -104,6 +104,19 @@ describe('handoff edge cases', () => {
     const out = await prepareCreateVault(stub({ rpcUrl: 'https://rpc.xlayer.tech' }), input);
     expect(out.handoff?.cast[0]).toContain('https://rpc.xlayer.tech');
     expect(out.handoff?.notes.join(' ')).not.toContain('ETH_RPC_URL');
+  });
+
+  it('a step with native value gives no okx commands and no OKX note', async () => {
+    const out = await prepareCreateVault(stub({ steps: [step, { ...step, value: 1n }] as never }), input);
+    expect(out.handoff?.okx).toBeNull();
+    expect(out.handoff?.cast).toHaveLength(2);
+    expect(out.handoff?.notes).not.toContain(OKX_NOTE);
+  });
+
+  it('a plan without native value has the okx commands and the OKX note', async () => {
+    const out = await prepareCreateVault(stub({}), input);
+    expect(out.handoff?.okx).toEqual(['onchainos wallet contract-call']);
+    expect(out.handoff?.notes).toContain(OKX_NOTE);
   });
 
   it('a plan with no steps has no handoff and nothing to sign', async () => {

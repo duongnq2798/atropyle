@@ -1,4 +1,4 @@
-import { type PrepareOutput, PrepareOutputSchema, UNTRUSTED_NOTICE } from '@atropyle/mcp/ops';
+import { OKX_NOTE, type PrepareOutput, PrepareOutputSchema, UNTRUSTED_NOTICE } from '@atropyle/mcp/ops';
 import { describe, expect, it } from 'vitest';
 import { handOver, type PrepareFlags } from '../../src/commands/prepare';
 import type { Ctx } from '../../src/context';
@@ -97,6 +97,19 @@ describe('handOver', () => {
     expect(r.io.stdout).toBe('');
     expect(r.io.stderr).toContain('a step sends native value');
     expect(r.io.stderr).toContain('Check in.');
+  });
+
+  it('shows the OKX note only under --format okx in human output', () => {
+    const out = make({ handoff: handoff({ notes: [OKX_NOTE] }) });
+    expect(run({ format: 'link' }, out).io.stdout).not.toContain(OKX_NOTE);
+    for (const format of ['cast', 'calls']) expect(run({ format }, out).io.stderr, format).not.toContain(OKX_NOTE);
+    expect(run({ format: 'okx' }, out).io.stderr).toContain(OKX_NOTE);
+    expect(JSON.parse(run({ format: 'json' }, out, { json: true }).io.stdout).handoff.notes).toContain(OKX_NOTE);
+  });
+
+  it('points a plan without a link to cast, calls and okx', () => {
+    const out = make({ handoff: handoff({ link: null }) });
+    expect(run({ format: 'link' }, out).io.stdout).toContain('Use --format cast, --format calls or --format okx.');
   });
 
   it('prints calls and exits 0 for a handoff without cast commands in --format calls', () => {

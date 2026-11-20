@@ -25,19 +25,19 @@ describe('okxCommands', () => {
       okx: (tx: { to: string; data: string }) => `onchainos wallet contract-call --to ${tx.to} --input-data ${tx.data}`,
     },
   } as unknown as Pick<AtropyleClient, 'handoff'>;
-  const step = (value: bigint) => ({
+  const step = (value: bigint, i: number) => ({
     chainId: 196,
     from: '0x0000000000000000000000000000000000000001',
     to: '0x0000000000000000000000000000000000000002',
-    data: '0x183ff085',
+    data: `0x183ff08${i}`,
     value,
   });
   const plan = (...values: bigint[]) => ({ steps: values.map(step) }) as unknown as Pick<TxPlan, 'steps'>;
 
   it('gives one command per step, in order', () => {
     expect(okxCommands(atro, plan(0n, 0n))).toEqual([
-      'onchainos wallet contract-call --to 0x0000000000000000000000000000000000000002 --input-data 0x183ff085',
-      'onchainos wallet contract-call --to 0x0000000000000000000000000000000000000002 --input-data 0x183ff085',
+      'onchainos wallet contract-call --to 0x0000000000000000000000000000000000000002 --input-data 0x183ff080',
+      'onchainos wallet contract-call --to 0x0000000000000000000000000000000000000002 --input-data 0x183ff081',
     ]);
   });
 

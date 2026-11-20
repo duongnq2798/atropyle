@@ -128,7 +128,11 @@ describe('skill content', () => {
       }
     }
     const planning = read(join(SKILLS_DIR, 'atropyle-estate-planning', 'SKILL.md'));
-    for (const phrase of ['Suggest a Drill first', 'If `verify` fails, prepare nothing for that vault']) {
+    for (const phrase of [
+      'Suggest a Drill first',
+      'If `verify` fails, prepare nothing for that vault',
+      'clear yes to sign it',
+    ]) {
       expect(planning).toContain(phrase);
     }
     for (const f of ['SKILL.md', 'references/plan-file.md', 'references/pitfalls.md']) {

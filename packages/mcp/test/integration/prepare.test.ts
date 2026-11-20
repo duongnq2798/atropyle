@@ -46,6 +46,7 @@ describe('prepare operations on the devnet', () => {
     );
     expect(out.handoff?.notes).toContain(OKX_NOTE);
     expect(OKX_NOTE).toContain('--force only after they agree');
+    expect(OKX_NOTE).toContain('Run a command only after the user has seen the summary and every warning and agreed');
   });
 
   it('an https webUrl also gives the OKX App link', async () => {

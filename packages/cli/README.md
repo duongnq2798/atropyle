@@ -24,7 +24,7 @@ npx -y atropyle verify --deployment deployment.json
 | `atropyle simulate --plan <file> [--as <owner>] [--drill]`     | The timeline of a vault that does not exist yet                                                     |
 | `atropyle plan init`                                           | Writes `atropyle.plan.json` from flags; in a terminal without `--heir`, asks one question at a time |
 | `atropyle plan check <file>`                                   | Validates a plan, checks its tokens on chain and shows the current fee                              |
-| `atropyle prepare <action> <target> --as <addr>`               | Prepares and simulates, then hands over: `--format link                                             | cast | calls | okx | json` | \|cast\|calls\|okx\|json` |
+| `atropyle prepare <action> <target> --as <addr>`               | Prepares and simulates, then hands over: `--format link\|cast\|calls\|okx\|json`                    |
 | `atropyle doctor`                                              | Node.js version, every RPC, chain ID, latency and deployment integrity                              |
 | `atropyle mcp`                                                 | The MCP server on stdio, for AI agents                                                              |
 
@@ -56,13 +56,13 @@ It exits 0 only when everything holds. It exits 3 when a property fails, when th
 
 `prepare` simulates every step before it shows anything to sign. It has three outcomes:
 
-- **Handoff.** Every step simulates, and the output is what you sign: a signing link (with a QR code in a terminal), or with `--format `--format link|cast|calls|okx|json`                     |` Foundry commands, or with `--format calls` `wallet_sendCalls` parameters. Exit 0.
-- **Blocked.** A step fails in simulation. Nothing to sign is printed: no link, no QR code, no `--format link|cast|calls|okx|json` | command. The output names the failing step and the reason. Exit 1.
+- **Handoff.** Every step simulates, and the output is what you sign: a signing link (with a QR code in a terminal), or with `--format cast` Foundry commands, or with `--format calls` `wallet_sendCalls` parameters. Exit 0.
+- **Blocked.** A step fails in simulation. Nothing to sign is printed: no link, no QR code, no cast command. The output names the failing step and the reason. Exit 1.
 - **Nothing to do.** The plan has no steps, so there is nothing to sign. The summary says "There is nothing to sign." Exit 0.
 
-With `--format `--format link|cast|calls|okx|json`                     |`, the commands use `$ETH_RPC_URL` when the deployment's RPC URL may hold an API key, so set it to your RPC URL. When there are steps to sign but no cast command can be printed, the command exits 1 instead of printing nothing. With nothing to do, it exits 0. `--format json` is the same as `--json`.
+With `--format cast`, the commands use `$ETH_RPC_URL` when the deployment's RPC URL may hold an API key, so set it to your RPC URL. When there are steps to sign but no cast command can be printed, the command exits 1 instead of printing nothing. With nothing to do, it exits 0. `--format json` is the same as `--json`.
 
-The signing link opens the Atropyle web app, where you sign with OKX Wallet or another wallet. `--web-url <url>` sets that web app (it exists on the CLI only). Without a `webUrl` in the deployment and without `--web-url`, no link is printed, and the output points to `--format `--format link|cast|calls|okx|json`                     |` and `--format calls`. `--format cast` prints Foundry commands without a signer; `--format calls` prints `wallet_sendCalls` parameters.
+The signing link opens the Atropyle web app, where you sign with OKX Wallet or another wallet. `--web-url <url>` sets that web app (it exists on the CLI only). Without a `webUrl` in the deployment and without `--web-url`, no link is printed, and the output points to `--format cast` and `--format calls`. `--format cast` prints Foundry commands without a signer; `--format calls` prints `wallet_sendCalls` parameters.
 
 ## Global options
 
@@ -92,7 +92,7 @@ Text from the chain, such as token names, is never mixed into the output. It app
 
 ## OKX Agentic Wallet
 
-`--format `--format link|cast|calls|okx|json`                     |` prints one `onchainos wallet contract-call` command per step, for the OKX Agentic Wallet. Show the user the summary and every warning before you hand over any command. The Agentic Wallet signs from its own account, and the commands have no `--from`, so prepare with `--as` set to its address. The first run of a command may answer `confirming` and exit with code 2: read the message, wait for the user to agree, and only then run the same command again with `--force`. Never use `--force` on the first run. Plans with a step that sends native value have no OKX commands: stdout stays empty and the command exits 1.
+`--format okx` prints one `onchainos wallet contract-call` command per step, for the OKX Agentic Wallet. These commands sign and broadcast from the Agentic Wallet, so the user's explicit yes comes first: show the user the step, the summary and every warning, and run a command only after a clear yes to sign that step. For an existing vault, run `atropyle verify --vault <vault>` first. The Agentic Wallet signs from its own account, and the commands have no `--from`, so prepare with `--as` set to its address. For `create-vault` that makes the Agentic Wallet the owner of the new vault (the factory uses the sender), so its address belongs in `plan init --owner`, and its tokens are what the vault covers. The first run of a command may answer `confirming` and exit with code 2: read the message, wait for the user to agree, and only then run the same command again with `--force`. Never use `--force` on the first run. Plans with a step that sends native value have no OKX commands: stdout stays empty and the command exits 1.
 
 This path is not tested end to end. Two points are not verified: the Agentic Wallet may be a smart account (ERC-4337), and OKX Builder Codes do not support ERC-4337 user operations yet; and it is unknown whether the OKX backend keeps the Builder Code suffix in the calldata. The Builder Code attribution may therefore be lost on this path. The vault works the same either way.
 

@@ -96,7 +96,7 @@ export function handOver(ctx: Ctx, g: Globals, o: PrepareFlags, out: PrepareOutp
     return code;
   }
   if (o.format === 'cast' || o.format === 'calls' || o.format === 'okx') {
-    io.err(briefPrepare(shown, s));
+    io.err(briefPrepare(shown, s, o.format === 'okx'));
     if (!shown.handoff) return code;
     if (o.format === 'okx') {
       if (shown.handoff.okx === null) {

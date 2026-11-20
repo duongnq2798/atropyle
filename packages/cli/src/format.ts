@@ -3,6 +3,7 @@ import {
   type GetVaultOutput,
   iso,
   type ListVaultsOutput,
+  OKX_NOTE,
   type PrepareOutput,
   type SimulateOutput,
   type VerifyOutput,
@@ -154,7 +155,7 @@ function stepLines(steps: readonly Step[], s: Style): string[] {
 }
 
 /** Summary, steps, warnings and notes come first; the signing link only after them (spec §7.1). */
-function headOf(o: PrepareOutput, s: Style): string[] {
+function headOf(o: PrepareOutput, s: Style, okxNote = false): string[] {
   const lines = [s.bold(o.summary), ...stepLines(o.plan.steps, s)];
   if (o.warnings.length > 0) {
     lines.push(
@@ -163,7 +164,8 @@ function headOf(o: PrepareOutput, s: Style): string[] {
       ...o.warnings.map((w) => s.yellow(`  ${w.code}: ${w.message}`)),
     );
   }
-  const notes = o.handoff?.notes ?? [];
+  // The OKX note describes onchainos commands: human output shows it only where they are printed (--format okx).
+  const notes = (o.handoff?.notes ?? []).filter((n) => okxNote || n !== OKX_NOTE);
   if (notes.length > 0) lines.push('', ...notes.map((n) => s.dim(n)));
   if (o.blocked) {
     const b = o.blocked;
@@ -184,15 +186,15 @@ export function formatPrepare(o: PrepareOutput, s: Style, qr: string | null, qrN
     else if (qrNote) lines.push(s.dim(qrNote));
     if (h.okxAppLink) lines.push('', 'Open in the OKX App:', h.okxAppLink);
   } else if (h) {
-    lines.push('', `Use ${h.cast.length > 0 ? '--format cast or ' : ''}--format calls.`);
+    lines.push('', `Use ${h.cast.length > 0 ? '--format cast, ' : ''}--format calls or --format okx.`);
   }
   lines.push('', s.dim('Atropyle never asks for your private key or seed phrase.'), ...untrustedLines(o.untrusted), '');
   return lines.join('\n');
 }
 
-/** stderr of --format cast and --format calls, so that stdout stays machine-readable. */
-export function briefPrepare(o: PrepareOutput, s: Style): string {
-  return [...headOf(o, s), ...untrustedLines(o.untrusted), ''].join('\n');
+/** stderr of --format cast, calls and okx, so that stdout stays machine-readable. */
+export function briefPrepare(o: PrepareOutput, s: Style, okxNote = false): string {
+  return [...headOf(o, s, okxNote), ...untrustedLines(o.untrusted), ''].join('\n');
 }
 
 const yes = (b: boolean) => (b ? 'yes' : 'NO');
