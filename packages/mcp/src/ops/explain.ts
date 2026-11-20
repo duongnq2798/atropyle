@@ -21,14 +21,34 @@ export const COVERAGE_WARNING: Warning = {
   message: 'Some assets are not fully approved to the vault. Heirs would receive only the approved part.',
 };
 
+/** Only `revokeAll` still works on an expired Drill, and approvals the owner gave the vault stay in place. */
+function explainExpired(s: VaultStatus, released: boolean): string[] {
+  const lines: string[] = [];
+  if (released) {
+    lines.push(
+      s.state === 'releasedRecover'
+        ? `Released to the recovery wallet ${s.recoveryTarget ?? 'chosen by the guardians'} at ${at(s.releasedAt)}.`
+        : `Released to the heirs at ${at(s.releasedAt)}.`,
+      'This Drill has expired, so it can no longer release anything more.',
+    );
+  } else {
+    lines.push('This Drill has expired and can no longer release anything. Nothing was moved.');
+  }
+  const approved = s.assets.filter((a) => a.coverage > 0n).length;
+  lines.push(
+    approved > 0
+      ? `Token approvals to this vault are still in place for ${plural(approved, 'asset')}. Revoke them with revokeAll.`
+      : 'Any token approvals given to this vault stay in place until revoked with revokeAll.',
+    'To protect real assets, create a new vault that is not a Drill.',
+  );
+  return lines;
+}
+
 /** Plain-language lines about a vault. Built only from typed fields: no token names, no on-chain strings. */
 export function explainStatus(s: VaultStatus, c: VaultConfig, t: Timeline): string[] {
   const lines: string[] = [];
   const released = isReleasedState(s.state);
-  // An expired Drill accepts no action, so no line may suggest one is still possible.
-  if (s.expired) {
-    return ['This Drill has expired and accepts no more actions.', `Its last recorded state is ${s.state}.`];
-  }
+  if (s.expired) return explainExpired(s, released);
   switch (s.state) {
     case 'active':
       lines.push(

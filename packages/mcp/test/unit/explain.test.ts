@@ -75,7 +75,7 @@ describe('explainStatus', () => {
       timeline,
     );
     expect(lines.join(' ')).not.toMatch(/guardians have attested|earliest release/);
-    expect(lines).toContain('This Drill has expired and accepts no more actions.');
+    expect(lines[0]).toBe('Released to the heirs at 1970-01-01T00:20:40Z.');
   });
 
   it('explains an active vault', () => {
@@ -120,14 +120,37 @@ describe('explainStatus', () => {
     expect(lines).toContain('1 of 1 assets are not fully approved to the vault.');
   });
 
+  const EXPIRED_TAIL = [
+    'Any token approvals given to this vault stay in place until revoked with revokeAll.',
+    'To protect real assets, create a new vault that is not a Drill.',
+  ];
+
   it.each([
     ['active', {}],
     ['grace', { alarmAt: 1_120n, windowEndsAt: 1_240n }],
-  ] as const)('says only that an expired Drill in %s accepts no actions', (state, extra) => {
+  ] as const)('says an expired Drill in %s moved nothing and points to revokeAll', (state, extra) => {
     const lines = explainStatus({ ...status, state, expired: true, ...extra }, config, timeline);
     expect(lines).toEqual([
-      'This Drill has expired and accepts no more actions.',
-      `Its last recorded state is ${state}.`,
+      'This Drill has expired and can no longer release anything. Nothing was moved.',
+      ...EXPIRED_TAIL,
+    ]);
+  });
+
+  it('keeps the release line of a Drill that expired after releasing, and counts approvals still in place', () => {
+    const asset = { kind: 'erc20' as const, token: A(7), id: 0n, heir: 0 };
+    const assets = [
+      { index: 0, asset, token: { address: A(7), symbol: null, name: null, decimals: 6 }, coverage: 5n, held: 5n },
+    ] as unknown as VaultStatus['assets'];
+    const lines = explainStatus(
+      { ...status, state: 'releasedInherit', releasedAt: 1_240n, expired: true, assets },
+      config,
+      timeline,
+    );
+    expect(lines).toEqual([
+      'Released to the heirs at 1970-01-01T00:20:40Z.',
+      'This Drill has expired, so it can no longer release anything more.',
+      'Token approvals to this vault are still in place for 1 asset. Revoke them with revokeAll.',
+      'To protect real assets, create a new vault that is not a Drill.',
     ]);
   });
 });

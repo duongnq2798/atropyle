@@ -1,4 +1,5 @@
 import type { AtropyleClient } from '@atropyle/sdk';
+import { HttpRequestError } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { getVault, latestTimestamp, simulate } from '../../src/ops/index';
 
@@ -39,16 +40,15 @@ describe('read operations validate before any RPC', () => {
     ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
   });
 
-  it('latestTimestamp turns a raw network failure into an AtropyleError with a code', async () => {
+  it('latestTimestamp turns a viem HTTP failure into the SDK transport error', async () => {
     const down = {
       publicClient: {
         getBlock: () => {
-          throw Object.assign(new Error('HTTP request failed. fetch failed'), { name: 'HttpRequestError' });
+          throw new HttpRequestError({ url: 'https://rpc.example', status: 429 });
         },
       },
     } as unknown as AtropyleClient;
     const e = await latestTimestamp(down).catch((x) => x);
-    expect(e).toMatchObject({ name: 'AtropyleError' });
-    expect(typeof e.code).toBe('string');
+    expect(e).toMatchObject({ name: 'AtropyleError', code: 'RPC_RATE_LIMITED' });
   });
 });
