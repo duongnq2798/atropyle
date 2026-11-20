@@ -4,7 +4,7 @@ export const messages = defineMessages(
   {
     title: 'Atropyle',
     tagline:
-      'An inheritance and recovery vault on X Layer. Check in now and then: if you stop, your heirs can claim. Recovery is optional: if you turn it on, k guardians who agree can move everything in the vault to a wallet they choose.',
+      'An inheritance and recovery vault on X Layer. Check in now and then: if you stop, your heirs can claim. Recovery is optional: if you turn it on, k of your guardians, a number you choose, can agree to move everything in the vault to a wallet they choose. You can stop it only by checking in before the window ends.',
     drillCta: 'Try a 5-minute Drill',
     createCta: 'Create a vault',
     proofCta: 'Check the proof',
@@ -37,7 +37,7 @@ export const messages = defineMessages(
   {
     title: 'Atropyle',
     tagline:
-      'Vault thừa kế và khôi phục trên X Layer. Thỉnh thoảng điểm danh: nếu bạn ngừng, người thừa kế có thể nhận. Khôi phục là tuỳ chọn: nếu bật, k người giám hộ cùng đồng ý có thể chuyển toàn bộ tài sản trong vault sang ví do họ chọn.',
+      'Vault thừa kế và khôi phục trên X Layer. Thỉnh thoảng điểm danh: nếu bạn ngừng, người thừa kế có thể nhận. Khôi phục là tuỳ chọn: nếu bật, k trong số người giám hộ của bạn, một con số do bạn chọn, cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang ví do họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     drillCta: 'Thử Drill 5 phút',
     createCta: 'Tạo vault',
     proofCta: 'Xem chứng minh',

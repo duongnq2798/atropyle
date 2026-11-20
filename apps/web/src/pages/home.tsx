@@ -183,7 +183,7 @@ export function HomePage({ sdk }: { sdk: Sdk }) {
     <div class="stack">
       <section class="card stack">
         <h1>{t('title')}</h1>
-        <p>{t('tagline')}</p>
+        <p data-testid="home-tagline">{t('tagline')}</p>
         <div class="row">
           <a class="btn btn-primary btn-big" data-testid="home-drill" href={href({ name: 'create', drill: true })}>
             {t('drillCta')}

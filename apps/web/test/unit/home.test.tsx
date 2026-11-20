@@ -17,9 +17,9 @@ const d = fixtureDeployment({ name: 'local', chainId: 31337 });
 const env = readEnv({ VITE_DEPLOYMENT: JSON.stringify(deploymentToJson(d)) });
 
 /** No router: changing location.hash here does not render another page (and so never touches the network). */
-function renderHome(kv: KV = memoryKV()) {
+function renderHome(kv: KV = memoryKV(), languages: string[] = ['en']) {
   render(
-    <AppProvider env={env} kv={kv} win={new EventTarget() as WalletWindow} languages={['en']}>
+    <AppProvider env={env} kv={kv} win={new EventTarget() as WalletWindow} languages={languages}>
       <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>
     </AppProvider>,
   );
@@ -48,4 +48,16 @@ test('cached stats show without a network call', () => {
   expect(screen.getByText('As of block 2000.')).toBeTruthy();
   expect(screen.getByTestId('stats-load').textContent).toBe('Update from the chain');
   expect(screen.getByText('Connect a wallet to see the vaults you own, inherit or guard.')).toBeTruthy();
+});
+
+test('the tagline says what k is and how the owner stops a recovery, in both languages', () => {
+  renderHome();
+  const en = screen.getByTestId('home-tagline').textContent;
+  expect(en).toContain('k of your guardians, a number you choose,');
+  expect(en).toContain('You can stop it only by checking in before the window ends.');
+  cleanup();
+  renderHome(memoryKV(), ['vi']);
+  const vi = screen.getByTestId('home-tagline').textContent;
+  expect(vi).toContain('k trong số người giám hộ của bạn, một con số do bạn chọn,');
+  expect(vi).toContain('Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.');
 });
