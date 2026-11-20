@@ -42,7 +42,9 @@ export function globalsOf(cmd: Command, io: Io): Globals {
   const chain = o.chain ?? env('ATROPYLE_CHAIN') ?? 'xlayer';
   if (chain !== 'xlayer' && chain !== 'local') throw new UsageError(`Unknown chain "${chain}". Use xlayer or local.`);
   const rpc = o.rpc ?? env('ATROPYLE_RPC');
-  if (rpc !== undefined && !URL.canParse(rpc)) throw new UsageError('--rpc is not a valid URL.');
+  // Neither message echoes the value: an RPC URL can carry an API key.
+  if (rpc !== undefined && !URL.canParse(rpc))
+    throw new UsageError(`${o.rpc === undefined ? 'ATROPYLE_RPC' : '--rpc'} is not a valid URL.`);
   return {
     chain,
     rpc,

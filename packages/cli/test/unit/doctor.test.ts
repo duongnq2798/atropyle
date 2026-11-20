@@ -3,7 +3,9 @@ import { parseDeploymentText } from '@atropyle/mcp/ops';
 import { describe, expect, it } from 'vitest';
 import { doctorExitCode, doctorTargets } from '../../src/commands/doctor';
 import type { Globals } from '../../src/globals';
+import { main } from '../../src/main';
 import type { DoctorOutput } from '../../src/schemas';
+import { memoryIo } from './memory-io';
 
 const d = parseDeploymentText(
   readFileSync(new URL('../../../mcp/test/fixtures/deployment.json', import.meta.url), 'utf8'),
@@ -38,5 +40,36 @@ describe('doctor', () => {
       } as unknown as DoctorOutput),
     ).toBe(4);
     expect(doctorExitCode({ ...base, node: { ...base.node, ok: false } })).toBe(1);
+  });
+
+  it('reads the deployment once, exits 4 when an operator fails, skips integrity and never prints the URL', async () => {
+    const dep = JSON.stringify({
+      ...JSON.parse(readFileSync(new URL('../../../mcp/test/fixtures/deployment.json', import.meta.url), 'utf8')),
+      rpcUrls: ['http://ok.test/'],
+      quorumRpcUrls: [['http://ok.test/'], ['http://bad.test/KEY?x=SECRET']],
+    });
+    let reads = 0;
+    const requested: string[] = [];
+    const io = memoryIo({
+      files: { 'dep.json': dep },
+      fetch: async (url) => {
+        requested.push(String(url));
+        if (String(url).includes('KEY')) throw new TypeError('fetch failed');
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x7a69' }));
+      },
+    });
+    const inner = io.readFile;
+    io.readFile = (p) => {
+      reads++;
+      return inner(p);
+    };
+    expect(await main(['doctor', '--json', '--deployment', 'dep.json'], io)).toBe(4);
+    const out = JSON.parse(io.stdout);
+    expect(out.integrity).toBeNull();
+    expect(out.rpcs.map((r: { ok: boolean }) => r.ok)).toEqual([true, false]);
+    expect(reads).toBe(1);
+    expect(requested).toHaveLength(2);
+    expect(io.stdout + io.stderr).not.toMatch(/KEY|SECRET/);
+    expect(out.rpcs[1].host).toBe('bad.test');
   });
 });

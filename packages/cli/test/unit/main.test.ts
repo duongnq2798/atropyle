@@ -51,4 +51,60 @@ describe('main', () => {
     expect(await main(['doctor', '--json'], io)).toBe(2);
     expect(JSON.parse(io.stdout).error.code).toBe('INVALID_OPTIONS');
   });
+
+  describe('commander errors never echo a value that can carry an API key', () => {
+    it.each([false, true])('--flag=value, json=%s', async (json) => {
+      const io = memoryIo();
+      expect(await main(['doctor', '--verify-rpc=https://h.test/KEY', ...(json ? ['--json'] : [])], io)).toBe(2);
+      expect(io.stdout + io.stderr).not.toContain('KEY');
+      expect(io.stdout + io.stderr).toContain('--verify-rpc');
+    });
+
+    it.each([false, true])('an unknown command that is a URL, json=%s', async (json) => {
+      const io = memoryIo();
+      expect(await main(['https://h.test/KEY', ...(json ? ['--json'] : [])], io)).toBe(2);
+      expect(io.stdout + io.stderr).not.toContain('KEY');
+    });
+
+    it('an invalid option argument that is a URL', async () => {
+      const io = memoryIo();
+      expect(await main(['doctor', '--chain', 'https://h.test/KEY'], io)).toBe(2);
+      expect(io.stderr).not.toContain('KEY');
+    });
+
+    it('still names a plain unknown command and a plain unknown option', async () => {
+      const a = memoryIo();
+      expect(await main(['bogus'], a)).toBe(2);
+      expect(a.stderr).toContain("unknown command 'bogus'");
+      const b = memoryIo();
+      expect(await main(['doctor', '--bogus=1'], b)).toBe(2);
+      expect(b.stderr).toContain('--bogus');
+    });
+  });
+
+  it('exits 2 for `help bogus` without saying no command was given', async () => {
+    const io = memoryIo();
+    expect(await main(['help', 'bogus', '--json'], io)).toBe(2);
+    expect(JSON.parse(io.stdout).error.message).toBe('Unknown command "bogus".');
+  });
+
+  it('exits 1 with DEPLOYMENT_MISSING and a hint on the default chain', async () => {
+    const io = memoryIo();
+    expect(await main(['doctor', '--json'], io)).toBe(1);
+    expect(JSON.parse(io.stdout).error).toMatchObject({
+      code: 'DEPLOYMENT_MISSING',
+      hint: 'X Layer works after the mainnet deployment; use --deployment <file> until then.',
+    });
+  });
+
+  it('names the variable, not the value, when ATROPYLE_RPC is not a URL', async () => {
+    const io = memoryIo({ env: { ATROPYLE_RPC: 'not a url KEY' } });
+    expect(await main(['doctor', '--json'], io)).toBe(2);
+    const out = JSON.parse(io.stdout);
+    expect(out.error.message).toBe('ATROPYLE_RPC is not a valid URL.');
+    expect(io.stdout).not.toContain('KEY');
+    const flag = memoryIo();
+    await main(['doctor', '--json', '--rpc', 'nope KEY'], flag);
+    expect(JSON.parse(flag.stdout).error.message).toBe('--rpc is not a valid URL.');
+  });
 });

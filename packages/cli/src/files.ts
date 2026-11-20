@@ -5,12 +5,13 @@ import type { Io } from './io';
 async function readText(io: Io, file: string, code: 'PLAN_INVALID' | 'DEPLOYMENT_INVALID'): Promise<string> {
   try {
     return await io.readFile(file);
-  } catch {
-    throw new AtropyleError(code, {
-      message: `Cannot read ${file}.`,
-      hint: 'Check the path. A relative path starts from the current directory.',
-      details: { file },
-    });
+  } catch (e) {
+    const reason = typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : 'UNKNOWN';
+    const hint =
+      reason === 'ENOENT'
+        ? 'Check the path. A relative path starts from the current directory.'
+        : `The file exists but cannot be read (${reason}). Check its permissions, and that it is a file.`;
+    throw new AtropyleError(code, { message: `Cannot read ${file}.`, hint, details: { file, reason } });
   }
 }
 
