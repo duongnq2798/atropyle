@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "atropyle": {
+      "command": "npx",
+      "args": ["-y", "@atropyle/mcp@0.1.0"]
+    }
+  }
+}

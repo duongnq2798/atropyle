@@ -15,6 +15,7 @@ Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A c
 | `packages/cli/`                                       | `atropyle`: the CLI                                                                     |
 | `skills/`                                             | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                         |
 | `.claude-plugin/`                                     | Claude Code marketplace and plugin                                                      |
+| `examples/`                                           | `agent-mcp-client`: an MCP client that never signs, and client configs                  |
 | `apps/` (web app, Worker, docs; added by later plans) | Not in the repository yet                                                               |
 | `deployments/`                                        | Deployed addresses, per chain                                                           |
 
