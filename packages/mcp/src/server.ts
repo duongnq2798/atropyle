@@ -6,7 +6,7 @@ import {
   stringify,
 } from '@atropyle/sdk';
 import { type CallToolResult, McpServer } from '@modelcontextprotocol/server';
-import { SERVER_INSTRUCTIONS } from './instructions';
+import { REMOTE_INSTRUCTIONS, SERVER_INSTRUCTIONS } from './instructions';
 import {
   type CheckPlanInput,
   checkPlan,
@@ -61,37 +61,46 @@ function progressOf(ctx: unknown): ProgressFn | undefined {
         method: 'notifications/progress',
         params: { progressToken: token, progress, total, message: 'Checking policy combinations' },
       })
+      // Progress is best effort: a client that went away must not fail the proof.
       .catch(() => {});
   });
 }
 
 function textResult(out: { summary: string }, isError: boolean): CallToolResult {
-  return {
-    ...(isError ? { isError: true } : {}),
-    content: [
-      { type: 'text', text: out.summary },
-      { type: 'text', text: stringify(out, 2) },
-    ],
-    structuredContent: out as Record<string, unknown>,
-  };
+  const content: CallToolResult['content'] = [
+    { type: 'text', text: out.summary },
+    { type: 'text', text: stringify(out, 2) },
+  ];
+  // An error result has no structuredContent: MCP TypeScript SDK v1 clients validate it against the outputSchema even
+  // when isError is set, and the error envelope matches no success schema. The error JSON is in the second text block.
+  return isError ? { isError: true, content } : { content, structuredContent: out as Record<string, unknown> };
 }
 
 /** One server over one SDK client. runStdio shares the client so the verifyPolicy cache survives. */
 export function buildMcpServer(atro: AtropyleClient, o: AtropyleMcpOptions): McpServer {
-  const server = new McpServer({ name: 'atropyle', version: VERSION }, { instructions: SERVER_INSTRUCTIONS });
+  const server = new McpServer(
+    { name: 'atropyle', version: VERSION },
+    { instructions: o.remote ? REMOTE_INSTRUCTIONS : SERVER_INSTRUCTIONS },
+  );
   const runs: Record<string, Run> = {
     atropyle_get_vault: (a) => getVault(atro, a as GetVaultInput),
     atropyle_list_vaults: (a) => listVaults(atro, a as ListVaultsInput),
     atropyle_simulate: (a) => simulate(atro, a as SimulateInput),
     atropyle_check_plan: (a) => checkPlan(atro, a as CheckPlanInput),
     atropyle_verify: (a, ctx) => verify(atro, a as VerifyInput, { onProgress: progressOf(ctx) }),
-    atropyle_prepare_create_vault: (a) => prepareCreateVault(atro, a as PrepareCreateVaultInput),
-    atropyle_prepare_action: (a) => prepareAction(atro, a as PrepareActionInput),
+    // webUrl is not in the tool schemas; passing undefined keeps it out even if a schema change lets it through.
+    atropyle_prepare_create_vault: (a) =>
+      prepareCreateVault(atro, { ...(a as PrepareCreateVaultInput), webUrl: undefined }),
+    atropyle_prepare_action: (a) => prepareAction(atro, { ...(a as PrepareActionInput), webUrl: undefined }),
   };
   const remote = o.remote;
   const tools: { def: ToolDefinition; run: Run }[] = TOOL_DEFINITIONS.filter(
     (d) => !(remote && d.name === 'atropyle_verify'),
-  ).map((def) => ({ def, run: runs[def.name] }));
+  ).map((def) => {
+    const run = runs[def.name];
+    if (!run) throw new Error(`No runner for tool ${def.name}`);
+    return { def, run };
+  });
   if (remote)
     tools.push({ def: REMOTE_INTEGRITY_TOOL, run: async () => integrityOutput(await remote.latestIntegrity()) });
 
@@ -116,7 +125,7 @@ export function buildMcpServer(atro: AtropyleClient, o: AtropyleMcpOptions): Mcp
     );
   }
   registerResources(server, atro);
-  registerPrompts(server);
+  registerPrompts(server, o.remote !== undefined);
   return server;
 }
 

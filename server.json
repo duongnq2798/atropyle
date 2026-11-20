@@ -25,6 +25,12 @@
           "choices": ["xlayer", "local"]
         },
         {
+          "name": "ATROPYLE_DEPLOYMENT",
+          "description": "Path to a deployment JSON file; wins over ATROPYLE_CHAIN. Needed until the X Layer mainnet deployment",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
           "name": "ATROPYLE_RPC",
           "description": "Read RPC URL of the same chain; can contain an API key",
           "isRequired": false,

@@ -25,4 +25,4 @@ export const POLICY = {
   issues: [],
   firstFailures: [],
   warnings: [],
-} as unknown as PolicyVerification;
+} as unknown as PolicyVerification; // `properties` comes from Object.fromEntries, which TypeScript types as a plain index signature

@@ -26,6 +26,16 @@ describe('atropyle-mcp bin', () => {
     expect(help.stdout).toContain('Usage: atropyle-mcp');
   });
 
+  it('without a deployment, exits 1 and says to pass --deployment', () => {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('ATROPYLE_')));
+    const r = spawnSync(process.execPath, [BIN], { encoding: 'utf8', timeout: 20_000, env });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('DEPLOYMENT_MISSING');
+    expect(r.stderr).toContain('--deployment <file>');
+    expect(r.stderr).toContain('ATROPYLE_DEPLOYMENT');
+  });
+
   it('exits 1 on a bad flag, with the error on stderr only', () => {
     const r = run('--chain', 'mars');
     expect(r.status).toBe(1);
@@ -63,7 +73,9 @@ describe('stdio session', () => {
       arguments: { vault: '0x1000000000000000000000000000000000000009' },
     });
     expect(r.isError).toBe(true);
-    expect((r.structuredContent as { error: { code: string } }).error.code).toBe('RPC_UNAVAILABLE');
+    expect(r.structuredContent).toBeUndefined();
+    const envelope = JSON.parse((r.content as { text: string }[])[1].text);
+    expect(envelope.error.code).toBe('RPC_UNAVAILABLE');
     expect((await client.listTools()).tools).toHaveLength(7);
   });
 });

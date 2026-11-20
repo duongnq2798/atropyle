@@ -22,7 +22,7 @@ Codes 010, 100 and 110 are not reachable. X = 1 is treated as Released and kept;
 | 0-3 | idle | min(15, (now - lastAlive) / period) |
 | 4-7 | T | missed periods before the alarm, 1 to 15 |
 | 8-12 | inhVotes | bitmap of the guardians who attested death |
-| 13-17 | recVotes | bitmap of the guardians who voted for the current recovery candidate, only when recovery is enabled |
+| 13-17 | recVotes | bitmap of the guardians who voted for the current recovery candidate, only when recovery is enabled and a recovery candidate is set (not the zero address) |
 | 18-20 | k | guardians that must agree (k of n); 0 means the Simple template |
 | 21 | alive | the owner signed this transaction |
 | 22 | windowDone | an alarm is set and now >= alarmAt + window |
@@ -55,10 +55,10 @@ Derived signals:
 |---|---|
 | P1 | Released implies the same state and outputs 000 |
 | P2 | not Released and alive implies active |
-| P3 | becoming releasedInherit implies the state was grace, not alive, windowDone, not recQ, and (inhQ or maxed) |
-| P4 | becoming releasedRecover implies the state was recovery, not alive, windowDone, recQ and k != 0 |
+| P3 | when the old state is not Released, becoming releasedInherit implies the old state was grace, not alive, windowDone, not recQ, and (inhQ or maxed) |
+| P4 | when the old state is not Released, becoming releasedRecover implies the old state was recovery, not alive, windowDone, recQ and k != 0 |
 | P5 | active becomes grace only when late and not alive; active becomes recovery only when recQ and not alive |
-| P6 | the next state is always one of the five valid codes, so 010, 100 and 110 are never reached |
+| P6 | when the old state is not Released, the next state is one of the five valid codes, so 010, 100 and 110 cannot be reached from active |
 | P7 | the three output flags match the Outputs table |
 | P8 | (next state, outputs) equals the TypeScript reference model on every combination |
 

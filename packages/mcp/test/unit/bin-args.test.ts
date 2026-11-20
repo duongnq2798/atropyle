@@ -61,6 +61,51 @@ describe('parseBinArgs', () => {
     expect(ok.kind === 'run' && ok.sdk.transport).toBeTruthy();
   });
 
+  it('treats empty environment values as unset', async () => {
+    const env = { ATROPYLE_CHAIN: '', ATROPYLE_RPC: '', ATROPYLE_DEPLOYMENT: '' };
+    expect(await parseBinArgs([], env)).toEqual({ kind: 'run', sdk: { chain: 'xlayer' } });
+    // A bad chain name does not matter when a deployment file is given.
+    const cmd = await parseBinArgs(['--chain', 'mars', '--deployment', FIXTURE], {});
+    expect(cmd.kind === 'run' && (cmd.sdk.chain as Deployment).chainId).toBe(31337);
+  });
+
+  it('lets a deployment file win over --chain, and a flag win over the environment', async () => {
+    const win = await parseBinArgs(['--chain', 'xlayer', '--deployment', FIXTURE], {});
+    expect(win.kind === 'run' && (win.sdk.chain as Deployment).chainId).toBe(31337);
+    const seen: string[] = [];
+    const spy: typeof fetch = async (url, init) => {
+      seen.push(String(url));
+      return chainIs('0x7a69')(url, init);
+    };
+    await parseBinArgs(
+      ['--deployment', FIXTURE, '--rpc', 'http://flag.test/'],
+      { ATROPYLE_RPC: 'http://env.test/' },
+      { fetch: spy },
+    );
+    expect(seen).toEqual(['http://flag.test/']);
+    const bad = await codeOf(parseBinArgs(['--deployment', `${FIXTURE}.missing`], { ATROPYLE_DEPLOYMENT: FIXTURE }));
+    expect(bad).toBe('DEPLOYMENT_INVALID');
+  });
+
+  it('never echoes an option value in a usage error', async () => {
+    const e = (await parseBinArgs(['--bogus=https://host/v2/SECRETKEY'], {}).catch((x: unknown) => x)) as AtropyleError;
+    expect(e.code).toBe('INVALID_OPTIONS');
+    expect(JSON.stringify([e.message, e.hint, e.details])).not.toContain('SECRETKEY');
+  });
+
+  it('says once, without the URL, that a silent RPC will not stop the start', async () => {
+    const down: typeof fetch = async () => {
+      throw new TypeError('fetch failed');
+    };
+    const lines: string[] = [];
+    await parseBinArgs(
+      ['--deployment', FIXTURE, '--rpc', 'https://host/v2/SECRETKEY'],
+      {},
+      { fetch: down, warn: (l) => lines.push(l) },
+    );
+    expect(lines).toEqual(['atropyle-mcp: the RPC did not answer; starting anyway']);
+  });
+
   it('still starts when the --rpc does not answer yet', async () => {
     const down: typeof fetch = async () => {
       throw new TypeError('fetch failed');

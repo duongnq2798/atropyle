@@ -15,3 +15,6 @@ A prepare tool (atropyle_prepare_create_vault, atropyle_prepare_action) ends in 
 Guardian actions (attestDeath, voteRecovery) always carry GUARDIAN_VERIFY_OUT_OF_BAND. Tell the guardian to confirm with the owner by phone or in person first, and never to vote for an address received by message.
 
 Before a real vault, suggest a Drill (drill: true): a practice vault with minutes instead of months, which expires after 7 days.`;
+
+/** Hosted /mcp (remote mode): the same rules, but no atropyle_verify. Not part of the package entry. */
+export const REMOTE_INSTRUCTIONS = `Atropyle is an inheritance and recovery vault on X Layer. This server reads vaults, simulates actions, reports the hosted server's latest deployment integrity check (atropyle_integrity) and prepares unsigned transactions. It does not verify the policy circuit itself: to check it yourself, run \`npx -y atropyle verify\`. It cannot sign or send anything; the user signs in their own wallet.${SERVER_INSTRUCTIONS.slice(SERVER_INSTRUCTIONS.indexOf('\n\nRules:'))}`;

@@ -51,11 +51,41 @@ describe('resources', () => {
     });
   });
 
+  it('prints (invalid URL) for an RPC URL that does not parse', async () => {
+    const client = await open({ ...fixtureDeployment(), rpcUrls: ['not a url'] });
+    const json = JSON.parse(textOf(await client.readResource({ uri: 'atropyle://deployments/local' })));
+    expect(json.rpcUrls).toEqual(['(invalid URL)']);
+  });
+
+  it('resolves the built-in local deployment while the current chain is another one', async () => {
+    const client = await open({ ...fixtureDeployment(), chainId: 196 });
+    const uris = (await client.listResources()).resources.map((r) => r.uri);
+    expect(uris).toContain('atropyle://deployments/xlayer');
+    const local = JSON.parse(textOf(await client.readResource({ uri: 'atropyle://deployments/local' })));
+    expect(local.chainId).toBe(31337);
+    const here = JSON.parse(textOf(await client.readResource({ uri: 'atropyle://deployments/xlayer' })));
+    expect(here.chainId).toBe(196);
+  });
+
   it('serves the policy spec with every state and property', async () => {
     const client = await open();
     const md = textOf(await client.readResource({ uri: 'atropyle://policy/spec' }));
     for (const word of ['releasedInherit', 'releasedRecover', 'windowDone', 'KofN5', 'Ge4']) expect(md).toContain(word);
     for (let i = 1; i <= 8; i++) expect(md).toContain(`| P${i} |`);
+    // Transition lines and the spec §3 qualifiers an agent would otherwise repeat as hard guarantees.
+    for (const line of [
+      '1. Released: the state stays the same and every output is 0.',
+      '2. alive: back to active.',
+      '3. recovery: recQ and windowDone give releasedRecover; recQ keeps recovery; late gives grace; otherwise active.',
+      '4. grace: recQ gives recovery; windowDone and (inhQ or maxed) give releasedInherit; otherwise grace.',
+      '5. active: recQ gives recovery; late gives grace; otherwise active.',
+    ]) {
+      expect(md).toContain(line);
+    }
+    expect(md).toMatch(/| P6 | when the old state is not Released,/);
+    expect(md).toMatch(/| P3 | when the old state is not Released,/);
+    expect(md).toMatch(/| P4 | when the old state is not Released,/);
+    expect(md).toContain('a recovery candidate is set (not the zero address)');
   });
 
   it('refuses an unknown chain', async () => {
@@ -80,6 +110,7 @@ describe('prompts', () => {
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(text).toContain('Never ask for my private key');
+    expect(text).toContain('If `handoff` is null, read `blocked`');
   });
 
   it('guardian_briefing carries the anti-phishing checklist', async () => {

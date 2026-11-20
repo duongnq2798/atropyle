@@ -82,32 +82,33 @@ describe('MCP server', () => {
       const props = tools.find((t) => t.name === name)?.inputSchema.properties ?? {};
       expect(Object.keys(props)).not.toContain('webUrl');
     }
-    const r = await c.client.callTool({
-      name: 'atropyle_prepare_action',
-      arguments: { vault: VAULT, action: { type: 'checkIn' }, as: VAULT, webUrl: 'https://evil.example/' },
-    });
-    // Whatever the schema does with the extra key, the link base never comes from it.
-    expect(JSON.stringify(r)).not.toContain('evil.example');
+    // The behavioural check (the link keeps the deployment's base) is in test/integration/tools.test.ts.
   });
 
   it('a failing tool returns isError with the error envelope, not a protocol error', async () => {
     c = await connect(server());
     const r = await c.client.callTool({ name: 'atropyle_get_vault', arguments: { vault: VAULT } });
     expect(r.isError).toBe(true);
-    expect(r.structuredContent).toMatchObject({ schemaVersion: 1, error: { code: 'RPC_UNAVAILABLE' } });
-    expect(r.content).toEqual([
-      { type: 'text', text: (r.structuredContent as { summary: string }).summary },
-      { type: 'text', text: expect.stringContaining('"RPC_UNAVAILABLE"') },
-    ]);
+    // v1 clients validate structuredContent even on errors, so an error result has none.
+    expect(r.structuredContent).toBeUndefined();
+    const text = (r.content as { text: string }[]).map((b) => b.text);
+    const envelope = JSON.parse(text[1]);
+    expect(envelope).toMatchObject({ schemaVersion: 1, error: { code: 'RPC_UNAVAILABLE' } });
+    expect(text[0]).toBe(envelope.summary);
+    expect(text).toHaveLength(2);
   });
 
   it('rejects arguments that do not match the input schema', async () => {
     c = await connect(server());
-    const r = await c.client.callTool({
-      name: 'atropyle_prepare_action',
-      arguments: { vault: VAULT, action: { type: 'sendAll' }, as: '0x1' },
-    });
-    expect(r.isError).toBe(true);
+    for (const action of [{ type: 'sendAll' }, { type: 'checkIn', drill: true }]) {
+      const r = await (c as Connected).client.callTool({
+        name: 'atropyle_prepare_action',
+        arguments: { vault: VAULT, action, as: VAULT },
+      });
+      expect(r.isError).toBe(true);
+      expect(r.structuredContent).toBeUndefined();
+      expect((r.content as { text: string }[])[0].text).toMatch(/Input validation error/);
+    }
   });
 
   it('remote mode swaps atropyle_verify for atropyle_integrity', async () => {
@@ -119,7 +120,7 @@ describe('MCP server', () => {
       rpcs: 2,
       checks: [],
       warnings: [],
-    } as unknown as IntegrityReport;
+    } satisfies IntegrityReport;
     c = await connect(
       server({ remote: { latestIntegrity: async () => ({ report, checkedAt: '2026-12-01T00:00:00Z' }) } }),
     );
@@ -155,5 +156,41 @@ describe('MCP server', () => {
     expect(r.structuredContent).toMatchObject({ ok: true, policyStatus: 'verified' });
     await vi.waitFor(() => expect(seen.at(-1)).toBe(1000));
     expect(seen.length).toBeLessThanOrEqual(101);
+  });
+});
+
+describe('MCP server, remote mode', () => {
+  let c: Connected | undefined;
+  afterEach(async () => {
+    await c?.close();
+    c = undefined;
+  });
+  const remote = (latest: AtropyleMcpOptions['remote']) => () =>
+    createAtropyleMcpServer({ sdk: { chain: fixtureDeployment() }, remote: latest });
+
+  it('has its own instructions: no policy verification here, run npx -y atropyle verify yourself', async () => {
+    c = await connect(remote({ latestIntegrity: async () => null }));
+    const text = c.client.getInstructions() ?? '';
+    expect(text).not.toContain('verifies the policy circuit');
+    expect(text).toContain('npx -y atropyle verify');
+    expect(text).toContain('Never ask for a private key, seed phrase or password');
+    expect(text).toContain('`handoff` and `blocked` are both null');
+  });
+
+  it('the prompts do not send the agent to atropyle_verify, which does not exist here', async () => {
+    c = await connect(remote({ latestIntegrity: async () => null }));
+    const r = await c.client.getPrompt({ name: 'guardian_briefing', arguments: { vault: VAULT } });
+    const text = (r.messages[0].content as { text: string }).text;
+    expect(text).not.toContain('atropyle_verify');
+    expect(text).toContain('Call atropyle_integrity');
+    expect(text).toContain('`npx -y atropyle verify`');
+  });
+
+  it('with no report yet, says so and still passes the output schema', async () => {
+    c = await connect(remote({ latestIntegrity: async () => null }));
+    const r = await c.client.callTool({ name: 'atropyle_integrity', arguments: {} });
+    expect(r.isError ?? false).toBe(false);
+    expect((r.content as { text: string }[])[0].text).toContain('No integrity report yet');
+    expect(r.structuredContent).toMatchObject({ checkedAt: null, report: null });
   });
 });
