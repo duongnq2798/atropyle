@@ -3,7 +3,8 @@ import type { Command } from 'commander';
 import type { Address } from 'viem';
 import { UsageError } from './exit';
 
-export const collect = (value: string, previous: string[]): string[] => [...previous, value];
+/** Commander passes `undefined` as `previous` for the first value when the option has no default. */
+export const collect = (value: string, previous: readonly string[] = []): string[] => [...previous, value];
 
 /** INVALID_ADDRESS (exit 2) when `value` is not an address; checksummed otherwise. */
 export const addressArg = (value: string, name: string): Address => toAddress(value, name);
@@ -22,15 +23,15 @@ export function durationArg(value: string, name: string): number {
 }
 
 export interface ActionFlags {
-  heir: string[];
-  guardian: string[];
+  heir?: string[];
+  guardian?: string[];
   k?: string;
   recovery?: boolean;
   timing?: string;
   period?: string;
   threshold?: string;
   window?: string;
-  asset: string[];
+  asset?: string[];
   off?: boolean;
   target?: string;
   withdraw?: boolean;
@@ -60,15 +61,19 @@ export const givenFlags = (f: ActionFlags): (keyof ActionFlags)[] =>
 /** The flags of every vault action. `simulate` and `prepare` share them. */
 export function addActionOptions(cmd: Command): Command {
   return cmd
-    .option('--heir <address[:percent]>', 'set-heirs: an heir and their share; repeat for each heir', collect, [])
-    .option('--guardian <address>', 'set-guardians: a guardian; repeat for each', collect, [])
+    .option('--heir <address[:percent]>', 'set-heirs: an heir and their share; repeat for each heir', collect)
+    .option('--guardian <address>', 'set-guardians: a guardian; repeat for each', collect)
     .option('--k <n>', 'set-guardians: how many guardians must agree')
     .option('--recovery', 'set-guardians: guardians may also recover a lost wallet')
     .option('--timing <preset>', 'set-timing: drill, sixMonths or twelveMonths')
     .option('--period <duration>', 'set-timing: check-in period, such as 30d')
     .option('--threshold <n>', 'set-timing: missed periods before the alarm (1 to 15)')
     .option('--window <duration>', 'set-timing: time to cancel an alarm, such as 7d')
-    .option('--asset <kind:token[:id][@heir]>', 'set-assets: an asset; repeat for each', collect, [])
+    .option(
+      '--asset <kind:token[:id][@heir]>',
+      "set-assets: an asset; repeat for each; @heir is the heir's index, counting from 0",
+      collect,
+    )
     .option('--off', 'attest-death: withdraw your attestation')
     .option('--target <address>', 'vote-recovery: the new wallet')
     .option('--withdraw', 'vote-recovery: withdraw your vote');

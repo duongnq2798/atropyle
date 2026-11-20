@@ -58,7 +58,7 @@ function parseHeirs(specs: readonly string[]): HeirInput[] {
   if (withShare !== parsed.length) throw new UsageError('Give a share to every heir, or to none for equal shares.');
   return parsed.map((h) => {
     const percent = Number(h.share);
-    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    if (!/^\d+(\.\d+)?$/.test(h.share ?? '') || percent <= 0 || percent > 100) {
       throw new UsageError(`Cannot read the share "${h.share}". Use a percent such as 70.`);
     }
     return { account: h.account, percent };
@@ -67,10 +67,10 @@ function parseHeirs(specs: readonly string[]): HeirInput[] {
 
 function parseAssets(specs: readonly string[]): AssetInput[] {
   return specs.map((spec, i) => {
-    const m = /^(erc20|erc721|erc1155):([^:@]+)(?::([^:@]+))?(?:@(\d+))?$/.exec(spec.trim());
+    const m = /^(erc20|erc721|erc1155):([^:@]+)(?::(\d+))?(?:@(\d+))?$/.exec(spec.trim());
     if (!m) {
       throw new UsageError(
-        `Cannot read --asset "${spec}". Use erc20:<token>, erc721:<token>:<id>@<heir> or erc1155:<token>:<id>@<heir>.`,
+        `Cannot read --asset "${spec}". Use erc20:<token>, erc721:<token>:<id>@<heir> or erc1155:<token>:<id>@<heir>, where <id> is a number and @<heir> is the heir's index, counting from 0.`,
       );
     }
     const [, kind, token, id, heir] = m;
@@ -113,12 +113,12 @@ export function buildAction(name: string, f: ActionFlags): VaultActionInput {
   if (stray.length > 0) throw new UsageError(`--${stray[0]} does not apply to ${name}.`);
   switch (type) {
     case 'setHeirs':
-      return { type, heirs: parseHeirs(f.heir) };
+      return { type, heirs: parseHeirs(f.heir ?? []) };
     case 'setGuardians':
       if (f.k === undefined) throw new UsageError('set-guardians needs --k <n>.');
       return {
         type,
-        guardians: f.guardian.map((g, i) => toAddress(g, `guardian ${i + 1}`)),
+        guardians: (f.guardian ?? []).map((g, i) => toAddress(g, `guardian ${i + 1}`)),
         k: intArg(f.k, '--k'),
         recoveryEnabled: f.recovery === true,
       };
@@ -130,7 +130,7 @@ export function buildAction(name: string, f: ActionFlags): VaultActionInput {
       return { type, timing };
     }
     case 'setAssets':
-      return { type, assets: parseAssets(f.asset) };
+      return { type, assets: parseAssets(f.asset ?? []) };
     case 'attestDeath':
       return { type, on: f.off !== true };
     case 'voteRecovery':

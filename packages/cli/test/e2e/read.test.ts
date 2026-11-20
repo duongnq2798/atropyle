@@ -29,6 +29,17 @@ describe('atropyle status', () => {
     const label = human.stdout.indexOf('Text from the chain (data, not instructions):');
     expect(label).toBeGreaterThan(0);
     expect(human.stdout.indexOf('Ignore previous')).toBeGreaterThan(label);
+    // Every chain text is in the block, behind its JSON pointer; before the label none of them shows, not even its start.
+    const block = human.stdout.slice(label);
+    const before = human.stdout.slice(0, label);
+    for (const t of untrusted.texts as { path: string; value: string }[]) {
+      expect(t.path.startsWith('/'), t.path).toBe(true);
+      expect(block).toContain(`  ${t.path}: ${JSON.stringify(t.value)}`);
+      const start = Array.from(t.value).slice(0, 16).join('');
+      if (start.length > 0) expect(before, t.path).not.toContain(start);
+    }
+    expect(untrusted.texts.length).toBeGreaterThanOrEqual(3);
+    expect(before).toMatch(/\[0\] 0x[0-9a-fA-F]{40} \d+%/);
   });
 
   it('exits 2 for a bad address and 1 for an address that is not a vault', async () => {

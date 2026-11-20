@@ -40,6 +40,33 @@ describe('read operations validate before any RPC', () => {
     ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
   });
 
+  it('simulate says when the Drill will have expired by the chosen time', async () => {
+    const report = (drillExpired: boolean) =>
+      ({
+        action: 'poke',
+        as: VAULT,
+        effect: {
+          at: 1_800_000_000n,
+          engine: 'model',
+          from: 'active',
+          next: 'active',
+          alarm: false,
+          cancel: false,
+          release: false,
+          drillExpired,
+          recoveryTarget: null,
+          recipients: [],
+          inputs: { idle: 0, threshold: 1, inhVotes: 0, recVotes: 0, k: 0, alive: true, windowDone: false },
+        },
+        simulation: { ok: 'skipped', reason: 'FUTURE_TIME' },
+      }) as const;
+    const client = (drillExpired: boolean) =>
+      ({ vault: () => ({ whatIf: async () => report(drillExpired) }) }) as unknown as AtropyleClient;
+    const input = { vault: VAULT, action: { type: 'poke' as const }, as: VAULT };
+    expect((await simulate(client(true), input)).summary).toContain('The Drill will have expired by then');
+    expect((await simulate(client(false), input)).summary).not.toContain('expired');
+  });
+
   it('latestTimestamp turns a viem HTTP failure into the SDK transport error', async () => {
     const down = {
       publicClient: {

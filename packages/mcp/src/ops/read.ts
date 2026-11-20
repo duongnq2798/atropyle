@@ -126,7 +126,8 @@ function whatIfSummary(r: WhatIfReport): string {
     .filter(Boolean)
     .join(', ');
   const pays = e.release ? ` Distribute would then make ${plural(e.recipients.length, 'transfer')}.` : '';
-  return `${r.action} by ${r.as}: ${e.from} -> ${e.next}${flags ? ` (${flags})` : ''}.${pays} ${sim}`;
+  const expired = e.drillExpired ? ' The Drill will have expired by then, so it can no longer release anything.' : '';
+  return `${r.action} by ${r.as}: ${e.from} -> ${e.next}${flags ? ` (${flags})` : ''}.${pays}${expired} ${sim}`;
 }
 
 function planTimelineSummary(c: PlanConfig, t: Timeline): string {

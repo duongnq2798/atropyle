@@ -12,15 +12,14 @@ Options:
   --as <address>                    who acts; with --plan, the owner
   --at <time>                       unix seconds, an ISO 8601 date (UTC
                                     midnight) or date-time with its zone
-                                    (2027-01-01T00:00:00Z), or +<duration> such
-                                    as +3d
+                                    (2027-01-01T00:00:00Z), or +<duration> after
+                                    the latest block, such as +3d
   --plan <file>                     preview the timeline of this plan file
                                     instead
   --drill                           with --plan: preview it as a Drill
   --heir <address[:percent]>        set-heirs: an heir and their share; repeat
-                                    for each heir (default: [])
+                                    for each heir
   --guardian <address>              set-guardians: a guardian; repeat for each
-                                    (default: [])
   --k <n>                           set-guardians: how many guardians must agree
   --recovery                        set-guardians: guardians may also recover a
                                     lost wallet
@@ -30,8 +29,8 @@ Options:
                                     (1 to 15)
   --window <duration>               set-timing: time to cancel an alarm, such as
                                     7d
-  --asset <kind:token[:id][@heir]>  set-assets: an asset; repeat for each
-                                    (default: [])
+  --asset <kind:token[:id][@heir]>  set-assets: an asset; repeat for each; @heir
+                                    is the heir's index, counting from 0
   --off                             attest-death: withdraw your attestation
   --target <address>                vote-recovery: the new wallet
   --withdraw                        vote-recovery: withdraw your vote

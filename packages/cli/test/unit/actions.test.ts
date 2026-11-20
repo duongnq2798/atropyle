@@ -56,15 +56,50 @@ describe('buildAction', () => {
     expect(codeOf(() => buildAction('set-heirs', flags()))).toBe('INVALID_OPTIONS');
   });
 
-  it('reads assets as kind:token[:id][@heir]', () => {
-    expect(buildAction('set-assets', flags({ asset: [`erc20:${A(9)}`, `erc721:${A(8)}:42@1`] }))).toEqual({
+  it('reads assets as kind:token[:id][@heir], where @heir counts heirs from 0', () => {
+    expect(
+      buildAction('set-assets', flags({ asset: [`erc20:${A(9)}`, `erc721:${A(8)}:42@1`, `erc1155:${A(7)}:5@0`] })),
+    ).toEqual({
       type: 'setAssets',
       assets: [
         { kind: 'erc20', token: A(9) },
+        // @1 is the second heir: the index is 0-based.
         { kind: 'erc721', token: A(8), id: '42', heir: 1 },
+        { kind: 'erc1155', token: A(7), id: '5', heir: 0 },
       ],
     });
     expect(codeOf(() => buildAction('set-assets', flags({ asset: ['usdt'] })))).toBe('INVALID_OPTIONS');
+    expect(() => buildAction('set-assets', flags({ asset: ['usdt'] }))).toThrow(/counting from 0/);
+  });
+
+  it('refuses an asset id that is not a whole number', () => {
+    expect(codeOf(() => buildAction('set-assets', flags({ asset: [`erc721:${A(8)}:abc@0`] })))).toBe('INVALID_OPTIONS');
+    expect(codeOf(() => buildAction('set-assets', flags({ asset: [`erc721:${A(8)}:0x2a`] })))).toBe('INVALID_OPTIONS');
+  });
+
+  it('refuses shares that Number() would accept but a person did not mean', () => {
+    for (const share of ['0x46', '1e1', '101', '0', '-5', '7.']) {
+      expect(
+        codeOf(() => buildAction('set-heirs', flags({ heir: [`${A(2)}:${share}`, `${A(5)}:30`] }))),
+        share,
+      ).toBe('INVALID_OPTIONS');
+    }
+    expect(buildAction('set-heirs', flags({ heir: [`${A(2)}:33.5`, `${A(5)}:66.5`] }))).toMatchObject({
+      heirs: [{ percent: 33.5 }, { percent: 66.5 }],
+    });
+  });
+
+  it('refuses a three-part heir', () => {
+    expect(codeOf(() => buildAction('set-heirs', flags({ heir: [`${A(2)}:50:50`] })))).toBe('INVALID_OPTIONS');
+  });
+
+  it('needs --k for set-guardians, and refuses --withdraw with --target', () => {
+    expect(codeOf(() => buildAction('set-guardians', flags({ guardian: [A(3)] })))).toBe('INVALID_OPTIONS');
+    expect(codeOf(() => buildAction('vote-recovery', flags({ withdraw: true, target: A(6) })))).toBe('INVALID_OPTIONS');
+  });
+
+  it('refuses --timing together with a custom timing', () => {
+    expect(codeOf(() => buildAction('set-timing', flags({ timing: 'drill', period: '30d' })))).toBe('INVALID_OPTIONS');
   });
 
   it('builds guardian actions', () => {

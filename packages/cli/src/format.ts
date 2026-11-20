@@ -28,7 +28,7 @@ export function formatStatus(o: GetVaultOutput, s: Style): string {
     `State      ${s.bold(st.state)}${st.pending !== st.state ? ` (due: ${st.pending})` : ''}`,
     ...o.explanation.map((l) => `  ${l}`),
     `Owner      ${c.owner}`,
-    `Heirs      ${c.heirs.map((h) => `${h.account} ${h.bps / 100}%`).join(', ')}`,
+    `Heirs      ${c.heirs.map((h, i) => `[${i}] ${h.account} ${h.bps / 100}%`).join(', ')}`,
     `Guardians  ${c.guardians.length === 0 ? 'none' : `${c.guardians.join(', ')} (k = ${c.k}, recovery ${c.recoveryEnabled ? 'on' : 'off'})`}`,
     `Timing     check in every ${formatDuration(c.timing.period)}; alarm after ${c.timing.threshold} missed; ${formatDuration(c.timing.window)} to cancel`,
   ];
@@ -38,14 +38,16 @@ export function formatStatus(o: GetVaultOutput, s: Style): string {
     lines.push(`Next       ${when(next)} (in ${formatDuration(left > 0n ? left : 0n)})`);
   }
   if (o.roles !== null) lines.push(`Roles      ${o.as}: ${o.roles.length > 0 ? o.roles.join(', ') : 'none'}`);
-  lines.push('Assets (names are in the block at the end)');
+  lines.push(o.untrusted.texts.length > 0 ? 'Assets (names are in the block at the end)' : 'Assets');
   if (st.assets.length === 0) lines.push('  none');
   st.assets.forEach((a, i) => {
     const d = a.token.decimals;
     const held = BigInt(a.held);
-    const pct = a.asset.kind === 'erc20' && held > 0n ? ` (${(BigInt(a.coverage) * 100n) / held}%)` : '';
+    const erc20 = a.asset.kind === 'erc20';
+    const pct = erc20 && held > 0n ? ` (${(BigInt(a.coverage) * 100n) / held}%)` : '';
+    const nft = erc20 ? '' : ` #${a.asset.id} -> heir ${a.asset.heir}`;
     lines.push(
-      `  [${i}] ${a.asset.kind} ${a.asset.token}  held ${amount(a.held, d)}  approved ${amount(a.coverage, d)}${pct}`,
+      `  [${i}] ${a.asset.kind} ${a.asset.token}${nft}  held ${amount(a.held, d)}  approved ${amount(a.coverage, d)}${pct}`,
     );
   });
   lines.push('Timeline if nobody acts', ...timelineLines(o.timeline));
@@ -71,7 +73,12 @@ export function formatSimulate(o: SimulateOutput, s: Style): string {
         `At         ${when(o.effect.at)} (${o.effect.engine})`,
         `State      ${o.effect.from} -> ${o.effect.next}`,
       );
-      for (const r of o.effect.recipients) lines.push(`  pays ${r.amount} (${r.kind} ${r.token}) to ${r.to}`);
+      if (o.effect.drillExpired) {
+        lines.push('The Drill will have expired by then, so it can no longer release anything.');
+      }
+      for (const r of o.effect.recipients) {
+        lines.push(`  pays ${r.amount} (base units) of ${r.kind} ${r.token} to ${r.to}`);
+      }
     }
     const sim = o.simulation;
     if (sim) {

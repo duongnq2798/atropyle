@@ -21,7 +21,7 @@ export function registerSimulate(program: Command, ctx: Ctx): void {
       .option('--as <address>', 'who acts; with --plan, the owner')
       .option(
         '--at <time>',
-        'unix seconds, an ISO 8601 date (UTC midnight) or date-time with its zone (2027-01-01T00:00:00Z), or +<duration> such as +3d',
+        'unix seconds, an ISO 8601 date (UTC midnight) or date-time with its zone (2027-01-01T00:00:00Z), or +<duration> after the latest block, such as +3d',
       )
       .option('--plan <file>', 'preview the timeline of this plan file instead')
       .option('--drill', 'with --plan: preview it as a Drill'),
