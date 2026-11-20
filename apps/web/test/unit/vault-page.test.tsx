@@ -41,14 +41,15 @@ function mount(
   first: VaultSnapshot,
   account: string | null,
   lang: 'en' | 'vi' = 'en',
-  o: { prepare?: () => Promise<TxPlan>; send?: Send } = {},
+  o: { prepare?: () => Promise<TxPlan>; send?: Send; registered?: boolean } = {},
 ) {
   let snap = first;
   const prepare = vi.fn(o.prepare ?? (async () => plan));
+  const registered = vi.fn(async (_o?: { blockNumber?: bigint }) => o.registered ?? true);
   const sdk = {
     atro: {
       chain: { id: 31337 },
-      vault: () => ({ snapshot: async () => snap, prepare }),
+      vault: () => ({ snapshot: async () => snap, prepare, registered }),
       engineFor: async () => ({}),
       send: o.send ?? (() => new Promise(() => {})),
       handoff: { link: () => 'https://example.test/#/sign?p=x' },
@@ -69,6 +70,7 @@ function mount(
   );
   return {
     prepare,
+    registered,
     setSnap: (next: VaultSnapshot) => {
       snap = next;
     },
@@ -78,6 +80,31 @@ function mount(
 const click = (id: string) => fireEvent.click(screen.getByTestId(id));
 
 describe('vault page', () => {
+  it('refuses a contract the factory did not create: a hard error, no role panel and no action', async () => {
+    // It answers every vault read, names the real factory and lists the owner's half-covered token.
+    const { registered, prepare } = mount(fixtureSnapshot(), PEOPLE.owner, 'en', { registered: false });
+    const banner = await screen.findByTestId('vault-not-registered');
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(banner.textContent).toContain('not a vault created by the Atropyle factory');
+    expect(banner.textContent).toContain('Do not approve anything');
+    expect(registered).toHaveBeenCalledWith({ blockNumber: 100n });
+    for (const id of ['owner-panel', 'guardian-panel', 'heir-panel', 'vault-status', 'vault-assets', 'vault-roles']) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(prepare).not.toHaveBeenCalled();
+    cleanup();
+    mount(fixtureSnapshot(), PEOPLE.owner, 'vi', { registered: false });
+    expect((await screen.findByTestId('vault-not-registered')).textContent).toContain('Đừng approve');
+  });
+
+  it('shows the owner panel of a vault the factory created', async () => {
+    const { registered } = mount(fixtureSnapshot(), PEOPLE.owner);
+    expect(await screen.findByTestId('owner-panel')).toBeTruthy();
+    expect(registered).toHaveBeenCalledWith({ blockNumber: 100n });
+    expect(screen.queryByTestId('vault-not-registered')).toBeNull();
+  });
+
   it('states the power of recovery with k, in both languages', async () => {
     mount(fixtureSnapshot(), null);
     const status = await screen.findByTestId('vault-status');

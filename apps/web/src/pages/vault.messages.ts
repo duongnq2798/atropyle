@@ -3,7 +3,9 @@ import { defineMessages } from '../lib/i18n';
 export const messages = defineMessages(
   {
     title: 'Vault',
-    foreign: 'This vault was not created by the Atropyle factory this site uses. Do not trust what it shows.',
+    notRegistered: 'This address is not a vault created by the Atropyle factory this site uses.',
+    notRegisteredHelp:
+      'It may copy how a vault answers. Do not approve anything to it, and do not sign anything for it. Check the address with whoever gave it to you.',
     roles: 'Your roles here: {roles}.',
     noRole: 'This wallet has no role in this vault.',
     connectHint: 'Connect a wallet to see what you can do here.',
@@ -38,7 +40,9 @@ export const messages = defineMessages(
   },
   {
     title: 'Vault',
-    foreign: 'Vault này không do factory Atropyle mà site này dùng tạo ra. Đừng tin những gì nó hiện.',
+    notRegistered: 'Địa chỉ này không phải vault do factory Atropyle mà site này dùng tạo ra.',
+    notRegisteredHelp:
+      'Nó có thể bắt chước cách một vault trả lời. Đừng approve gì cho nó, và đừng ký gì cho nó. Hãy hỏi lại người đã đưa bạn địa chỉ này.',
     roles: 'Vai trò của bạn ở đây: {roles}.',
     noRole: 'Ví này không có vai trò nào trong vault.',
     connectHint: 'Kết nối ví để xem bạn làm được gì ở đây.',

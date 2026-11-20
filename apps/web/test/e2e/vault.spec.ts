@@ -1,3 +1,4 @@
+import { deployForeignVault } from '../../../../scripts/lib/anvil.ts';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { deployMockErc20, mint, walletFor } from './onchain.ts';
 import { warp } from './state.ts';
@@ -78,6 +79,48 @@ test('an edited config is saved on chain and recovery stays as it was', async ({
   await page.getByTestId('owner-save-tx-send').click();
   await expect.poll(async () => (await atro.vault(vault).config()).heirs.map((h) => h.bps)).toEqual([6000, 4000]);
   await expect(page.getByTestId('vault-status')).toContainText('60%');
+});
+
+test('a contract that answers like a vault but that the factory did not create gets no owner panel', async ({
+  page,
+  state,
+  atro,
+  wallet,
+}) => {
+  const owner = ANVIL[1];
+  const usdt0 = atro.deployment.feeTokens[0];
+  const plan = await atro.prepare.createVault(
+    atro.plan.template('simple', {
+      heirs: [{ account: ANVIL[2] }],
+      drill: true,
+      assets: [{ kind: 'erc20', token: usdt0 }],
+    }),
+    { owner, drill: true },
+  );
+  const createStep = plan.steps.find((s) => s.action === 'createVault');
+  if (!createStep) throw new Error('no createVault step');
+  const fake = await deployForeignVault(state.rpcUrl, atro.deployment, {
+    from: owner,
+    createVaultData: createStep.data,
+  });
+  // It lists the owner's token, answers every read and names the real factory; only factory.isVault tells.
+  const snap = await atro.vault(fake).snapshot();
+  expect(snap.binding.factory).toBe(atro.deployment.factory);
+  expect(snap.config.owner).toBe(owner);
+  expect(snap.status.assets[0].held).toBeGreaterThan(0n);
+  // Nothing is approved to the clone, so an owner panel would offer Fix coverage: approve the fake for the balance.
+  expect(snap.status.assets[0].coverage).toBe(0n);
+
+  await wallet({ account: owner });
+  await page.goto(`${state.siteUrl}#/v/${fake}`);
+  await page.getByTestId('connect').click();
+  await expect(page.getByTestId('wallet-account')).toContainText(owner);
+  await expect(page.getByTestId('vault-not-registered')).toBeVisible();
+  await expect(page.getByTestId('vault-not-registered')).toContainText('Do not approve anything');
+  await expect(page.getByTestId('owner-panel')).toHaveCount(0);
+  await expect(page.getByTestId('owner-fix-coverage')).toHaveCount(0);
+  await expect(page.getByTestId('vault-assets')).toHaveCount(0);
+  await expect(page.getByTestId('vault-status')).toHaveCount(0);
 });
 
 test('a malicious token name is shown as text', async ({ page, state, atro }) => {

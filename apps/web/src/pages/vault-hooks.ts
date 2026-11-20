@@ -6,13 +6,19 @@ import type { Sdk } from '../lib/sdk';
 export interface Loaded {
   snap: VaultSnapshot;
   timeline: Timeline;
+  /** The deployment's factory created this vault, at the snapshot's block. Its own `factory()` proves nothing. */
+  registered: boolean;
   fetchedAtMs: number;
 }
 
 async function loadVault(sdk: Sdk, vault: Address): Promise<Loaded> {
-  const snap = await sdk.atro.vault(vault).snapshot();
-  const engine = await sdk.atro.engineFor(snap.binding.cpu, snap.binding.policyId);
-  return { snap, timeline: timelineOf(engine, snap), fetchedAtMs: Date.now() };
+  const handle = sdk.atro.vault(vault);
+  const snap = await handle.snapshot();
+  const [registered, engine] = await Promise.all([
+    handle.registered({ blockNumber: snap.status.blockNumber }),
+    sdk.atro.engineFor(snap.binding.cpu, snap.binding.policyId),
+  ]);
+  return { snap, timeline: timelineOf(engine, snap), registered, fetchedAtMs: Date.now() };
 }
 
 /** Keeps the last good snapshot on screen while it refreshes, so a finished transaction stays visible. */

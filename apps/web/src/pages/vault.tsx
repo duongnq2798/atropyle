@@ -1,4 +1,4 @@
-import { formatDuration, sameAddress, type TimelineEventKind, type VaultSnapshot } from '@atropyle/sdk';
+import { formatDuration, type TimelineEventKind, type VaultSnapshot } from '@atropyle/sdk';
 import type { Address } from 'viem';
 import { chainNow, formatBps, formatRemaining, formatTimestamp } from '../lib/format';
 import { href } from '../lib/route';
@@ -188,16 +188,24 @@ export function VaultPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
   const { data, error, busy, reload } = useVault(sdk, vault);
   if (!data) return error ? <ErrorBox error={error} onRetry={reload} /> : <p class="muted">{c('loading')}</p>;
 
+  // Any contract can answer like a vault and name the real factory: nothing it says is shown, and nothing is offered.
+  if (!data.registered) {
+    return (
+      <div class="stack" data-testid="vault">
+        <h1>{t('title')}</h1>
+        <AddressText address={vault} explorer={sdk.deployment.explorerUrl} />
+        <Banner kind="error" testid="vault-not-registered">
+          <strong>{t('notRegistered')}</strong>
+          <p>{t('notRegisteredHelp')}</p>
+        </Banner>
+      </div>
+    );
+  }
+
   const account = app.wallet?.account ?? null;
   const view = vaultView(data.snap, data.timeline, account);
-  const foreign = !sameAddress(data.snap.binding.factory, sdk.deployment.factory);
   return (
     <div class="stack" data-testid="vault">
-      {foreign ? (
-        <Banner kind="error" testid="vault-foreign">
-          {t('foreign')}
-        </Banner>
-      ) : null}
       {error ? <ErrorBox error={error} onRetry={reload} /> : null}
       <StatusCard
         sdk={sdk}
