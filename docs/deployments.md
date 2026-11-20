@@ -40,10 +40,13 @@ Mọi lệnh `forge`, `cast`, `curl` dưới đây chạy trong Git Bash. Các l
 
 Điều kiện: Plan 1 đã deploy xong trên mainnet và hai địa chỉ công khai `DEPLOYER`, `ATRO_CPU` có trong bảng ở đầu file này.
 
+Mỗi khối code là một phiên shell riêng; chạy cả khối. Biến shell không mang sang khối sau, nên mỗi khối tự `export` những biến nó cần (`<...>` là giá trị bạn điền).
+
 #### 1. [CLAUDE] Kiểm trước, chỉ đọc mainnet (sau khi deploy mainnet xong)
 
 ```bash
 export RPC=https://rpc.xlayer.tech
+export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
 cast call 0x536adD8F30f03b69f6fbF29d425A816A0dC50106 "FEE()(uint256)" --rpc-url $RPC
 cast call $ATRO_CPU "TAPEOUT_FEE()(uint256)" --rpc-url $RPC
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "monthlyFee()(uint256)" --rpc-url $RPC
@@ -62,11 +65,21 @@ Nếu một giá trị khác, dừng và báo người điều phối trước k
 
 #### 2. [CLAUDE] Diễn tập trên anvil fork (sau khi deploy, trước bước 3 của người dùng)
 
-Bước này chỉ gửi giao dịch tới anvil fork ở `127.0.0.1` (chain 196, tài khoản `DEPLOYER` được impersonate). Nó không gửi gì tới mạng thật và không cần khoá. Chọn một cổng loopback còn trống khác 8545 (ví dụ 8546). Export và `forge` chạy trong cùng một lệnh shell.
+Bước này chỉ gửi giao dịch tới anvil fork ở `127.0.0.1` (chain 196, tài khoản `DEPLOYER` được impersonate). Nó không gửi gì tới mạng thật và không cần khoá. Chọn một cổng loopback còn trống khác 8545 (ví dụ 8546). Export và `forge` chạy trong cùng một khối.
+
+Rehearsal dùng `--emit` cộng forge/cast `--unlocked` vì `npm run deweb:publish -- --unlocked` từ chối mọi chain khác 31337, kể cả fork chain 196.
+
+Chạy anvil trong terminal riêng của nó và để mở (dừng bằng Ctrl+C ở chính terminal đó, xem phần dọn dẹp):
 
 ```bash
-anvil --fork-url https://rpc.xlayer.tech --port 8546 &   # nền; dừng ở cuối bước
+anvil --fork-url https://rpc.xlayer.tech --port 8546
+```
+
+Khối tiếp theo chạy ở terminal khác:
+
+```bash
 export FORK=http://127.0.0.1:8546
+export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
 cast rpc anvil_impersonateAccount $DEPLOYER --rpc-url $FORK
 cd contracts
 # lượt 1: tape-out circuit neo
@@ -74,15 +87,17 @@ forge script script/06_DewebSite.s.sol --rpc-url $FORK --unlocked --sender $DEPL
 # đặt DEWEB_TOKEN_ID bằng id mà lượt 1 in, rồi lượt 2: mở container
 export DEWEB_TOKEN_ID=<n>
 forge script script/06_DewebSite.s.sol --rpc-url $FORK --unlocked --sender $DEPLOYER --broadcast --slow
-export DEWEB_CONTAINER=<địa chỉ mà lượt 2 in>
 cd ..
 ```
+
+Lượt 2 in `export DEWEB_CONTAINER=<địa chỉ>`; giá trị này chỉ dùng cho bước bind bên dưới (các khối sau tự export lại).
 
 Ghi danh tính site của fork ra file tạm (không đụng `deployments/`), build, lập kế hoạch:
 
 ```bash
+export FORK=http://127.0.0.1:8546
+export ATRO_CPU=<địa chỉ ATRO> DEWEB_TOKEN_ID=<n>
 npm run deweb:site -- --cpu $ATRO_CPU --token-id $DEWEB_TOKEN_ID --rpc $FORK --out site-dist/deweb-fork.json
-export DEWEB_NAME=$(node -p "require('./site-dist/deweb-fork.json').name")
 npm run site:build -- --target deweb --no-docs
 npm run deweb:publish -- --emit contracts/deweb-calls/fork.json --rpc $FORK --site site-dist/deweb-fork.json
 ```
@@ -90,6 +105,8 @@ npm run deweb:publish -- --emit contracts/deweb-calls/fork.json --rpc $FORK --si
 `--emit` in keccak256 của file và hai lệnh (kiểm `show()` và broadcast). Chạy chúng trên fork: trong lệnh broadcast, thay `--account atropyle-deployer` bằng `--unlocked --sender $DEPLOYER`, và dùng `--rpc-url $FORK` cho cả hai lệnh.
 
 ```bash
+export FORK=http://127.0.0.1:8546
+export DEPLOYER=<địa chỉ deployer>
 cd contracts
 DEWEB_CALLS=deweb-calls/fork.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url $FORK
 DEWEB_CALLS=deweb-calls/fork.json DEWEB_KECCAK=0x<hash> forge script script/07_DewebPublish.s.sol --rpc-url $FORK --unlocked --sender $DEPLOYER --broadcast --slow
@@ -99,6 +116,9 @@ cd ..
 Nếu `--emit` chia site thành nhiều phần (mỗi file tối đa 1 MB dữ liệu): sau mỗi lần broadcast xoá file phần đó, chạy lại `--emit` cho phần kế, lặp tới khi dry run báo hết. Rồi bind và kiểm:
 
 ```bash
+export FORK=http://127.0.0.1:8546
+export DEPLOYER=<địa chỉ deployer> DEWEB_CONTAINER=<địa chỉ container của fork>
+export DEWEB_NAME=$(node -p "require('./site-dist/deweb-fork.json').name")
 cast send 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "bind(string,address,uint256)" "$DEWEB_NAME" $DEWEB_CONTAINER 120 --value 0 --from $DEPLOYER --unlocked --rpc-url $FORK
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "isLive(string,address)(bool)" "$DEWEB_NAME" $DEWEB_CONTAINER --rpc-url $FORK
 cast call 0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6 "fallbackPath(address)(string)" $DEWEB_CONTAINER --rpc-url $FORK
@@ -107,28 +127,33 @@ npm run deweb:publish -- --dry-run --rpc $FORK --site site-dist/deweb-fork.json
 
 Kỳ vọng: `deweb:site` ghi `name` = `<n>.2.<cpuIndex>.tape`; `bind` có `status 1 (success)`; `isLive` = `true`; `fallbackPath` = `"index.html"`; dry run in `Nothing to publish: the chain already has this site.`
 
-Dọn dẹp: dừng anvil (chỉ tiến trình anvil của bước này), rồi xoá phần dư.
+Dọn dẹp: nhấn Ctrl+C trong terminal chạy anvil (chỉ anvil của bước này), rồi xoá phần dư ở terminal kia. Nếu đã chạy anvil nền với `anvil ... & ANVIL_PID=$!`, dừng bằng `kill "$ANVIL_PID"` trong cùng phiên shell đó.
 
 ```bash
 rm -rf contracts/broadcast/06_DewebSite.s.sol/196 contracts/broadcast/07_DewebPublish.s.sol/196
 rm -f contracts/deweb-calls/fork*.json site-dist/deweb-fork.json
 ```
 
-Hai thư mục `broadcast/.../196/` của fork phải bị xoá: chúng là bản ghi của fork, không phải của mainnet, và bước 4 đọc hash giao dịch từ đó. Nếu diễn tập lộ lỗi, sửa script trước khi người dùng chạy bước 3.
+Hai thư mục `broadcast/.../196/` của fork phải bị xoá: chúng là bản ghi của fork, không phải của mainnet. Nếu để lại, `run-latest.json` của fork có thể bị nhầm với bản của mainnet khi lấy hash giao dịch ở bước 3. Nếu diễn tập lộ lỗi, sửa script trước khi người dùng chạy bước 3.
 
 #### 3. [USER] Tape-out và mở container trên mainnet
 
 Trong terminal của người dùng, cùng keystore của Plan 1. Script chạy hai lượt; người dùng gõ mật khẩu keystore ở prompt của `forge`.
 
 ```bash
+export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
 cd contracts
-# lượt 1: tape-out circuit neo
+# lượt 1: tape-out circuit neo (chỉ chạy MỘT lần)
 forge script script/06_DewebSite.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
 ```
 
-Lượt 1 in `export DEWEB_TOKEN_ID=<n>`. Id đó lấy từ mô phỏng, nên kiểm trên chain trước khi đi tiếp: `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <n> --rpc-url https://rpc.xlayer.tech` phải trả về địa chỉ deployer. Rồi:
+Lượt 1 in `export DEWEB_TOKEN_ID=<n>`. Id đó lấy từ mô phỏng, nên kiểm trên chain trước khi đi tiếp: `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <n> --rpc-url https://rpc.xlayer.tech` phải trả về địa chỉ deployer.
+
+**Không chạy lại lượt 1.** Script không phát hiện được circuit neo đã tồn tại: chạy lần hai sẽ tape-out thêm một circuit neo (0,0013 OKB). Nếu id đã in (từ mô phỏng) hoá ra sai, hoặc lượt 1 lỡ chạy hai lần, lấy id thật từ log `Transfer` của `cast receipt <hash tape-out> --rpc-url https://rpc.xlayer.tech`, hoặc từ `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`, rồi xác nhận bằng `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <id> --rpc-url https://rpc.xlayer.tech`. Rồi:
 
 ```bash
+export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
+cd contracts
 export DEWEB_TOKEN_ID=<n>
 # lượt 2: mở container (0,08 OKB)
 forge script script/06_DewebSite.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
@@ -143,6 +168,9 @@ Sau mỗi lượt, người dùng gửi cho Claude các giá trị công khai đ
 Với `DEWEB_TOKEN_ID` và `DEWEB_CONTAINER` từ bước 3:
 
 ```bash
+export RPC=https://rpc.xlayer.tech
+export ATRO_CPU=$(node -p "require('./deployments/xlayer.json').cpu")
+export DEWEB_TOKEN_ID=<n do người dùng gửi>
 cast receipt <hash tape-out> --rpc-url $RPC      # kiểm từng hash người dùng gửi: status 1 (success)
 cast receipt <hash open> --rpc-url $RPC
 npm run deweb:site -- --cpu $ATRO_CPU --token-id $DEWEB_TOKEN_ID
@@ -159,7 +187,7 @@ npm run deweb:publish -- --dry-run
 
 Kỳ vọng:
 
-- `deployments/deweb.json` parse được; `chainId` 196, `container` = `$DEWEB_CONTAINER`, `name` = `<DEWEB_TOKEN_ID>.2.<cpuIndex>.tape`, `gatewayUrl` = `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>.tapekit.org/`. Kiểm bằng `node`, không bằng Biome: `deployments/` nằm ngoài phạm vi Biome.
+- `deployments/deweb.json` parse được; `chainId` 196, `container` = container người dùng gửi ở bước 3, `name` = `<DEWEB_TOKEN_ID>.2.<cpuIndex>.tape`, `gatewayUrl` = `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>.tapekit.org/`. Kiểm bằng `node`, không bằng Biome: `deployments/` nằm ngoài phạm vi Biome.
 - `deployments/xlayer.json` có `webUrl` = `gatewayUrl`; `builderCode` giữ nguyên giá trị cũ (nếu có); `factory` và `factoryBlock` không đổi. `--factory` và `--factory-block` lấy từ chính file đó, vì file broadcast của Plan 1 có thể không còn trong máy.
 - `site:build` in `… ready for deweb (web only)` khi chưa có `apps/docs`. Nếu docs có mà chưa sạch thì lệnh dừng; chạy lại với `--no-docs` (docs chỉ trên Pages).
 - Dry run in mọi file là `new`, dòng tổng phí và dòng khuyến nghị nạp tiền (ước tính ×3). Claude gửi số OKB này cho người dùng; deployer phải còn đủ số đó trước bước 5.
@@ -191,9 +219,10 @@ npm run deweb:publish -- --emit contracts/deweb-calls/site.json
 2. So keccak256 đó với keccak256 mà `--emit` đã in. Khác nhau thì dừng.
 3. Chạy lệnh broadcast (có `DEWEB_KECCAK`). Nếu file khác file đã kiểm, forge dừng với `HashMismatch` hoặc `NoExpectedHash` và không gửi gì:
    ```bash
+   cd contracts
    DEWEB_CALLS=deweb-calls/site.json DEWEB_KECCAK=0x<hash> forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow
    ```
-4. Xoá file phần vừa gửi xong: `rm deweb-calls/site.json`.
+4. Xoá file phần vừa gửi xong: `rm contracts/deweb-calls/site.json` (từ gốc repo) hoặc `rm deweb-calls/site.json` (trong `contracts/`).
 
 [CLAUDE] chạy `npm run deweb:publish -- --dry-run` ở gốc repo. Kỳ vọng: `Nothing to publish: the chain already has this site.`, hoặc một kế hoạch cho phần kế. Nếu còn phần, chạy lại `--emit` rồi lặp bước kiểm và broadcast cho phần đó. Khi hết gì để đăng, `--emit` tự xoá file đã dùng của cùng container.
 
@@ -202,6 +231,8 @@ Nếu bị ngắt giữa chừng (mạng, hết gas): chạy lại `--emit`. Fil
 #### 6. [USER] Bind tên chính tắc
 
 ```bash
+export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
+export DEWEB_CONTAINER=$(node -p "require('./deployments/deweb.json').container")
 cast send 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "bind(string,address,uint256)" "$DEWEB_NAME" $DEWEB_CONTAINER 120 --value 0 --rpc-url https://rpc.xlayer.tech --account atropyle-deployer
 ```
 
@@ -210,6 +241,9 @@ Kỳ vọng: `status 1 (success)`. Gửi hash cho Claude để điền vào bả
 #### 7. [CLAUDE] Kiểm chain và gateway (chỉ đọc)
 
 ```bash
+export RPC=https://rpc.xlayer.tech
+export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
+export DEWEB_CONTAINER=$(node -p "require('./deployments/deweb.json').container")
 cast receipt <hash bind> --rpc-url $RPC
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "isLive(string,address)(bool)" "$DEWEB_NAME" $DEWEB_CONTAINER --rpc-url $RPC
 cast call 0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6 "fallbackPath(address)(string)" $DEWEB_CONTAINER --rpc-url $RPC
