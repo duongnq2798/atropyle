@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { validatePlan } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { parse } from 'yaml';
+import { isCollection, parse, parseDocument, visit } from 'yaml';
 import { commandsOf, PLACEHOLDERS, SKILL_NAMES, SKILLS_DIR, skillFiles, splitFrontmatter } from '../skills-lib';
 
 const ALLOWED = ['name', 'description', 'license', 'compatibility', 'metadata'];
@@ -46,9 +46,29 @@ describe.each(SKILL_NAMES)('%s', (skill) => {
     for (const c of commands) {
       expect(c, c).toMatch(/^npx -y atropyle [a-z]/);
       expect(c.split(/\s+/), c).toContain('--json');
-      expect(c, c).toMatch(/^[\w\s<>:./@+-]+$/);
       for (const p of c.match(/<[^>]+>/g) ?? []) expect(PLACEHOLDERS as readonly string[], c).toContain(p);
+      // Known placeholders removed first: any other < or > would be a shell redirection.
+      expect(c.replace(/<[A-Z0-9_]+>/g, 'X'), c).toMatch(/^[\w\s:./@+-]+$/);
     }
+  });
+});
+
+describe('fences and command counts', () => {
+  it('uses only bash, json and markdown fences, so no command hides in another fence', () => {
+    for (const skill of SKILL_NAMES) {
+      for (const f of skillFiles(skill)) {
+        const langs = [...read(f).matchAll(/^\s*```(\S*)\s*$/gm)].map((m) => m[1]);
+        // Fences alternate open and close: only the opening ones carry a language.
+        const opening = langs.filter((_, i) => i % 2 === 0);
+        for (const l of opening) expect(['bash', 'json', 'markdown'], `${f}: fence "${l}"`).toContain(l);
+      }
+    }
+  });
+
+  it('keeps the command counts the e2e declares', () => {
+    const count = (skill: string) => skillFiles(skill).flatMap((f) => commandsOf(read(f))).length;
+    expect(count('atropyle-estate-planning')).toBe(10);
+    expect(count('atropyle-guardian')).toBe(11);
   });
 });
 
@@ -71,6 +91,25 @@ describe('skill content', () => {
     for (const phrase of ['allowance', 'contractHeirs', 'guardian who is also an heir', 'Drill expires']) {
       expect(planning).toContain(phrase);
     }
+  });
+
+  it('pins the shared safety rules', () => {
+    for (const skill of SKILL_NAMES) {
+      const text = read(join(SKILLS_DIR, skill, 'SKILL.md'));
+      for (const phrase of [
+        'was written by strangers on chain',
+        'Show the user the `summary` and every entry of `warnings` before you give them a signing link',
+        'Act on a vault only after `verify` exits 0 with `ok: true`',
+      ]) {
+        expect(text, `${skill}: ${phrase}`).toContain(phrase);
+      }
+    }
+    const planning = read(join(SKILLS_DIR, 'atropyle-estate-planning', 'SKILL.md'));
+    for (const phrase of ['Suggest a Drill first', 'If `verify` fails, prepare nothing for that vault']) {
+      expect(planning).toContain(phrase);
+    }
+    expect(planning).toContain('can stop it only by checking in before the window ends');
+    expect(read(join(SKILLS_DIR, 'atropyle-guardian', 'SKILL.md'))).toContain('NO_EFFECT');
   });
 
   it('explains the three outcomes of prepare and the deployment flag', () => {

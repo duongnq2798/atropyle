@@ -14,7 +14,7 @@ A guardian who is also an heir gains from confirming a death early. Prefer guard
 
 ## Drills
 
-A Drill expires 7 days after it is created and then accepts no more actions. It is for practice. Use real assets in a Drill only in small amounts. The Drill expires on its own; create the real vault with a new plan without `--drill`.
+A Drill expires 7 days after it is created and then accepts no more actions. It is for practice. Use real assets in a Drill only in small amounts. The Drill expires on its own; create the real vault with a new plan without `--drill`. After the Drill, `prepare revoke-all <drill vault> --as <owner>` removes its approvals.
 
 ## Checking in
 

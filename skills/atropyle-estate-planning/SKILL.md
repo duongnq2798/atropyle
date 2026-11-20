@@ -11,7 +11,7 @@ metadata:
 
 # Atropyle estate planning
 
-Atropyle is a vault on X Layer for what happens to someone's crypto if they die or lose their wallet. The owner checks in from time to time. If the check-ins stop, an alarm goes off, the owner still has a window to cancel, and then the vault pays the heirs. Guardians can confirm a death before the timer runs out, and can help the owner move everything to a new wallet after losing the old one. A circuit on the X Layer TapeOut processor decides every state change, and anyone can prove it with `atropyle verify`.
+Atropyle is a vault on X Layer for what happens to someone's crypto if they die or lose their wallet. The owner checks in from time to time. If the check-ins stop, an alarm goes off, the owner still has a window to cancel, and then the vault pays the heirs. Guardians can confirm a death before the timer runs out. If the owner allows recovery, `k` guardians who agree can also move everything to a wallet they choose, meant for the owner's new wallet after a loss; the owner can stop that only by checking in before the window ends. A circuit on the X Layer TapeOut processor decides every state change, and anyone can prove it with `atropyle verify`.
 
 This skill drives the `atropyle` CLI. With `--json`, every command prints exactly one JSON object.
 
@@ -34,15 +34,15 @@ Until the X Layer mainnet deployment, add `--deployment <file>` to every command
 npx -y atropyle doctor --json
 ```
 
-`ok: true` means Node.js, the RPCs and the deployment are fine. Exit code 4 is a network problem: try again later, or pass `--rpc <url>`. Exit code 3 means the integrity check of the deployment failed: stop and tell the user.
+`ok: true` means Node.js, the RPCs and the deployment are fine. Exit code 4 is a network problem: try again later. Pass `--rpc <url>` only if a `read` RPC failed; it does not replace the `verify` RPCs. Exit code 3 means the integrity check of the deployment failed: stop and tell the user.
 
 ## 1. Interview
 
 Ask one question at a time. Copy wallet addresses exactly; never guess one.
 
-1. **Heirs**, 1 to 5: who inherits, and what share. Shares add up to 100%. On the command line, an `--heir` without a share gets an equal part; in a plan file only a single heir may leave the share out.
-2. **Guardians**, optional, up to 5: people who can confirm a death early, and how many must agree (`k`).
-3. **Recovery**, only with guardians and off unless the owner says yes: may `k` guardians move everything to the owner's new wallet if the owner loses the old one? The owner can always cancel by checking in.
+1. **Heirs**, 1 to 5: who inherits, and what share. Shares add up to 100%. On the command line, give a share to every `--heir`, or to none for equal shares; in a plan file only a single heir may leave the share out.
+2. **Guardians**, optional, up to 5: people who can confirm a death early, and how many must agree (`k`). Guardians change the fallback: without them, the heirs are paid after the alarm and the window; with them, the heirs are paid then only if `k` guardians attest, and otherwise payment waits until the owner has missed the maximum number of periods (15). Step 4 shows the real dates.
+3. **Recovery**, only with guardians, off unless the owner says yes. `k` guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet after a loss. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` of them with everything.
 4. **Timing**: `sixMonths` (check in every 30 days, alarm after 6 missed check-ins, 14 days to cancel) or `twelveMonths` (alarm after 12, 30 days to cancel). A Drill uses `drill`: 1 minute, 2 missed, 2 minutes to cancel.
 5. **Assets**: the ERC-20 tokens and NFTs the vault covers. They stay in the owner's wallet. The vault takes them only when it pays the heirs, up to what the owner approved.
 
@@ -86,7 +86,7 @@ npx -y atropyle prepare create-vault <PLAN_FILE> --json
 2. Show every entry of `warnings`.
 3. Only then give `handoff.link`. The owner opens it in their wallet, checks each step there, and signs. `handoff.okxAppLink`, when present, opens the same page in the OKX App. When `handoff.link` is null, `handoff.notes` says why. Without `--json`, in a terminal, the CLI also prints a QR code of the link that any phone camera can scan.
 
-Token approvals come first, then `createVault`. The address of the vault is known before it exists (`vault`).
+Without `--drill`, an approval of the fee comes first, only when the allowance is short. Then comes `createVault`, then one approval per asset so the vault can take it at release. The address of the vault is known before it exists (`vault`), so those approvals can be prepared now. The owner signs every step: without the asset approvals the vault covers nothing, and `status` warns `COVERAGE_BELOW_100`.
 
 ## 6. Keep the vault healthy
 
@@ -98,10 +98,10 @@ npx -y atropyle status <VAULT> --as <OWNER> --json
 npx -y atropyle verify --vault <VAULT> --json
 ```
 
-- `status.state` should be `active`. `grace` means the alarm went off: the owner must check in before `status.windowEndsAt`.
+- `status.state` should be `active`. `grace` means the alarm went off: the owner must check in before `status.windowEndsAt`. `recovery` means guardians voted to move everything to `status.recoveryTarget`: if the owner did not ask for that, they must check in before `status.windowEndsAt`.
 - `explanation` holds plain sentences you can repeat to the user.
 - The warning `COVERAGE_BELOW_100` means some tokens are not fully approved, so the heirs would get only the approved part.
-- `verify` exits 0 when the policy is proven and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. If it fails, say so plainly and do not prepare anything for that vault.
+- `verify` exits 0 when the policy is proven and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
 
 To check in:
 

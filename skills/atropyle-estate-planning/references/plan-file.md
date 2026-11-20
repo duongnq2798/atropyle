@@ -12,7 +12,7 @@
 | `heirs`           | yes            | 1 to 5 entries `{ "account": "0x…", "percent": 70 }`. Use `bps` (10000 = 100%) instead of `percent` for exact shares. Only a single heir may leave the share out |
 | `guardians`       | no             | Up to 5 addresses                                                                                                                                                |
 | `k`               | with guardians | How many guardians must agree, from 1 to the number of guardians                                                                                                 |
-| `recoveryEnabled` | no             | `true` lets `k` guardians move everything to a new wallet of the owner. Needs guardians. `plan init` leaves it off unless you give `--recovery`                  |
+| `recoveryEnabled` | no             | `true` lets `k` guardians who agree move everything to a wallet they choose, meant for the owner's new wallet. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` guardians with everything. Needs guardians. `plan init` leaves it off unless you give `--recovery` |
 | `timing`          | yes            | A preset name, or `{ "period": "30d", "threshold": 6, "window": "14d" }`                                                                                         |
 | `assets`          | no             | Up to 20 entries `{ "kind": "erc20", "token": "0x…" }`. NFTs add `"id"` and `"heir"`, the index of the heir who receives it, counting from 0                     |
 
