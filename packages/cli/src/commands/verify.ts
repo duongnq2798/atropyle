@@ -3,7 +3,7 @@ import type { Command } from 'commander';
 import { addressArg, collect } from '../args';
 import { clientFor, verifyGroups } from '../client';
 import { action, type Ctx } from '../context';
-import { EXIT } from '../exit';
+import { EXIT, UsageError } from '../exit';
 import { formatVerify } from '../format';
 import type { Io } from '../io';
 import { emit } from '../output';
@@ -16,7 +16,7 @@ interface Flags {
 }
 
 /** One stderr line, rewritten about once per percent. */
-function progressLine(io: Io) {
+export function progressLine(io: Io) {
   let shown = false;
   const update = throttleProgress((done, total) => {
     shown = true;
@@ -40,6 +40,9 @@ export function registerVerify(program: Command, ctx: Ctx): void {
           ...(o.vault === undefined ? {} : { vault: addressArg(o.vault, 'vault') }),
           ...(o.policy ? {} : { policy: false }),
         };
+        if (!o.policy && o.vault === undefined) {
+          throw new UsageError('--no-policy needs --vault: there is nothing else to verify.');
+        }
         const choice = { verifyRpc: o.verifyRpc ?? [], singleRpc: o.singleRpc === true };
         const atro = await clientFor(g, ctx.io, choice);
         const progress = ctx.io.isTTY && !g.json && o.policy ? progressLine(ctx.io) : null;

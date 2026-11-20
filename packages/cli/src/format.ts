@@ -207,7 +207,9 @@ export function formatVerify(o: VerifyOutput, s: Style): string {
   if (p) {
     lines.push('', 'Property  Result  Violations');
     for (const [name, r] of Object.entries(p.properties)) {
-      lines.push(`${name.padEnd(9)} ${r.ok ? s.green('holds ') : s.red('FAILS ')}  ${r.violations}`);
+      // A property that never ran (an RPC or netlist failure) is { ok: false, violations: 0 }: not a violation.
+      const result = r.ok ? s.green('holds ') : r.violations === 0 ? s.yellow('not run') : s.red('FAILS ');
+      lines.push(`${name.padEnd(9)} ${result} ${r.violations}`);
     }
     lines.push('', 'Netlists');
     for (const n of p.netlists) {

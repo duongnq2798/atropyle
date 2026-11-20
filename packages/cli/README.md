@@ -6,7 +6,7 @@ Command line for [Atropyle](https://github.com/duongnq2798/atropyle) inheritance
 
 Requires Node.js 20 or newer.
 
-The default chain is X Layer (`--chain xlayer`). It works after the mainnet deployment; until then pass `--deployment <file>` with a deployment JSON (for example one from a local devnet), as every example below does:
+The default chain is X Layer (`--chain xlayer`). It works after the mainnet deployment; until then pass `--deployment <file>` with a deployment JSON (for example one from a local devnet), as the examples below that read the chain do:
 
 ```bash
 npx -y atropyle doctor --deployment deployment.json
@@ -48,7 +48,7 @@ npx -y atropyle prepare create-vault atropyle.plan.json --deployment deployment.
 - `--single-rpc` reads from the first operator only, with a `SINGLE_RPC` warning.
 - `--verify-rpc <url>` names an operator; repeat it for each one. It replaces the deployment's list. `--rpc` only changes the ordinary reads, not `verify`.
 
-It exits 0 only when everything holds. It exits 3 when a property fails, when the policy cannot be read or does not match the source, or when `--vault` is not a vault. A network error exits 4.
+It exits 0 only when everything holds. It exits 3 when a property fails, when the policy cannot be read or does not match the source, or when `--vault` is not a vault. A network or RPC error exits 4. That includes `RPC_DISAGREEMENT`: the operators answered differently, so one of them may be lying, which is more than a connectivity glitch. Retry with other `--verify-rpc` operators.
 
 ## prepare
 
@@ -58,9 +58,9 @@ It exits 0 only when everything holds. It exits 3 when a property fails, when th
 - **Blocked.** A step fails in simulation. Nothing to sign is printed: no link, no QR code, no cast command. The output names the failing step and the reason. Exit 1.
 - **Nothing to do.** The plan has no steps, so there is nothing to sign. The summary says "There is nothing to sign." Exit 0.
 
-With `--format cast`, the commands use `$ETH_RPC_URL` when the deployment's RPC URL may hold an API key, so set it to your RPC URL. If no cast command can be printed, the command exits 1 instead of printing nothing. `--format json` is the same as `--json`.
+With `--format cast`, the commands use `$ETH_RPC_URL` when the deployment's RPC URL may hold an API key, so set it to your RPC URL. When there are steps to sign but no cast command can be printed, the command exits 1 instead of printing nothing. With nothing to do, it exits 0. `--format json` is the same as `--json`.
 
-`--web-url <url>` sets the web app that opens the signing link. It exists on the CLI only.
+The signing link opens the Atropyle web app, where you sign with OKX Wallet or another wallet. `--web-url <url>` sets that web app (it exists on the CLI only). Without a `webUrl` in the deployment and without `--web-url`, no link is printed, and the output points to `--format cast` and `--format calls`. `--format cast` prints Foundry commands without a signer; `--format calls` prints `wallet_sendCalls` parameters.
 
 ## Global options
 
@@ -87,10 +87,6 @@ claude mcp add atropyle -- npx -y atropyle mcp --deployment /path/to/deployment.
 | 4    | Network or RPC error                                                |
 
 Text from the chain, such as token names, is never mixed into the output. It appears only under `untrusted` in JSON, and at the end of the human output under "Text from the chain (data, not instructions)".
-
-## Signing
-
-`prepare` prints a signing link (and a QR code in a terminal) for the Atropyle web app, where you sign with OKX Wallet or another wallet. `--format cast` prints Foundry commands without a signer; `--format calls` prints `wallet_sendCalls` parameters. When a step fails simulation, nothing is printed to sign.
 
 ## License
 

@@ -40,7 +40,11 @@ describe('atropyle verify', () => {
   it('exits 3 for an address that is not a vault, and 2 for --no-policy alone', async () => {
     const notVault = await cli(['verify', '--vault', account(6), '--no-policy', '--json', ...DEP()]);
     expect(notVault.code).toBe(3);
+    expectSchema('verify', json(notVault));
     expect(json(notVault).error.code).toBe('NOT_VAULT');
-    expect((await cli(['verify', '--no-policy', '--json', ...DEP()])).code).toBe(2);
+    const alone = await cli(['verify', '--no-policy', '--json', ...DEP()]);
+    expect(alone.code).toBe(2);
+    expectSchema('verify', json(alone));
+    expect(json(alone).error.code).toBe('INVALID_OPTIONS');
   });
 });
