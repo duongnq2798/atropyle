@@ -1,0 +1,89 @@
+import type { SendCallsParams } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import { CallsUnsupported, normalizeStatus, sendCalls, supportsSendCalls } from '../../src/lib/send-calls';
+import type { Eip1193 } from '../../src/lib/wallet';
+
+const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const H1 = `0x${'01'.repeat(32)}` as const;
+const PARAMS: SendCallsParams = {
+  version: '2.0.0',
+  chainId: '0xc4',
+  from: A,
+  atomicRequired: false,
+  calls: [{ to: A, data: '0x', value: '0x0' }],
+};
+const noSleep = async () => {};
+
+function wallet(handlers: Record<string, (params: unknown) => unknown>) {
+  const calls: string[] = [];
+  const p: Eip1193 = {
+    async request({ method, params }) {
+      calls.push(method);
+      const h = handlers[method];
+      if (!h) throw Object.assign(new Error('Method not found'), { code: -32601 });
+      return h(params);
+    },
+  };
+  return { p, calls };
+}
+
+describe('EIP-5792', () => {
+  it('detects support through wallet_getCapabilities', async () => {
+    const yes = wallet({ wallet_getCapabilities: () => ({ '0xc4': { atomic: { status: 'supported' } } }) });
+    expect(await supportsSendCalls(yes.p, A, 196)).toBe(true);
+    expect(await supportsSendCalls(wallet({}).p, A, 196)).toBe(false);
+  });
+
+  it('polls wallet_getCallsStatus until the bundle is confirmed', async () => {
+    let polls = 0;
+    const seen: string[] = [];
+    const w = wallet({
+      wallet_sendCalls: () => ({ id: 'bundle-1' }),
+      wallet_getCallsStatus: () =>
+        ++polls < 3 ? { status: 100 } : { status: 200, receipts: [{ transactionHash: H1, status: '0x1' }] },
+    });
+    const r = await sendCalls(w.p, PARAMS, { sleep: noSleep, onStatus: (s) => seen.push(s) });
+    expect(r).toEqual({ id: 'bundle-1', status: 'confirmed', hashes: [H1], ok: true });
+    expect(seen).toEqual(['pending', 'pending', 'confirmed']);
+  });
+
+  it('throws CallsUnsupported when the wallet cannot batch', async () => {
+    const w = wallet({ wallet_sendCalls: () => Promise.reject(Object.assign(new Error('no'), { code: 5700 })) });
+    await expect(sendCalls(w.p, PARAMS, { sleep: noSleep })).rejects.toBeInstanceOf(CallsUnsupported);
+    await expect(sendCalls(wallet({}).p, PARAMS, { sleep: noSleep })).rejects.toBeInstanceOf(CallsUnsupported);
+  });
+
+  it('accepts the string id and string statuses of older wallets', async () => {
+    const w = wallet({
+      wallet_sendCalls: () => '0xabc',
+      wallet_getCallsStatus: () => ({ status: 'CONFIRMED', receipts: [{ transactionHash: H1, status: '0x1' }] }),
+    });
+    expect(await sendCalls(w.p, PARAMS, { sleep: noSleep })).toMatchObject({
+      id: '0xabc',
+      status: 'confirmed',
+      ok: true,
+    });
+    expect(normalizeStatus('PENDING')).toBe('pending');
+    expect(normalizeStatus(600)).toBe('partial');
+  });
+
+  it('reports a reverted call as not ok', async () => {
+    const reverted = wallet({
+      wallet_sendCalls: () => ({ id: 'b' }),
+      wallet_getCallsStatus: () => ({ status: 200, receipts: [{ transactionHash: H1, status: '0x0' }] }),
+    });
+    expect(await sendCalls(reverted.p, PARAMS, { sleep: noSleep })).toMatchObject({ ok: false, hashes: [H1] });
+    const failed = wallet({ wallet_sendCalls: () => ({ id: 'b' }), wallet_getCallsStatus: () => ({ status: 500 }) });
+    expect(await sendCalls(failed.p, PARAMS, { sleep: noSleep })).toMatchObject({ status: 'reverted', ok: false });
+  });
+
+  it('stops polling at the timeout', async () => {
+    const w = wallet({ wallet_sendCalls: () => ({ id: 'b' }), wallet_getCallsStatus: () => ({ status: 100 }) });
+    expect(await sendCalls(w.p, PARAMS, { sleep: noSleep, timeoutMs: 0 })).toEqual({
+      id: 'b',
+      status: 'pending',
+      hashes: [],
+      ok: false,
+    });
+  });
+});
