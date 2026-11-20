@@ -22,8 +22,16 @@ export const messages = defineMessages(
     guardians: 'Guardians',
     guardiansNone: 'No guardians.',
     guardiansK: '{k} of {n} must confirm.',
-    recoveryOn:
+    recoveryOnOwner:
       'Recovery is on: {k} guardians who agree can move everything in the vault to a wallet they choose. You can stop it only by checking in before the window ends.',
+    recoveryOnOther:
+      'Recovery is on: {k} guardians who agree can move everything in the vault to a wallet they choose. The owner can stop it only by checking in before the window ends.',
+    recoveryPending:
+      'A recovery is pending. If it is not stopped, everything in the vault goes to this wallet, chosen by the guardians:',
+    recoveryLeft: 'Time left: {time}.',
+    recoveryEnded: 'The window ended {time} ago.',
+    recoveryStopOwner: 'You can stop it by checking in before the window ends.',
+    recoveryStopOther: 'The owner can stop it by checking in before the window ends.',
     timing: 'Timing',
     timingLine: 'Check in every {period}. Alarm after {threshold} missed check-ins, then {window} to cancel it.',
     assets: 'Assets',
@@ -60,8 +68,16 @@ export const messages = defineMessages(
     guardians: 'Người giám hộ',
     guardiansNone: 'Không có người giám hộ.',
     guardiansK: 'Cần {k} trên {n} người xác nhận.',
-    recoveryOn:
+    recoveryOnOwner:
       'Đã bật khôi phục: {k} người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    recoveryOnOther:
+      'Đã bật khôi phục: {k} người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    recoveryPending:
+      'Đang chờ khôi phục. Nếu không bị ngăn lại, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
+    recoveryLeft: 'Còn lại: {time}.',
+    recoveryEnded: 'Thời gian báo động đã hết {time} trước.',
+    recoveryStopOwner: 'Bạn có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    recoveryStopOther: 'Chủ vault có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     timing: 'Thời gian',
     timingLine: 'Điểm danh mỗi {period}. Báo động sau {threshold} lần bỏ lỡ, sau đó có {window} để huỷ.',
     assets: 'Tài sản',

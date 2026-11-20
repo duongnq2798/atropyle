@@ -105,17 +105,74 @@ describe('vault page', () => {
     expect(screen.queryByTestId('vault-not-registered')).toBeNull();
   });
 
-  it('states the power of recovery with k, in both languages', async () => {
-    mount(fixtureSnapshot(), null);
-    const status = await screen.findByTestId('vault-status');
-    expect(status.textContent).toContain(
-      'Recovery is on: 2 guardians who agree can move everything in the vault to a wallet they choose. You can stop it only by checking in before the window ends.',
+  it('states the power of recovery with k, in words that fit the viewer, in both languages', async () => {
+    const power = 'Recovery is on: 2 guardians who agree can move everything in the vault to a wallet they choose.';
+    for (const viewer of [null, PEOPLE.stranger, PEOPLE.g1]) {
+      mount(fixtureSnapshot(), viewer);
+      const text = (await screen.findByTestId('vault-status')).textContent;
+      expect(text).toContain(`${power} The owner can stop it only by checking in before the window ends.`);
+      expect(text).not.toContain('You can stop it');
+      cleanup();
+    }
+    mount(fixtureSnapshot(), PEOPLE.owner);
+    expect((await screen.findByTestId('vault-status')).textContent).toContain(
+      `${power} You can stop it only by checking in before the window ends.`,
     );
     cleanup();
     mount(fixtureSnapshot(), null, 'vi');
     expect((await screen.findByTestId('vault-status')).textContent).toContain(
-      'Đã bật khôi phục: 2 người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+      'Đã bật khôi phục: 2 người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     );
+    cleanup();
+    mount(fixtureSnapshot(), PEOPLE.owner, 'vi');
+    expect((await screen.findByTestId('vault-status')).textContent).toContain(
+      'Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    );
+  });
+
+  it('warns every viewer about a pending recovery, with its wallet and the time left', async () => {
+    const pending = () => {
+      const snap = fixtureSnapshot();
+      snap.status.state = 'recovery';
+      snap.status.recoveryTarget = PEOPLE.stranger;
+      snap.status.alarmAt = 900n;
+      snap.status.windowEndsAt = 4_600n;
+      return snap;
+    };
+    for (const viewer of [null, PEOPLE.heirA, PEOPLE.g1]) {
+      mount(pending(), viewer);
+      const banner = await screen.findByTestId('vault-recovery');
+      expect(banner.getAttribute('role')).toBe('alert');
+      expect(banner.textContent).toContain('A recovery is pending');
+      expect(banner.textContent).toContain(PEOPLE.stranger);
+      // The card's clock ticks every second.
+      expect(banner.textContent).toMatch(/Time left: (1h|59m 5\ds)\./);
+      expect(banner.textContent).toContain('The owner can stop it by checking in before the window ends.');
+      expect(banner.textContent).not.toContain('You can stop it');
+      cleanup();
+    }
+    mount(pending(), PEOPLE.owner);
+    const own = await screen.findByTestId('vault-recovery');
+    expect(own.textContent).toContain('You can stop it by checking in before the window ends.');
+    expect(own.textContent).not.toContain('The owner can stop it');
+    cleanup();
+    mount(pending(), PEOPLE.owner, 'vi');
+    const vi = (await screen.findByTestId('vault-recovery')).textContent;
+    expect(vi).toContain('Đang chờ khôi phục');
+    expect(vi).toContain('Bạn có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.');
+    cleanup();
+    // Past the window there is no "before the window ends" left to offer.
+    const late = pending();
+    late.status.windowEndsAt = 400n;
+    mount(late, null);
+    const ended = (await screen.findByTestId('vault-recovery')).textContent;
+    expect(ended).toMatch(/The window ended 10m( \ds)? ago\./);
+    expect(ended).not.toContain('can stop it');
+    cleanup();
+    // No banner outside the recovery state.
+    mount(fixtureSnapshot(), null);
+    await screen.findByTestId('vault-status');
+    expect(screen.queryByTestId('vault-recovery')).toBeNull();
   });
 
   it('says nothing about recovery when it is off and shows no owner panel to a stranger', async () => {

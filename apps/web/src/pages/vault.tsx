@@ -38,6 +38,10 @@ function StatusCard(props: {
   const c = snap.config;
   const explorer = sdk.deployment.explorerUrl;
   const due = view.next ? formatRemaining(view.next.at, now) : null;
+  const owner = view.roles.includes('owner');
+  const target = view.state === 'recovery' ? snap.status.recoveryTarget : null;
+  const windowEnd = snap.status.windowEndsAt;
+  const left = windowEnd === null ? null : formatRemaining(windowEnd, now);
   return (
     <section class="card stack" data-testid="vault-status">
       <h1>
@@ -53,6 +57,19 @@ function StatusCard(props: {
       {view.expired ? (
         <Banner kind="warn" testid="vault-expired">
           {t('expired')}
+        </Banner>
+      ) : null}
+      {target ? (
+        // Every viewer sees it: heirs, guardians and strangers can warn the owner, who alone can stop it.
+        <Banner kind="warn" testid="vault-recovery">
+          <strong>{t('recoveryPending')}</strong> <AddressText address={target} explorer={explorer} />
+          {left ? (
+            <p>
+              {left.past
+                ? t('recoveryEnded', { time: left.text })
+                : `${t('recoveryLeft', { time: left.text })} ${t(owner ? 'recoveryStopOwner' : 'recoveryStopOther')}`}
+            </p>
+          ) : null}
         </Banner>
       ) : null}
       <p>
@@ -92,7 +109,7 @@ function StatusCard(props: {
           </ul>
           <p class="muted">
             {t('guardiansK', { k: c.k, n: c.guardians.length })}{' '}
-            {c.recoveryEnabled ? t('recoveryOn', { k: c.k }) : null}
+            {c.recoveryEnabled ? t(owner ? 'recoveryOnOwner' : 'recoveryOnOther', { k: c.k }) : null}
           </p>
         </>
       )}
