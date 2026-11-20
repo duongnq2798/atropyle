@@ -1,4 +1,5 @@
 import type { Route } from './lib/route';
+import { HomePage } from './pages/home';
 import { BadAddressPage, NotFoundPage } from './pages/not-found';
 import { ProofPage } from './pages/proof';
 import { SignPage } from './pages/sign';
@@ -16,6 +17,8 @@ export function RouteView({ route }: { route: Route }) {
       return <RequireSdk>{(sdk) => <SignPage sdk={sdk} />}</RequireSdk>;
     case 'verify':
       return <RequireSdk>{(sdk) => <VerifyPage sdk={sdk} vault={route.vault} />}</RequireSdk>;
+    case 'home':
+      return <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>;
     default:
       return <NotFoundPage path={route.name === 'notFound' ? route.path : `/${route.name}`} />;
   }
