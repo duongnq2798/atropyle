@@ -34,6 +34,7 @@ function stub(o: {
     handoff: {
       link: o.link ?? noWebApp,
       cast: o.cast ?? (() => `cast send --rpc-url ${rpcUrl}`),
+      okx: () => 'onchainos wallet contract-call',
       calls: () => ({ version: '2.0.0', chainId: '0x7a69', from: A(1), atomicRequired: false, calls: [] }),
     },
   } as unknown as AtropyleClient;

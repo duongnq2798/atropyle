@@ -361,6 +361,10 @@ export const HandoffSchema = z.object({
   okxAppLink: z.string().nullable().describe('The same link, opened directly in the dApp browser of the OKX App'),
   cast: z.array(z.string()).describe('One Foundry cast command per step; empty when omitted (`notes` say why)'),
   calls: SendCallsSchema,
+  okx: z
+    .array(z.string())
+    .nullable()
+    .describe('One OKX Agentic Wallet (onchainos) command per step, in order; null when a step sends native value'),
   notes: z.array(z.string()),
 });
 export const PrepareOutputSchema = z.object({

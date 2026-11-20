@@ -18,7 +18,8 @@ import { emit } from '../output';
 import { renderQr } from '../qr';
 import { styleFor } from '../style';
 
-export const PREPARE_FORMATS: string[] = ['link', 'cast', 'calls', 'json'];
+export const PREPARE_FORMATS: string[] = ['link', 'cast', 'calls', 'okx', 'json'];
+const NO_OKX_NOTE = 'No OKX Agentic Wallet commands: a step sends native value. Use --format link, cast or calls.';
 
 export type PrepareFlags = ActionFlags & {
   as?: string;
@@ -82,7 +83,7 @@ async function prepareOf(ctx: Ctx, g: Globals, name: string, target: string, o: 
  * Prints `out` in the requested format and returns the exit code.
  * Decision 13: a blocked plan prints no link, no QR code and no cast command, and exits 1.
  * Nothing to sign is not a failure: the summary says so, and no link is printed.
- * An empty stdout must not look like success: `--format cast` with no cast commands (the SDK refused the RPC URL) exits 1.
+ * An empty stdout must not look like success: `--format cast` with no cast commands (the SDK refused the RPC URL), and `--format okx` with no okx commands (a step sends native value), exit 1.
  */
 export function handOver(ctx: Ctx, g: Globals, o: PrepareFlags, out: PrepareOutput): number {
   const { io } = ctx;
@@ -94,9 +95,17 @@ export function handOver(ctx: Ctx, g: Globals, o: PrepareFlags, out: PrepareOutp
     emit(ctx, g, shown, () => '');
     return code;
   }
-  if (o.format === 'cast' || o.format === 'calls') {
+  if (o.format === 'cast' || o.format === 'calls' || o.format === 'okx') {
     io.err(briefPrepare(shown, s));
     if (!shown.handoff) return code;
+    if (o.format === 'okx') {
+      if (shown.handoff.okx === null) {
+        io.err(`${NO_OKX_NOTE}\n`);
+        return EXIT.error;
+      }
+      io.out(`${shown.handoff.okx.join('\n')}\n`);
+      return code;
+    }
     if (o.format === 'cast') {
       if (shown.handoff.cast.length === 0) return EXIT.error;
       io.out(`${shown.handoff.cast.join('\n')}\n`);
@@ -121,7 +130,10 @@ export function registerPrepare(program: Command, ctx: Ctx): void {
       .argument('<target>', 'plan file for create-vault, vault address otherwise')
       .option('--as <address>', 'who signs; for create-vault, defaults to "owner" in the plan')
       .addOption(
-        new Option('--format <format>', 'link (with a QR code), cast, calls (wallet_sendCalls) or json')
+        new Option(
+          '--format <format>',
+          'link (with a QR code), cast, calls (wallet_sendCalls), okx (OKX Agentic Wallet) or json',
+        )
           .choices(PREPARE_FORMATS)
           .default('link'),
       )

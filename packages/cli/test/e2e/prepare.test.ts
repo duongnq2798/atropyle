@@ -61,6 +61,24 @@ describe('atropyle prepare', () => {
     expect(r.stderr).toContain('to sign on chain 31337');
   });
 
+  it('--format okx prints only onchainos commands on stdout', async () => {
+    const r = await cli([
+      'prepare',
+      'check-in',
+      devnet().vaults.simple,
+      '--as',
+      account(1),
+      '--format',
+      'okx',
+      ...DEP(),
+    ]);
+    expect(r.code, r.stderr).toBe(0);
+    const lines = r.stdout.trim().split('\n');
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l) => l.startsWith('onchainos wallet contract-call --chain 31337 --to '))).toBe(true);
+    expect(r.stderr).toContain('--force');
+  });
+
   it('prints wallet_sendCalls parameters with --format calls', async () => {
     const r = await cli([
       'prepare',

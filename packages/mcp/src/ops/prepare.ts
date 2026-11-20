@@ -18,6 +18,15 @@ export function okxAppLink(link: string): string | null {
 }
 
 const CAST_NOTE = 'The cast commands carry no signer. Add your own, such as --ledger or --account <name>.';
+export const OKX_NOTE =
+  'The onchainos commands sign from the OKX Agentic Wallet account, so prepare as that address (--as). The first run of a command may answer "confirming" and exit with code 2: show its message to the user, and run the same command again with --force only after they agree. Never use --force on the first run.';
+
+/** One onchainos command per step; null when a step sends native value, which okxCommand refuses. */
+export function okxCommands(atro: Pick<AtropyleClient, 'handoff'>, plan: Pick<TxPlan, 'steps'>): string[] | null {
+  if (plan.steps.some((s) => s.value !== 0n)) return null;
+  return plan.steps.map((s) => atro.handoff.okx(s));
+}
+
 const NO_LINK_NOTE =
   'No signing link: the deployment has no web app URL and none was given. Use the wallet_sendCalls parameters (or the cast commands, when present).';
 const NO_CAST_NOTE = "cast commands are omitted: the SDK refused to build them for this deployment's RPC URL";
@@ -79,7 +88,16 @@ function handoffOf(atro: AtropyleClient, plan: TxPlan, webUrl: string | undefine
     notes.push(NO_CAST_NOTE);
   }
   notes.push(...skippedNotes(plan));
-  return { link, okxAppLink: link === null ? null : okxAppLink(link), cast, calls: atro.handoff.calls(plan), notes };
+  const okx = okxCommands(atro, plan);
+  if (okx !== null) notes.push(OKX_NOTE);
+  return {
+    link,
+    okxAppLink: link === null ? null : okxAppLink(link),
+    cast,
+    calls: atro.handoff.calls(plan),
+    okx,
+    notes,
+  };
 }
 
 function toOutput(atro: AtropyleClient, action: ActionName, plan: TxPlan, webUrl: string | undefined): PrepareOutput {

@@ -14,8 +14,9 @@ Options:
   --as <address>                    who signs; for create-vault, defaults to
                                     "owner" in the plan
   --format <format>                 link (with a QR code), cast, calls
-                                    (wallet_sendCalls) or json (choices: "link",
-                                    "cast", "calls", "json", default: "link")
+                                    (wallet_sendCalls), okx (OKX Agentic Wallet)
+                                    or json (choices: "link", "cast", "calls",
+                                    "okx", "json", default: "link")
   --allowance <kind>                token approvals (choices: "exact",
                                     "unlimited")
   --drill                           create-vault: create a Drill, a practice

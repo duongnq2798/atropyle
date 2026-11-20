@@ -558,6 +558,20 @@
                   "additionalProperties": false,
                   "description": "EIP-5792 wallet_sendCalls parameters"
                 },
+                "okx": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "One OKX Agentic Wallet (onchainos) command per step, in order; null when a step sends native value"
+                },
                 "notes": {
                   "type": "array",
                   "items": {
@@ -570,6 +584,7 @@
                 "okxAppLink",
                 "cast",
                 "calls",
+                "okx",
                 "notes"
               ],
               "additionalProperties": false

@@ -88,6 +88,17 @@ npx -y atropyle prepare create-vault <PLAN_FILE> --json
 
 Without `--drill`, an approval of the fee comes first, only when the allowance is short. Then comes `createVault`, then one approval per asset so the vault can take it at release. The address of the vault is known before it exists (`vault`), so those approvals can be prepared now. The owner signs every step: without the asset approvals the vault covers nothing, and `status` warns `COVERAGE_BELOW_100`.
 
+### With the OKX Agentic Wallet
+
+Only when the user chose to sign with their own OKX Agentic Wallet (`onchainos`). It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
+
+1. Run the first command. It may answer `confirming` and exit with code 2, with a message for the user.
+2. Show that message to the user and wait for a clear yes.
+3. Only then run the same command again with `--force`. Never add `--force` on the first run.
+4. Repeat for the next step.
+
+This path is not tested end to end. Two points are not verified: the Agentic Wallet may be a smart account (ERC-4337), and OKX Builder Codes do not support ERC-4337 user operations yet; and it is unknown whether the backend keeps the Builder Code suffix in the calldata. The attribution may be lost on this path. The vault works the same.
+
 ## 6. Keep the vault healthy
 
 Run these every few weeks, or whenever the user asks how their vault is doing:

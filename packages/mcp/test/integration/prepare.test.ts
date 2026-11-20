@@ -1,6 +1,6 @@
 import { createAtropyle } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { PrepareOutputSchema, prepareAction, prepareCreateVault } from '../../src/ops/index';
+import { OKX_NOTE, PrepareOutputSchema, prepareAction, prepareCreateVault } from '../../src/ops/index';
 import { account, atropyle, devnet } from './env';
 
 const withoutUntrusted = (o: { untrusted: unknown }) => {
@@ -32,6 +32,20 @@ describe('prepare operations on the devnet', () => {
     expect(out.handoff?.cast[0]).toMatch(/^cast send 0x[0-9a-fA-F]{40} 0x[0-9a-f]+ --from /);
     expect(out.handoff?.calls.calls).toHaveLength(out.plan.steps.length);
     expect(out.summary).toContain(`for ${account(1)} to sign on chain 31337`);
+  });
+
+  it('gives one OKX Agentic Wallet command per step, with the two-step note', async () => {
+    const out = await prepareAction(atropyle(), {
+      vault: devnet().vaults.simple,
+      action: { type: 'checkIn' },
+      as: account(1),
+    });
+    const steps = out.plan.steps;
+    expect(out.handoff?.okx).toEqual(
+      steps.map((s) => `onchainos wallet contract-call --chain 31337 --to ${s.to} --input-data ${s.data}`),
+    );
+    expect(out.handoff?.notes).toContain(OKX_NOTE);
+    expect(OKX_NOTE).toContain('--force only after they agree');
   });
 
   it('an https webUrl also gives the OKX App link', async () => {

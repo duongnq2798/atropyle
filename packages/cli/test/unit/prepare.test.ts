@@ -50,6 +50,7 @@ const handoff = (over: Partial<Handoff> = {}): Handoff => ({
   okxAppLink: null,
   cast: ['cast send 0x1 "poke()"'],
   calls: { version: '2.0.0', chainId: '0x7a69', from: VAULT, atomicRequired: false, calls: [] },
+  okx: ['onchainos wallet contract-call --chain 31337 --to 0x1 --input-data 0x'],
   notes: [],
   ...over,
 });
@@ -83,6 +84,21 @@ describe('handOver', () => {
     expect(r.io.stderr).toContain('Check in.');
   });
 
+  it('prints only the onchainos commands on stdout with --format okx', () => {
+    const r = run({ format: 'okx' }, make({ handoff: handoff() }));
+    expect(r.code).toBe(0);
+    expect(r.io.stdout).toBe('onchainos wallet contract-call --chain 31337 --to 0x1 --input-data 0x\n');
+    expect(r.io.stderr).toContain('Check in.');
+  });
+
+  it('exits 1 with an empty stdout and the reason on stderr when --format okx has no commands', () => {
+    const r = run({ format: 'okx' }, make({ handoff: handoff({ okx: null }) }));
+    expect(r.code).toBe(1);
+    expect(r.io.stdout).toBe('');
+    expect(r.io.stderr).toContain('a step sends native value');
+    expect(r.io.stderr).toContain('Check in.');
+  });
+
   it('prints calls and exits 0 for a handoff without cast commands in --format calls', () => {
     const r = run({ format: 'calls' }, make({ handoff: handoff({ cast: [] }) }));
     expect(r.code).toBe(0);
@@ -94,7 +110,7 @@ describe('handOver', () => {
     expect(link.code).toBe(0);
     expect(link.io.stdout).toContain('There is nothing to sign.');
     expect(link.io.stdout).not.toContain('#/sign');
-    for (const format of ['cast', 'calls']) {
+    for (const format of ['cast', 'calls', 'okx']) {
       const r = run({ format }, make());
       expect(r.code).toBe(0);
       expect(r.io.stdout).toBe('');
@@ -104,10 +120,10 @@ describe('handOver', () => {
 
   it('shows no link, QR or cast command for a blocked plan, even next to a handoff', () => {
     const out = make({ blocked, handoff: handoff() });
-    for (const format of ['link', 'cast', 'calls']) {
+    for (const format of ['link', 'cast', 'calls', 'okx']) {
       const r = run({ format, qr: true }, out);
       expect(r.code, format).toBe(1);
-      expect(r.io.stdout + r.io.stderr, format).not.toMatch(/#\/sign|cast send|[▀▄█]/u);
+      expect(r.io.stdout + r.io.stderr, format).not.toMatch(/#\/sign|cast send|onchainos|[▀▄█]/u);
       if (format !== 'link') expect(r.io.stdout, format).toBe('');
       expect(r.io.stdout + r.io.stderr, format).toContain('Nothing to sign');
     }
