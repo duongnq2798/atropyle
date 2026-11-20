@@ -465,6 +465,10 @@ test('--unlocked sends to chain 31337 only', () => {
       `refusing --unlocked: http://127.0.0.1:8545 is chain ${id}; --unlocked sends only to a local anvil on chain 31337. To rehearse, run anvil with MockSiteRegistry at the registry address (see scripts/test/site/deweb-local.test.ts), or on a chain-196 fork run --emit and a forge script simulation without --broadcast`,
     );
   }
+  // An RPC URL can carry a 64-hex secret (a key pasted in the wrong place, a provider token): it is never echoed.
+  const message = unlockedChainProblem(`https://rpc.example/v1/${FAKE_KEY_HEX}?k=${FAKE_KEY}`, 196) ?? '';
+  expect(message).toContain(`https://rpc.example/v1/${HIDDEN_HEX}?k=${HIDDEN_HEX} is chain 196`);
+  expect(message).not.toContain(FAKE_KEY_HEX);
 });
 
 test('emitCalls writes the remaining ops in the format 07_DewebPublish.s.sol reads', () => {

@@ -594,10 +594,10 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
   return { mode, ...out, container: container ? getAddress(container.toLowerCase()) : null };
 }
 
-/** The second half of the --unlocked guard, once the RPC has answered eth_chainId. */
+/** The second half of the --unlocked guard, after eth_chainId. Echoes the URL with 64-hex runs hidden. */
 export function unlockedChainProblem(rpcUrl: string, chainId: number): string | null {
   if (chainId === UNLOCKED_CHAIN_ID) return null;
-  return `refusing --unlocked: ${rpcUrl} is chain ${chainId}; --unlocked sends only to a local anvil on chain ${UNLOCKED_CHAIN_ID}. To rehearse, run anvil with MockSiteRegistry at the registry address (see scripts/test/site/deweb-local.test.ts), or on a chain-196 fork run --emit and a forge script simulation without --broadcast`;
+  return `refusing --unlocked: ${redactHex(rpcUrl)} is chain ${chainId}; --unlocked sends only to a local anvil on chain ${UNLOCKED_CHAIN_ID}. To rehearse, run anvil with MockSiteRegistry at the registry address (see scripts/test/site/deweb-local.test.ts), or on a chain-196 fork run --emit and a forge script simulation without --broadcast`;
 }
 
 /** The processor number in `<#ID>.2.<n>.tape` is the factory index; a new processor sits near the end. */
