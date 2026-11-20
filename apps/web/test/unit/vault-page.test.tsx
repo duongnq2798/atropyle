@@ -218,6 +218,31 @@ describe('vault page', () => {
     expect(screen.queryByTestId('owner-save-reset')).toBeNull();
   });
 
+  it('keeps a half-sent Fix coverage through a refresh that shows full coverage', async () => {
+    const send: Send = async (p, _w, o) => {
+      o.onStep?.({ index: 0, total: 2, step: p.steps[0], phase: 'confirmed', hash: `0x${'34'.repeat(32)}` });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    };
+    const { setSnap } = mount(fixtureSnapshot(), PEOPLE.owner, 'en', { prepare: async () => twoSteps, send });
+    await screen.findByTestId('owner-panel');
+    click('owner-fix-coverage');
+    fireEvent.click(await screen.findByTestId('owner-fix-coverage-tx-send'));
+    await waitFor(() =>
+      expect(screen.getByTestId('owner-fix-coverage-tx-send').textContent).toContain('Resume from step 2'),
+    );
+
+    // Step 1 already approved the ERC-20 in full: the refreshed snapshot has no low coverage left.
+    const covered = fixtureSnapshot();
+    covered.status.assets[0].coverage = covered.status.assets[0].held;
+    covered.status.blockNumber = 101n;
+    setSnap(covered);
+    click('vault-refresh');
+    await waitFor(() => expect(screen.getByTestId('vault-status').textContent).toContain('As of block 101'));
+    expect(screen.queryByTestId('coverage-low')).toBeNull();
+    expect(screen.getByTestId('owner-fix-coverage-tx-send').textContent).toContain('Resume from step 2');
+    expect(screen.getByTestId('owner-fix-coverage-tx-step-0').getAttribute('data-phase')).toBe('confirmed');
+  });
+
   it('shows which heir each NFT goes to', async () => {
     mount(fixtureSnapshot(), null);
     const nft = await screen.findByTestId('asset-1-heir');

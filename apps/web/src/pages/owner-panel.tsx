@@ -193,6 +193,8 @@ export function OwnerPanel(props: {
   // The form is rebuilt from a changed on-chain config (after a save), but never while its runner holds an unfinished
   // plan: a multi-step save changes the config after step 1, and a remount would lose the remaining steps.
   const [editHeld, setEditHeld] = useState(false);
+  // A multi-step Fix coverage can bring coverage to 100% after step 1; its runner stays until the plan is finished.
+  const [coverageHeld, setCoverageHeld] = useState(false);
   const editKey = useRef('');
   const nextKey = `${view.vault}:${stringify(snap.config)}`;
   if (!editHeld || !editKey.current.startsWith(`${view.vault}:`)) editKey.current = nextKey;
@@ -223,7 +225,7 @@ export function OwnerPanel(props: {
           </a>
         ) : null}
       </section>
-      {open && view.lowCoverage.length > 0 ? (
+      {(open && view.lowCoverage.length > 0) || coverageHeld ? (
         <section class="card stack">
           <h2>{t('coverageTitle')}</h2>
           <p class="muted">{t('coverageHelp')}</p>
@@ -235,6 +237,7 @@ export function OwnerPanel(props: {
             label={t('fixCoverage')}
             testid="owner-fix-coverage"
             onDone={onChanged}
+            onPlan={setCoverageHeld}
           />
         </section>
       ) : null}
