@@ -22,7 +22,7 @@ The alarm can go off once the owner has missed `threshold` periods in a row. `st
 
 ## Death and a lost wallet
 
-Without guardians, only the timer can release the vault, and only to the heirs. Recovery of a lost wallet needs guardians, `k` and `recoveryEnabled: true`. It is off unless the owner asks for it (`--recovery`). The owner can cancel any alarm or recovery by checking in before the window ends.
+Without guardians, only the timer can release the vault, and only to the heirs. Recovery of a lost wallet needs guardians, `k` and `recoveryEnabled: true`. It is off unless the owner asks for it (`--recovery`). It is a power, not a helper: `k` guardians who agree can move everything in the vault to a wallet they choose. Offer it only if the owner would trust any `k` of them with everything. The owner can cancel any alarm or recovery by checking in before the window ends.
 
 ## Addresses
 

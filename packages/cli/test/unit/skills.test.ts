@@ -8,6 +8,18 @@ import { commandsOf, PLACEHOLDERS, SKILL_NAMES, SKILLS_DIR, skillFiles, splitFro
 const ALLOWED = ['name', 'description', 'license', 'compatibility', 'metadata'];
 const read = (f: string) => readFileSync(f, 'utf8');
 
+/** Parse errors and flow-style collections ({} or []) of a frontmatter: skills-ref reads it with strictyaml. */
+function frontmatterProblems(frontmatter: string): string[] {
+  const doc = parseDocument(frontmatter);
+  const problems = doc.errors.map((e) => e.message);
+  visit(doc, {
+    Collection(_key, node) {
+      if (isCollection(node) && node.flow) problems.push(`flow collection: ${String(node).trim()}`);
+    },
+  });
+  return problems;
+}
+
 describe.each(SKILL_NAMES)('%s', (skill) => {
   const file = join(SKILLS_DIR, skill, 'SKILL.md');
   const text = read(file);
@@ -27,7 +39,7 @@ describe.each(SKILL_NAMES)('%s', (skill) => {
     const metadata = fm.metadata as Record<string, unknown>;
     expect(Object.values(metadata).every((v) => typeof v === 'string')).toBe(true);
     expect(metadata).toMatchObject({ author: 'duongnq2798', version: '0.1.0' });
-    for (const line of frontmatter.split(/\r?\n/)) expect(line, line).not.toMatch(/:\s*[[{]/);
+    expect(frontmatterProblems(frontmatter)).toEqual([]);
   });
 
   it('stays under 500 lines and links only references that exist', () => {
@@ -50,6 +62,17 @@ describe.each(SKILL_NAMES)('%s', (skill) => {
       // Known placeholders removed first: any other < or > would be a shell redirection.
       expect(c.replace(/<[A-Z0-9_]+>/g, 'X'), c).toMatch(/^[\w\s:./@+-]+$/);
     }
+  });
+});
+
+describe('frontmatter check', () => {
+  it('rejects flow collections, however they are written', () => {
+    const base = 'name: x\nmetadata:\n  author: a\n';
+    expect(frontmatterProblems(base)).toEqual([]);
+    expect(frontmatterProblems(base.replace('  author: a\n', '  {author: a}\n'))).toHaveLength(1);
+    expect(frontmatterProblems(`${base}tags: [a, b]\n`)).toHaveLength(1);
+    expect(frontmatterProblems(`${base}tags:\n  - [a]\n`)).toHaveLength(1);
+    expect(frontmatterProblems('name: [unclosed\n').length).toBeGreaterThan(0);
   });
 });
 
@@ -108,7 +131,11 @@ describe('skill content', () => {
     for (const phrase of ['Suggest a Drill first', 'If `verify` fails, prepare nothing for that vault']) {
       expect(planning).toContain(phrase);
     }
-    expect(planning).toContain('can stop it only by checking in before the window ends');
+    for (const f of ['SKILL.md', 'references/plan-file.md', 'references/pitfalls.md']) {
+      const text = read(join(SKILLS_DIR, 'atropyle-estate-planning', f));
+      expect(text, f).toContain('wallet they choose');
+      expect(text, f).toContain('checking in before the window ends');
+    }
     expect(read(join(SKILLS_DIR, 'atropyle-guardian', 'SKILL.md'))).toContain('NO_EFFECT');
   });
 

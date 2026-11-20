@@ -31,13 +31,13 @@ const EXPECTED: Record<string, Record<string, number>> = {
     'npx -y atropyle prepare create-vault <PLAN_FILE> --json': 0,
     'npx -y atropyle vaults <OWNER> --json': 0,
     'npx -y atropyle status <VAULT> --as <OWNER> --json': 0,
-    'npx -y atropyle verify --vault <VAULT> --json': 3,
+    'npx -y atropyle verify --vault <VAULT> --json': 3, // the devnet factory's CPU is not the pinned TapeOut processor
     'npx -y atropyle prepare check-in <VAULT> --as <OWNER> --json': 0,
     'npx -y atropyle simulate <VAULT> poke --as <HEIR_1> --at +200d --json': 0,
   },
   'atropyle-guardian': {
     'npx -y atropyle vaults <GUARDIAN_1> --json': 0,
-    'npx -y atropyle verify --vault <VAULT> --json': 3,
+    'npx -y atropyle verify --vault <VAULT> --json': 3, // the devnet factory's CPU is not the pinned TapeOut processor
     'npx -y atropyle status <VAULT> --as <GUARDIAN_1> --json': 0,
     'npx -y atropyle simulate <VAULT> attest-death --as <GUARDIAN_1> --json': 0,
     'npx -y atropyle prepare attest-death <VAULT> --as <GUARDIAN_1> --json': 0,
