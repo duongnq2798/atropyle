@@ -9,12 +9,14 @@ import {
   getAddress,
   type Hex,
   hexToBytes,
+  keccak256,
   toFunctionSelector,
 } from 'viem';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, expectTypeOf, test } from 'vitest';
 import {
   bindingAbi,
   callsParams,
+  checkCommand,
   DEWEB,
   describeOp,
   EMIT_MAX_BYTES,
@@ -24,16 +26,21 @@ import {
   encodeOp,
   estimate,
   executePlan,
+  fileKeccak,
+  HIDDEN_HEX,
+  keyFlagOf,
   type Op,
   parsePublishArgs,
   planPublish,
   publishCommand,
   type RegistryReader,
+  redactHex,
   registryAbi,
   type TxSender,
   tapeoutCpuListAbi,
   unlockedChainProblem,
   uploadOrder,
+  walletSender,
 } from '../../lib/deweb';
 import { makeSiteFile, sha256Hex } from '../../lib/site-files';
 
@@ -43,12 +50,24 @@ const ANVIL0: Address = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 const opts = { prune: false, fallback: 'index.html' };
 const NO_KEY =
   'there is no key mode. Run --emit contracts/deweb-calls/<name>.json, then broadcast it with forge script (see docs/deployments.md)';
+/** A made-up 64-hex value shaped like a private key (not a real or anvil key). */
+const FAKE_KEY_HEX = 'ab'.repeat(32);
+const FAKE_KEY = `0x${FAKE_KEY_HEX}`;
 
 interface Stored {
   contentType: string;
   sha256: Hex;
   data: Uint8Array;
   chunks: number;
+}
+
+function messageOf(f: () => unknown): string {
+  try {
+    f();
+  } catch (e) {
+    return (e as Error).message;
+  }
+  throw new Error('expected a throw');
 }
 
 const join2 = (a: Uint8Array, b: Uint8Array) => {
@@ -329,6 +348,42 @@ describe('parsePublishArgs', () => {
     }
     expect(() => parsePublishArgs(['--dry-run', '--yes'])).toThrow(NO_KEY);
     expect(() => parsePublishArgs(['--unlocked', ANVIL0, '--rpc', 'http://127.0.0.1:8545', '--yes'])).toThrow(NO_KEY);
+    // --flag=value too, and the message names the flag only.
+    for (const arg of [
+      '--yes=true',
+      `--key=${FAKE_KEY}`,
+      `--private-key=${FAKE_KEY}`,
+      `--private-key=${FAKE_KEY_HEX}`,
+    ]) {
+      const flag = arg.slice(0, arg.indexOf('='));
+      expect(() => parsePublishArgs([arg]), arg).toThrow(`${flag}: ${NO_KEY}`);
+      expect(messageOf(() => parsePublishArgs([arg]))).not.toContain(FAKE_KEY_HEX);
+    }
+    expect(keyFlagOf('--keys')).toBeNull();
+    expect(keyFlagOf('--key')).toBe('--key');
+    expect(keyFlagOf('--private-key=')).toBe('--private-key');
+  });
+
+  test('no message echoes a 64-hex value', () => {
+    for (const argv of [
+      [FAKE_KEY],
+      [FAKE_KEY_HEX],
+      [`--${FAKE_KEY_HEX}`],
+      ['--container', FAKE_KEY],
+      ['--container', FAKE_KEY_HEX],
+      ['--unlocked', FAKE_KEY, '--rpc', 'http://127.0.0.1:8545'],
+      ['--rpc', FAKE_KEY],
+      ['--rpc', `${FAKE_KEY_HEX.toUpperCase()}`],
+    ]) {
+      const message = messageOf(() => parsePublishArgs(argv));
+      expect(message, argv.join(' ')).toContain(HIDDEN_HEX);
+      expect(message, argv.join(' ')).not.toMatch(/[0-9a-fA-F]{64}/);
+    }
+    expect(redactHex(`a ${FAKE_KEY}, b ${FAKE_KEY_HEX}0, c 0X${FAKE_KEY_HEX}`)).toBe(
+      `a ${HIDDEN_HEX}, b ${HIDDEN_HEX}, c ${HIDDEN_HEX}`,
+    );
+    // Addresses and short hex stay readable.
+    expect(redactHex(`${CONTAINER} 0x${'ab'.repeat(31)}`)).toBe(`${CONTAINER} 0x${'ab'.repeat(31)}`);
   });
 
   test('--unlocked takes a loopback RPC only', () => {
@@ -403,7 +458,7 @@ test('--unlocked sends to chain 31337 only', () => {
   expect(unlockedChainProblem('http://127.0.0.1:8545', 31337)).toBeNull();
   for (const id of [196, 1, 1952]) {
     expect(unlockedChainProblem('http://127.0.0.1:8545', id)).toBe(
-      `refusing --unlocked: http://127.0.0.1:8545 is chain ${id}; --unlocked sends only to a local anvil on chain 31337 (fork with --chain-id 31337)`,
+      `refusing --unlocked: http://127.0.0.1:8545 is chain ${id}; --unlocked sends only to a local anvil on chain 31337. To rehearse, run anvil with MockSiteRegistry at the registry address (see scripts/test/site/deweb-local.test.ts), or on a chain-196 fork run --emit and a forge script simulation without --broadcast`,
     );
   }
 });
@@ -417,6 +472,17 @@ test('emitCalls writes the remaining ops in the format 07_DewebPublish.s.sol rea
   // DewebPublish.t.sol sends the very same bytes, so the two sides cannot drift apart.
   expect(emitJson(file)).toBe(readFileSync(join(ROOT, 'contracts/deweb-calls/test/good.json'), 'utf8'));
   expect(() => emitCalls([], CONTAINER, 196)).toThrow('nothing to emit');
+});
+
+test('the keccak256 --emit prints is the one 07_DewebPublish.s.sol prints for the same file', () => {
+  const text = emitJson(emitCalls(fixtureOps(), CONTAINER, 196));
+  const good = readFileSync(join(ROOT, 'contracts/deweb-calls/test/good.json'));
+  const sol = readFileSync(join(ROOT, 'contracts/test/DewebPublish.t.sol'), 'utf8');
+  // DewebPublish.t.sol asserts that DewebCalls.load(good.json).hash, the value the script logs, is this constant.
+  const pinned = /bytes32 internal constant GOOD_KECCAK = (0x[0-9a-f]{64});/.exec(sol)?.[1];
+  expect(pinned).toBe('0xb0c45f5a22a902215f7be420110cb5849975b0d7fdce4521115e52fbee4e816f');
+  expect(fileKeccak(text)).toBe(pinned);
+  expect(keccak256(good)).toBe(pinned);
 });
 
 test('emitBatch keeps one forge run under 1 MB of data, and the next --emit resumes where it stopped', async () => {
@@ -445,8 +511,20 @@ test('emitBatch keeps one forge run under 1 MB of data, and the next --emit resu
   expect(emitBatch([], 100)).toEqual([]);
 });
 
-test('publishCommand is the forge script line the user runs from contracts/', () => {
+test('walletSender takes an address, never an account that would sign here', () => {
+  // npm run typecheck enforces this: with an Account, viem would sign locally and send eth_sendRawTransaction.
+  expectTypeOf(walletSender).parameter(1).toEqualTypeOf<Address>();
+});
+
+test('checkCommand and publishCommand are the forge script lines the user runs from contracts/', () => {
+  expect(checkCommand('contracts/deweb-calls/site.json', 'https://rpc.xlayer.tech')).toBe(
+    "DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url 'https://rpc.xlayer.tech'",
+  );
   expect(publishCommand('contracts/deweb-calls/site.json', 'https://rpc.xlayer.tech')).toBe(
-    'DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --rpc-url https://rpc.xlayer.tech --account atropyle-deployer --broadcast --slow',
+    "DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow",
+  );
+  // The RPC URL is one quoted argument in Git Bash, whatever it holds.
+  expect(publishCommand('contracts/deweb-calls/a.json', "https://x.test/?a=1&b=it's;rm")).toContain(
+    "--rpc-url 'https://x.test/?a=1&b=it'\\''s;rm' --account",
   );
 });

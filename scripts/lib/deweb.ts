@@ -3,7 +3,6 @@
 // and --unlocked sends through eth_sendTransaction to a local anvil only.
 import { posix } from 'node:path';
 import {
-  type Account,
   type Address,
   BaseError,
   ContractFunctionRevertedError,
@@ -13,9 +12,11 @@ import {
   type Hex,
   hexToBytes,
   isAddress,
+  keccak256,
   type PublicClient,
   parseAbi,
   parseAbiParameters,
+  stringToBytes,
   toHex,
   type WalletClient,
 } from 'viem';
@@ -343,8 +344,12 @@ export interface TxSender {
   wait(hash: Hex): Promise<'success' | 'reverted'>;
 }
 
-/** With an address account, viem sends eth_sendTransaction and the node signs: an unlocked or impersonated anvil account. */
-export function walletSender(wallet: WalletClient, account: Account | Address, client: PublicClient): TxSender {
+/**
+ * The node signs: viem sends eth_sendTransaction for an address, so this works only with an unlocked or impersonated
+ * anvil account. It takes an Address and never an Account, because a local account would make viem sign here and
+ * send eth_sendRawTransaction.
+ */
+export function walletSender(wallet: WalletClient, account: Address, client: PublicClient): TxSender {
   return {
     send: (tx) => wallet.sendTransaction({ account, chain: null, to: tx.to, data: tx.data }),
     wait: async (hash) => (await client.waitForTransactionReceipt({ hash })).status,
@@ -365,7 +370,7 @@ export async function executePlan(
     onOp?.(i, op, hash);
     if (status !== 'success') {
       throw new Error(
-        `transaction ${i + 1}/${ops.length} reverted: ${describeOp(op)} (${hash}). Run the dry run again: it resumes from the chain.`,
+        `transaction ${i + 1}/${ops.length} reverted: ${describeOp(op)}. Run the dry run again: it resumes from the chain.`,
       );
     }
   }
@@ -423,10 +428,26 @@ export function emitJson(f: CallsFile): string {
   return `${JSON.stringify({ chainId, registry, binding, container, calls }, null, 2)}\n`;
 }
 
-/** The command the circuit holder runs from contracts/, in Git Bash; forge asks for the keystore password once. */
+/** keccak256 of the file's bytes. 07_DewebPublish.s.sol prints the same value ("file keccak256") before it sends. */
+export function fileKeccak(text: string): Hex {
+  return keccak256(stringToBytes(text));
+}
+
+/** One argument for Git Bash, in single quotes. */
+export function shQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** Run from contracts/ first: it needs no key, sends nothing, and prints the file's keccak256 and every call. */
+export function checkCommand(file: string, rpcUrl: string): string {
+  const rel = file.slice('contracts/'.length);
+  return `DEWEB_CALLS=${rel} forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url ${shQuote(rpcUrl)}`;
+}
+
+/** The broadcast, run from contracts/ in Git Bash: forge asks for the keystore password before it prints anything. */
 export function publishCommand(file: string, rpcUrl: string): string {
   const rel = file.slice('contracts/'.length);
-  return `DEWEB_CALLS=${rel} forge script script/07_DewebPublish.s.sol --rpc-url ${rpcUrl} --account atropyle-deployer --broadcast --slow`;
+  return `DEWEB_CALLS=${rel} forge script script/07_DewebPublish.s.sol --rpc-url ${shQuote(rpcUrl)} --account atropyle-deployer --broadcast --slow`;
 }
 
 export type PublishMode = { kind: 'dry-run' } | { kind: 'unlocked'; from: Address } | { kind: 'emit'; file: string };
@@ -441,10 +462,29 @@ export interface PublishArgs {
   fallback: string;
 }
 
-/** The only chain --unlocked sends to: a local anvil, or a fork started with --chain-id 31337. */
+/**
+ * The only chain --unlocked sends to: a local anvil. To rehearse a publish there, put MockSiteRegistry's code at the
+ * registry address, as scripts/test/site/deweb-local.test.ts does. A fork of X Layer must keep chain 196 (the opener
+ * derives container addresses from block.chainid), so --unlocked refuses it: on a fork, use --emit and a forge
+ * script simulation without --broadcast.
+ */
 export const UNLOCKED_CHAIN_ID = 31337;
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
-const KEY_FLAGS = new Set(['--yes', '--key', '--private-key']);
+const KEY_FLAGS = ['--yes', '--key', '--private-key'] as const;
+
+/** The key flag `arg` is, alone or as `--flag=value`. Messages name the flag only, never the value. */
+export function keyFlagOf(arg: string): string | null {
+  return KEY_FLAGS.find((f) => arg === f || arg.startsWith(`${f}=`)) ?? null;
+}
+
+const HEX64 = /(?:0[xX])?[0-9a-fA-F]{64,}/g;
+export const HIDDEN_HEX = '<64-hex value, not shown>';
+
+/** Hides every run of 64 or more hex digits (a private key looks like that), with or without 0x. */
+export function redactHex(text: string): string {
+  return text.replace(HEX64, HIDDEN_HEX);
+}
+
 const NO_KEY =
   'there is no key mode. Run --emit contracts/deweb-calls/<name>.json, then broadcast it with forge script (see docs/deployments.md)';
 /** Git-ignored, and the only folder foundry.toml lets forge read for DeWEB. Subfolders hold committed fixtures. */
@@ -486,7 +526,8 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
       if (!v || v.startsWith('--')) throw new Error(`${a} needs a value`);
       return v;
     };
-    if (KEY_FLAGS.has(a)) throw new Error(`${a}: ${NO_KEY}`);
+    const key = keyFlagOf(a);
+    if (key) throw new Error(`${key}: ${NO_KEY}`);
     if (a === '--dry-run') dry = true;
     else if (a === '--unlocked') unlocked = value();
     else if (a === '--emit') emit = emitFileOf(value());
@@ -496,7 +537,7 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
     else if (a === '--container') container = value();
     else if (a === '--prune') out.prune = true;
     else if (a === '--fallback') out.fallback = value();
-    else throw new Error(`unknown argument: ${a}`);
+    else throw new Error(`unknown argument: ${redactHex(a)}`);
   }
   if ([dry, unlocked !== undefined, emit !== undefined].filter(Boolean).length > 1) {
     throw new Error('choose one of --dry-run, --unlocked, --emit');
@@ -505,15 +546,17 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
   try {
     url = new URL(out.rpcUrl);
   } catch {
-    throw new Error(`--rpc is not a URL: ${out.rpcUrl}`);
+    throw new Error(`--rpc is not a URL: ${redactHex(out.rpcUrl)}`);
   }
   if (container !== undefined && !isAddress(container, { strict: false })) {
-    throw new Error(`--container is not an address: ${container}`);
+    throw new Error(`--container is not an address: ${redactHex(container)}`);
   }
 
   let mode: PublishMode = { kind: 'dry-run' };
   if (unlocked !== undefined) {
-    if (!isAddress(unlocked, { strict: false })) throw new Error(`--unlocked is not an address: ${unlocked}`);
+    if (!isAddress(unlocked, { strict: false })) {
+      throw new Error(`--unlocked is not an address: ${redactHex(unlocked)}`);
+    }
     if (!isLoopback(url)) {
       throw new Error(
         '--unlocked only sends to a local anvil: --rpc must be http://127.0.0.1, http://localhost or http://[::1]',
@@ -529,7 +572,7 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
 /** The second half of the --unlocked guard, once the RPC has answered eth_chainId. */
 export function unlockedChainProblem(rpcUrl: string, chainId: number): string | null {
   if (chainId === UNLOCKED_CHAIN_ID) return null;
-  return `refusing --unlocked: ${rpcUrl} is chain ${chainId}; --unlocked sends only to a local anvil on chain ${UNLOCKED_CHAIN_ID} (fork with --chain-id ${UNLOCKED_CHAIN_ID})`;
+  return `refusing --unlocked: ${rpcUrl} is chain ${chainId}; --unlocked sends only to a local anvil on chain ${UNLOCKED_CHAIN_ID}. To rehearse, run anvil with MockSiteRegistry at the registry address (see scripts/test/site/deweb-local.test.ts), or on a chain-196 fork run --emit and a forge script simulation without --broadcast`;
 }
 
 /** The processor number in `<#ID>.2.<n>.tape` is the factory index; a new processor sits near the end. */

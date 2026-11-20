@@ -2,11 +2,11 @@
 // address (anvil_setCode), `deweb:publish --emit` writes the calls, the user's forge script broadcasts them from
 // unlocked anvil account 0, and a second dry run has nothing to publish. Needs Foundry (anvil and forge) on PATH.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createPublicClient, getAddress, http } from 'viem';
+import { createPublicClient, getAddress, http, keccak256 } from 'viem';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { ANVIL_ACCOUNTS, type Anvil, rpc, startAnvil } from '../../lib/anvil';
 import { DEWEB, registryReader } from '../../lib/deweb';
@@ -27,21 +27,35 @@ function publish(args: string[]) {
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-/** The user's command, with the unlocked anvil account in place of --account atropyle-deployer. */
-function broadcast(name: string): void {
+/**
+ * The user's command, with the unlocked anvil account in place of --account atropyle-deployer. forge keeps its
+ * broadcast and cache records in this test's temp folder, so contracts/broadcast and contracts/cache are untouched.
+ */
+function broadcast(name: string): string {
   const args = ['script', 'script/07_DewebPublish.s.sol', '--rpc-url', anvil.url, '--unlocked', '--sender', FROM];
-  const r = spawnSync('forge', [...args, '--broadcast', '--slow'], {
+  const r = spawnSync('forge', [...args, '--broadcast', '--slow', '--cache-path', join(forgeDir, 'cache')], {
     cwd: CONTRACTS,
-    env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}` },
+    env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}`, FOUNDRY_BROADCAST: join(forgeDir, 'broadcast') },
     encoding: 'utf8',
     windowsHide: true,
     timeout: 600_000,
+    // A failing run prints every trace, chunks included.
+    maxBuffer: 64 * 1024 * 1024,
   });
-  expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+  expect(r.status, `${r.error ?? ''}\n${r.stdout.slice(-4000)}\n${r.stderr.slice(-4000)}`).toBe(0);
   expect(r.stdout).toContain('ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.');
+  return r.stdout;
+}
+
+/** The keccak256 line --emit prints, checked against the file on disk. */
+function emittedKeccak(stdout: string, file: string): string {
+  const hash = keccak256(readFileSync(join(ROOT, file)));
+  expect(stdout).toContain(`keccak256 of ${file}: ${hash}`);
+  return hash;
 }
 
 let anvil: Anvil;
+let forgeDir = '';
 let site = '';
 let common: string[] = [];
 const temps: string[] = [];
@@ -55,6 +69,11 @@ beforeAll(async () => {
     timeout: 600_000,
   });
   if (build.status !== 0) throw new Error(`forge build failed:\n${build.stdout}\n${build.stderr}`);
+  forgeDir = mkdtempSync(join(tmpdir(), 'atropyle-deweb-forge-'));
+  temps.push(forgeDir);
+  // The compiler cache of the build above, so forge script finds nothing to recompile.
+  mkdirSync(join(forgeDir, 'cache'));
+  copyFileSync(join(CONTRACTS, 'cache/solidity-files-cache.json'), join(forgeDir, 'cache/solidity-files-cache.json'));
   const artifact = JSON.parse(readFileSync(join(CONTRACTS, 'out/MockSiteRegistry.sol/MockSiteRegistry.json'), 'utf8'));
   anvil = await startAnvil();
   await rpc(anvil.url, 'anvil_setCode', [DEWEB.registry, artifact.deployedBytecode.object]);
@@ -77,16 +96,6 @@ afterAll(async () => {
   await anvil?.stop();
   for (const d of temps) rmSync(d, { recursive: true, force: true });
   for (const f of emitted) rmSync(f, { force: true });
-  // forge's records of these anvil broadcasts (chain 31337 only), and their folder when nothing else is in it.
-  for (const d of ['broadcast', 'cache']) {
-    const script = join(CONTRACTS, d, '07_DewebPublish.s.sol');
-    rmSync(join(script, '31337'), { recursive: true, force: true });
-    try {
-      rmdirSync(script);
-    } catch {
-      // not empty, or already gone
-    }
-  }
 });
 
 test('--emit, then forge script --broadcast from the unlocked account, then the dry run has nothing to publish', async () => {
@@ -99,9 +108,17 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
   expect(emit.stderr).toBe('');
   expect(emit.status).toBe(0);
   expect(emit.stdout).toContain(`Wrote 5 call(s) to ${file} (chain 31337, container ${CONTAINER}). Nothing was sent.`);
+  const hash = emittedKeccak(emit.stdout, file);
   expect(emit.stdout).toContain(
-    `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url ${anvil.url} --account atropyle-deployer --broadcast --slow`,
+    `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url '${anvil.url}'`,
   );
+  expect(emit.stdout).toContain(
+    `Compare its "file keccak256" with ${hash}. Type the keystore password below only if they are the same.`,
+  );
+  expect(emit.stdout).toContain(
+    `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
+  );
+  expect(emit.stdout).toContain(`After a successful broadcast, delete ${file}:`);
   expect(emit.stdout).toContain('use --unlocked --sender <address> instead of --account');
   expect(emit.stdout).toContain(
     `Then run npm run deweb:publish -- --dry-run ${common.join(' ').replaceAll('\\', '/')}`,
@@ -109,7 +126,13 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
   expect(JSON.parse(readFileSync(join(ROOT, file), 'utf8'))).toMatchObject({ chainId: 31337, container: CONTAINER });
   expect(await client.getTransactionCount({ address: FROM })).toBe(0);
 
-  broadcast(name);
+  // The broadcast run prints the same keccak256 and one line per call before it sends anything.
+  const forge = broadcast(name);
+  expect(forge).toContain(`file keccak256 ${hash}`);
+  expect(forge).toContain('call 0: registry putFile assets/e.js');
+  expect(forge).toContain('call 1: registry appendChunk assets/e.js');
+  expect(forge).toContain('call 4: registry setFallback index.html');
+  expect(forge.indexOf(`file keccak256 ${hash}`)).toBeLessThan(forge.indexOf('ONCHAIN EXECUTION COMPLETE'));
   expect(await client.getTransactionCount({ address: FROM })).toBe(5);
 
   const dry = publish(['--dry-run', ...common]);
@@ -119,6 +142,16 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
   const reader = registryReader(client, CONTAINER);
   for (const f of loadSite(site)) expect(await reader.readRange(f.path, 0, f.bytes.length)).toEqual(f.bytes);
   expect(await reader.fallbackPath()).toBe('index.html');
+
+  // With nothing left, --emit deletes the spent file, so it cannot be broadcast again by mistake.
+  const again = publish(['--emit', file, ...common]);
+  expect(again.stderr).toBe('');
+  expect(again.status).toBe(0);
+  expect(again.stdout).toContain('Nothing to publish: the chain already has this site.');
+  expect(again.stdout).toContain(`Deleted ${file}: its calls are all on chain`);
+  expect(existsSync(join(ROOT, file))).toBe(false);
+  // forge wrote its records to the temp folder only.
+  expect(existsSync(join(forgeDir, 'broadcast/07_DewebPublish.s.sol/31337/run-latest.json'))).toBe(true);
 }, 600_000);
 
 test('--unlocked publishes a change and --prune removes a dropped path, then the dry run is empty again', async () => {
@@ -159,16 +192,26 @@ test('a plan over 1 MB goes out in two --emit files, the second resuming the par
   expect(first.stdout).toContain('Wrote 41 call(s)');
   expect(first.stdout).toContain('That is part of the plan: 5 call(s) are left');
   expect(first.stdout).toContain('it should plan the 5 call(s) that are left.');
-  broadcast(name);
+  expect(first.stdout).toContain(
+    `After a successful broadcast, delete ${file}, then run --emit again for the next part`,
+  );
+  const firstHash = emittedKeccak(first.stdout, file);
+  expect(broadcast(name)).toContain(`file keccak256 ${firstHash}`);
 
   const second = publish(['--emit', file, ...common]);
   expect(second.status).toBe(0);
   expect(second.stdout).toContain('resume    assets/big.js (1100000 B, 5 tx)');
   expect(second.stdout).toContain('Wrote 5 call(s)');
   expect(second.stdout).not.toContain('That is part of the plan');
-  broadcast(name);
+  const secondHash = emittedKeccak(second.stdout, file);
+  expect(secondHash).not.toBe(firstHash);
+  expect(broadcast(name)).toContain(`file keccak256 ${secondHash}`);
 
   expect(publish(['--dry-run', ...common]).stdout).toContain('Nothing to publish: the chain already has this site.');
+  expect(existsSync(join(ROOT, file))).toBe(true);
+  const done = publish(['--emit', file, ...common]);
+  expect(done.stdout).toContain(`Deleted ${file}`);
+  expect(existsSync(join(ROOT, file))).toBe(false);
   const reader = registryReader(createPublicClient({ transport: http(anvil.url) }), CONTAINER);
   for (let off = 0; off < big.length; off += 96_000) {
     expect(await reader.readRange('assets/big.js', off, 96_000)).toEqual(big.subarray(off, off + 96_000));

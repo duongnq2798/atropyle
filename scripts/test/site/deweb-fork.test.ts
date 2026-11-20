@@ -2,8 +2,10 @@
 // The fork runs on 127.0.0.1 and keeps chain id 196: the DeWEB opener derives container addresses from block.chainid,
 // so under --chain-id 31337 the live container is not found. Only this test's own walletSender sends on the fork,
 // as the impersonated circuit holder; the CLI's --unlocked refuses chain 196, and forge script only simulates.
+// forge keeps its records in a temp folder (FOUNDRY_BROADCAST and --cache-path): contracts/broadcast and
+// contracts/cache, where the user's own runs are, stay untouched.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +18,7 @@ import {
   type Hex,
   hexToBytes,
   http,
+  keccak256,
   parseAbi,
 } from 'viem';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -57,12 +60,28 @@ function publish(args: string[]) {
 describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
   let anvil: Anvil;
   let holder: Address;
+  let forgeDir = '';
   const temps: string[] = [];
   const emitted: string[] = [];
   const client = () => createPublicClient({ transport: http(anvil.url) });
   const sender = () => walletSender(createWalletClient({ transport: http(anvil.url) }), holder, client());
 
   beforeAll(async () => {
+    const build = spawnSync('forge', ['build'], {
+      cwd: join(ROOT, 'contracts'),
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 600_000,
+    });
+    if (build.status !== 0) throw new Error(`forge build failed:\n${build.stdout}\n${build.stderr}`);
+    forgeDir = mkdtempSync(join(tmpdir(), 'atropyle-deweb-forge-'));
+    temps.push(forgeDir);
+    // The compiler cache of the build above, so forge script finds nothing to recompile.
+    mkdirSync(join(forgeDir, 'cache'));
+    copyFileSync(
+      join(ROOT, 'contracts/cache/solidity-files-cache.json'),
+      join(forgeDir, 'cache/solidity-files-cache.json'),
+    );
     anvil = await startAnvil({ forkUrl: FORK });
     holder = await client().readContract({
       address: LIVE.cpu,
@@ -77,19 +96,6 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
     await anvil?.stop();
     for (const d of temps) rmSync(d, { recursive: true, force: true });
     for (const f of emitted) rmSync(f, { force: true });
-    // The simulation's record. A real broadcast would be in 196/run-latest.json: this never touches it, and the
-    // folders above it go only when they are empty.
-    for (const d of ['broadcast', 'cache']) {
-      const script = join(ROOT, 'contracts', d, '07_DewebPublish.s.sol');
-      rmSync(join(script, '196', 'dry-run'), { recursive: true, force: true });
-      for (const empty of [join(script, '196'), script]) {
-        try {
-          rmdirSync(empty);
-        } catch {
-          // not empty, or already gone
-        }
-      }
-    }
   });
 
   test('the opener and the factory index agree with the live site 1.2.396.tape', async () => {
@@ -188,8 +194,13 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
         `Wrote [34] call\\(s\\) to ${file} \\(chain 196, container ${LIVE.container}\\)\\. Nothing was sent\\.`,
       ),
     );
+    const hash = keccak256(readFileSync(join(ROOT, file)));
+    expect(emit.stdout).toContain(`keccak256 of ${file}: ${hash}`);
     expect(emit.stdout).toContain(
-      `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url ${anvil.url} --account atropyle-deployer --broadcast --slow`,
+      `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url '${anvil.url}'`,
+    );
+    expect(emit.stdout).toContain(
+      `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
     );
     expect(await c.getTransactionCount({ address: holder })).toBe(nonce);
     const json = JSON.parse(readFileSync(join(ROOT, file), 'utf8')) as { calls: Hex };
@@ -200,23 +211,41 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
       container: LIVE.container,
     });
 
-    // The user's forge script, as a simulation only (no --broadcast): its guard accepts the file and every call
-    // succeeds against the real SiteRegistry when the holder sends it.
-    const forge = spawnSync(
-      'forge',
-      ['script', 'script/07_DewebPublish.s.sol', '--rpc-url', anvil.url, '--sender', holder],
-      {
-        cwd: join(ROOT, 'contracts'),
-        env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}` },
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: 600_000,
-      },
-    );
-    expect(forge.status, `${forge.stdout}\n${forge.stderr}`).toBe(0);
-    expect(forge.stdout).toContain('Script ran successfully.');
-    expect(forge.stdout).not.toMatch(/ONCHAIN EXECUTION COMPLETE/);
+    const forge = (args: string[]) => {
+      const r = spawnSync(
+        'forge',
+        [
+          'script',
+          'script/07_DewebPublish.s.sol',
+          '--rpc-url',
+          anvil.url,
+          '--cache-path',
+          join(forgeDir, 'cache'),
+          ...args,
+        ],
+        {
+          cwd: join(ROOT, 'contracts'),
+          env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}`, FOUNDRY_BROADCAST: join(forgeDir, 'broadcast') },
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 600_000,
+          maxBuffer: 64 * 1024 * 1024,
+        },
+      );
+      expect(r.status, `${r.error ?? ''}\n${r.stdout.slice(-4000)}\n${r.stderr.slice(-4000)}`).toBe(0);
+      expect(r.stdout).toContain('Script ran successfully.');
+      expect(r.stdout).not.toMatch(/ONCHAIN EXECUTION COMPLETE/);
+      return r.stdout;
+    };
+    // The check the user runs first: no key, no sender, nothing sent; it prints the keccak256 and every call.
+    const shown = forge(['--sig', 'show()']);
+    expect(shown).toContain(`file keccak256 ${hash}`);
+    expect(shown).toContain('call 0: registry putFile assets/e.js');
+    // The user's broadcast command as a simulation only (no --broadcast): its guard accepts the file and every
+    // call succeeds against the real SiteRegistry when the holder sends it.
+    expect(forge(['--sender', holder])).toContain(`file keccak256 ${hash}`);
     expect(await c.getTransactionCount({ address: holder })).toBe(nonce);
+    expect(existsSync(join(forgeDir, 'broadcast/07_DewebPublish.s.sol/196/dry-run/run-latest.json'))).toBe(true);
 
     // The fork stands in for the holder's wallet: send the file's calls exactly as written.
     const [calls] = decodeAbiParameters(callsParams, json.calls);

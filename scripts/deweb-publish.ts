@@ -4,12 +4,15 @@
 // No mode flag means a dry run: it reads the chain and prints the plan and the fee. Nothing here takes a key.
 // --emit writes the calls that are left for contracts/script/07_DewebPublish.s.sol, which the circuit holder
 // broadcasts from their own terminal with their keystore. --unlocked sends with eth_sendTransaction, and only to a
-// local anvil on chain 31337 (a rehearsal fork).
-import { mkdirSync, writeFileSync } from 'node:fs';
+// local anvil on chain 31337: for a rehearsal, one with MockSiteRegistry at the registry address (as in
+// scripts/test/site/deweb-local.test.ts). A fork of X Layer keeps chain 196; there, use --emit and a forge script
+// simulation without --broadcast.
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Address, createPublicClient, createWalletClient, formatEther, formatGwei, http } from 'viem';
 import {
+  checkCommand,
   DEWEB,
   describeOp,
   emitBatch,
@@ -17,13 +20,16 @@ import {
   emitJson,
   estimate,
   executePlan,
+  fileKeccak,
   type PublishArgs,
   parsePublishArgs,
   planPublish,
   publishCommand,
   type RegistryReader,
+  redactHex,
   registryAbi,
   registryReader,
+  shQuote,
   unlockedChainProblem,
   walletSender,
 } from './lib/deweb';
@@ -48,9 +54,24 @@ function dryRunCommand(argv: readonly string[]): string {
   const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--emit' || argv[i] === '--unlocked') i++;
-    else if (argv[i] !== '--dry-run') rest.push(/\s/.test(argv[i]) ? JSON.stringify(posix(argv[i])) : posix(argv[i]));
+    else if (argv[i] !== '--dry-run') {
+      const arg = redactHex(posix(argv[i]));
+      rest.push(/^[\w@%+=:,./-]+$/.test(arg) ? arg : shQuote(arg));
+    }
   }
   return ['npm run deweb:publish -- --dry-run', ...rest].join(' ');
+}
+
+/**
+ * With nothing left to publish, an --emit file holds only calls that are on chain: broadcasting it again would put
+ * old bytes back (a part file would cut a file back to its first chunks), so --emit deletes it. Only a file directly
+ * in contracts/deweb-calls/, never the committed fixtures under test/.
+ */
+function removeSpentFile(file: string): void {
+  const abs = resolve(ROOT, file);
+  if (dirname(abs) !== resolve(ROOT, 'contracts', 'deweb-calls') || !existsSync(abs)) return;
+  rmSync(abs);
+  console.log(`Deleted ${file}: its calls are all on chain, and a second broadcast would put old bytes back.`);
 }
 
 async function main(argv: readonly string[]): Promise<void> {
@@ -92,7 +113,7 @@ async function main(argv: readonly string[]): Promise<void> {
   } else if (args.mode.kind !== 'dry-run') {
     throw new Fail('no container: pass --container, or run npm run deweb:site once the container is open');
   } else {
-    console.log(`No ${posix(args.site)} yet: every file counts as new.`);
+    console.log(`No ${redactHex(posix(args.site))} yet: every file counts as new.`);
   }
 
   const plan = await planPublish(local, reader, { prune: args.prune, fallback: args.fallback });
@@ -107,6 +128,7 @@ async function main(argv: readonly string[]): Promise<void> {
 
   if (plan.ops.length === 0) {
     console.log('Nothing to publish: the chain already has this site.');
+    if (args.mode.kind === 'emit') removeSpentFile(args.mode.file);
     return;
   }
   // forge reserves 1.3 x the estimated gas at up to twice the gas price before it broadcasts.
@@ -125,33 +147,50 @@ async function main(argv: readonly string[]): Promise<void> {
     const abs = resolve(ROOT, file);
     const batch = emitBatch(plan.ops);
     const left = plan.ops.length - batch.length;
+    const text = emitJson(emitCalls(batch, container, chainId));
     mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, emitJson(emitCalls(batch, container, chainId)));
+    writeFileSync(abs, text);
+    const hash = fileKeccak(text);
     console.log(
       `Wrote ${batch.length} call(s) to ${file} (chain ${chainId}, container ${container}). Nothing was sent.`,
     );
+    console.log(`keccak256 of ${file}: ${hash}`);
     if (left > 0) {
       console.log(
-        `That is part of the plan: ${left} call(s) are left, so that one forge run stays under its gas limit. After this broadcast, run --emit again for the next part.`,
+        `That is part of the plan: ${left} call(s) are left, so that one forge run stays under its gas limit.`,
       );
     }
     console.log(
       'Broadcast them from your own terminal, in Git Bash, as the holder of the circuit NFT (the container editor):',
     );
     console.log('  cd contracts');
+    console.log('First check the file. This needs no key and sends nothing; it prints the keccak256 and every call:');
+    console.log(`  ${checkCommand(file, args.rpcUrl)}`);
+    console.log(
+      `Compare its "file keccak256" with ${hash}. Type the keystore password below only if they are the same.`,
+    );
     console.log(`  ${publishCommand(file, args.rpcUrl)}`);
     if (chainId !== DEWEB.chainId) {
       console.log(
         `  (chain ${chainId} is not X Layer: on a local anvil, use --unlocked --sender <address> instead of --account)`,
       );
     }
-    console.log('forge simulates every call before it sends one, and asks for the keystore password once.');
+    console.log(
+      'forge asks for the keystore password first, then prints the same keccak256 and simulates every call before it sends one.',
+    );
+    console.log(
+      left > 0
+        ? `After a successful broadcast, delete ${file}, then run --emit again for the next part: broadcasting this part again later would cut a file back to its first chunks.`
+        : `After a successful broadcast, delete ${file}: broadcasting it again later would put these bytes back.`,
+    );
     console.log(
       left > 0
         ? `Then run ${dryRunCommand(argv)}: it should plan the ${left} call(s) that are left.`
         : `Then run ${dryRunCommand(argv)} and expect "Nothing to publish".`,
     );
-    console.log('If the broadcast stops part way, run --emit again: it writes only the calls that are left.');
+    console.log(
+      'If the broadcast stops part way, run --emit again: it writes only the calls that are left, and deletes the file once nothing is left.',
+    );
     return;
   }
 
@@ -172,7 +211,7 @@ async function main(argv: readonly string[]): Promise<void> {
 try {
   await main(process.argv.slice(2));
 } catch (e) {
-  console.error(e instanceof Error ? e.message : String(e));
+  console.error(redactHex(e instanceof Error ? e.message : String(e)));
   // Not process.exit(): on Windows it can abort in libuv while fetch still holds a keep-alive socket.
   process.exitCode = e instanceof Fail ? e.code : 1;
 }

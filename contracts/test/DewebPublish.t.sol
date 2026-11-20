@@ -43,6 +43,10 @@ contract CallsHarness {
     function check(DewebCalls.File memory f, uint256 chainid) external pure {
         DewebCalls.check(f, chainid);
     }
+
+    function describe(DewebCalls.Call memory c, uint256 i) external pure returns (string memory) {
+        return DewebCalls.describe(c, i);
+    }
 }
 
 contract DewebPublishTest is Test {
@@ -50,6 +54,9 @@ contract DewebPublishTest is Test {
     address internal constant OTHER = 0x632910a79EeE7fA99e99695510aA95dDee6ef771;
     address internal constant USDT0 = 0x779Ded0c9e1022225f8E0630b35a9b54bE713736;
     string internal constant GOOD = "deweb-calls/test/good.json";
+    /// @dev keccak256 of good.json. scripts/test/site/deweb.test.ts reads this line and checks that --emit's
+    ///      keccak of the same file is this value, so the hash the user compares is the same on both sides.
+    bytes32 internal constant GOOD_KECCAK = 0xb0c45f5a22a902215f7be420110cb5849975b0d7fdce4521115e52fbee4e816f;
 
     CallsHarness internal h;
     DewebPublish internal script;
@@ -113,6 +120,54 @@ contract DewebPublishTest is Test {
             assertEq(f.calls[i].value, 0);
             assertEq(f.calls[i].data, want[i]);
         }
+    }
+
+    // ---------- what the user reads before signing ----------
+
+    function test_loadHashesTheFileBytes() public view {
+        assertEq(h.load(GOOD).hash, GOOD_KECCAK);
+        assertEq(keccak256(bytes(vm.readFile(string.concat(vm.projectRoot(), "/", GOOD)))), GOOD_KECCAK);
+    }
+
+    function test_describeNamesTheTargetTheFunctionAndThePath() public view {
+        DewebCalls.File memory f = h.load(GOOD);
+        assertEq(h.describe(f.calls[0], 0), "call 0: registry putFile index.html");
+        assertEq(h.describe(f.calls[1], 1), "call 1: registry appendChunk index.html");
+        assertEq(h.describe(f.calls[2], 2), "call 2: registry removeFile old.js");
+        assertEq(h.describe(f.calls[3], 3), "call 3: registry setFallback index.html");
+        DewebCalls.Call memory bind = DewebCalls.Call(DewebCalls.BINDING, 0, _bind(CONTAINER));
+        assertEq(h.describe(bind, 7), "call 7: binding bind 1.2.396.tape");
+    }
+
+    function test_describeHidesControlCharactersInAPath() public view {
+        bytes memory data = abi.encodeWithSelector(
+            DewebCalls.REMOVEFILE, CONTAINER, string(bytes.concat("a", hex"1b", "[2Jb", hex"c3a9", ".js"))
+        );
+        assertEq(
+            h.describe(DewebCalls.Call(DewebCalls.REGISTRY, 0, data), 0), "call 0: registry removeFile a?[2Jb??.js"
+        );
+    }
+
+    function test_describeCutsALongPathAndShowsABrokenOneAsAQuestionMark() public view {
+        bytes memory long = new bytes(300);
+        for (uint256 i; i < long.length; ++i) {
+            long[i] = "a";
+        }
+        bytes memory data = abi.encodeWithSelector(DewebCalls.REMOVEFILE, CONTAINER, string(long));
+        string memory line = h.describe(DewebCalls.Call(DewebCalls.REGISTRY, 0, data), 0);
+        assertEq(bytes(line).length, bytes("call 0: registry removeFile ").length + 200 + 3);
+        // The path offset points past the end of the calldata.
+        bytes memory broken = abi.encodePacked(DewebCalls.REMOVEFILE, uint256(uint160(CONTAINER)), uint256(1 << 40));
+        assertEq(h.describe(DewebCalls.Call(DewebCalls.REGISTRY, 0, broken), 1), "call 1: registry removeFile ?");
+    }
+
+    function test_showChecksAndPrintsButSendsNothing() public {
+        vm.setEnv("DEWEB_CALLS", GOOD);
+        script.show();
+        assertEq(registry.count(), 0);
+        vm.chainId(1);
+        vm.expectRevert(abi.encodeWithSelector(DewebCalls.WrongChain.selector, 196, 1));
+        script.show();
     }
 
     // ---------- refusals ----------
@@ -192,7 +247,7 @@ contract DewebPublishTest is Test {
     // ---------- check(): what the signing account may send ----------
 
     function _file(DewebCalls.Call[] memory calls) internal pure returns (DewebCalls.File memory f) {
-        f = DewebCalls.File(196, DewebCalls.REGISTRY, DewebCalls.BINDING, CONTAINER, calls);
+        f = DewebCalls.File(196, DewebCalls.REGISTRY, DewebCalls.BINDING, CONTAINER, calls, bytes32(0));
     }
 
     function _one(address to, uint256 value, bytes memory data) internal pure returns (DewebCalls.Call[] memory c) {

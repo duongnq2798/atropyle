@@ -3,7 +3,7 @@
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPublicClient, getAddress, http, isAddress } from 'viem';
-import { DEWEB, findCpuIndex, openerAbi, registryAbi } from './lib/deweb';
+import { DEWEB, findCpuIndex, keyFlagOf, openerAbi, redactHex, registryAbi } from './lib/deweb';
 import { makeSite, writeSite } from './lib/deweb-site';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -28,15 +28,21 @@ function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (!(a in o)) throw new Fail(`unknown argument: ${a}`, 2);
+    const key = keyFlagOf(a);
+    if (key) throw new Fail(`${key}: there is no key mode; deweb:site only reads the chain and writes a file`, 2);
+    if (!(a in o)) throw new Fail(`unknown argument: ${redactHex(a)}`, 2);
     const v = argv[++i];
     if (!v || v.startsWith('--')) throw new Fail(`${a} needs a value`, 2);
     o[a] = v;
   }
   const cpu = o['--cpu'] ?? '';
   const token = o['--token-id'] ?? '';
-  if (!isAddress(cpu, { strict: false })) throw new Fail(`--cpu is not an address: ${cpu || '(missing)'}`, 2);
-  if (!/^[1-9]\d*$/.test(token)) throw new Fail(`--token-id must be a positive integer: ${token || '(missing)'}`, 2);
+  if (!isAddress(cpu, { strict: false })) {
+    throw new Fail(`--cpu is not an address: ${redactHex(cpu) || '(missing)'}`, 2);
+  }
+  if (!/^[1-9]\d*$/.test(token)) {
+    throw new Fail(`--token-id must be a positive integer: ${redactHex(token) || '(missing)'}`, 2);
+  }
   return {
     cpu: getAddress(cpu.toLowerCase()),
     tokenId: BigInt(token),
@@ -82,7 +88,7 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (e) {
-  console.error(e instanceof Error ? e.message : String(e));
+  console.error(redactHex(e instanceof Error ? e.message : String(e)));
   // Not process.exit(): on Windows it can abort in libuv while fetch still holds a keep-alive socket.
   process.exitCode = e instanceof Fail ? e.code : 1;
 }

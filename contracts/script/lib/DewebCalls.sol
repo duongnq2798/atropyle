@@ -19,6 +19,9 @@ library DewebCalls {
     bytes4 internal constant SETFALLBACK = 0x4dc21ad0; // setFallback(address,string)
     bytes4 internal constant BIND = 0x69e292ce; // bind(string,address,uint256)
 
+    /// @dev The longest path or name `describe` shows.
+    uint256 internal constant SHOWN = 200;
+
     /// @dev Relative to contracts/. foundry.toml grants forge read access to ./deweb-calls and ./circuits only.
     string internal constant DIR = "deweb-calls/";
 
@@ -34,6 +37,8 @@ library DewebCalls {
         address binding;
         address container;
         Call[] calls;
+        /// @dev keccak256 of the file's bytes: the value `--emit` prints, for the user to compare before signing.
+        bytes32 hash;
     }
 
     error BadPath(string path);
@@ -76,24 +81,62 @@ library DewebCalls {
     /// @notice Reads and parses deweb-calls/<file>. The text must be exactly what emitJson in scripts/lib/deweb.ts
     ///         writes for the values read here, and `calls` the strict ABI encoding of Call[]: a duplicate or extra
     ///         key, another layout or trailing bytes is refused, so the values checked are the only ones in the file.
+    ///         A forge script has 2^30 gas, and memory costs grow with the square of its high-water mark: every
+    ///         cheatcode call copies its arguments (the whole file) into memory. The helpers below hand back their
+    ///         scratch memory, so a 1 MB file peaks near 10 MB of memory instead of 20 MB.
     function load(string memory rel) internal view returns (File memory f) {
         requirePath(rel);
         string memory json = vm.readFile(string.concat(vm.projectRoot(), "/", rel));
-        f.chainId = vm.parseJsonUint(json, ".chainId");
-        f.registry = vm.parseJsonAddress(json, ".registry");
-        f.binding = vm.parseJsonAddress(json, ".binding");
-        f.container = vm.parseJsonAddress(json, ".container");
+        (f.chainId, f.registry, f.binding, f.container) = _header(json);
         bytes memory raw = vm.parseJsonBytes(json, ".calls");
-        string memory canonical = string.concat(
-            string.concat(
-                "{\n  \"chainId\": ", vm.toString(f.chainId), ",\n  \"registry\": \"", vm.toString(f.registry)
-            ),
-            string.concat("\",\n  \"binding\": \"", vm.toString(f.binding), "\",\n  \"container\": \""),
-            string.concat(vm.toString(f.container), "\",\n  \"calls\": \"", vm.toString(raw), "\"\n}\n")
-        );
-        if (keccak256(bytes(json)) != keccak256(bytes(canonical))) revert NotCanonicalJson();
+        f.hash = keccak256(bytes(json));
+        if (f.hash != _canonicalHash(f, raw)) revert NotCanonicalJson();
         f.calls = abi.decode(raw, (Call[]));
-        if (keccak256(abi.encode(f.calls)) != keccak256(raw)) revert NotCanonicalCalls();
+        if (_encodedHash(f.calls) != keccak256(raw)) revert NotCanonicalCalls();
+    }
+
+    function _header(string memory json)
+        private
+        pure
+        returns (uint256 chainId, address registry, address binding, address container)
+    {
+        uint256 mark = _freePointer();
+        chainId = vm.parseJsonUint(json, ".chainId");
+        registry = vm.parseJsonAddress(json, ".registry");
+        binding = vm.parseJsonAddress(json, ".binding");
+        container = vm.parseJsonAddress(json, ".container");
+        _setFreePointer(mark);
+    }
+
+    /// @dev keccak256 of the text emitJson writes for these values.
+    function _canonicalHash(File memory f, bytes memory raw) private pure returns (bytes32 h) {
+        uint256 mark = _freePointer();
+        string memory head = string.concat(
+            string.concat("{\n  \"chainId\": ", vm.toString(f.chainId), ",\n  \"registry\": \""),
+            string.concat(vm.toString(f.registry), "\",\n  \"binding\": \"", vm.toString(f.binding)),
+            string.concat("\",\n  \"container\": \"", vm.toString(f.container), "\",\n  \"calls\": \"")
+        );
+        h = keccak256(bytes(string.concat(head, vm.toString(raw), "\"\n}\n")));
+        _setFreePointer(mark);
+    }
+
+    function _encodedHash(Call[] memory calls) private pure returns (bytes32 h) {
+        uint256 mark = _freePointer();
+        h = keccak256(abi.encode(calls));
+        _setFreePointer(mark);
+    }
+
+    /// @dev Only around code that returns value types, so nothing still points into the memory handed back.
+    function _freePointer() private pure returns (uint256 p) {
+        assembly {
+            p := mload(0x40)
+        }
+    }
+
+    function _setFreePointer(uint256 p) private pure {
+        assembly {
+            mstore(0x40, p)
+        }
     }
 
     /// @notice What the signing account may send: on this chain only, nothing but value-free registry writes and
@@ -120,6 +163,51 @@ library DewebCalls {
                 if (c.data.length < 68) revert ShortCall(i);
                 if (_word(c.data, 36) != container) revert WrongContainer(i);
             }
+        }
+    }
+
+    /// @notice One line for the user to read before signing, such as `call 0: registry putFile index.html`: the
+    ///         index, the target, the function, and the path (or the name, for bind). Call it only after `check`.
+    function describe(Call memory c, uint256 index) internal pure returns (string memory) {
+        bytes4 s = bytes4(c.data);
+        string memory fn;
+        bytes memory what;
+        if (s == BIND) {
+            fn = "bind";
+            what = _shownString(c.data, 4); // bind(string name, address container, uint256)
+        } else {
+            if (s == PUTFILE) fn = "putFile";
+            else if (s == APPENDCHUNK) fn = "appendChunk";
+            else if (s == REMOVEFILE) fn = "removeFile";
+            else fn = "setFallback";
+            what = _shownString(c.data, 36); // (address container, string path, ...)
+        }
+        string memory target = c.to == REGISTRY ? "registry" : "binding";
+        return string.concat("call ", vm.toString(index), ": ", target, " ", fn, " ", string(what));
+    }
+
+    /// @dev The ABI string argument whose head word is at byte `at` of `data`, read in place (a chunk is not copied),
+    ///      at most SHOWN bytes of it. The file is untrusted: a byte outside printable ASCII becomes `?`, so a path
+    ///      cannot move the cursor or recolour the terminal while the user reads it, and offsets that do not fit
+    ///      give "?" (the call itself would then fail before anything is sent).
+    function _shownString(bytes memory data, uint256 at) private pure returns (bytes memory out) {
+        uint256 n = data.length;
+        if (n < at + 32) return "?";
+        uint256 off = _word(data, at);
+        if (off > n || n - off < 36) return "?";
+        uint256 start = 4 + off + 32;
+        uint256 len = _word(data, 4 + off);
+        if (len > n - start) return "?";
+        bool cut = len > SHOWN;
+        out = new bytes(cut ? SHOWN + 3 : len);
+        for (uint256 i; i < (cut ? SHOWN : len); ++i) {
+            bytes1 ch = data[start + i];
+            out[i] = ch < 0x20 || ch > 0x7e ? bytes1("?") : ch;
+        }
+        if (cut) {
+            out[SHOWN] = ".";
+            out[SHOWN + 1] = ".";
+            out[SHOWN + 2] = ".";
         }
     }
 
