@@ -6,3 +6,4 @@ export * from './read';
 export * from './schemas';
 export * from './text';
 export * from './untrusted';
+export * from './verify';

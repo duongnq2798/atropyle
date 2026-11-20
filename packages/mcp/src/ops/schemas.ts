@@ -392,3 +392,41 @@ export const PrepareOutputSchema = z.object({
 
 export type Handoff = z.output<typeof HandoffSchema>;
 export type PrepareOutput = z.output<typeof PrepareOutputSchema>;
+
+export const PolicyStatusSchema = z.enum(['verified', 'unavailable', 'mismatch', 'skipped']);
+export const VerifyOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  ok: z.boolean().describe('true only when every requested check passed'),
+  target: z.enum(['policy', 'vault']),
+  chainId: IntSchema,
+  blockNumber: UintSchema.nullable(),
+  rpcs: IntSchema.describe('Independent RPC operators that had to agree'),
+  operators: z.array(z.array(z.string())).describe('Host names of each operator; URLs are never printed'),
+  policyStatus: PolicyStatusSchema,
+  policy: PolicyVerificationSchema.nullable(),
+  policyError: ErrorJsonSchema.nullable(),
+  vault: z
+    .object({
+      address: AddressSchema,
+      ok: z.boolean(),
+      checks: z.array(IntegrityCheckSchema),
+      unchanged: z.boolean().nullable().describe('The vault still runs the proven policy; null when not proven'),
+      state: StateNameSchema,
+      status: VaultStatusSchema,
+      config: VaultConfigSchema,
+      timeline: TimelineSchema,
+    })
+    .nullable(),
+  ...tail,
+});
+export const IntegrityOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  checkedAt: z.string().nullable(),
+  report: IntegrityReportSchema.nullable(),
+  verifyCommand: z.literal('npx -y atropyle verify'),
+  ...tail,
+});
+
+export type PolicyStatus = z.output<typeof PolicyStatusSchema>;
+export type VerifyOutput = z.output<typeof VerifyOutputSchema>;
+export type IntegrityOutput = z.output<typeof IntegrityOutputSchema>;
