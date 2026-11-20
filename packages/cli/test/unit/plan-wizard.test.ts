@@ -83,6 +83,69 @@ describe('plan init in a terminal', () => {
     }
   });
 
+  it('never asks when only one of stdin and stdout is a terminal, or when there is no prompt', async () => {
+    for (const [isTTY, stdinTTY] of [
+      [false, true],
+      [true, false],
+    ]) {
+      const s = scripted([]);
+      const io = memoryIo({ isTTY, stdinTTY, env: { NO_COLOR: '1' }, prompt: s.prompt });
+      expect(await main(['plan', 'init'], io), `stdout ${isTTY}, stdin ${stdinTTY}`).toBe(2);
+      expect(s.asked).toEqual([]);
+      expect(io.files.size).toBe(0);
+    }
+    const bare = memoryIo({ isTTY: true, stdinTTY: true, env: { NO_COLOR: '1' } });
+    expect(await main(['plan', 'init'], bare)).toBe(2);
+    expect(bare.files.size).toBe(0);
+  });
+
+  it('rejects a flag that a question would answer before the first question', async () => {
+    const s = scripted([]);
+    const io = terminal(s.prompt);
+    expect(await main(['plan', 'init', '--preset', 'sixMonths'], io)).toBe(2);
+    expect(s.asked).toEqual([]);
+    expect(io.stderr).toContain('--preset');
+    expect(io.files.size).toBe(0);
+  });
+
+  it('ends with a usage error after 5 bad answers to one question, and writes nothing', async () => {
+    const s = scripted(['', 'x1', 'x2', 'x3', 'x4', 'x5']);
+    const io = terminal(s.prompt);
+    expect(await main(['plan', 'init'], io)).toBe(2);
+    expect(s.asked).toHaveLength(6);
+    expect(io.stderr).toContain('5 tries');
+    expect(io.files.size).toBe(0);
+  });
+
+  it('stops before the first question when the target is not a readable file', async () => {
+    const s = scripted([]);
+    const io = terminal(s.prompt);
+    io.readFile = async () => {
+      throw Object.assign(new Error('EISDIR'), { code: 'EISDIR' });
+    };
+    expect(await main(['plan', 'init'], io)).not.toBe(0);
+    expect(s.asked).toEqual([]);
+    expect(io.stderr).toContain('EISDIR');
+    expect(io.files.size).toBe(0);
+  });
+
+  it('words the recovery question for a single guardian', async () => {
+    const s = scripted(['', A(2), '', A(3), '', '', 'y', '', '']);
+    const io = terminal(s.prompt);
+    expect(await main(['plan', 'init'], io)).toBe(0);
+    expect(s.asked[6]).toContain('this guardian');
+    expect(s.asked[6]).toContain('wallet they choose');
+    expect(s.asked[6]).not.toContain('any 1 of');
+    expect(written(io).recoveryEnabled).toBe(true);
+  });
+
+  it('names the asset that cannot be read', async () => {
+    const s = scripted(['', A(2), '', '', '', `erc20:${A(9)}`, 'nonsense', `erc20:${A(8)}`, '']);
+    const io = terminal(s.prompt);
+    expect(await main(['plan', 'init'], io)).toBe(0);
+    expect(io.stderr).toContain('asset 2:');
+  });
+
   it('stops on Ctrl+C or when the file exists, and writes nothing', async () => {
     const s = scripted([null]);
     const io = terminal(s.prompt);

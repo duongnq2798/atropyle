@@ -51,6 +51,9 @@ export function processIo(): Io {
     fetch: globalThis.fetch,
     readFile: (p) => readFile(resolve(cwd, p), 'utf8'),
     writeFile: (p, d, o) => writeFile(resolve(cwd, p), d, { encoding: 'utf8', flag: o?.exclusive ? 'wx' : 'w' }),
-    prompt: ask,
+    // The questions go to stderr: without a terminal on all three streams nobody would see them.
+    ...(process.stdin.isTTY === true && process.stdout.isTTY === true && process.stderr.isTTY === true
+      ? { prompt: ask }
+      : {}),
   };
 }

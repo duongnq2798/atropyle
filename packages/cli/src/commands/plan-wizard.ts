@@ -1,9 +1,10 @@
-import { type PresetName, toAddress } from '@atropyle/sdk';
+import { AtropyleError, type PresetName, toAddress } from '@atropyle/sdk';
 import { parseAssets, parseHeirs } from '../actions';
 import { UsageError } from '../exit';
 import type { Io } from '../io';
 import type { PlanInitFlags } from './plan';
 
+/** Attempts per question, the first included: the fifth unusable answer ends the command. */
 const MAX_TRIES = 5;
 
 /** Questions only in a terminal, never in JSON mode. */
@@ -16,8 +17,14 @@ export async function ensureWritable(io: Io, f: PlanInitFlags): Promise<void> {
   if (f.force === true) return;
   try {
     await io.readFile(f.out);
-  } catch {
-    return;
+  } catch (e) {
+    const reason = typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : 'UNKNOWN';
+    if (reason === 'ENOENT') return;
+    throw new AtropyleError('PLAN_INVALID', {
+      message: `Cannot use ${f.out} as the plan file.`,
+      hint: `The path exists but cannot be read as a file (${reason}). Check that it is a file you may write, or use --out <file>.`,
+      details: { file: f.out, reason },
+    });
   }
   throw new UsageError(`${f.out} already exists. Use --force to overwrite it, or --out <file>.`);
 }
@@ -81,7 +88,28 @@ function sharesFor(heirs: readonly string[]) {
   };
 }
 
+/** Flags a question would answer. Giving one next to the questions would let it override an answer. */
+function answeredFlags(f: PlanInitFlags): string[] {
+  const given: [string, boolean][] = [
+    ['--template', f.template !== undefined],
+    ['--preset', f.preset !== undefined],
+    ['--owner', f.owner !== undefined],
+    ['--guardian', (f.guardian ?? []).length > 0],
+    ['--k', f.k !== undefined],
+    ['--recovery', f.recovery !== undefined],
+    ['--asset', (f.asset ?? []).length > 0],
+    ['--drill', f.drill !== undefined],
+  ];
+  return given.filter(([, g]) => g).map(([name]) => name);
+}
+
 export async function askPlan(io: Io, base: PlanInitFlags): Promise<PlanInitFlags> {
+  const conflicts = answeredFlags(base);
+  if (conflicts.length > 0) {
+    throw new UsageError(
+      `${conflicts.join(', ')} would answer a question. Give all answers as flags (with --heir), or none and answer the questions.`,
+    );
+  }
   io.err(
     'Answer each question and press Enter. Ctrl+C stops; nothing is written until the end.\n' +
       'Atropyle never asks for a private key, a seed phrase or a password. Give wallet addresses only.\n',
@@ -115,6 +143,7 @@ export async function askPlan(io: Io, base: PlanInitFlags): Promise<PlanInitFlag
   let recovery = false;
   if (guardian.length > 0) {
     const fallback = Math.floor(guardian.length / 2) + 1;
+    const many = guardian.length > 1;
     k = await ask(io, `How many guardians must agree? 1 to ${guardian.length} (Enter for ${fallback}): `, (a) => {
       const v = a === '' ? fallback : Number(a);
       if (!Number.isInteger(v) || v < 1 || v > guardian.length) {
@@ -124,7 +153,9 @@ export async function askPlan(io: Io, base: PlanInitFlags): Promise<PlanInitFlag
     });
     recovery = await ask(
       io,
-      `Recovery: may any ${k} of these guardians who agree move everything in the vault to a wallet they choose, meant for your new wallet if you lose this one? You can stop it only by checking in before the window ends. Say yes only if you would trust any ${k} of them with everything. [y/N]: `,
+      many
+        ? `Recovery: may any ${k} of these guardians who agree move everything in the vault to a wallet they choose, meant for your new wallet if you lose this one? You can stop it only by checking in before the window ends. Say yes only if you would trust any ${k} of them with everything. [y/N]: `
+        : 'Recovery: may this guardian move everything in the vault to a wallet they choose, meant for your new wallet if you lose this one? You can stop it only by checking in before the window ends. Say yes only if you would trust them with everything. [y/N]: ',
       yesNo(false),
     );
   }
@@ -151,15 +182,20 @@ export async function askPlan(io: Io, base: PlanInitFlags): Promise<PlanInitFlag
     io,
     20,
     (n) => `Asset ${n} to cover, such as erc20:<token address> (Enter when done): `,
-    (a) => {
+    (a, n) => {
       if (a === '') return null;
-      parseAssets([a]);
+      try {
+        parseAssets([a]);
+      } catch (e) {
+        throw new Error(`asset ${n}: ${e instanceof Error ? e.message : String(e)}`);
+      }
       return a;
     },
   );
 
   return {
-    ...base,
+    out: base.out,
+    ...(base.force === undefined ? {} : { force: base.force }),
     ...(owner === null ? {} : { owner }),
     heir,
     guardian,

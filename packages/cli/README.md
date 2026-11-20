@@ -30,7 +30,7 @@ npx -y atropyle verify --deployment deployment.json
 
 Actions: `create-vault` (target: a plan file), `check-in`, `set-heirs`, `set-guardians`, `set-timing`, `set-assets`, `attest-death`, `vote-recovery`, `poke`, `distribute`, `revoke-all` (target: a vault address). Run `atropyle <command> --help` for every flag.
 
-In a terminal, `atropyle plan init` without `--heir` asks one question at a time and checks each answer as the flags do. It asks only for wallet addresses and choices, never for a private key, a seed phrase or a password. Recovery is off unless you answer yes. Ctrl+C stops without writing anything. With `--json`, with `--heir` or without a terminal it never asks.
+In a terminal, `atropyle plan init` without `--heir` asks one question at a time and checks each answer as the flags do, with 5 attempts per question. It asks only for wallet addresses and choices, never for a private key, a seed phrase or a password. Recovery is off unless you answer yes. Ctrl+C stops without writing anything. With `--json`, with `--heir` or without a terminal it never asks.
 
 Start with a Drill, a practice vault that runs in minutes instead of months:
 
