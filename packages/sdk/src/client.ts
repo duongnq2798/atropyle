@@ -38,6 +38,7 @@ import { createReadContext, type ReadContext, type SdkEvent } from './read/conte
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
+import { isRegistered } from './read/registered';
 import { type ScanOptions, type ScanResult, scanEvents } from './read/scan';
 import { readSnapshot, rolesOf } from './read/snapshot';
 import { readStats, type Stats, type StatsCursor } from './read/stats';
@@ -62,6 +63,12 @@ export interface AtropyleOptions {
 export interface VaultHandle {
   readonly address: Address;
   snapshot(o?: { blockNumber?: bigint }): Promise<VaultSnapshot>;
+  /**
+   * True when the deployment's factory created this vault (`factory.isVault`), at `o.blockNumber` or the latest block.
+   * The snapshot's `binding.factory` is read from the vault itself and proves nothing; `prepare` refuses a vault for
+   * which this is false.
+   */
+  registered(o?: { blockNumber?: bigint }): Promise<boolean>;
   status(): Promise<VaultStatus>;
   config(): Promise<VaultConfig>;
   roleOf(account: string): Promise<Role[]>;
@@ -219,6 +226,7 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     return {
       address: addr,
       snapshot,
+      registered: (o) => guard(() => isRegistered(ctx, addr, o?.blockNumber)),
       status: async () => (await snapshot()).status,
       config: async () => (await snapshot()).config,
       roleOf: (account) =>

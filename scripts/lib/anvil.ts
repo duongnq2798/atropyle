@@ -5,7 +5,17 @@ import { createServer } from 'node:net';
 import { constants } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Address, getAddress, type Hex, keccak256 } from 'viem';
+import {
+  type Abi,
+  type Address,
+  encodeDeployData,
+  getAddress,
+  type Hex,
+  keccak256,
+  pad,
+  toEventSelector,
+  toHex,
+} from 'viem';
 import { parseDeployment } from '../../packages/sdk/src/deployments/types';
 
 const CONTRACTS = fileURLToPath(new URL('../../contracts', import.meta.url));
@@ -238,6 +248,73 @@ export async function deployLocal(rpcUrl: string): Promise<Record<string, unknow
   };
   parseDeployment(json);
   return json;
+}
+
+/** Sends from an unlocked anvil account (eth_sendTransaction, no key) and returns the mined receipt. */
+async function sendUnlocked(
+  url: string,
+  tx: { from: Address; to?: Address; data: Hex },
+): Promise<{ status: Hex; contractAddress: Address | null; logs: { address: Address; topics: Hex[] }[] }> {
+  const hash = (await rpc(url, 'eth_sendTransaction', [{ ...tx, gas: toHex(10_000_000) }])) as Hex;
+  for (let i = 0; i < 50; i++) {
+    const r = (await rpc(url, 'eth_getTransactionReceipt', [hash])) as {
+      status: Hex;
+      contractAddress: Address | null;
+      logs: { address: Address; topics: Hex[] }[];
+    } | null;
+    if (r) {
+      if (r.status !== '0x1') throw new Error(`transaction ${hash} reverted`);
+      return r;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`no receipt for ${hash}`);
+}
+
+/**
+ * Test fixture for a contract that claims to be a vault: every vault read answers, and `factory()` names the real
+ * factory, but `factory.isVault` is false. A second AtropyleFactory with the deployment's implementation creates the
+ * clone from `createVaultData` (the calldata of a createVault step the SDK prepared, sent by `from`), then the clone's
+ * `factory` slot is pointed at the deployment's factory. Local anvil only; nothing here signs.
+ */
+export async function deployForeignVault(
+  url: string,
+  d: {
+    factory: Address;
+    vaultImpl: Address;
+    cpu: Address;
+    policyId: bigint;
+    treasury: Address;
+    feeTokens: readonly Address[];
+  },
+  o: { from: Address; createVaultData: Hex },
+): Promise<Address> {
+  const file = join(CONTRACTS, 'out/AtropyleFactory.sol/AtropyleFactory.json');
+  const art = JSON.parse(readFileSync(file, 'utf8')) as { abi: Abi; bytecode: { object: Hex } };
+  const data = encodeDeployData({
+    abi: art.abi,
+    bytecode: art.bytecode.object,
+    args: [d.vaultImpl, d.cpu, d.policyId, d.treasury, d.feeTokens],
+  });
+  const deployed = await sendUnlocked(url, { from: ANVIL_ACCOUNTS[0], data });
+  if (!deployed.contractAddress) throw new Error('the second factory was not deployed');
+  const other = getAddress(deployed.contractAddress);
+  const created = await sendUnlocked(url, { from: o.from, to: other, data: o.createVaultData });
+  const topic = toEventSelector('VaultCreated(address,address,bool,address,uint256)');
+  const log = created.logs.find((l) => getAddress(l.address) === other && l.topics[0] === topic);
+  if (!log) throw new Error('the second factory created no vault');
+  const vault = getAddress(`0x${log.topics[2].slice(26)}`);
+  // The clone stores its creator in one slot of its own; find it rather than hard-code the storage layout.
+  const creator = pad(other.toLowerCase() as Hex);
+  for (let slot = 0; slot < 32; slot++) {
+    const key = toHex(slot, { size: 32 });
+    if ((await rpc(url, 'eth_getStorageAt', [vault, key, 'latest'])) === creator) {
+      await rpc(url, 'anvil_setStorageAt', [vault, key, pad(d.factory.toLowerCase() as Hex)]);
+      await rpc(url, 'evm_mine');
+      return vault;
+    }
+  }
+  throw new Error(`no storage slot of ${vault} holds its factory`);
 }
 
 export async function increaseTime(url: string, seconds: number): Promise<void> {

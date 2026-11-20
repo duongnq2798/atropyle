@@ -31,6 +31,7 @@ const calls: [string, (atro: AtropyleClient) => Promise<unknown>][] = [
   ['stats', (a) => a.stats()],
   ['scan', (a) => a.scan()],
   ['vault.snapshot', (a) => a.vault(VAULT).snapshot()],
+  ['vault.registered', (a) => a.vault(VAULT).registered()],
   ['vault.status', (a) => a.vault(VAULT).status()],
   ['vault.config', (a) => a.vault(VAULT).config()],
   ['vault.roleOf', (a) => a.vault(VAULT).roleOf(OWNER)],
