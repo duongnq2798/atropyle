@@ -63,13 +63,14 @@ function TemplateStep({ form, onChange }: { form: CreateForm; onChange: (f: Crea
 }
 
 function CheckResult(props: {
+  locked: boolean;
   check: PlanCheck;
   drill: boolean;
   explorer: string | null;
   feeToken: Address | null;
   onFeeToken: (a: Address) => void;
 }) {
-  const { check, drill, explorer, feeToken, onFeeToken } = props;
+  const { check, drill, explorer, feeToken, locked, onFeeToken } = props;
   const t = useT(messages);
   const c = useT(common);
   return (
@@ -136,6 +137,7 @@ function CheckResult(props: {
                 name="create-fee"
                 data-testid={`create-fee-${o.token.toLowerCase()}`}
                 checked={feeToken === o.token}
+                disabled={locked}
                 onChange={() => onFeeToken(o.token)}
               />
               <span class="mono">
@@ -151,18 +153,21 @@ function CheckResult(props: {
   );
 }
 
-function Review(props: {
+/** `plan` lives in CreatePage so it survives this component; while it exists, the fee choice is locked. */
+export function Review(props: {
   sdk: Sdk;
   form: CreateForm;
   owner: Address;
+  plan: TxPlan | null;
+  onPlan: (p: TxPlan | null) => void;
+  onProgress: (confirmed: number) => void;
   onIssues: (issues: PlanIssue[]) => void;
   onCreated: (vault: Address) => void;
 }) {
-  const { sdk, form, owner, onIssues, onCreated } = props;
+  const { sdk, form, owner, plan, onPlan, onProgress, onIssues, onCreated } = props;
   const t = useT(messages);
   const [check, setCheck] = useState<PlanCheck | null>(null);
   const [feeToken, setFeeToken] = useState<Address | null>(null);
-  const [plan, setPlan] = useState<TxPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const explorer = sdk.deployment.explorerUrl;
@@ -170,7 +175,6 @@ function Review(props: {
   // Any edit or another account invalidates what was checked and prepared.
   useEffect(() => {
     setCheck(null);
-    setPlan(null);
     setError(null);
   }, [form, owner]);
 
@@ -208,7 +212,7 @@ function Review(props: {
         feeToken: form.drill ? undefined : (feeToken ?? undefined),
         allowance: 'exact',
       });
-      setPlan(p);
+      onPlan(p);
     } catch (e) {
       setError(e);
     } finally {
@@ -227,6 +231,7 @@ function Review(props: {
           drill={form.drill}
           explorer={explorer}
           feeToken={feeToken}
+          locked={plan !== null}
           onFeeToken={setFeeToken}
         />
       ) : (
@@ -239,7 +244,15 @@ function Review(props: {
           {busy ? t('preparing') : t('prepare')}
         </button>
       ) : null}
-      {plan ? <TxRunner plan={plan} label={t('send')} testid="create-tx" onDone={() => onCreated(plan.vault)} /> : null}
+      {plan ? (
+        <TxRunner
+          plan={plan}
+          label={t('send')}
+          testid="create-tx"
+          onProgress={onProgress}
+          onDone={() => onCreated(plan.vault)}
+        />
+      ) : null}
       {error ? <ErrorBox error={error} /> : null}
     </div>
   );
@@ -276,9 +289,18 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
   const [step, setStep] = useState<StepId>('template');
   const [issues, setIssues] = useState<PlanIssue[]>([]);
   const [created, setCreated] = useState<Address | null>(null);
+  // The prepared plan and how many of its steps are confirmed. A plan with a confirmed step is never discarded:
+  // a new one would carry a fresh salt and create (and charge for) a second vault.
+  const [plan, setPlan] = useState<TxPlan | null>(null);
+  const [confirmed, setConfirmed] = useState(0);
   const account = app.wallet?.account ?? null;
   const index = STEPS.indexOf(step);
   const shown = issuesFor(step, issues);
+  const locked = plan !== null;
+  const preparePlan = (p: TxPlan | null) => {
+    setPlan(p);
+    setConfirmed(0);
+  };
 
   const setForm = (f: CreateForm) => {
     setFormState(f);
@@ -326,53 +348,69 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
       {created ? null : (
         <section class="card stack">
           <IssueList issues={shown} testid="create-issues" />
-          {step === 'template' ? <TemplateStep form={form} onChange={setForm} /> : null}
-          {step === 'people' ? (
-            <>
-              <HeirsEditor
-                rows={form.heirs}
-                issues={shown}
-                testid="create"
-                onChange={(heirs) => setForm({ ...form, heirs })}
-                onRemove={(i) => setForm(removeHeir(form, i))}
-              />
-              {form.template === 'guarded' ? (
-                <GuardiansEditor
-                  value={{ guardians: form.guardians, k: form.k, recoveryEnabled: form.recoveryEnabled }}
+          {locked ? (
+            confirmed > 0 ? (
+              <Banner kind="info" testid="create-plan-locked">
+                {t('planLocked')}
+              </Banner>
+            ) : (
+              <div class="row">
+                <span class="muted">{t('planPrepared')}</span>
+                <button type="button" class="btn" data-testid="create-change-plan" onClick={() => preparePlan(null)}>
+                  {t('changePlan')}
+                </button>
+              </div>
+            )
+          ) : null}
+          <fieldset class="stack" disabled={locked} data-testid="create-editors">
+            {step === 'template' ? <TemplateStep form={form} onChange={setForm} /> : null}
+            {step === 'people' ? (
+              <>
+                <HeirsEditor
+                  rows={form.heirs}
                   issues={shown}
                   testid="create"
-                  onChange={(g) => setForm({ ...form, ...g })}
+                  onChange={(heirs) => setForm({ ...form, heirs })}
+                  onRemove={(i) => setForm(removeHeir(form, i))}
                 />
-              ) : null}
-            </>
-          ) : null}
-          {step === 'timing' ? (
-            <TimingEditor
-              value={form.timing}
-              drill={form.drill}
-              issues={shown}
-              testid="create"
-              onChange={(timing) => setForm({ ...form, timing })}
-            />
-          ) : null}
-          {step === 'assets' ? (
-            <AssetsEditor
-              rows={form.assets}
-              heirs={form.heirs.length}
-              choices={tokenChoices(sdk.deployment)}
-              circuit={circuitShortcut(sdk.deployment)}
-              issues={shown}
-              testid="create"
-              onChange={(assets) => setForm({ ...form, assets })}
-            />
-          ) : null}
+                {form.template === 'guarded' ? (
+                  <GuardiansEditor
+                    value={{ guardians: form.guardians, k: form.k, recoveryEnabled: form.recoveryEnabled }}
+                    issues={shown}
+                    testid="create"
+                    onChange={(g) => setForm({ ...form, ...g })}
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {step === 'timing' ? (
+              <TimingEditor
+                value={form.timing}
+                drill={form.drill}
+                issues={shown}
+                testid="create"
+                onChange={(timing) => setForm({ ...form, timing })}
+              />
+            ) : null}
+            {step === 'assets' ? (
+              <AssetsEditor
+                rows={form.assets}
+                heirs={form.heirs.length}
+                choices={tokenChoices(sdk.deployment)}
+                circuit={circuitShortcut(sdk.deployment)}
+                issues={shown}
+                testid="create"
+                onChange={(assets) => setForm({ ...form, assets })}
+              />
+            ) : null}
+          </fieldset>
           <div class="row">
-            {index > 0 ? (
+            {index > 0 && !locked ? (
               <button type="button" class="btn" data-testid="create-back" onClick={back}>
                 {c('back')}
               </button>
             ) : null}
-            {index < STEPS.length - 1 ? (
+            {index < STEPS.length - 1 && !locked ? (
               <button type="button" class="btn btn-primary" data-testid="create-next" onClick={next}>
                 {c('next')}
               </button>
@@ -382,8 +420,17 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
       )}
       {step === 'assets' ? (
         <section class="card stack">
-          {account ? (
-            <Review sdk={sdk} form={form} owner={account} onIssues={showIssues} onCreated={setCreated} />
+          {account || plan ? (
+            <Review
+              sdk={sdk}
+              form={form}
+              owner={plan ? plan.from : (account as Address)}
+              plan={plan}
+              onPlan={preparePlan}
+              onProgress={setConfirmed}
+              onIssues={showIssues}
+              onCreated={setCreated}
+            />
           ) : (
             <p class="muted" data-testid="create-connect">
               {t('connectToReview')}

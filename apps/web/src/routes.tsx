@@ -18,14 +18,14 @@ export function RouteView({ route }: { route: Route }) {
       return <RequireSdk>{(sdk) => <SignPage sdk={sdk} />}</RequireSdk>;
     case 'verify':
       return <RequireSdk>{(sdk) => <VerifyPage sdk={sdk} vault={route.vault} />}</RequireSdk>;
+    case 'home':
+      return <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>;
     case 'create':
       return (
         <RequireSdk>
           {(sdk) => <CreatePage key={route.drill ? 'drill' : 'real'} sdk={sdk} drill={route.drill} />}
         </RequireSdk>
       );
-    case 'home':
-      return <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>;
     default:
       return <NotFoundPage path={route.name === 'notFound' ? route.path : `/${route.name}`} />;
   }

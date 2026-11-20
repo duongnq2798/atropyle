@@ -36,6 +36,9 @@ export const messages = defineMessages(
     created: 'Your vault is live:',
     openVault: 'Open the vault',
     telegram: 'Get reminders on Telegram',
+    changePlan: 'Change the plan',
+    planPrepared: 'The plan is prepared. To change anything, discard it first.',
+    planLocked: 'Some steps are already confirmed. Finish the remaining steps here.',
   },
   {
     title: 'Tạo vault',
@@ -72,5 +75,8 @@ export const messages = defineMessages(
     created: 'Vault của bạn đã hoạt động:',
     openVault: 'Mở vault',
     telegram: 'Nhận nhắc nhở qua Telegram',
+    changePlan: 'Đổi kế hoạch',
+    planPrepared: 'Kế hoạch đã được chuẩn bị. Muốn đổi gì, hãy huỷ kế hoạch trước.',
+    planLocked: 'Một số bước đã được xác nhận. Hãy hoàn tất các bước còn lại tại đây.',
   },
 );

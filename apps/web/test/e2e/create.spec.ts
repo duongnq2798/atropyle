@@ -33,11 +33,14 @@ test('create a Drill from the wizard', async ({ page, state, atro, wallet }) => 
     owner: ANVIL[1],
     drill: true,
     k: 0,
+    recoveryEnabled: false,
+    guardians: [],
     heirs: [{ account: ANVIL[2], bps: 10000 }],
     timing: { period: 60, threshold: 2, window: 120 },
   });
   expect(cfg.assets).toEqual([{ kind: 'erc20', token, id: 0n, heir: 0 }]);
   const status = await atro.vault(vault).status();
   expect(status.state).toBe('active');
+  expect(status.assets[0].held).toBeGreaterThan(0n);
   expect(status.assets[0].coverage).toBe(status.assets[0].held);
 });

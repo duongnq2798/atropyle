@@ -35,7 +35,10 @@ const plan: TxPlan = {
   warnings: [],
 };
 
-function harness(send: (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<SendResult>) {
+function harness(
+  send: (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<SendResult>,
+  onProgress?: (confirmed: number) => void,
+) {
   const value = {
     lang: 'en',
     env: { docsPath: null },
@@ -48,7 +51,7 @@ function harness(send: (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => voi
   } as unknown as NonNullable<ContextType<typeof AppContext>>;
   return (
     <AppContext.Provider value={value}>
-      <TxRunner plan={plan} label="Send" />
+      <TxRunner plan={plan} label="Send" onProgress={onProgress} />
     </AppContext.Provider>
   );
 }
@@ -90,23 +93,30 @@ describe('TxRunner', () => {
   });
 
   it('shows how many steps are confirmed, and only when there is more than one', async () => {
+    const reported: number[] = [];
     let attempt = 0;
     const send = async (p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
       attempt++;
       const total = p.steps.length;
-      o.onStep?.({ index: 0, total, step: p.steps[0], phase: 'confirmed', hash: H });
-      if (attempt === 1) throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
-      for (const index of [1, 2]) o.onStep?.({ index, total, step: p.steps[index], phase: 'confirmed', hash: H });
+      if (attempt === 1) {
+        o.onStep?.({ index: 0, total, step: p.steps[0], phase: 'confirmed', hash: H });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      }
+      for (let index = 0; index < p.steps.length; index++) {
+        o.onStep?.({ index, total, step: p.steps[index], phase: 'confirmed', hash: H });
+      }
       return { vault: V as `0x${string}`, steps: [] };
     };
-    render(harness(send));
+    render(harness(send, (n) => reported.push(n)));
     const bar = () => screen.getByTestId('tx-progress') as HTMLProgressElement;
     expect([bar().value, bar().max]).toEqual([0, 3]);
     fireEvent.click(screen.getByTestId('tx-send'));
     await waitFor(() => expect(screen.getByTestId('tx-step-1').getAttribute('data-phase')).toBe('failed'));
     expect(bar().value).toBe(1);
+    expect(reported).toEqual([1]);
     fireEvent.click(screen.getByTestId('tx-send'));
     await waitFor(() => expect(screen.getByTestId('tx-done')).toBeTruthy());
     expect(bar().value).toBe(3);
+    expect(reported).toEqual([1, 2, 3]);
   });
 });

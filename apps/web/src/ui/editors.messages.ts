@@ -60,7 +60,7 @@ export const messages = defineMessages(
     kHelp: 'Để trống thì lấy đa số: {majority} trên {n}.',
     recovery: 'Bật khôi phục ví (tắt trừ khi bạn tích chọn)',
     recoveryPower:
-      '{k} người giám hộ đồng ý có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Tính năng này dành cho ví mới của bạn nếu bạn mất khoá. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+      '{k} người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Tính năng này dành cho ví mới của bạn nếu bạn mất khoá. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     timingTitle: 'Thời gian',
     presetDrill: 'Drill (tính bằng phút)',
     presetSixMonths: '6 tháng',

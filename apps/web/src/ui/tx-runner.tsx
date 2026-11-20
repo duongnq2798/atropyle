@@ -20,8 +20,15 @@ function signBase(): string {
   return location.href.split('#')[0];
 }
 
-export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: SendResult) => void; testid?: string }) {
-  const { plan, label, onDone } = props;
+export function TxRunner(props: {
+  plan: TxPlan;
+  label: string;
+  onDone?: (r: SendResult) => void;
+  /** Called with the number of steps confirmed so far, each time one confirms. */
+  onProgress?: (confirmed: number) => void;
+  testid?: string;
+}) {
+  const { plan, label, onDone, onProgress } = props;
   const id = props.testid ?? 'tx';
   const app = useApp();
   const t = useT(messages);
@@ -60,7 +67,11 @@ export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: Send
       if (wallet && wallet.chainId !== sdk.atro.chain.id) await app.switchChain();
       const rest = base === 0 ? plan : { ...plan, steps: plan.steps.slice(base) };
       const r = await sdk.atro.send(rest, app.walletClient(), {
-        onStep: (e) => setView((v) => applyStep(v, { ...e, index: e.index + base })),
+        onStep: (e) => {
+          setView((v) => applyStep(v, { ...e, index: e.index + base }));
+          // Steps confirm in order, so the confirmed count is the index of this one plus one.
+          if (e.phase === 'confirmed') onProgress?.(e.index + base + 1);
+        },
       });
       setResult(r);
       onDone?.(r);
