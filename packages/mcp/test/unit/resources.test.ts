@@ -82,9 +82,9 @@ describe('resources', () => {
     ]) {
       expect(md).toContain(line);
     }
-    expect(md).toMatch(/| P6 | when the old state is not Released,/);
-    expect(md).toMatch(/| P3 | when the old state is not Released,/);
-    expect(md).toMatch(/| P4 | when the old state is not Released,/);
+    expect(md).toContain('| P6 | when the old state is not Released,');
+    expect(md).toContain('| P3 | when the old state is not Released,');
+    expect(md).toContain('| P4 | when the old state is not Released,');
     expect(md).toContain('a recovery candidate is set (not the zero address)');
   });
 
