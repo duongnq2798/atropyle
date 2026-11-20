@@ -190,6 +190,26 @@ describe('input schemas', () => {
     );
   });
 
+  it('rejects unknown top-level keys on every vault action', () => {
+    const valid = {
+      checkIn: {},
+      setHeirs: { heirs: [] },
+      setGuardians: { guardians: [], k: 0, recoveryEnabled: false },
+      setTiming: { timing: 'drill' },
+      setAssets: { assets: [] },
+      attestDeath: { on: true },
+      voteRecovery: { target: null },
+      poke: {},
+      distribute: {},
+      revokeAll: {},
+    };
+    for (const type of VAULT_ACTIONS) {
+      const ok = { type, ...valid[type] };
+      expect(VaultActionSchema.safeParse(ok).success, type).toBe(true);
+      expect(VaultActionSchema.safeParse({ ...ok, drill: true }).success, type).toBe(false);
+    }
+  });
+
   it('rejects an action with an unknown nested key instead of ignoring it', () => {
     const action = VaultActionSchema.parse({
       type: 'setAssets',
@@ -225,16 +245,22 @@ describe('JSON files', () => {
     expect(() => parseDeploymentText('{ "name": ', 'd.json')).toThrow(
       expect.objectContaining({ code: 'DEPLOYMENT_INVALID' }),
     );
-    const keyed = '{ "rpcUrls": ["https://x/v2/SECRETKEY"';
-    let leaked = '';
-    try {
-      parseDeploymentText(keyed, 'd.json');
-    } catch (e) {
-      leaked = JSON.stringify((e as AtropyleError).toJSON());
-      expect((e as AtropyleError).code).toBe('DEPLOYMENT_INVALID');
+    // V8 quotes the source text near an unexpected token, so a keyed URL could be echoed into the error.
+    const keyed = '{"rpcUrls": SECRETKEY}';
+    for (const [parse, code] of [
+      [() => parseDeploymentText(keyed, 'd.json'), 'DEPLOYMENT_INVALID'],
+      [() => parsePlanText(keyed, 'p.json'), 'PLAN_INVALID'],
+    ] as const) {
+      let json = '';
+      try {
+        parse();
+      } catch (e) {
+        expect((e as AtropyleError).code).toBe(code);
+        json = JSON.stringify((e as AtropyleError).toJSON());
+      }
+      expect(json).not.toBe('');
+      expect(json).not.toContain('SECRETKEY');
     }
-    expect(leaked).not.toBe('');
-    expect(leaked).not.toContain('SECRETKEY');
     try {
       parsePlanText('{ "heirs": [] "k": 1 }', 'atropyle.plan.json');
       expect.unreachable();

@@ -42,29 +42,34 @@ export const PlanInputSchema = z
   .describe('An atropyle.plan.json document');
 
 export const VaultActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('checkIn') }),
-  z.object({ type: z.literal('setHeirs'), heirs: z.array(HeirInputSchema) }),
-  z.object({
+  z.strictObject({ type: z.literal('checkIn') }),
+  z.strictObject({ type: z.literal('setHeirs'), heirs: z.array(HeirInputSchema) }),
+  z.strictObject({
     type: z.literal('setGuardians'),
     guardians: z.array(z.string()),
     k: z.number().int(),
     recoveryEnabled: z.boolean(),
   }),
-  z.object({ type: z.literal('setTiming'), timing: TimingInputSchema }),
-  z.object({ type: z.literal('setAssets'), assets: z.array(AssetInputSchema) }),
-  z.object({ type: z.literal('attestDeath'), on: z.boolean().describe('false withdraws an earlier attestation') }),
-  z.object({
+  z.strictObject({ type: z.literal('setTiming'), timing: TimingInputSchema }),
+  z.strictObject({ type: z.literal('setAssets'), assets: z.array(AssetInputSchema) }),
+  z.strictObject({
+    type: z.literal('attestDeath'),
+    on: z.boolean().describe('false withdraws an earlier attestation'),
+  }),
+  z.strictObject({
     type: z.literal('voteRecovery'),
     target: z.string().nullable().describe('New wallet that receives everything; null withdraws the vote'),
   }),
-  z.object({ type: z.literal('poke') }),
-  z.object({ type: z.literal('distribute') }),
-  z.object({ type: z.literal('revokeAll') }),
+  z.strictObject({ type: z.literal('poke') }),
+  z.strictObject({ type: z.literal('distribute') }),
+  z.strictObject({ type: z.literal('revokeAll') }),
 ]);
 export const AllowanceSchema = z.enum(['exact', 'unlimited']);
 export const AtSchema = z
   .union([z.string(), z.number()])
-  .describe('When: unix seconds, ISO 8601, or +<duration> after the latest block, such as +3d');
+  .describe(
+    'When: unix seconds, an ISO 8601 date (UTC midnight, 2026-12-01) or date-time with Z or +-HH:MM (2026-12-01T00:00:00Z), or +<duration> after the latest block, such as +3d',
+  );
 
 export const GetVaultInputSchema = z.object({
   vault: addr('Vault'),
