@@ -28,6 +28,8 @@ Commands:
   simulate [options] [vault] [action]  what an action would do now or later
                                        (whatIf), or the timeline of a plan file
   plan                                 create and check atropyle.plan.json files
+  prepare [options] <action> <target>  prepare and simulate transactions, then
+                                       hand them to your wallet; never signs
   doctor                               check Node.js, every RPC, the chain ID,
                                        latency and the deployment integrity
   help [command]                       display help for command

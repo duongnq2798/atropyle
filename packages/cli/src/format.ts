@@ -3,6 +3,7 @@ import {
   type GetVaultOutput,
   iso,
   type ListVaultsOutput,
+  type PrepareOutput,
   type SimulateOutput,
 } from '@atropyle/mcp/ops';
 import { formatDuration } from '@atropyle/sdk';
@@ -134,4 +135,61 @@ export function formatPlanInit(o: PlanInitOutput, s: Style): string {
   if (o.next.length > 0) lines.push('', 'Next:', ...o.next.map((c) => `  ${c}`));
   lines.push(...warningLines(o.warnings, s), '');
   return lines.join('\n');
+}
+
+type Step = PrepareOutput['plan']['steps'][number];
+
+function stepLines(steps: readonly Step[], s: Style): string[] {
+  return steps.flatMap((st, i) => {
+    const sim = st.simulation;
+    const result =
+      sim.ok === true
+        ? s.green('simulated ok')
+        : sim.ok === false
+          ? s.red(`FAILS with ${sim.error.code}`)
+          : `not simulated (${sim.reason})`;
+    return [`  ${i + 1}. ${st.action} -> ${st.to}  ${result}`, `     ${st.summary}`];
+  });
+}
+
+/** Summary, steps, warnings and notes come first; the signing link only after them (spec §7.1). */
+function headOf(o: PrepareOutput, s: Style): string[] {
+  const lines = [s.bold(o.summary), ...stepLines(o.plan.steps, s)];
+  if (o.warnings.length > 0) {
+    lines.push(
+      '',
+      s.yellow(s.bold('Read before signing:')),
+      ...o.warnings.map((w) => s.yellow(`  ${w.code}: ${w.message}`)),
+    );
+  }
+  const notes = o.handoff?.notes ?? [];
+  if (notes.length > 0) lines.push('', ...notes.map((n) => s.dim(n)));
+  if (o.blocked) {
+    const b = o.blocked;
+    lines.push(
+      '',
+      s.red(`Nothing to sign: step ${b.step + 1} (${b.action}) fails with ${b.error.code}. ${b.error.hint}`),
+    );
+  }
+  return lines;
+}
+
+export function formatPrepare(o: PrepareOutput, s: Style, qr: string | null, qrNote: string | null): string {
+  const lines = headOf(o, s);
+  const h = o.handoff;
+  if (h?.link) {
+    lines.push('', s.bold('Open this link in your wallet, check every step, and sign there:'), h.link);
+    if (qr) lines.push('', qr);
+    else if (qrNote) lines.push(s.dim(qrNote));
+    if (h.okxAppLink) lines.push('', 'Open in the OKX App:', h.okxAppLink);
+  } else if (h) {
+    lines.push('', `Use ${h.cast.length > 0 ? '--format cast or ' : ''}--format calls.`);
+  }
+  lines.push('', s.dim('Atropyle never asks for your private key or seed phrase.'), ...untrustedLines(o.untrusted), '');
+  return lines.join('\n');
+}
+
+/** stderr of --format cast and --format calls, so that stdout stays machine-readable. */
+export function briefPrepare(o: PrepareOutput, s: Style): string {
+  return [...headOf(o, s), ...untrustedLines(o.untrusted), ''].join('\n');
 }

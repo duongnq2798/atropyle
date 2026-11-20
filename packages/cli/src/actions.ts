@@ -9,7 +9,7 @@ type HeirInput = Extract<VaultActionInput, { type: 'setHeirs' }>['heirs'][number
 type AssetInput = Extract<VaultActionInput, { type: 'setAssets' }>['assets'][number];
 type TimingInput = Extract<VaultActionInput, { type: 'setTiming' }>['timing'];
 
-const ACTIONS = {
+export const ACTIONS = {
   'check-in': 'checkIn',
   'set-heirs': 'setHeirs',
   'set-guardians': 'setGuardians',

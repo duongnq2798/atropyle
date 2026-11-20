@@ -1,0 +1,62 @@
+Usage: atropyle prepare [options] <action> <target>
+
+prepare and simulate transactions, then hand them to your wallet; never signs
+
+Arguments:
+  action                            create-vault, or one of: check-in,
+                                    set-heirs, set-guardians, set-timing,
+                                    set-assets, attest-death, vote-recovery,
+                                    poke, distribute, revoke-all
+  target                            plan file for create-vault, vault address
+                                    otherwise
+
+Options:
+  --as <address>                    who signs; for create-vault, defaults to
+                                    "owner" in the plan
+  --format <format>                 link (with a QR code), cast, calls
+                                    (wallet_sendCalls) or json (choices: "link",
+                                    "cast", "calls", "json", default: "link")
+  --allowance <kind>                token approvals (choices: "exact",
+                                    "unlimited")
+  --drill                           create-vault: create a Drill, a practice
+                                    vault
+  --fee-token <address>             create-vault: pay the fee with this token
+  --salt <hex>                      create-vault: 32-byte salt that fixes the
+                                    vault address
+  --at <time>                       simulate at this time: unix seconds, ISO
+                                    8601 or +<duration>
+  --web-url <url>                   web app that opens the signing link
+  --qr                              always print a QR code of the link
+  --no-qr                           never print a QR code
+  --heir <address[:percent]>        set-heirs: an heir and their share; repeat
+                                    for each heir
+  --guardian <address>              set-guardians: a guardian; repeat for each
+  --k <n>                           set-guardians: how many guardians must agree
+  --recovery                        set-guardians: guardians may also recover a
+                                    lost wallet
+  --timing <preset>                 set-timing: drill, sixMonths or twelveMonths
+  --period <duration>               set-timing: check-in period, such as 30d
+  --threshold <n>                   set-timing: missed periods before the alarm
+                                    (1 to 15)
+  --window <duration>               set-timing: time to cancel an alarm, such as
+                                    7d
+  --asset <kind:token[:id][@heir]>  set-assets: an asset; repeat for each; @heir
+                                    is the heir's index, counting from 0
+  --off                             attest-death: withdraw your attestation
+  --target <address>                vote-recovery: the new wallet
+  --withdraw                        vote-recovery: withdraw your vote
+  -h, --help                        display help for command
+
+Global Options:
+  -V, --version                     output the version number
+  --chain <name>                    chain, default xlayer (env: ATROPYLE_CHAIN);
+                                    xlayer works after the mainnet deployment,
+                                    use --deployment <file> until then (choices:
+                                    "xlayer", "local")
+  --rpc <url>                       read RPC of that chain (env: ATROPYLE_RPC)
+  --deployment <file>               deployment JSON; wins over --chain (env:
+                                    ATROPYLE_DEPLOYMENT)
+  --json                            print exactly one JSON object (schemaVersion
+                                    1)
+  --no-color                        print without colors
+  --verbose                         log every RPC request to stderr
