@@ -1,0 +1,52 @@
+Usage: atropyle simulate [options] [vault] [action]
+
+what an action would do now or later (whatIf), or the timeline of a plan file
+
+Arguments:
+  vault                             vault address
+  action                            one of: check-in, set-heirs, set-guardians,
+                                    set-timing, set-assets, attest-death,
+                                    vote-recovery, poke, distribute, revoke-all
+
+Options:
+  --as <address>                    who acts; with --plan, the owner
+  --at <time>                       unix seconds, an ISO 8601 date (UTC
+                                    midnight) or date-time with its zone
+                                    (2027-01-01T00:00:00Z), or +<duration> such
+                                    as +3d
+  --plan <file>                     preview the timeline of this plan file
+                                    instead
+  --drill                           with --plan: preview it as a Drill
+  --heir <address[:percent]>        set-heirs: an heir and their share; repeat
+                                    for each heir (default: [])
+  --guardian <address>              set-guardians: a guardian; repeat for each
+                                    (default: [])
+  --k <n>                           set-guardians: how many guardians must agree
+  --recovery                        set-guardians: guardians may also recover a
+                                    lost wallet
+  --timing <preset>                 set-timing: drill, sixMonths or twelveMonths
+  --period <duration>               set-timing: check-in period, such as 30d
+  --threshold <n>                   set-timing: missed periods before the alarm
+                                    (1 to 15)
+  --window <duration>               set-timing: time to cancel an alarm, such as
+                                    7d
+  --asset <kind:token[:id][@heir]>  set-assets: an asset; repeat for each
+                                    (default: [])
+  --off                             attest-death: withdraw your attestation
+  --target <address>                vote-recovery: the new wallet
+  --withdraw                        vote-recovery: withdraw your vote
+  -h, --help                        display help for command
+
+Global Options:
+  -V, --version                     output the version number
+  --chain <name>                    chain, default xlayer (env: ATROPYLE_CHAIN);
+                                    xlayer works after the mainnet deployment,
+                                    use --deployment <file> until then (choices:
+                                    "xlayer", "local")
+  --rpc <url>                       read RPC of that chain (env: ATROPYLE_RPC)
+  --deployment <file>               deployment JSON; wins over --chain (env:
+                                    ATROPYLE_DEPLOYMENT)
+  --json                            print exactly one JSON object (schemaVersion
+                                    1)
+  --no-color                        print without colors
+  --verbose                         log every RPC request to stderr
