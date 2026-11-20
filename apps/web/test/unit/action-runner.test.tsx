@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AtropyleError, type PreparedTx, type TxPlan, type VaultAction } from '@atropyle/sdk';
+import { AtropyleError, type PreparedTx, planError, type TxPlan, type VaultAction } from '@atropyle/sdk';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import type { ContextType } from 'preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -196,9 +196,47 @@ describe('ActionRunner lock', () => {
     fireEvent.click(screen.getByTestId('act'));
     await waitFor(() => expect(held.at(-1)).toBe(true));
     view.rerender(ui({ type: 'revokeAll' }, undefined, (h) => held.push(h)));
+    // A stale plan would be rendered for a moment before the key effect removed it, so watch every mutation.
+    let seen = false;
+    const observer = new MutationObserver(() => {
+      if (has('act-tx-send')) seen = true;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     resolve(plan);
     await waitFor(() => expect(held.at(-1)).toBe(false));
+    await new Promise((r) => setTimeout(r, 20));
+    observer.disconnect();
+    expect(seen).toBe(false);
     expect(has('act-tx-send')).toBe(false);
     expect(has('act')).toBe(true);
+  });
+
+  it('clears a prepare error when the action changes', async () => {
+    const issues = [{ path: 'heirs', code: 'SHARES_SUM' as const, message: 'heirs: shares must add up to 100' }];
+    const { ui } = setup(
+      () => new Promise(() => {}),
+      async () => {
+        throw planError(issues);
+      },
+    );
+    const view = render(ui({ type: 'checkIn' }));
+    fireEvent.click(screen.getByTestId('act'));
+    await screen.findByTestId('act-issues');
+    view.rerender(ui({ type: 'revokeAll' }));
+    await waitFor(() => expect(has('act-issues')).toBe(false));
+  });
+
+  it('keeps a confirmed row when the send starts right after the runner mounted', async () => {
+    const send: Send = (p, _w, o) => {
+      o.onStep?.({ index: 0, total: 1, step: p.steps[0], phase: 'confirmed', hash: `0x${'12'.repeat(32)}` });
+      return new Promise(() => {});
+    };
+    const { ui } = setup(send);
+    render(ui({ type: 'checkIn' }));
+    fireEvent.click(screen.getByTestId('act'));
+    fireEvent.click(await screen.findByTestId('act-tx-send'));
+    await waitFor(() => expect(has('act-reset')).toBe(false));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByTestId('act-tx-step-0').getAttribute('data-phase')).toBe('confirmed');
   });
 });

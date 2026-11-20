@@ -57,9 +57,9 @@ export function ActionRunner(props: {
   // `[vault, as, key]` and the lock are triggers: a plan for another action, account or vault is dropped, but never
   // while it is locked; when the lock opens (a rejection before any hash) this runs again and drops the stale plan.
   useEffect(() => {
-    if (locked || plan === null || planCtx === ctx) return;
-    clear();
+    if (locked) return;
     setError(null);
+    if (plan !== null && planCtx !== ctx) clear();
   }, [ctx, locked, plan, planCtx]);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { decodeError, type SendResult, sameAddress, type TxPlan } from '@atropyle/sdk';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { explorerTx } from '../lib/links';
 import { applyStep, failStep, type StepPhase, txView, warningKey } from '../lib/tx-view';
 import { useApp, useT } from './app-context';
@@ -43,7 +43,12 @@ export function TxRunner(props: {
   // Steps already confirmed on chain by an earlier, partly failed send; a retry never signs them again.
   const [offset, setOffset] = useState(0);
 
+  // The state above is already built for the plan this component mounted with; only a different plan resets it. Without
+  // this, the mount run of the effect could wipe a row confirmed by a send that started right after mount.
+  const resetFor = useRef(plan);
   useEffect(() => {
+    if (resetFor.current === plan) return;
+    resetFor.current = plan;
     setView(txView(plan));
     setError(null);
     setResult(null);

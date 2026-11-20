@@ -176,8 +176,6 @@ describe('vault page', () => {
     click('owner-edit-assets');
     click('owner-save');
     const sendButton = await screen.findByTestId('owner-save-tx-send');
-    // TxRunner resets its rows in an effect after mount; let it run before the first send.
-    await new Promise((r) => setTimeout(r, 50));
     fireEvent.click(sendButton);
     await waitFor(() => expect(screen.getByTestId('owner-save-tx-send').textContent).toContain('Resume from step 2'));
     expect(screen.getByTestId('owner-save-tx-step-0').getAttribute('data-phase')).toBe('confirmed');
@@ -187,7 +185,7 @@ describe('vault page', () => {
     changed.status.blockNumber = 101n;
     setSnap(changed);
     click('vault-refresh');
-    await waitFor(() => expect(screen.getByTestId('vault-status').textContent).toContain('101'));
+    await waitFor(() => expect(screen.getByTestId('vault-status').textContent).toContain('As of block 101'));
     expect(screen.getByTestId('owner-save-tx-send').textContent).toContain('Resume from step 2');
     expect((screen.getByTestId('owner-edit-assets') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByTestId('owner-save-reset')).toBeNull();
