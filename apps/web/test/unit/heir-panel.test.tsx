@@ -48,9 +48,12 @@ interface Opts {
   send?: () => Promise<SendResult>;
   blockNumber?: bigint;
   factoryBlock?: bigint;
+  account?: Address;
+  telegramBot?: string;
 }
 
 function mount(o: Opts = {}) {
+  const account = o.account ?? PEOPLE.heirA;
   const snap = fixtureSnapshot();
   snap.status.state = o.state ?? 'grace';
   snap.status.blockNumber = o.blockNumber ?? 50_000n;
@@ -67,9 +70,9 @@ function mount(o: Opts = {}) {
   };
   const value = {
     lang: o.lang ?? 'en',
-    env: { docsPath: null, telegramBot: null },
+    env: { docsPath: null, telegramBot: o.telegramBot ?? null },
     sdk,
-    wallet: { account: PEOPLE.heirA, chainId: 31337 },
+    wallet: { account, chainId: 31337 },
     walletClient: () => ({}),
   } as unknown as NonNullable<ContextType<typeof AppContext>>;
   const ui = (state: StateName, vault: Address = PEOPLE.vault) => {
@@ -78,9 +81,9 @@ function mount(o: Opts = {}) {
       <AppContext.Provider value={value}>
         <HeirPanel
           sdk={sdk as never}
-          view={vaultView(next, fixtureTimeline(), PEOPLE.heirA)}
+          view={vaultView(next, fixtureTimeline(), account)}
           recoveryTarget={snap.status.recoveryTarget}
-          account={PEOPLE.heirA}
+          account={account}
           onChanged={() => {}}
         />
       </AppContext.Provider>
@@ -171,6 +174,54 @@ describe('heir panel', () => {
     mount({ state: 'releasedInherit' });
     fireEvent.click(screen.getByTestId('heir-history'));
     expect((await screen.findByTestId('heir-history-list')).textContent).toContain('last few hours');
+  });
+
+  it('lets a wallet with no role raise the alarm, and says the assets never go to it', () => {
+    mount({ state: 'grace', account: PEOPLE.stranger, telegramBot: 'atro_bot' });
+    const panel = screen.getByTestId('heir-panel');
+    expect(panel.getAttribute('data-heir')).toBe('false');
+    expect(panel.textContent).not.toContain('You can receive');
+    expect(screen.getByTestId('heir-anyone').textContent).toBe(
+      'Anyone can raise the alarm or deliver the assets once the vault is released; the assets go to the heirs, not to you.',
+    );
+    expect(screen.getByTestId('heir-poke')).toBeTruthy();
+    expect(screen.queryByTestId('heir-claim')).toBeNull();
+    // The heir alerts are for heirs.
+    expect(panel.querySelector('a[href*="atro_bot"]')).toBeNull();
+  });
+
+  it('lets a wallet with no role deliver a released vault, under its own label', () => {
+    mount({ state: 'releasedInherit', account: PEOPLE.stranger });
+    expect(screen.getByTestId('heir-claim').textContent).toBe('Deliver the assets');
+    const help = screen.getByTestId('heir-claim-help').textContent ?? '';
+    expect(help).toContain('to the heirs');
+    expect(help).toContain('Nothing comes to your wallet');
+    expect(help).not.toContain('Claim');
+  });
+
+  it('tells a wallet with no role that a recovery sends everything to the guardians\u{2019} wallet', () => {
+    mount({ state: 'releasedRecover', recoveryTarget: PEOPLE.heirA, account: PEOPLE.stranger });
+    expect(screen.getByTestId('heir-anyone').textContent).toContain(
+      'the recovery wallet the guardians chose, not to you',
+    );
+    expect(screen.getByTestId('heir-claim-help').textContent).toContain('Nothing comes to your wallet');
+    expect(screen.getByTestId('heir-recovery').textContent).toContain(PEOPLE.heirA);
+  });
+
+  it('keeps the neutral wording in Vietnamese too', () => {
+    mount({ state: 'releasedInherit', account: PEOPLE.stranger, lang: 'vi' });
+    expect(screen.getByTestId('heir-anyone').textContent).toContain('không phải cho bạn');
+    expect(screen.getByTestId('heir-claim').textContent).toBe('Chuyển tài sản');
+  });
+
+  it('keeps the heir wording and the heir alerts for an heir', () => {
+    mount({ state: 'releasedInherit', telegramBot: 'atro_bot' });
+    const panel = screen.getByTestId('heir-panel');
+    expect(panel.getAttribute('data-heir')).toBe('true');
+    expect(panel.textContent).toContain('You can receive from this vault');
+    expect(screen.queryByTestId('heir-anyone')).toBeNull();
+    expect(screen.getByTestId('heir-claim').textContent).toBe('Claim');
+    expect(panel.querySelector('a[href*="atro_bot"]')).not.toBeNull();
   });
 
   it('keeps the inheritance wording for Claim when the vault is released to the heirs', () => {

@@ -293,20 +293,43 @@ describe('vault page', () => {
     expect((screen.getByTestId('owner-save') as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('shows the guardian and heir panels by role and never to the owner', async () => {
+  it('shows the guardian panel by role, Raise alarm to every other wallet, and neither to the owner', async () => {
     mount(fixtureSnapshot(), PEOPLE.owner);
     await screen.findByTestId('owner-panel');
     expect(screen.queryByTestId('guardian-panel')).toBeNull();
     expect(screen.queryByTestId('heir-panel')).toBeNull();
+    expect(screen.queryByTestId('heir-poke')).toBeNull();
     cleanup();
     mount(fixtureSnapshot(), PEOPLE.g1);
     expect(await screen.findByTestId('guardian-panel')).toBeTruthy();
-    expect(screen.queryByTestId('heir-panel')).toBeNull();
+    expect(screen.getByTestId('heir-panel').getAttribute('data-heir')).toBe('false');
+    expect(screen.getByTestId('heir-poke')).toBeTruthy();
     expect(screen.queryByTestId('owner-panel')).toBeNull();
     cleanup();
     mount(fixtureSnapshot(), PEOPLE.heirB);
     expect(await screen.findByTestId('guardian-panel')).toBeTruthy();
-    expect(screen.getByTestId('heir-panel')).toBeTruthy();
+    expect(screen.getByTestId('heir-panel').getAttribute('data-heir')).toBe('true');
+    cleanup();
+    // Spec §16.4: anyone can poke. A wallet with no role gets the same button, in neutral words, and no guardian panel.
+    mount(fixtureSnapshot(), PEOPLE.stranger);
+    expect((await screen.findByTestId('heir-panel')).getAttribute('data-heir')).toBe('false');
+    expect(screen.getByTestId('heir-anyone').textContent).toContain('not to you');
+    expect(screen.getByTestId('heir-poke')).toBeTruthy();
+    expect(screen.queryByTestId('guardian-panel')).toBeNull();
+    cleanup();
+    // Nothing for a page without a wallet.
+    mount(fixtureSnapshot(), null);
+    await screen.findByTestId('vault-status');
+    expect(screen.queryByTestId('heir-panel')).toBeNull();
+  });
+
+  it('gives an owner who is also an heir the check-in only', async () => {
+    const snap = fixtureSnapshot();
+    snap.config.heirs[0] = { account: PEOPLE.owner, bps: 7000 };
+    mount(snap, PEOPLE.owner);
+    expect((await screen.findByTestId('owner-panel')).textContent).toContain('Check in');
+    expect(screen.queryByTestId('heir-panel')).toBeNull();
+    expect(screen.queryByTestId('heir-poke')).toBeNull();
   });
 
   it('gives the heir panel the recovery target of a pending recovery', async () => {

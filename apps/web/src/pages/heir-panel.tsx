@@ -94,7 +94,11 @@ export function HeirPanel(props: {
       current.current = null;
     };
   }, [view.vault]);
-  const bot = app.env.telegramBot;
+  // Spec §16.4: anyone may poke or distribute. This panel serves every connected wallet but the owner; a wallet that
+  // receives nothing gets words that say so.
+  const heir = view.roles.includes('heir') || view.roles.includes('recoveryTarget');
+  const recover = view.state === 'recovery' || view.state === 'releasedRecover';
+  const bot = heir ? app.env.telegramBot : null;
   const recoveryText =
     view.state === 'recovery' ? 'recoveryPending' : view.state === 'releasedRecover' ? 'releasedRecover' : null;
 
@@ -116,8 +120,9 @@ export function HeirPanel(props: {
   };
 
   return (
-    <section class="card stack" data-testid="heir-panel">
-      <h2>{t('title')}</h2>
+    <section class="card stack" data-testid="heir-panel" data-heir={String(heir)}>
+      <h2>{heir ? t('title') : t('titleAnyone')}</h2>
+      {heir ? null : <p data-testid="heir-anyone">{recover ? t('anyoneRecover') : t('anyone')}</p>}
       {recoveryText && recoveryTarget ? (
         <p data-testid="heir-recovery">
           {t(recoveryText)} <AddressText address={recoveryTarget} />
@@ -141,14 +146,16 @@ export function HeirPanel(props: {
       {view.released && !view.expired ? (
         <>
           <p class="muted" data-testid="heir-claim-help">
-            {view.state === 'releasedRecover' ? t('claimHelpRecover') : t('claimHelp')}
+            {view.state === 'releasedRecover'
+              ? t(heir ? 'claimHelpRecover' : 'deliverHelpRecover')
+              : t(heir ? 'claimHelp' : 'deliverHelp')}
           </p>
           <ActionRunner
             sdk={sdk}
             vault={view.vault}
             action={{ type: 'distribute' }}
             as={account}
-            label={t('claim')}
+            label={heir ? t('claim') : t('deliver')}
             testid="heir-claim"
             kind="big"
             onDone={(r) => {

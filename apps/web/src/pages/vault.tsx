@@ -235,7 +235,8 @@ export function VaultPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
       {account && view.roles.includes('guardian') ? (
         <GuardianPanel sdk={sdk} snap={data.snap} view={view} account={account} onChanged={reload} />
       ) : null}
-      {account && (view.roles.includes('heir') || view.roles.includes('recoveryTarget')) ? (
+      {/* Spec §16.4: anyone can poke or distribute; the owner keeps only Check in. */}
+      {account && !view.roles.includes('owner') ? (
         <HeirPanel
           sdk={sdk}
           view={view}

@@ -3,6 +3,11 @@ import { defineMessages } from '../lib/i18n';
 export const messages = defineMessages(
   {
     title: 'You can receive from this vault',
+    titleAnyone: 'Help this vault move on',
+    anyone:
+      'Anyone can raise the alarm or deliver the assets once the vault is released; the assets go to the heirs, not to you.',
+    anyoneRecover:
+      'Anyone can raise the alarm or deliver the assets once the vault is released; the assets go to the recovery wallet the guardians chose, not to you.',
     pokeHelp:
       'If the owner has missed their check-ins, anyone can raise the alarm or move the vault to its next state. The owner can still cancel an alarm by checking in.',
     poke: 'Raise alarm',
@@ -12,6 +17,11 @@ export const messages = defineMessages(
     claimHelp: 'The vault is released. Claim sends every asset as the vault was set up.',
     claimHelpRecover: 'Claim sends everything in the vault to the recovery wallet above.',
     claim: 'Claim',
+    deliverHelp:
+      'The vault is released. Deliver sends every asset to the heirs, as the vault was set up. Nothing comes to your wallet.',
+    deliverHelpRecover:
+      'Deliver sends everything in the vault to the recovery wallet above. Nothing comes to your wallet.',
+    deliver: 'Deliver the assets',
     results: 'Transfers',
     history: 'Show recent transfers',
     historyBusy: 'Loading…',
@@ -30,6 +40,11 @@ export const messages = defineMessages(
   },
   {
     title: 'Bạn có thể nhận từ vault này',
+    titleAnyone: 'Giúp vault này đi tiếp',
+    anyone:
+      'Ai cũng có thể báo động, hoặc chuyển tài sản khi vault đã giải phóng; tài sản đi tới người thừa kế, không phải cho bạn.',
+    anyoneRecover:
+      'Ai cũng có thể báo động, hoặc chuyển tài sản khi vault đã giải phóng; tài sản đi tới ví khôi phục do các người giám hộ chọn, không phải cho bạn.',
     pokeHelp:
       'Nếu chủ vault đã bỏ lỡ các lần điểm danh, ai cũng có thể báo động hoặc chuyển vault sang trạng thái kế tiếp. Chủ vault vẫn huỷ được báo động bằng cách điểm danh.',
     poke: 'Báo động',
@@ -39,6 +54,11 @@ export const messages = defineMessages(
     claimHelp: 'Vault đã giải phóng. Nhận sẽ chuyển mọi tài sản đúng như vault đã được thiết lập.',
     claimHelpRecover: 'Nhận sẽ chuyển toàn bộ tài sản trong vault sang ví khôi phục ở trên.',
     claim: 'Nhận',
+    deliverHelp:
+      'Vault đã giải phóng. Chuyển tài sản sẽ gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
+    deliverHelpRecover:
+      'Chuyển tài sản sẽ gửi toàn bộ tài sản trong vault sang ví khôi phục ở trên. Ví của bạn không nhận gì.',
+    deliver: 'Chuyển tài sản',
     results: 'Các lần chuyển',
     history: 'Xem các lần chuyển gần đây',
     historyBusy: 'Đang tải…',
