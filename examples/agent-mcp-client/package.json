@@ -1,0 +1,18 @@
+{
+  "name": "@atropyle/example-agent-mcp-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An MCP client that plans an Atropyle vault the way an agent does, and never signs.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "smoke": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "fixture",
+  "chainId": 31337,
+  "rpcUrls": ["http://127.0.0.1:1"],
+  "quorumRpcUrls": [["http://127.0.0.1:1"]],
+  "explorerUrl": null,
+  "factory": "0x1000000000000000000000000000000000000001",
+  "factoryBlock": "0",
+  "vaultImpl": "0x1000000000000000000000000000000000000002",
+  "vaultImplCodehash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "cpu": "0x1000000000000000000000000000000000000003",
+  "policyId": "1",
+  "treasury": "0x1000000000000000000000000000000000000004",
+  "feeTokens": ["0x1000000000000000000000000000000000000005"],
+  "circuits": null,
+  "tapeout": null,
+  "builderCode": null,
+  "webUrl": "https://app.atropyle.test/",
+  "logsBlockRange": 5000
+}

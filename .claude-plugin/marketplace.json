@@ -1,0 +1,14 @@
+{
+  "name": "atropyle",
+  "owner": { "name": "duongnq2798" },
+  "metadata": {
+    "description": "Atropyle: inheritance and wallet recovery vaults on X Layer, for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "atropyle",
+      "source": "./",
+      "description": "Plan, simulate, verify and prepare Atropyle vaults on X Layer. Two Agent Skills and an MCP server that never signs."
+    }
+  ]
+}

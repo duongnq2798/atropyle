@@ -1,0 +1,58 @@
+{
+  "name": "atropyle",
+  "version": "0.1.0",
+  "description": "Atropyle CLI: plan, simulate, verify and prepare inheritance vaults on X Layer. Never reads a private key.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duongnq2798/atropyle.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "x-layer",
+    "inheritance",
+    "crypto",
+    "okx",
+    "cli",
+    "mcp"
+  ],
+  "bin": {
+    "atropyle": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "vitest run -c vitest.e2e.config.ts",
+    "schemas": "tsx scripts/gen-schemas.ts",
+    "check:pkg": "publint"
+  },
+  "dependencies": {
+    "@atropyle/mcp": "0.1.0",
+    "@atropyle/sdk": "0.1.0",
+    "commander": "14.0.3",
+    "uqr": "0.1.3",
+    "viem": "^2.45.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@modelcontextprotocol/client": "2.4.0",
+    "ajv": "8.20.0",
+    "publint": "0.3.25",
+    "yaml": "2.9.1"
+  }
+}

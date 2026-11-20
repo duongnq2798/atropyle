@@ -118,3 +118,77 @@ jobs:
         working-directory: contracts
       - run: npm run abi:sync -- --check
       - run: npm run test:integration -w packages/sdk
+
+  cli-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      DISABLE_TELEMETRY: "1"
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - run: npm ci
+      - run: forge build
+        working-directory: contracts
+      - name: Build circuits, sdk, mcp and cli
+        run: npm run build -w circuits && npm run build -w packages/sdk && npm run build -w packages/mcp && npm run build -w packages/cli
+      - name: Typecheck
+        run: npm run typecheck -w packages/mcp && npm run typecheck -w packages/cli
+      - name: Unit tests
+        run: npm test -w packages/mcp && npm test -w packages/cli
+      - name: Package checks
+        run: npm run check:pkg -w packages/mcp && npm run check:pkg -w packages/cli
+      - name: Generated JSON Schemas and server.json are up to date
+        run: npm run schemas -w packages/cli -- --check && npm run server-json:check -w packages/mcp
+      - name: MCP integration and stdio tests
+        run: npm run test:integration -w packages/mcp && npm run test:e2e -w packages/mcp
+      - name: CLI e2e, including every command of both skills
+        run: npm run test:e2e -w packages/cli
+      - name: MCP Inspector smoke
+        run: npm run inspector:smoke -w packages/mcp
+      - name: Agent Skills spec
+        run: |
+          pip install skills-ref==0.1.1
+          agentskills validate skills/atropyle-estate-planning
+          agentskills validate skills/atropyle-guardian
+      - name: The skills CLI finds both skills
+        run: |
+          npx -y skills@1.9.0 add ./ --list > "$RUNNER_TEMP/skills.txt"
+          cat "$RUNNER_TEMP/skills.txt"
+          grep -q atropyle-estate-planning "$RUNNER_TEMP/skills.txt"
+          grep -q atropyle-guardian "$RUNNER_TEMP/skills.txt"
+      # Without --strict: strict mode fails on the warning that CLAUDE.md at the plugin root is not loaded, and the plugin ships that file on purpose.
+      - name: Claude Code plugin manifest
+        run: npx -y @anthropic-ai/claude-code@2.1.327 plugin validate .
+      - name: Example agent MCP client
+        run: npm run smoke -w examples/agent-mcp-client
+      - name: Example node quickstart
+        run: npm run smoke -w examples/node-quickstart
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # tsdown needs Node 22.18 or newer, so this leg reuses the dist built on Node 24 above.
+      - name: Published packages on Node 20
+        run: |
+          node --version
+          npm test -w packages/mcp
+          npm test -w packages/cli
+          npm run test:e2e -w packages/mcp
+          node packages/mcp/dist/bin.js --version
+          node packages/cli/dist/bin.js --version

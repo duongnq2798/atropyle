@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.duongnq2798/atropyle",
+  "description": "Inheritance and recovery vaults on X Layer: read, simulate, verify and prepare. Never signs.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/duongnq2798/atropyle",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@atropyle/mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "ATROPYLE_CHAIN",
+          "description": "Chain to use: xlayer (default) or local",
+          "isRequired": false,
+          "default": "xlayer",
+          "choices": ["xlayer", "local"]
+        },
+        {
+          "name": "ATROPYLE_DEPLOYMENT",
+          "description": "Path to a deployment JSON file; wins over ATROPYLE_CHAIN. Needed until the X Layer mainnet deployment",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "ATROPYLE_RPC",
+          "description": "Read RPC URL of the same chain; can contain an API key",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

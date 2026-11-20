@@ -16,6 +16,9 @@
       "!research_notes",
       "!external_research",
       "!docs",
+      "!skills/**/*.md",
+      "!packages/cli/schemas",
+      "!packages/cli/test/snapshots",
       "!.superpowers"
     ]
   },

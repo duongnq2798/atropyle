@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "atropyle": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@atropyle/mcp@0.1.0"]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "atropyle",
+  "version": "0.1.0",
+  "description": "Plan, simulate, verify and prepare Atropyle inheritance and recovery vaults on X Layer. Two Agent Skills and an MCP server that never signs.",
+  "author": { "name": "duongnq2798", "url": "https://github.com/duongnq2798" },
+  "homepage": "https://duongnq2798.github.io/atropyle/docs",
+  "repository": "https://github.com/duongnq2798/atropyle",
+  "license": "MIT",
+  "keywords": ["x-layer", "inheritance", "recovery", "mcp", "okx"],
+  "mcpServers": {
+    "atropyle": {
+      "command": "npx",
+      "args": ["-y", "@atropyle/mcp@0.1.0"]
+    }
+  }
+}
