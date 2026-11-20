@@ -81,7 +81,7 @@ library DewebCalls {
     }
 
     /// @notice Reads and parses deweb-calls/<file>. The text must be what emitJson in scripts/lib/deweb.ts writes
-    ///         for the values read here (the hex digits of `calls` may differ in case only), and `calls` the strict
+    ///         for the values read here (checksummed addresses, lowercase hex in `calls`), and `calls` the strict
     ///         ABI encoding of Call[]: a duplicate or extra key, another layout or trailing bytes is refused, so the
     ///         values checked are the only ones in the file. The broadcast also pins the file's keccak256
     ///         (DEWEB_KECCAK in 07_DewebPublish.s.sol), which --emit computed over the exact text it wrote.
