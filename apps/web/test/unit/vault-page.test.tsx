@@ -218,6 +218,81 @@ describe('vault page', () => {
     expect(screen.queryByTestId('owner-save-reset')).toBeNull();
   });
 
+  it('shows which heir each NFT goes to', async () => {
+    mount(fixtureSnapshot(), null);
+    const nft = await screen.findByTestId('asset-1-heir');
+    expect(nft.textContent).toBe(`Goes to ${PEOPLE.heirB}`);
+    expect(screen.queryByTestId('asset-0-heir')).toBeNull();
+    cleanup();
+    mount(fixtureSnapshot(), null, 'vi');
+    expect((await screen.findByTestId('asset-1-heir')).textContent).toBe(`Thuộc về ${PEOPLE.heirB}`);
+  });
+
+  it('warns when a heir edit hands an NFT to someone else, and saves only after the owner acknowledges it', async () => {
+    const { prepare } = mount(fixtureSnapshot(), PEOPLE.owner);
+    await screen.findByTestId('owner-panel');
+    click('owner-edit-heirs');
+    const save = () => screen.getByTestId('owner-save') as HTMLButtonElement;
+    expect(screen.queryByTestId('owner-nft-remap')).toBeNull();
+    expect(save().disabled).toBe(false);
+
+    // Removing heir A shifts heir B to position 0; the NFT names position 1, which disappears.
+    click('owner-remove-heir-0');
+    const warning = screen.getByTestId('owner-nft-remap');
+    expect(warning.getAttribute('role')).toBe('alert');
+    const row = screen.getByTestId('owner-nft-remap-1');
+    expect(row.textContent).toContain('Asset 2');
+    expect(row.textContent).toContain('MNFT');
+    expect(row.textContent).toContain('id 2');
+    expect(row.textContent).toContain(PEOPLE.heirB);
+    expect(row.textContent).toContain('no heir');
+    expect(row.querySelectorAll('.untrusted').length).toBeGreaterThan(0);
+    expect(warning.textContent).toContain('Assets tab');
+    expect(save().disabled).toBe(true);
+    click('owner-save');
+    expect(prepare).not.toHaveBeenCalled();
+
+    click('owner-nft-remap-ack');
+    expect(save().disabled).toBe(false);
+    // A change to who receives the NFT asks again.
+    click('owner-add-heir');
+    await waitFor(() => expect(save().disabled).toBe(true));
+    expect(screen.getByTestId('owner-nft-remap-1').textContent).toContain('an empty address field');
+    fireEvent.input(screen.getByTestId('owner-heir-1-account'), { target: { value: PEOPLE.stranger } });
+    await waitFor(() => expect(screen.getByTestId('owner-nft-remap-1').textContent).toContain(PEOPLE.stranger));
+    expect(save().disabled).toBe(true);
+    expect((screen.getByTestId('owner-nft-remap-ack') as HTMLInputElement).checked).toBe(false);
+    click('owner-nft-remap-ack');
+    click('owner-save');
+    await screen.findByTestId('owner-save-tx-send');
+    expect(prepare).toHaveBeenCalledOnce();
+  });
+
+  it('names the new recipient of an NFT when two heirs swap places, in both languages', async () => {
+    for (const lang of ['en', 'vi'] as const) {
+      mount(fixtureSnapshot(), PEOPLE.owner, lang);
+      await screen.findByTestId('owner-panel');
+      click('owner-edit-heirs');
+      fireEvent.input(screen.getByTestId('owner-heir-0-account'), { target: { value: PEOPLE.heirB } });
+      fireEvent.input(screen.getByTestId('owner-heir-1-account'), { target: { value: PEOPLE.heirA } });
+      const row = await screen.findByTestId('owner-nft-remap-1');
+      expect(row.textContent).toContain(PEOPLE.heirB);
+      expect(row.textContent).toContain(PEOPLE.heirA);
+      expect(screen.getByTestId('owner-nft-remap').textContent).toContain(lang === 'en' ? 'Assets tab' : 'thẻ Tài sản');
+      cleanup();
+    }
+  });
+
+  it('asks nothing when a heir edit changes only the shares', async () => {
+    mount(fixtureSnapshot(), PEOPLE.owner);
+    await screen.findByTestId('owner-panel');
+    click('owner-edit-heirs');
+    fireEvent.input(screen.getByTestId('owner-heir-0-percent'), { target: { value: '60' } });
+    fireEvent.input(screen.getByTestId('owner-heir-1-percent'), { target: { value: '40' } });
+    expect(screen.queryByTestId('owner-nft-remap')).toBeNull();
+    expect((screen.getByTestId('owner-save') as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('shows the guardian and heir panels by role and never to the owner', async () => {
     mount(fixtureSnapshot(), PEOPLE.owner);
     await screen.findByTestId('owner-panel');

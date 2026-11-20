@@ -7,6 +7,7 @@ import {
   type Role,
   rolesOf,
   type StateName,
+  sameAddress,
   type Timeline,
   type TimelineEvent,
   type TokenInfo,
@@ -15,7 +16,7 @@ import {
   type VaultSnapshot,
 } from '@atropyle/sdk';
 import type { Address } from 'viem';
-import { assetRows, assetsInput } from './create-form';
+import { assetRows, assetsInput, type HeirRow } from './create-form';
 import { coveragePercent } from './format';
 
 export interface AssetView {
@@ -24,6 +25,8 @@ export interface AssetView {
   token: Address;
   id: bigint;
   heir: number;
+  /** The heir an NFT goes to; null for an ERC-20, which is split by the heirs' shares. */
+  recipient: Address | null;
   info: TokenInfo;
   held: bigint;
   coverage: bigint;
@@ -55,6 +58,7 @@ export function vaultView(snap: VaultSnapshot, timeline: Timeline, account: stri
       token: a.asset.token,
       id: a.asset.id,
       heir: a.asset.heir,
+      recipient: a.asset.kind === 'erc20' ? null : (snap.config.heirs[a.asset.heir]?.account ?? null),
       info: a.token,
       held: a.held,
       coverage: a.coverage,
@@ -75,6 +79,36 @@ export function vaultView(snap: VaultSnapshot, timeline: Timeline, account: stri
     assets,
     lowCoverage: assets.filter((a) => a.percent !== null && a.percent < 100).map((a) => a.index),
   };
+}
+
+export interface NftRemap {
+  index: number;
+  kind: AssetKind;
+  token: Address;
+  id: bigint;
+  info: TokenInfo;
+  heir: number;
+  from: Address;
+  /** What the owner typed at that position, trimmed; null when the edited list has no heir there. */
+  to: string | null;
+}
+
+/**
+ * An NFT names an heir by position, not by address. These NFTs would go to someone else (or to no heir) if the edited
+ * heir list were saved as it is.
+ */
+export function nftRemaps(snap: VaultSnapshot, rows: readonly HeirRow[]): NftRemap[] {
+  const heirs = snap.config.heirs;
+  return snap.status.assets.flatMap((a): NftRemap[] => {
+    if (a.asset.kind === 'erc20') return [];
+    const from = heirs[a.asset.heir]?.account;
+    if (!from) return [];
+    const row = rows[a.asset.heir];
+    const to = row ? row.account.trim() : null;
+    if (to !== null && sameAddress(from, to)) return [];
+    const { kind, token, id, heir } = a.asset;
+    return [{ index: a.index, kind, token, id, info: a.token, heir, from, to }];
+  });
 }
 
 /** Empty k means the SDK's default majority; no guardians means nothing to confirm and no recovery. */

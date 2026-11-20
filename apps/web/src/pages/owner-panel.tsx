@@ -13,9 +13,10 @@ import {
 } from '../lib/create-form';
 import { telegramLink } from '../lib/links';
 import type { Sdk } from '../lib/sdk';
-import { fixCoverageAction, guardiansAction, type VaultView } from '../lib/vault-view';
+import { fixCoverageAction, guardiansAction, nftRemaps, type VaultView } from '../lib/vault-view';
 import { ActionRunner } from '../ui/action-runner';
 import { useApp, useT } from '../ui/app-context';
+import { AddressText, Banner, UntrustedText } from '../ui/components';
 import { AssetsEditor, type GuardianFields, GuardiansEditor, HeirsEditor, TimingEditor } from '../ui/editors';
 import { messages } from './owner.messages';
 
@@ -67,6 +68,15 @@ function EditConfig(props: {
   };
   const current = action();
 
+  // An NFT names an heir by position. A heir edit that hands one to someone else needs the owner's acknowledgement,
+  // which is tied to the exact list of changes: any other outcome asks again.
+  const remaps = tab === 'heirs' ? nftRemaps(snap, heirs) : [];
+  const remapKey = JSON.stringify(remaps.map((r) => [r.index, r.to]));
+  const [ack, setAck] = useState('');
+  const acknowledged = remaps.length === 0 || ack === remapKey;
+  // A runner that holds a plan is never swapped out: the form is read-only then, so the list cannot change under it.
+  const blocked = !held && !acknowledged;
+
   return (
     <section class="card stack" data-testid="owner-edit">
       <h2>{t('editTitle')}</h2>
@@ -94,6 +104,42 @@ function EditConfig(props: {
             onRemove={(i) => setHeirs(heirs.filter((_, j) => j !== i))}
           />
         ) : null}
+        {remaps.length > 0 ? (
+          <Banner kind="warn" testid="owner-nft-remap">
+            <strong>{t('nftRemapTitle')}</strong>
+            <p>{t('nftRemapHelp')}</p>
+            <ul>
+              {remaps.map((r) => (
+                <li key={r.index} data-testid={`owner-nft-remap-${r.index}`}>
+                  {t('nftRemapAsset', { n: r.index + 1 })}: <UntrustedText value={r.info.symbol} max={16} />{' '}
+                  <UntrustedText value={r.info.name} max={32} /> <AddressText address={r.token} />{' '}
+                  {t('nftId', { id: r.id })}
+                  <br />
+                  {t('nftRemapFrom')} <AddressText address={r.from} />
+                  <br />
+                  {t('nftRemapTo')}{' '}
+                  {r.to === null ? (
+                    t('nftRemapNone')
+                  ) : r.to === '' ? (
+                    t('nftRemapBlank')
+                  ) : (
+                    <AddressText address={r.to} />
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p>{t('nftRemapFix')}</p>
+            <label class="row">
+              <input
+                type="checkbox"
+                data-testid="owner-nft-remap-ack"
+                checked={ack === remapKey}
+                onChange={(e) => setAck(e.currentTarget.checked ? remapKey : '')}
+              />
+              {t('nftRemapAck')}
+            </label>
+          </Banner>
+        ) : null}
         {tab === 'guardians' ? (
           <GuardiansEditor value={guardians} issues={[]} testid="owner" min={0} onChange={setGuardians} />
         ) : null}
@@ -112,7 +158,11 @@ function EditConfig(props: {
           />
         ) : null}
       </fieldset>
-      {current ? (
+      {current && blocked ? (
+        <button type="button" class="btn btn-primary" data-testid="owner-save" disabled>
+          {t('save')}
+        </button>
+      ) : current ? (
         <ActionRunner
           sdk={sdk}
           vault={snap.status.vault}

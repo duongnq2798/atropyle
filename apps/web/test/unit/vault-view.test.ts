@@ -1,7 +1,7 @@
 import { planError } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { assetRows, assetsInput, heirRows, heirsInput, timingFormOf, timingInput } from '../../src/lib/create-form';
-import { fixCoverageAction, guardiansAction, planIssues, vaultView } from '../../src/lib/vault-view';
+import { fixCoverageAction, guardiansAction, nftRemaps, planIssues, vaultView } from '../../src/lib/vault-view';
 import { fixtureSnapshot, fixtureTimeline, PEOPLE } from './fixtures';
 
 describe('vault view', () => {
@@ -55,6 +55,33 @@ describe('vault view', () => {
     const custom = timingFormOf({ period: 86_400, threshold: 3, window: 259_200 }, false);
     expect(custom).toEqual({ preset: 'custom', period: '1d', threshold: '3', window: '3d' });
     expect(timingInput(custom)).toEqual({ period: '1d', threshold: 3, window: '3d' });
+  });
+
+  it('names the heir each NFT goes to', () => {
+    const v = vaultView(fixtureSnapshot(), fixtureTimeline(), null);
+    expect(v.assets.map((a) => [a.index, a.recipient])).toEqual([
+      [0, null],
+      [1, PEOPLE.heirB],
+    ]);
+  });
+
+  it('lists every NFT whose heir position gets another address or disappears', () => {
+    const snap = fixtureSnapshot();
+    const rows = heirRows(snap.config.heirs);
+    expect(nftRemaps(snap, rows)).toEqual([]);
+    // Same addresses in another case and with spaces: nothing moves.
+    expect(nftRemaps(snap, [rows[0], { ...rows[1], account: ` ${PEOPLE.heirB.toLowerCase()} ` }])).toEqual([]);
+    // Only the ERC-20 heir changes: ERC-20s are split by percent, so nothing to warn about.
+    expect(nftRemaps(snap, [{ ...rows[0], account: PEOPLE.stranger }, rows[1]])).toEqual([]);
+
+    const nft = snap.status.assets[1];
+    const base = { index: 1, kind: 'erc721', token: PEOPLE.nft, id: 2n, info: nft.token, heir: 1, from: PEOPLE.heirB };
+    // Removing heir A moves heir B to position 0: position 1, which the NFT names, disappears.
+    expect(nftRemaps(snap, [rows[1]])).toEqual([{ ...base, to: null }]);
+    // Swapping the two heirs hands the NFT to heir A.
+    expect(nftRemaps(snap, [rows[1], rows[0]])).toEqual([{ ...base, to: PEOPLE.heirA }]);
+    // A half-typed address is a change too.
+    expect(nftRemaps(snap, [rows[0], { ...rows[1], account: '0x12' }])).toEqual([{ ...base, to: '0x12' }]);
   });
 
   it('builds setGuardians with the SDK majority and drops recovery without guardians', () => {

@@ -155,6 +155,11 @@ function AssetsCard({ view, explorer }: { view: VaultView; explorer: string | nu
                   </span>
                   <AddressText address={a.token} explorer={explorer} />
                   {a.kind !== 'erc20' ? <span class="muted">{t('nftId', { id: a.id })}</span> : null}
+                  {a.recipient ? (
+                    <span data-testid={`asset-${a.index}-heir`}>
+                      {t('goesTo')} <AddressText address={a.recipient} />
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   {a.kind === 'erc20' ? (
