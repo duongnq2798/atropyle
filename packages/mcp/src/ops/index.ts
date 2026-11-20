@@ -3,6 +3,7 @@ export * from './explain';
 export * from './inputs';
 export * from './prepare';
 export * from './read';
+export * from './rpc';
 export * from './schemas';
 export * from './text';
 export * from './untrusted';
