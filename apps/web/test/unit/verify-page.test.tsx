@@ -82,6 +82,22 @@ describe('VerifyPage', () => {
     await waitFor(() => expect(screen.getByTestId('verify-overall').getAttribute('data-ok')).toBe('true'));
   });
 
+  it('reports a failing quick check at once, without waiting for the policy proof', async () => {
+    mocks.runVaultVerify.mockReset();
+    const checks = ALL_OK.map((c) => (c.name === 'factory.isVault' ? { name: c.name, ok: false } : c));
+    // The proof never finishes: a failed factory row must not hide behind "Checking the policy".
+    mocks.runVaultVerify.mockImplementation((_s, _v, o: { policy: boolean }) =>
+      o.policy ? new Promise(() => {}) : Promise.resolve(verification({ ok: false, checks })),
+    );
+    render(wrap(<VerifyPage sdk={sdk} vault={V} />));
+    await waitFor(() => expect(mocks.runVaultVerify).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('verify-row-factory').getAttribute('data-state')).toBe('fail');
+    const overall = screen.getByTestId('verify-overall');
+    expect(overall.getAttribute('data-ok')).toBe('false');
+    expect(overall.textContent).toContain('could not be fully verified');
+    expect(overall.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
   it('says the vault could not be verified once the result is known', async () => {
     mocks.runVaultVerify.mockResolvedValue(verification({ rpcs: 1 }));
     render(wrap(<VerifyPage sdk={sdk} vault={V} />));

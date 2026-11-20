@@ -42,8 +42,11 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
   if (quick.status === 'error') return <ErrorBox error={quick.error} onRetry={quick.reload} />;
   const v = full.status === 'ok' && full.value ? full.value : quick.value;
   const rows = vaultVerifyRows(v);
-  // The cheap pass marks the policy row unknown; do not call that a failure while the proof is still running.
-  const pending = full.status === 'loading' || (full.status === 'ok' && full.value === null);
+  // The cheap pass marks the policy row unknown; do not call that a failure while the proof is still running. A row
+  // that already failed is a failure whatever the proof says, so it is reported at once.
+  const failed = rows.some((r) => r.state === 'fail');
+  const running = full.status === 'loading' || (full.status === 'ok' && full.value === null);
+  const pending = !failed && running;
   const allPass = rows.every((r) => r.state === 'pass');
   const explorer = sdk.deployment.explorerUrl;
 
@@ -76,7 +79,7 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
           ))}
         </tbody>
       </table>
-      {pending && progress ? (
+      {running && progress ? (
         <div>
           <progress data-testid="verify-progress" max={progress[1]} value={progress[0]} />
           <p class="muted">{t('running', { done: progress[0], total: progress[1] })}</p>
