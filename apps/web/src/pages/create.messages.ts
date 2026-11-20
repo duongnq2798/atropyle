@@ -38,7 +38,7 @@ export const messages = defineMessages(
     telegram: 'Get reminders on Telegram',
     changePlan: 'Change the plan',
     planPrepared: 'The plan is prepared. To change anything, discard it first.',
-    planLocked: 'Some steps are already confirmed. Finish the remaining steps here.',
+    planLocked: 'This plan has been sent to your wallet. Finish the remaining steps here.',
   },
   {
     title: 'Tạo vault',
@@ -77,6 +77,6 @@ export const messages = defineMessages(
     telegram: 'Nhận nhắc nhở qua Telegram',
     changePlan: 'Đổi kế hoạch',
     planPrepared: 'Kế hoạch đã được chuẩn bị. Muốn đổi gì, hãy huỷ kế hoạch trước.',
-    planLocked: 'Một số bước đã được xác nhận. Hãy hoàn tất các bước còn lại tại đây.',
+    planLocked: 'Kế hoạch này đã được gửi tới ví của bạn. Hãy hoàn tất các bước còn lại tại đây.',
   },
 );

@@ -24,8 +24,11 @@ export function TxRunner(props: {
   plan: TxPlan;
   label: string;
   onDone?: (r: SendResult) => void;
-  /** Called with the number of steps confirmed so far, each time one confirms. */
-  onProgress?: (confirmed: number) => void;
+  /**
+   * Called whenever either value changes. `committed`: a send is in flight or the wallet has accepted something for
+   * this plan (a hash, a pending or confirmed step), so the plan must not be replaced by a new one.
+   */
+  onProgress?: (p: { confirmed: number; committed: boolean }) => void;
   testid?: string;
 }) {
   const { plan, label, onDone, onProgress } = props;
@@ -46,6 +49,14 @@ export function TxRunner(props: {
     setResult(null);
     setOffset(0);
   }, [plan]);
+
+  const confirmed = view.rows.filter((r) => r.phase === 'confirmed').length;
+  // A failed row keeps the hash it got, so a failure after `pending` stays accepted; a rejection before any hash does not.
+  const accepted = view.rows.some((r) => r.hash !== null || r.phase === 'pending' || r.phase === 'confirmed');
+  const committed = busy || accepted;
+  useEffect(() => {
+    onProgress?.({ confirmed, committed });
+  }, [confirmed, committed]);
 
   const link = useMemo(() => {
     try {
@@ -69,8 +80,6 @@ export function TxRunner(props: {
       const r = await sdk.atro.send(rest, app.walletClient(), {
         onStep: (e) => {
           setView((v) => applyStep(v, { ...e, index: e.index + base }));
-          // Steps confirm in order, so the confirmed count is the index of this one plus one.
-          if (e.phase === 'confirmed') onProgress?.(e.index + base + 1);
         },
       });
       setResult(r);

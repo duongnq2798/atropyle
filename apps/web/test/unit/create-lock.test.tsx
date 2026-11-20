@@ -186,6 +186,18 @@ describe('the wizard around a prepared plan', () => {
     expect(screen.queryByTestId('create-change-plan')).toBeNull();
   });
 
+  it('Change the plan disappears while a send is in flight with nothing confirmed', async () => {
+    const send: Send = () => new Promise(() => {});
+    await toAssets(send);
+    expect(screen.getByTestId('create-change-plan')).toBeTruthy();
+    click('create-tx-send');
+    await waitFor(() => expect(screen.queryByTestId('create-change-plan')).toBeNull());
+    expect(screen.getByTestId('create-plan-locked').textContent).toBe(
+      'This plan has been sent to your wallet. Finish the remaining steps here.',
+    );
+    expect(screen.queryByTestId('create-back')).toBeNull();
+  });
+
   it('after a partial send the plan can no longer be discarded', async () => {
     const send: Send = async (p, _w, o) => {
       o.onStep?.({ index: 0, total: p.steps.length, step: p.steps[0], phase: 'confirmed', hash: H });
@@ -197,7 +209,7 @@ describe('the wizard around a prepared plan', () => {
     expect(screen.queryByTestId('create-change-plan')).toBeNull();
     expect(screen.queryByTestId('create-back')).toBeNull();
     expect(screen.getByTestId('create-plan-locked').textContent).toBe(
-      'Some steps are already confirmed. Finish the remaining steps here.',
+      'This plan has been sent to your wallet. Finish the remaining steps here.',
     );
     expect(screen.getByTestId('create-tx-send').textContent).toBe('Resume from step 2');
   });

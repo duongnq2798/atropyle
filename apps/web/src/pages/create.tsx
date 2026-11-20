@@ -160,7 +160,7 @@ export function Review(props: {
   owner: Address;
   plan: TxPlan | null;
   onPlan: (p: TxPlan | null) => void;
-  onProgress: (confirmed: number) => void;
+  onProgress: (p: { confirmed: number; committed: boolean }) => void;
   onIssues: (issues: PlanIssue[]) => void;
   onCreated: (vault: Address) => void;
 }) {
@@ -292,14 +292,14 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
   // The prepared plan and how many of its steps are confirmed. A plan with a confirmed step is never discarded:
   // a new one would carry a fresh salt and create (and charge for) a second vault.
   const [plan, setPlan] = useState<TxPlan | null>(null);
-  const [confirmed, setConfirmed] = useState(0);
+  const [progress, setProgress] = useState({ confirmed: 0, committed: false });
   const account = app.wallet?.account ?? null;
   const index = STEPS.indexOf(step);
   const shown = issuesFor(step, issues);
   const locked = plan !== null;
   const preparePlan = (p: TxPlan | null) => {
     setPlan(p);
-    setConfirmed(0);
+    setProgress({ confirmed: 0, committed: false });
   };
 
   const setForm = (f: CreateForm) => {
@@ -349,7 +349,7 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
         <section class="card stack">
           <IssueList issues={shown} testid="create-issues" />
           {locked ? (
-            confirmed > 0 ? (
+            progress.committed ? (
               <Banner kind="info" testid="create-plan-locked">
                 {t('planLocked')}
               </Banner>
@@ -427,7 +427,7 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
               owner={plan ? plan.from : (account as Address)}
               plan={plan}
               onPlan={preparePlan}
-              onProgress={setConfirmed}
+              onProgress={setProgress}
               onIssues={showIssues}
               onCreated={setCreated}
             />

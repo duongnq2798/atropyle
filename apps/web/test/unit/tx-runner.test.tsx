@@ -37,7 +37,7 @@ const plan: TxPlan = {
 
 function harness(
   send: (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<SendResult>,
-  onProgress?: (confirmed: number) => void,
+  onProgress?: (p: { confirmed: number; committed: boolean }) => void,
 ) {
   const value = {
     lang: 'en',
@@ -93,7 +93,7 @@ describe('TxRunner', () => {
   });
 
   it('shows how many steps are confirmed, and only when there is more than one', async () => {
-    const reported: number[] = [];
+    const reported: { confirmed: number; committed: boolean }[] = [];
     let attempt = 0;
     const send = async (p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
       attempt++;
@@ -107,16 +107,46 @@ describe('TxRunner', () => {
       }
       return { vault: V as `0x${string}`, steps: [] };
     };
-    render(harness(send, (n) => reported.push(n)));
+    render(harness(send, (p) => reported.push(p)));
     const bar = () => screen.getByTestId('tx-progress') as HTMLProgressElement;
     expect([bar().value, bar().max]).toEqual([0, 3]);
     fireEvent.click(screen.getByTestId('tx-send'));
     await waitFor(() => expect(screen.getByTestId('tx-step-1').getAttribute('data-phase')).toBe('failed'));
     expect(bar().value).toBe(1);
-    expect(reported).toEqual([1]);
+    expect(reported.at(-1)).toEqual({ confirmed: 1, committed: true });
     fireEvent.click(screen.getByTestId('tx-send'));
     await waitFor(() => expect(screen.getByTestId('tx-done')).toBeTruthy());
     expect(bar().value).toBe(3);
-    expect(reported).toEqual([1, 2, 3]);
+    expect(reported.at(-1)).toEqual({ confirmed: 3, committed: true });
+    expect(reported.map((r) => r.confirmed)).toEqual(expect.arrayContaining([0, 1, 3]));
+  });
+
+  it('is committed while a send is in flight and free again after a rejection with no hash', async () => {
+    const reported: { confirmed: number; committed: boolean }[] = [];
+    let reject: (e: unknown) => void = () => {};
+    const send = (_p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) =>
+      new Promise<SendResult>((_, no) => {
+        o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'signing' });
+        reject = no;
+      });
+    render(harness(send, (p) => reported.push(p)));
+    expect(reported.at(-1)).toEqual({ confirmed: 0, committed: false });
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await waitFor(() => expect(reported.at(-1)?.committed).toBe(true));
+    reject(new AtropyleError('USER_REJECTED', { details: { index: 0, completed: 0 } }));
+    await waitFor(() => expect(reported.at(-1)).toEqual({ confirmed: 0, committed: false }));
+  });
+
+  it('stays committed after a failure that follows a pending step with a hash', async () => {
+    const reported: { confirmed: number; committed: boolean }[] = [];
+    const send = async (_p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'signing' });
+      o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'pending', hash: H });
+      throw new AtropyleError('UNKNOWN', { details: { index: 0, completed: 0 } });
+    };
+    render(harness(send, (p) => reported.push(p)));
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await waitFor(() => expect(screen.getByTestId('tx-step-0').getAttribute('data-phase')).toBe('failed'));
+    expect(reported.at(-1)).toEqual({ confirmed: 0, committed: true });
   });
 });
