@@ -190,4 +190,29 @@ describe('vault page', () => {
     expect((screen.getByTestId('owner-edit-assets') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByTestId('owner-save-reset')).toBeNull();
   });
+
+  it('shows the guardian and heir panels by role and never to the owner', async () => {
+    mount(fixtureSnapshot(), PEOPLE.owner);
+    await screen.findByTestId('owner-panel');
+    expect(screen.queryByTestId('guardian-panel')).toBeNull();
+    expect(screen.queryByTestId('heir-panel')).toBeNull();
+    cleanup();
+    mount(fixtureSnapshot(), PEOPLE.g1);
+    expect(await screen.findByTestId('guardian-panel')).toBeTruthy();
+    expect(screen.queryByTestId('heir-panel')).toBeNull();
+    expect(screen.queryByTestId('owner-panel')).toBeNull();
+    cleanup();
+    mount(fixtureSnapshot(), PEOPLE.heirB);
+    expect(await screen.findByTestId('guardian-panel')).toBeTruthy();
+    expect(screen.getByTestId('heir-panel')).toBeTruthy();
+  });
+
+  it('gives the heir panel the recovery target of a pending recovery', async () => {
+    const snap = fixtureSnapshot();
+    snap.status.state = 'recovery';
+    snap.status.recoveryTarget = PEOPLE.stranger;
+    mount(snap, PEOPLE.stranger);
+    const text = (await screen.findByTestId('heir-recovery')).textContent ?? '';
+    expect(text).toContain(PEOPLE.stranger);
+  });
 });

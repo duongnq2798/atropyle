@@ -8,6 +8,8 @@ import { useApp, useT } from '../ui/app-context';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, Banner, ErrorBox, TokenAmount, UntrustedText } from '../ui/components';
 import { messages as labels, ROLE_KEY, STATE_KEY } from '../ui/labels.messages';
+import { GuardianPanel } from './guardian-panel';
+import { HeirPanel } from './heir-panel';
 import { OwnerPanel } from './owner-panel';
 import { messages } from './vault.messages';
 import { useNowMs, useVault } from './vault-hooks';
@@ -216,6 +218,18 @@ export function VaultPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
       )}
       {account && view.roles.includes('owner') ? (
         <OwnerPanel sdk={sdk} snap={data.snap} view={view} account={account} onChanged={reload} />
+      ) : null}
+      {account && view.roles.includes('guardian') ? (
+        <GuardianPanel sdk={sdk} snap={data.snap} view={view} account={account} onChanged={reload} />
+      ) : null}
+      {account && (view.roles.includes('heir') || view.roles.includes('recoveryTarget')) ? (
+        <HeirPanel
+          sdk={sdk}
+          view={view}
+          recoveryTarget={data.snap.status.recoveryTarget}
+          account={account}
+          onChanged={reload}
+        />
       ) : null}
       <AssetsCard view={view} explorer={sdk.deployment.explorerUrl} />
     </div>
