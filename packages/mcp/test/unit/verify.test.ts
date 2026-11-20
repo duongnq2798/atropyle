@@ -127,11 +127,40 @@ describe('throttleProgress', () => {
     const p = throttleProgress(cb);
     for (let i = 1; i <= 1000; i++) p(i, 1000);
     expect(cb.mock.calls.length).toBeLessThanOrEqual(101);
+    expect(cb.mock.calls.length).toBeGreaterThan(90);
     expect(cb).toHaveBeenLastCalledWith(1000, 1000);
+  });
+
+  it('keeps about 100 calls for the 2^26 combinations of the policy proof', () => {
+    const total = 2 ** 26;
+    const cb = vi.fn();
+    const p = throttleProgress(cb);
+    for (let done = 1 << 16; done <= total; done += 1 << 16) p(done, total);
+    expect(cb.mock.calls.length).toBeGreaterThan(90);
+    expect(cb.mock.calls.length).toBeLessThanOrEqual(101);
+    expect(cb).toHaveBeenLastCalledWith(total, total);
+  });
+});
+
+describe('operators override', () => {
+  it('shows the hosts of the groups it is given instead of the deployment quorum', async () => {
+    const out = await verify(
+      stub(async () => POLICY),
+      {},
+      { operators: [['https://rpc.example.org/secret-path']] },
+    );
+    expect(out.operators).toEqual([['rpc.example.org']]);
+    expect(JSON.stringify(out)).not.toContain('secret-path');
   });
 });
 
 describe('integrityOutput', () => {
+  it('says FAILED when the report is not ok', () => {
+    const report = { ok: false, chainId: 196, blockNumber: 9n, blockTimestamp: 1n, rpcs: 2, checks: [], warnings: [] };
+    const out = integrityOutput({ report: report as IntegrityReport, checkedAt: '2026-12-01T00:00:00Z' });
+    expect(out.summary).toContain('FAILED');
+  });
+
   it('without a report, points to the local verify command', () => {
     const out = integrityOutput(null);
     expect(out).toMatchObject({ checkedAt: null, report: null, verifyCommand: 'npx -y atropyle verify' });

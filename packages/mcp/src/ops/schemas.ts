@@ -359,7 +359,7 @@ export const HandoffSchema = z.object({
     .nullable()
     .describe('Signing link for the Atropyle web app: open it in a wallet browser or scan its QR code'),
   okxAppLink: z.string().nullable().describe('The same link, opened directly in the dApp browser of the OKX App'),
-  cast: z.array(z.string()).describe('One Foundry cast command per step, without a signer'),
+  cast: z.array(z.string()).describe('One Foundry cast command per step; empty when omitted (`notes` say why)'),
   calls: SendCallsSchema,
   notes: z.array(z.string()),
 });
@@ -370,7 +370,9 @@ export const PrepareOutputSchema = z.object({
   from: AddressSchema,
   vault: AddressSchema,
   plan: TxPlanSchema,
-  handoff: HandoffSchema.nullable().describe('null when a step fails simulation: there is nothing safe to sign'),
+  handoff: HandoffSchema.nullable().describe(
+    'null when a step fails simulation (then `blocked` says why) or when the plan has no steps (nothing to do)',
+  ),
   blocked: z
     .object({
       step: IntSchema.describe('0-based index of the failing step'),

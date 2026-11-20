@@ -17,10 +17,37 @@ export function okxAppLink(link: string): string | null {
   return `${OKX_UNIVERSAL_LINK}${encodeURIComponent(`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(link)}`)}`;
 }
 
-export const CAST_NOTE = 'The cast commands carry no signer. Add your own, such as --ledger or --account <name>.';
+const CAST_NOTE = 'The cast commands carry no signer. Add your own, such as --ledger or --account <name>.';
 const NO_LINK_NOTE =
-  'No signing link: the deployment has no web app URL and none was given. Use the cast commands or the wallet_sendCalls parameters.';
-const NO_CAST_NOTE = 'cast commands are omitted: the RPC URL contains characters a shell would interpret';
+  'No signing link: the deployment has no web app URL and none was given. Use the wallet_sendCalls parameters (or the cast commands, when present).';
+const NO_CAST_NOTE = "cast commands are omitted: the SDK refused to build them for this deployment's RPC URL";
+const RPC_ENV_NOTE =
+  "cast commands use $ETH_RPC_URL: set it to your RPC URL (the deployment's URL is not printed because it may contain an API key)";
+const ETH_RPC_URL = '"$ETH_RPC_URL"';
+
+/** A URL with anything beyond its origin (a path, a query, userinfo) may carry an API key. */
+function hasSecretPart(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.pathname !== '/' || u.search !== '' || u.hash !== '' || u.username !== '' || u.password !== '';
+  } catch {
+    return true;
+  }
+}
+
+function skippedNotes(plan: TxPlan): string[] {
+  return plan.steps.flatMap((s, i) => {
+    const sim = s.simulation;
+    if (sim.ok !== 'skipped') return [];
+    const why =
+      sim.reason === 'DEPENDS_ON_PREVIOUS_STEP'
+        ? `it depends on step ${i}`
+        : `the simulation was skipped (${sim.reason})`;
+    return [
+      `Step ${i + 1} was not simulated on its own: ${why}; your wallet and the chain will check it when you sign.`,
+    ];
+  });
+}
 
 const isInvalidOptions = (e: unknown) => decodeError(e).code === 'INVALID_OPTIONS';
 
@@ -36,15 +63,22 @@ function handoffOf(atro: AtropyleClient, plan: TxPlan, webUrl: string | undefine
     if (!noWebApp || !isInvalidOptions(e)) throw e;
     notes.push(NO_LINK_NOTE);
   }
-  // Always the deployment's public RPC: a --rpc URL may carry an API key and must not be printed.
+  // Always the deployment's RPC, never a --rpc URL. A URL with a path or query may carry an API key and the output
+  // goes into a model's context, so cast reads it from Foundry's ETH_RPC_URL instead.
+  const rpcUrl = atro.deployment.rpcUrls[0];
+  const secret = hasSecretPart(rpcUrl);
   let cast: string[] = [];
   try {
-    cast = plan.steps.map((s) => atro.handoff.cast(s));
-    notes.unshift(CAST_NOTE);
+    cast = plan.steps.map((s) => {
+      const line = atro.handoff.cast(s);
+      return secret ? line.split(rpcUrl).join(ETH_RPC_URL) : line;
+    });
+    notes.unshift(...(secret ? [CAST_NOTE, RPC_ENV_NOTE] : [CAST_NOTE]));
   } catch (e) {
     if (!isInvalidOptions(e)) throw e;
     notes.push(NO_CAST_NOTE);
   }
+  notes.push(...skippedNotes(plan));
   return { link, okxAppLink: link === null ? null : okxAppLink(link), cast, calls: atro.handoff.calls(plan), notes };
 }
 

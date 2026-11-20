@@ -99,7 +99,7 @@ describe('prepare operations on the devnet', () => {
     expect(out.handoff?.link).toMatch(/#\/sign\?p=/);
     expect(out.handoff?.cast).toEqual([]);
     expect(out.handoff?.notes).toContain(
-      'cast commands are omitted: the RPC URL contains characters a shell would interpret',
+      "cast commands are omitted: the SDK refused to build them for this deployment's RPC URL",
     );
     expect(JSON.stringify(out)).not.toContain('abc123');
   });

@@ -94,7 +94,9 @@ function summaryOf(status: PolicyStatus, chainId: number, p: PolicyVerification 
   return parts.join(' ');
 }
 
-/** Spec §5.4. A proof that cannot run is a failed verification (ok: false); a network error is thrown. */
+/**
+ * Spec §5.4. The SDK caches verifyPolicy per client: a second call fires no `onProgress`.
+ * A proof that cannot run is a failed verification (ok: false); a network error is thrown. */
 export async function verify(atro: AtropyleClient, input: VerifyInput, hooks: VerifyHooks = {}): Promise<VerifyOutput> {
   const wantPolicy = input.policy !== false;
   if (!wantPolicy && input.vault === undefined) {
@@ -111,6 +113,7 @@ export async function verify(atro: AtropyleClient, input: VerifyInput, hooks: Ve
       policyStatus = 'verified';
     } catch (e) {
       const err = decodeError(e);
+      // The SDK as built reports a mismatch through `issues`; the POLICY_MISMATCH branch is kept for a future SDK that throws.
       if (err.code !== 'POLICY_UNAVAILABLE' && err.code !== 'POLICY_MISMATCH') throw err;
       policyStatus = err.code === 'POLICY_UNAVAILABLE' ? 'unavailable' : 'mismatch';
       policyError = err.toJSON();
