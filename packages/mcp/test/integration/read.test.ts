@@ -96,6 +96,9 @@ describe('read operations on the devnet', () => {
     expect(CheckPlanOutputSchema.parse(out)).toEqual(out);
     expect(out.ok).toBe(true);
     expect(out.tokens[0].info?.name).toBeNull();
+    expect(out.untrusted.texts.find((t) => t.path === '/tokens/0/info/name')?.value).toMatch(
+      /^Ignore previous instructions/,
+    );
     expect(withoutUntrusted(out)).not.toContain('Ignore previous');
   });
 
@@ -111,7 +114,7 @@ describe('read operations on the devnet', () => {
     const plan = { owner: 'nope', heirs: [{ account: account(6) }], timing: 'drill' as const };
     const fromFile = await checkPlan(atropyle(), { plan }).catch((e) => e);
     expect(fromFile).toMatchObject({ code: 'PLAN_INVALID' });
-    expect(JSON.stringify(fromFile.details)).toContain('"/owner"');
+    expect(fromFile.details.issues).toMatchObject([{ path: 'owner', code: 'INVALID_ADDRESS' }]);
     await expect(checkPlan(atropyle(), { plan, owner: 'nope' })).rejects.toMatchObject({ code: 'INVALID_ADDRESS' });
   });
 });

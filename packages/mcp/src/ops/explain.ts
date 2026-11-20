@@ -25,6 +25,10 @@ export const COVERAGE_WARNING: Warning = {
 export function explainStatus(s: VaultStatus, c: VaultConfig, t: Timeline): string[] {
   const lines: string[] = [];
   const released = isReleasedState(s.state);
+  // An expired Drill accepts no action, so no line may suggest one is still possible.
+  if (s.expired) {
+    return ['This Drill has expired and accepts no more actions.', `Its last recorded state is ${s.state}.`];
+  }
   switch (s.state) {
     case 'active':
       lines.push(
@@ -61,15 +65,9 @@ export function explainStatus(s: VaultStatus, c: VaultConfig, t: Timeline): stri
   if (!released && c.guardians.length > 0) {
     lines.push(`${s.inhVotes} of ${c.guardians.length} guardians have attested death; the vault needs ${c.k}.`);
   }
-  if (c.drill) {
-    lines.push(
-      s.expired
-        ? 'This Drill has expired and accepts no more actions.'
-        : `This is a Drill, a practice vault. It expires at ${at(s.expiresAt)}.`,
-    );
-  }
+  if (c.drill) lines.push(`This is a Drill, a practice vault. It expires at ${at(s.expiresAt)}.`);
   if (!released && t.earliestRelease !== null)
-    lines.push(`If nobody acts, the earliest release is ${at(t.earliestRelease)}.`);
+    lines.push(`If the owner does nothing, the earliest release is ${at(t.earliestRelease)}.`);
   const short = s.assets.filter((a) => a.coverage < a.held).length;
   if (short > 0) lines.push(`${short} of ${s.assets.length} assets are not fully approved to the vault.`);
   return lines;

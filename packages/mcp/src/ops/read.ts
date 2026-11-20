@@ -2,6 +2,7 @@ import {
   type AtropyleClient,
   AtropyleError,
   computeTimeline,
+  decodeError,
   type EvalState,
   formatDuration,
   type PlanCheck,
@@ -34,43 +35,42 @@ import { finish } from './untrusted';
 export const DRILL_LIFETIME = 604_800n;
 
 export async function latestTimestamp(atro: AtropyleClient): Promise<bigint> {
-  return (await atro.publicClient.getBlock({ blockTag: 'latest' })).timestamp;
+  try {
+    return (await atro.publicClient.getBlock({ blockTag: 'latest' })).timestamp;
+  } catch (e) {
+    throw decodeError(e);
+  }
+}
+
+const OWNER_HINT = 'Set "owner" in the plan, or give the owner address.';
+
+/** A PLAN_INVALID about the plan's own `owner` field, in the SDK's issue form (dotted path, PlanIssueCode). */
+function ownerIssue(code: 'REQUIRED' | 'INVALID_ADDRESS', message: string, cause?: unknown): AtropyleError {
+  const base = planError([{ path: 'owner', code, message }]);
+  return new AtropyleError('PLAN_INVALID', { message: base.message, hint: OWNER_HINT, details: base.details, cause });
 }
 
 /**
- * The owner of a plan: the explicit one (a command-line or tool argument: a bad value is INVALID_ADDRESS), else the
- * plan's `owner` field (a bad value is a wrong file: PLAN_INVALID at /owner). Missing from both → PLAN_INVALID.
+ * The owner of a plan: the explicit one (a tool or command-line argument: a bad value is INVALID_ADDRESS), else the
+ * plan's `owner` field (a bad value means the plan is wrong: PLAN_INVALID, issue `owner`). Missing from both is
+ * PLAN_INVALID too.
  */
 export function planOwner(plan: unknown, owner?: string): Address {
   if (owner !== undefined) return toAddress(owner, 'owner');
   const fromPlan = typeof plan === 'object' && plan !== null ? (plan as { owner?: unknown }).owner : undefined;
-  if (fromPlan === undefined) {
-    throw new AtropyleError('PLAN_INVALID', {
-      message: 'The plan has no owner.',
-      hint: 'Set "owner" in the plan file, or pass --as <address>.',
-      details: {
-        issues: [{ path: '/owner', code: 'REQUIRED', message: 'The owner address is required for on-chain checks.' }],
-      },
-    });
-  }
+  if (fromPlan === undefined) throw ownerIssue('REQUIRED', 'owner: required for on-chain checks');
   try {
     return toAddress(fromPlan, 'owner');
-  } catch {
-    throw new AtropyleError('PLAN_INVALID', {
-      message: 'The plan has an invalid owner: /owner is not a valid address.',
-      hint: 'Set "owner" in the plan file to a full 0x address, or pass --as <address>.',
-      details: {
-        issues: [{ path: '/owner', code: 'ADDRESS', message: 'The owner is not a valid address.' }],
-      },
-    });
+  } catch (e) {
+    throw ownerIssue('INVALID_ADDRESS', 'owner: not a valid address', e);
   }
 }
 
 export async function getVault(atro: AtropyleClient, input: GetVaultInput): Promise<GetVaultOutput> {
+  const as = input.as === undefined ? null : toAddress(input.as, 'as');
   const snap = await atro.vault(input.vault).snapshot();
   const { status, config, binding } = snap;
   const timeline = timelineOf(await atro.engineFor(binding.cpu, binding.policyId), snap, status.blockTimestamp);
-  const as = input.as === undefined ? null : toAddress(input.as, 'as');
   const roles = as === null ? null : rolesOf(snap, as);
   const parts = [
     `Vault ${status.vault} is ${status.state}${status.pending !== status.state ? `, and a move to ${status.pending} is due` : ''}.`,
@@ -142,8 +142,10 @@ function planTimelineSummary(c: PlanConfig, t: Timeline): string {
 }
 
 async function simulatePlan(atro: AtropyleClient, input: SimulateInput): Promise<SimulateOutput> {
+  if (input.at !== undefined)
+    throw new AtropyleError('INVALID_OPTIONS', { message: '`at` applies to action mode only.' });
   const ctx: { owner?: string; drill?: boolean } = {};
-  if (input.as !== undefined) ctx.owner = input.as;
+  if (input.as !== undefined) ctx.owner = toAddress(input.as, 'as');
   if (input.drill !== undefined) ctx.drill = input.drill;
   const result = validatePlan(input.plan, ctx);
   if (!result.ok) throw planError(result.issues);
@@ -189,8 +191,12 @@ export async function simulate(atro: AtropyleClient, input: SimulateInput): Prom
     throw new AtropyleError('INVALID_OPTIONS', { message: 'Give a vault and an action, or a plan.' });
   }
   if (input.as === undefined) throw new AtropyleError('INVALID_OPTIONS', { message: 'Say who acts with `as`.' });
+  if (input.drill !== undefined)
+    throw new AtropyleError('INVALID_OPTIONS', { message: '`drill` applies to plan mode only.' });
   const vault = toAddress(input.vault, 'vault');
   const as = toAddress(input.as, 'as');
+  // Check the shape of `at` before any RPC; only a relative `+3d` needs the latest block.
+  if (input.at !== undefined) parseAt(input.at, 0n);
   const at = input.at === undefined ? undefined : parseAt(input.at, await latestTimestamp(atro));
   const r = await atro.vault(vault).whatIf(input.action, at === undefined ? { as } : { as, at });
   return finish(SimulateOutputSchema, {
