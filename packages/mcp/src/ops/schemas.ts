@@ -307,3 +307,57 @@ export const PolicyVerificationSchema = z.object({
   firstFailures: z.array(FailureSchema),
   warnings: z.array(WarningSchema),
 });
+
+// ---- operation outputs ----
+
+const tail = { summary: z.string(), warnings: z.array(WarningSchema), untrusted: UntrustedBlockSchema };
+
+export const GetVaultOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  vault: AddressSchema,
+  chainId: IntSchema,
+  blockNumber: UintSchema,
+  config: VaultConfigSchema,
+  status: VaultStatusSchema,
+  binding: VaultBindingSchema,
+  timeline: TimelineSchema,
+  as: AddressSchema.nullable(),
+  roles: z.array(RoleSchema).nullable().describe('Roles of `as`; null when `as` was not given'),
+  explanation: z.array(z.string()),
+  ...tail,
+});
+export const ListVaultsOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  account: AddressSchema,
+  vaults: z.array(VaultRefSchema),
+  ...tail,
+});
+export const SimulateOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  mode: z.enum(['action', 'plan']),
+  vault: AddressSchema.nullable(),
+  as: AddressSchema.nullable(),
+  action: VaultActionTypeSchema.nullable(),
+  at: UintSchema.nullable(),
+  effect: WhatIfResultSchema.nullable().describe('Action mode: what the policy does'),
+  simulation: SimulationSchema.nullable().describe('Action mode: eth_estimateGas of the real call'),
+  timeline: TimelineSchema.nullable().describe('Plan mode: what happens if the owner never checks in'),
+  config: PlanConfigSchema.nullable(),
+  ...tail,
+});
+export const CheckPlanOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  ok: z.boolean(),
+  owner: AddressSchema,
+  issues: z.array(PlanIssueSchema),
+  config: PlanConfigSchema.nullable(),
+  tokens: z.array(TokenCheckSchema),
+  fees: FeeQuoteSchema,
+  contractHeirs: z.array(AddressSchema),
+  ...tail,
+});
+
+export type GetVaultOutput = z.output<typeof GetVaultOutputSchema>;
+export type ListVaultsOutput = z.output<typeof ListVaultsOutputSchema>;
+export type SimulateOutput = z.output<typeof SimulateOutputSchema>;
+export type CheckPlanOutput = z.output<typeof CheckPlanOutputSchema>;
