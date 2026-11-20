@@ -19,7 +19,9 @@ import {
   checkCommand,
   DEWEB,
   describeOp,
+  EMIT_GAS_BUDGET,
   EMIT_MAX_BYTES,
+  EMIT_OVERHEAD_GAS,
   emitBatch,
   emitCalls,
   emitJson,
@@ -33,9 +35,11 @@ import {
   parsePublishArgs,
   planPublish,
   publishCommand,
+  REGISTRY_GAS_PER_BYTE,
   type RegistryReader,
   redactHex,
   registryAbi,
+  SCRIPT_GAS_LIMIT,
   type TxSender,
   tapeoutCpuListAbi,
   unlockedChainProblem,
@@ -511,6 +515,13 @@ test('emitBatch keeps one forge run under 1 MB of data, and the next --emit resu
   expect(emitBatch([], 100)).toEqual([]);
 });
 
+test('a full --emit file stays within half of the forge script gas limit', () => {
+  expect(SCRIPT_GAS_LIMIT).toBe(2 ** 30);
+  expect(EMIT_GAS_BUDGET).toBe(2 ** 29);
+  // The measured figures are in deweb.ts; deweb-local.test.ts checks the overhead, deweb-fork.test.ts the gas per byte.
+  expect(EMIT_OVERHEAD_GAS + EMIT_MAX_BYTES * REGISTRY_GAS_PER_BYTE).toBeLessThanOrEqual(EMIT_GAS_BUDGET);
+});
+
 test('walletSender takes an address, never an account that would sign here', () => {
   // npm run typecheck enforces this: with an Account, viem would sign locally and send eth_sendRawTransaction.
   expectTypeOf(walletSender).parameter(1).toEqualTypeOf<Address>();
@@ -520,11 +531,12 @@ test('checkCommand and publishCommand are the forge script lines the user runs f
   expect(checkCommand('contracts/deweb-calls/site.json', 'https://rpc.xlayer.tech')).toBe(
     "DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url 'https://rpc.xlayer.tech'",
   );
-  expect(publishCommand('contracts/deweb-calls/site.json', 'https://rpc.xlayer.tech')).toBe(
-    "DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow",
+  const hash: Hex = `0x${'cd'.repeat(32)}`;
+  expect(publishCommand('contracts/deweb-calls/site.json', 'https://rpc.xlayer.tech', hash)).toBe(
+    `DEWEB_CALLS=deweb-calls/site.json DEWEB_KECCAK=${hash} forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow`,
   );
   // The RPC URL is one quoted argument in Git Bash, whatever it holds.
-  expect(publishCommand('contracts/deweb-calls/a.json', "https://x.test/?a=1&b=it's;rm")).toContain(
+  expect(publishCommand('contracts/deweb-calls/a.json', "https://x.test/?a=1&b=it's;rm", hash)).toContain(
     "--rpc-url 'https://x.test/?a=1&b=it'\\''s;rm' --account",
   );
 });

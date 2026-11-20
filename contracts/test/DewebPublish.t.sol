@@ -89,7 +89,7 @@ contract DewebPublishTest is Test {
     }
 
     function test_publishSendsEveryCallInOrderFromOneSender() public {
-        script.publish(GOOD);
+        script.publish(GOOD, GOOD_KECCAK);
         bytes[] memory want = _expected();
         assertEq(registry.count(), want.length);
         (address first,) = registry.callAt(0);
@@ -101,10 +101,31 @@ contract DewebPublishTest is Test {
         }
     }
 
-    function test_runReadsTheFileNamedByDEWEB_CALLS() public {
+    function test_runReadsTheFileNamedByDEWEB_CALLSAndTheHashInDEWEB_KECCAK() public {
+        // Tests share the process environment: every test that sets these sets the same values.
         vm.setEnv("DEWEB_CALLS", GOOD);
+        vm.setEnv("DEWEB_KECCAK", vm.toString(GOOD_KECCAK));
         script.run();
         assertEq(registry.count(), 4);
+    }
+
+    // ---------- the hash the user compared ----------
+
+    function test_publishSendsOnlyWhenTheFileHasTheExpectedHash() public {
+        bytes32 other = bytes32(uint256(GOOD_KECCAK) ^ 1);
+        vm.expectRevert(abi.encodeWithSelector(DewebCalls.HashMismatch.selector, other, GOOD_KECCAK));
+        script.publish(GOOD, other);
+        assertEq(registry.count(), 0);
+        script.publish(GOOD, GOOD_KECCAK);
+        assertEq(registry.count(), 4);
+    }
+
+    function test_theExpectedHashIsRequired() public {
+        vm.expectRevert(DewebCalls.NoExpectedHash.selector);
+        script.expectedHash("");
+        assertEq(script.expectedHash(vm.toString(GOOD_KECCAK)), GOOD_KECCAK);
+        vm.expectRevert();
+        script.expectedHash("0x1234");
     }
 
     function test_loadParsesTheEmittedFile() public view {
@@ -175,7 +196,7 @@ contract DewebPublishTest is Test {
     function test_publishRefusesAnotherChain() public {
         vm.chainId(31337);
         vm.expectRevert(abi.encodeWithSelector(DewebCalls.WrongChain.selector, 196, 31337));
-        script.publish(GOOD);
+        script.publish(GOOD, GOOD_KECCAK);
         assertEq(registry.count(), 0);
     }
 
@@ -186,17 +207,17 @@ contract DewebPublishTest is Test {
                 DewebCalls.CallFailed.selector, 0, abi.encodeWithSignature("Error(string)", "registry says no")
             )
         );
-        script.publish(GOOD);
+        script.publish(GOOD, GOOD_KECCAK);
     }
 
     function test_publishRefusesAPathOutsideDewebCalls() public {
         vm.expectRevert(abi.encodeWithSelector(DewebCalls.BadPath.selector, "deweb-calls/../foundry.toml"));
-        script.publish("deweb-calls/../foundry.toml");
+        script.publish("deweb-calls/../foundry.toml", GOOD_KECCAK);
     }
 
     function test_publishRefusesAnEmptyFile() public {
         vm.expectRevert(DewebCalls.NoCalls.selector);
-        script.publish("deweb-calls/test/empty.json");
+        script.publish("deweb-calls/test/empty.json", GOOD_KECCAK);
     }
 
     function test_pathMustStayUnderDewebCalls() public {

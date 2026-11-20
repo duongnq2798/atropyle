@@ -7,10 +7,19 @@
 // local anvil on chain 31337: for a rehearsal, one with MockSiteRegistry at the registry address (as in
 // scripts/test/site/deweb-local.test.ts). A fork of X Layer keeps chain 196; there, use --emit and a forge script
 // simulation without --broadcast.
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Address, createPublicClient, createWalletClient, formatEther, formatGwei, http } from 'viem';
+import {
+  type Address,
+  createPublicClient,
+  createWalletClient,
+  formatEther,
+  formatGwei,
+  http,
+  isAddress,
+  isAddressEqual,
+} from 'viem';
 import {
   checkCommand,
   DEWEB,
@@ -63,13 +72,32 @@ function dryRunCommand(argv: readonly string[]): string {
 }
 
 /**
- * With nothing left to publish, an --emit file holds only calls that are on chain: broadcasting it again would put
- * old bytes back (a part file would cut a file back to its first chunks), so --emit deletes it. Only a file directly
- * in contracts/deweb-calls/, never the committed fixtures under test/.
+ * With nothing left to publish, an --emit file for this container holds only calls that are on chain: broadcasting
+ * it again would put old bytes back (a part file would cut a file back to its first chunks), so --emit deletes it.
+ * Only a file directly in contracts/deweb-calls/ (never the committed fixtures under test/), and only when it is a
+ * calls file for this container and chain; any other file is left as it is.
  */
-function removeSpentFile(file: string): void {
+function removeSpentFile(file: string, container: Address, chainId: number): void {
   const abs = resolve(ROOT, file);
   if (dirname(abs) !== resolve(ROOT, 'contracts', 'deweb-calls') || !existsSync(abs)) return;
+  let calls: { container?: unknown; chainId?: unknown };
+  try {
+    calls = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch {
+    console.log(`Kept ${file}: it is not JSON, so it is not a calls file this command wrote.`);
+    return;
+  }
+  const own =
+    typeof calls === 'object' &&
+    calls !== null &&
+    typeof calls.container === 'string' &&
+    isAddress(calls.container, { strict: false }) &&
+    isAddressEqual(calls.container, container) &&
+    calls.chainId === chainId;
+  if (!own) {
+    console.log(`Kept ${file}: it is not a calls file for container ${container} on chain ${chainId}.`);
+    return;
+  }
   rmSync(abs);
   console.log(`Deleted ${file}: its calls are all on chain, and a second broadcast would put old bytes back.`);
 }
@@ -128,7 +156,7 @@ async function main(argv: readonly string[]): Promise<void> {
 
   if (plan.ops.length === 0) {
     console.log('Nothing to publish: the chain already has this site.');
-    if (args.mode.kind === 'emit') removeSpentFile(args.mode.file);
+    if (args.mode.kind === 'emit' && container) removeSpentFile(args.mode.file, container, chainId);
     return;
   }
   // forge reserves 1.3 x the estimated gas at up to twice the gas price before it broadcasts.
@@ -169,7 +197,7 @@ async function main(argv: readonly string[]): Promise<void> {
     console.log(
       `Compare its "file keccak256" with ${hash}. Type the keystore password below only if they are the same.`,
     );
-    console.log(`  ${publishCommand(file, args.rpcUrl)}`);
+    console.log(`  ${publishCommand(file, args.rpcUrl, hash)}`);
     if (chainId !== DEWEB.chainId) {
       console.log(
         `  (chain ${chainId} is not X Layer: on a local anvil, use --unlocked --sender <address> instead of --account)`,
@@ -177,6 +205,9 @@ async function main(argv: readonly string[]): Promise<void> {
     }
     console.log(
       'forge asks for the keystore password first, then prints the same keccak256 and simulates every call before it sends one.',
+    );
+    console.log(
+      'The command carries the keccak256 (DEWEB_KECCAK): forge sends nothing if the file changed after your check.',
     );
     console.log(
       left > 0

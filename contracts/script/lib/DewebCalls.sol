@@ -54,6 +54,8 @@ library DewebCalls {
     error ShortCall(uint256 index);
     error WrongContainer(uint256 index);
     error CallFailed(uint256 index, bytes reason);
+    error NoExpectedHash();
+    error HashMismatch(bytes32 expected, bytes32 actual);
 
     /// @notice A .json file under deweb-calls/, named with letters, digits and `._-/`, with no `..` anywhere.
     function requirePath(string memory rel) internal pure {
@@ -78,19 +80,27 @@ library DewebCalls {
         }
     }
 
-    /// @notice Reads and parses deweb-calls/<file>. The text must be exactly what emitJson in scripts/lib/deweb.ts
-    ///         writes for the values read here, and `calls` the strict ABI encoding of Call[]: a duplicate or extra
-    ///         key, another layout or trailing bytes is refused, so the values checked are the only ones in the file.
-    ///         A forge script has 2^30 gas, and memory costs grow with the square of its high-water mark: every
-    ///         cheatcode call copies its arguments (the whole file) into memory. The helpers below hand back their
-    ///         scratch memory, so a 1 MB file peaks near 10 MB of memory instead of 20 MB.
+    /// @notice Reads and parses deweb-calls/<file>. The text must be what emitJson in scripts/lib/deweb.ts writes
+    ///         for the values read here (the hex digits of `calls` may differ in case only), and `calls` the strict
+    ///         ABI encoding of Call[]: a duplicate or extra key, another layout or trailing bytes is refused, so the
+    ///         values checked are the only ones in the file. The broadcast also pins the file's keccak256
+    ///         (DEWEB_KECCAK in 07_DewebPublish.s.sol), which --emit computed over the exact text it wrote.
+    /// @dev    A forge script has 2^30 gas, and memory costs grow with the square of its high-water mark. Every
+    ///         cheatcode call copies its arguments into memory, and every large result arrives twice (the return
+    ///         buffer, then the decoded copy). So the large results are moved down over the dead copies, the
+    ///         helpers hand back their scratch memory, and `calls` takes the place of the file once the file is
+    ///         checked: a file of N bytes peaks near 3 N bytes of memory.
     function load(string memory rel) internal view returns (File memory f) {
         requirePath(rel);
-        string memory json = vm.readFile(string.concat(vm.projectRoot(), "/", rel));
+        string memory path = string.concat(vm.projectRoot(), "/", rel);
+        uint256 base = _freePointer();
+        string memory json = string(_kept(base, bytes(vm.readFile(path))));
         (f.chainId, f.registry, f.binding, f.container) = _header(json);
-        bytes memory raw = vm.parseJsonBytes(json, ".calls");
+        bytes memory raw = _parsedCalls(json);
         f.hash = keccak256(bytes(json));
-        if (f.hash != _canonicalHash(f, raw)) revert NotCanonicalJson();
+        bytes32 hexHash = _canonicalHexHash(f, json, raw.length);
+        raw = _kept(base, raw); // `json` is not read after this line: `raw` now sits where it was
+        if (hexHash != _hexHash(raw)) revert NotCanonicalJson();
         f.calls = abi.decode(raw, (Call[]));
         if (_encodedHash(f.calls) != keccak256(raw)) revert NotCanonicalCalls();
     }
@@ -108,15 +118,38 @@ library DewebCalls {
         _setFreePointer(mark);
     }
 
-    /// @dev keccak256 of the text emitJson writes for these values.
-    function _canonicalHash(File memory f, bytes memory raw) private pure returns (bytes32 h) {
+    function _parsedCalls(string memory json) private view returns (bytes memory) {
         uint256 mark = _freePointer();
-        string memory head = string.concat(
-            string.concat("{\n  \"chainId\": ", vm.toString(f.chainId), ",\n  \"registry\": \""),
-            string.concat(vm.toString(f.registry), "\",\n  \"binding\": \"", vm.toString(f.binding)),
-            string.concat("\",\n  \"container\": \"", vm.toString(f.container), "\",\n  \"calls\": \"")
+        return _kept(mark, vm.parseJsonBytes(json, ".calls"));
+    }
+
+    /// @dev Checks that the file is `head ++ "0x" ++ 2 * rawLength hex digits ++ tail` with the exact head and tail
+    ///      emitJson writes for the header values, and returns the keccak256 of the hex part (read in place). With
+    ///      the length fixed, the `calls` string fills the whole hex part: a second key, an escape or another
+    ///      layout would make the file longer, or the head or tail differ.
+    function _canonicalHexHash(File memory f, string memory json, uint256 rawLength) private pure returns (bytes32 h) {
+        uint256 mark = _freePointer();
+        bytes memory head = bytes(
+            string.concat(
+                string.concat("{\n  \"chainId\": ", vm.toString(f.chainId), ",\n  \"registry\": \""),
+                string.concat(vm.toString(f.registry), "\",\n  \"binding\": \"", vm.toString(f.binding)),
+                string.concat("\",\n  \"container\": \"", vm.toString(f.container), "\",\n  \"calls\": \"")
+            )
         );
-        h = keccak256(bytes(string.concat(head, vm.toString(raw), "\"\n}\n")));
+        bytes memory tail = "\"\n}\n";
+        bytes memory text = bytes(json);
+        uint256 hexLength = 2 + 2 * rawLength;
+        if (text.length != head.length + hexLength + tail.length) revert NotCanonicalJson();
+        if (_hashAt(text, 0, head.length) != keccak256(head)) revert NotCanonicalJson();
+        if (_hashAt(text, head.length + hexLength, tail.length) != keccak256(tail)) revert NotCanonicalJson();
+        h = _hashAt(text, head.length, hexLength);
+        _setFreePointer(mark);
+    }
+
+    /// @dev keccak256 of "0x" and the lowercase hex digits of `raw`.
+    function _hexHash(bytes memory raw) private pure returns (bytes32 h) {
+        uint256 mark = _freePointer();
+        h = keccak256(bytes(vm.toString(raw)));
         _setFreePointer(mark);
     }
 
@@ -124,6 +157,25 @@ library DewebCalls {
         uint256 mark = _freePointer();
         h = keccak256(abi.encode(calls));
         _setFreePointer(mark);
+    }
+
+    /// @dev keccak256 of `len` bytes of `b` from byte `from`; the caller has checked the bounds.
+    function _hashAt(bytes memory b, uint256 from, uint256 len) private pure returns (bytes32 h) {
+        assembly {
+            h := keccak256(add(add(b, 32), from), len)
+        }
+    }
+
+    /// @dev Moves `b` (length word and bytes) down to `dst`, over memory that nothing reads any more, and puts the
+    ///      free memory pointer right after it. The identity precompile reads all of its input before it writes,
+    ///      so the two ranges may overlap.
+    function _kept(uint256 dst, bytes memory b) private view returns (bytes memory out) {
+        assembly {
+            let n := add(mload(b), 32)
+            if iszero(staticcall(gas(), 4, b, n, dst, n)) { revert(0, 0) }
+            out := dst
+            mstore(0x40, add(dst, and(add(n, 31), not(31))))
+        }
     }
 
     /// @dev Only around code that returns value types, so nothing still points into the memory handed back.

@@ -6,10 +6,10 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createPublicClient, getAddress, http, keccak256 } from 'viem';
+import { createPublicClient, getAddress, type Hex, hexToBytes, http, keccak256 } from 'viem';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { ANVIL_ACCOUNTS, type Anvil, rpc, startAnvil } from '../../lib/anvil';
-import { DEWEB, registryReader } from '../../lib/deweb';
+import { DEWEB, EMIT_GAS_BUDGET, EMIT_OVERHEAD_GAS, registryReader } from '../../lib/deweb';
 import { loadSite } from '../../lib/site-files';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -28,23 +28,56 @@ function publish(args: string[]) {
 }
 
 /**
- * The user's command, with the unlocked anvil account in place of --account atropyle-deployer. forge keeps its
- * broadcast and cache records in this test's temp folder, so contracts/broadcast and contracts/cache are untouched.
+ * The user's forge script from contracts/, with the unlocked anvil account in place of --account
+ * atropyle-deployer. forge keeps its broadcast and cache records in this test's temp folder, so contracts/broadcast
+ * and contracts/cache are untouched. `hash` goes in DEWEB_KECCAK; undefined leaves the variable unset.
  */
-function broadcast(name: string): string {
-  const args = ['script', 'script/07_DewebPublish.s.sol', '--rpc-url', anvil.url, '--unlocked', '--sender', FROM];
-  const r = spawnSync('forge', [...args, '--broadcast', '--slow', '--cache-path', join(forgeDir, 'cache')], {
+function forge(name: string, hash: string | undefined, args: string[]) {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    DEWEB_CALLS: `deweb-calls/${name}`,
+    FOUNDRY_BROADCAST: join(forgeDir, 'broadcast'),
+  };
+  delete env.DEWEB_KECCAK;
+  if (hash !== undefined) env.DEWEB_KECCAK = hash;
+  const base = ['script', 'script/07_DewebPublish.s.sol', '--rpc-url', anvil.url, '--unlocked', '--sender', FROM];
+  const r = spawnSync('forge', [...base, '--cache-path', join(forgeDir, 'cache'), ...args], {
     cwd: CONTRACTS,
-    env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}`, FOUNDRY_BROADCAST: join(forgeDir, 'broadcast') },
+    env,
     encoding: 'utf8',
     windowsHide: true,
     timeout: 600_000,
     // A failing run prints every trace, chunks included.
     maxBuffer: 64 * 1024 * 1024,
   });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, error: r.error };
+}
+
+/** The broadcast command --emit prints, run from the unlocked account. */
+function broadcast(name: string, hash: string): string {
+  const r = forge(name, hash, ['--broadcast', '--slow']);
   expect(r.status, `${r.error ?? ''}\n${r.stdout.slice(-4000)}\n${r.stderr.slice(-4000)}`).toBe(0);
   expect(r.stdout).toContain('ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.');
   return r.stdout;
+}
+
+/** Gas of the calls in forge's last broadcast record, without the intrinsic gas of each transaction. */
+function callGasOfLastBroadcast(): number {
+  const record = JSON.parse(
+    readFileSync(join(forgeDir, 'broadcast/07_DewebPublish.s.sol/31337/run-latest.json'), 'utf8'),
+  ) as {
+    transactions: { hash: string; transaction: { input: Hex } }[];
+    receipts: { transactionHash: string; gasUsed: Hex }[];
+  };
+  let total = 0;
+  for (const t of record.transactions) {
+    const receipt = record.receipts.find((r) => r.transactionHash === t.hash);
+    if (!receipt) throw new Error(`no receipt for ${t.hash}`);
+    let intrinsic = 21_000;
+    for (const b of hexToBytes(t.transaction.input)) intrinsic += b === 0 ? 4 : 16;
+    total += Number(BigInt(receipt.gasUsed)) - intrinsic;
+  }
+  return total;
 }
 
 /** The keccak256 line --emit prints, checked against the file on disk. */
@@ -116,7 +149,7 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
     `Compare its "file keccak256" with ${hash}. Type the keystore password below only if they are the same.`,
   );
   expect(emit.stdout).toContain(
-    `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
+    `DEWEB_CALLS=deweb-calls/${name} DEWEB_KECCAK=${hash} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
   );
   expect(emit.stdout).toContain(`After a successful broadcast, delete ${file}:`);
   expect(emit.stdout).toContain('use --unlocked --sender <address> instead of --account');
@@ -126,13 +159,23 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
   expect(JSON.parse(readFileSync(join(ROOT, file), 'utf8'))).toMatchObject({ chainId: 31337, container: CONTAINER });
   expect(await client.getTransactionCount({ address: FROM })).toBe(0);
 
+  // The broadcast needs DEWEB_KECCAK, and sends nothing when the file is not the one the user checked.
+  const missing = forge(name, undefined, ['--broadcast', '--slow']);
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toContain('NoExpectedHash()');
+  const wrong = `0x${'00'.repeat(31)}01`;
+  const mismatch = forge(name, wrong, ['--broadcast', '--slow']);
+  expect(mismatch.status).not.toBe(0);
+  expect(mismatch.stderr).toContain(`HashMismatch(${wrong}, ${hash})`);
+  expect(await client.getTransactionCount({ address: FROM })).toBe(0);
+
   // The broadcast run prints the same keccak256 and one line per call before it sends anything.
-  const forge = broadcast(name);
-  expect(forge).toContain(`file keccak256 ${hash}`);
-  expect(forge).toContain('call 0: registry putFile assets/e.js');
-  expect(forge).toContain('call 1: registry appendChunk assets/e.js');
-  expect(forge).toContain('call 4: registry setFallback index.html');
-  expect(forge.indexOf(`file keccak256 ${hash}`)).toBeLessThan(forge.indexOf('ONCHAIN EXECUTION COMPLETE'));
+  const sent = broadcast(name, hash);
+  expect(sent).toContain(`file keccak256 ${hash}`);
+  expect(sent).toContain('call 0: registry putFile assets/e.js');
+  expect(sent).toContain('call 1: registry appendChunk assets/e.js');
+  expect(sent).toContain('call 4: registry setFallback index.html');
+  expect(sent.indexOf(`file keccak256 ${hash}`)).toBeLessThan(sent.indexOf('ONCHAIN EXECUTION COMPLETE'));
   expect(await client.getTransactionCount({ address: FROM })).toBe(5);
 
   const dry = publish(['--dry-run', ...common]);
@@ -143,7 +186,28 @@ test('--emit, then forge script --broadcast from the unlocked account, then the 
   for (const f of loadSite(site)) expect(await reader.readRange(f.path, 0, f.bytes.length)).toEqual(f.bytes);
   expect(await reader.fallbackPath()).toBe('index.html');
 
-  // With nothing left, --emit deletes the spent file, so it cannot be broadcast again by mistake.
+  // With nothing left, --emit deletes the named file only when it is a calls file for this container and chain.
+  const others = {
+    'not-json': ['not json', 'it is not JSON'],
+    'other-container': [
+      JSON.stringify({ chainId: 31337, container: '0x632910a79EeE7fA99e99695510aA95dDee6ef771', calls: '0x' }),
+      `it is not a calls file for container ${CONTAINER} on chain 31337`,
+    ],
+    'other-chain': [
+      JSON.stringify({ chainId: 196, container: CONTAINER, calls: '0x' }),
+      `it is not a calls file for container ${CONTAINER} on chain 31337`,
+    ],
+  };
+  for (const [kind, [text, why]] of Object.entries(others)) {
+    const other = `contracts/deweb-calls/local-test-${kind}-${process.pid}.json`;
+    emitted.push(join(ROOT, other));
+    writeFileSync(join(ROOT, other), text);
+    const kept = publish(['--emit', other, ...common]);
+    expect(kept.status, kind).toBe(0);
+    expect(kept.stdout).toContain(`Kept ${other}: ${why}`);
+    expect(existsSync(join(ROOT, other)), kind).toBe(true);
+  }
+  // The spent file is deleted, so it cannot be broadcast again by mistake.
   const again = publish(['--emit', file, ...common]);
   expect(again.stderr).toBe('');
   expect(again.status).toBe(0);
@@ -196,7 +260,18 @@ test('a plan over 1 MB goes out in two --emit files, the second resuming the par
     `After a successful broadcast, delete ${file}, then run --emit again for the next part`,
   );
   const firstHash = emittedKeccak(first.stdout, file);
-  expect(broadcast(name)).toContain(`file keccak256 ${firstHash}`);
+  // This part is cap-sized: its whole forge run stays within EMIT_GAS_BUDGET (half of forge's 2^30), and the
+  // script's own share (the run minus the registry calls) within EMIT_OVERHEAD_GAS.
+  // A simulation with traces (no --broadcast): the top frame, `[gas] DewebPublish::run()`, is the whole run.
+  const simulated = forge(name, firstHash, ['-vvvv']);
+  expect(simulated.status, `${simulated.error ?? ''}\n${simulated.stderr.slice(-2000)}`).toBe(0);
+  const runGas = Number(/\[(\d+)\] DewebPublish::run\(\)/.exec(simulated.stdout)?.[1]);
+  expect(runGas).toBeGreaterThan(0);
+  expect(runGas).toBeLessThanOrEqual(EMIT_GAS_BUDGET);
+  expect(broadcast(name, firstHash)).toContain(`file keccak256 ${firstHash}`);
+  const callGas = callGasOfLastBroadcast();
+  expect(callGas).toBeGreaterThan(41 * 24_000 * 150);
+  expect(runGas - callGas).toBeLessThanOrEqual(EMIT_OVERHEAD_GAS);
 
   const second = publish(['--emit', file, ...common]);
   expect(second.status).toBe(0);
@@ -205,7 +280,7 @@ test('a plan over 1 MB goes out in two --emit files, the second resuming the par
   expect(second.stdout).not.toContain('That is part of the plan');
   const secondHash = emittedKeccak(second.stdout, file);
   expect(secondHash).not.toBe(firstHash);
-  expect(broadcast(name)).toContain(`file keccak256 ${secondHash}`);
+  expect(broadcast(name, secondHash)).toContain(`file keccak256 ${secondHash}`);
 
   expect(publish(['--dry-run', ...common]).stdout).toContain('Nothing to publish: the chain already has this site.');
   expect(existsSync(join(ROOT, file))).toBe(true);

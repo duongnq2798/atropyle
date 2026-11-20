@@ -11,9 +11,12 @@ import {DewebCalls} from "./lib/DewebCalls.sol";
 ///         value-free SiteRegistry write (or DomainBinding bind) for the file's container. forge simulates every
 ///         call first, so a stale file stops before anything is broadcast: run --emit again. Every run prints the
 ///         file's keccak256 and one line per call before it broadcasts; `--sig 'show()'` prints them with no key.
+///         The broadcast also needs DEWEB_KECCAK, the keccak256 --emit printed, and sends nothing if the file differs.
 contract DewebPublish is Script {
+    /// @notice The broadcast. DEWEB_KECCAK must be the keccak256 that `--emit` printed: the user compared it in
+    ///         the `show()` run, and this run refuses the file if it changed since.
     function run() external {
-        publish(vm.envString("DEWEB_CALLS"));
+        publish(vm.envString("DEWEB_CALLS"), expectedHash(vm.envOr("DEWEB_KECCAK", string(""))));
     }
 
     /// @notice Loads, checks and prints the file, and sends nothing. It needs no key: the user runs it first and
@@ -23,8 +26,15 @@ contract DewebPublish is Script {
         _show(vm.envString("DEWEB_CALLS"));
     }
 
-    function publish(string memory rel) public {
+    /// @notice DEWEB_KECCAK as the user passed it: required, and a 0x-prefixed 32-byte hex value.
+    function expectedHash(string memory text) public pure returns (bytes32) {
+        if (bytes(text).length == 0) revert DewebCalls.NoExpectedHash();
+        return vm.parseBytes32(text);
+    }
+
+    function publish(string memory rel, bytes32 expected) public {
         DewebCalls.File memory f = _show(rel);
+        if (f.hash != expected) revert DewebCalls.HashMismatch(expected, f.hash);
         vm.startBroadcast();
         for (uint256 i; i < f.calls.length; ++i) {
             (bool ok, bytes memory reason) = f.calls[i].to.call(f.calls[i].data);

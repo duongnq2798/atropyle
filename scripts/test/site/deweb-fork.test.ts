@@ -26,12 +26,18 @@ import { type Anvil, rpc, startAnvil } from '../../lib/anvil';
 import {
   callsParams,
   DEWEB,
+  describeOp,
+  EMIT_GAS_BUDGET,
+  EMIT_MAX_BYTES,
+  EMIT_OVERHEAD_GAS,
   executePlan,
   findCpuIndex,
   openerAbi,
   planPublish,
+  REGISTRY_GAS_PER_BYTE,
   registryAbi,
   registryReader,
+  type TxSender,
   walletSender,
 } from '../../lib/deweb';
 import { loadSite, makeSiteFile } from '../../lib/site-files';
@@ -136,7 +142,28 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
     const reader = registryReader(c, LIVE.container);
     const opts = { prune: false, fallback: 'index.html' };
     const plan = await planPublish(files, reader, opts);
-    expect(await executePlan(plan.ops, LIVE.container, sender())).toBe(plan.ops.length);
+    // Records each receipt, to measure the real registry's gas per data byte.
+    const gasUsed: bigint[] = [];
+    const inner = sender();
+    const recording: TxSender = {
+      send: (tx) => inner.send(tx),
+      wait: async (hash) => {
+        const receipt = await c.waitForTransactionReceipt({ hash });
+        gasUsed.push(receipt.gasUsed);
+        return receipt.status;
+      },
+    };
+    expect(await executePlan(plan.ops, LIVE.container, recording)).toBe(plan.ops.length);
+
+    // A full 24,000-byte chunk, receipt gas over its data bytes (intrinsic gas included, so this overstates the
+    // share of a call inside the forge run). With the overhead measured on the mock, a cap-sized --emit file must
+    // stay within half of forge's 2^30 gas.
+    const full = plan.ops.findIndex((op) => op.kind === 'putFile' && op.data.length === 24_000);
+    expect(describeOp(plan.ops[full])).toBe('putFile assets/big.js chunk 1/2 (24000 B)');
+    const perByte = Number(gasUsed[full]) / 24_000;
+    expect(perByte).toBeGreaterThan(150);
+    expect(perByte).toBeLessThanOrEqual(REGISTRY_GAS_PER_BYTE);
+    expect(EMIT_OVERHEAD_GAS + EMIT_MAX_BYTES * perByte).toBeLessThanOrEqual(EMIT_GAS_BUDGET);
 
     for (const f of files) {
       const data = await c.readContract({
@@ -200,7 +227,7 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
       `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url '${anvil.url}'`,
     );
     expect(emit.stdout).toContain(
-      `DEWEB_CALLS=deweb-calls/${name} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
+      `DEWEB_CALLS=deweb-calls/${name} DEWEB_KECCAK=${hash} forge script script/07_DewebPublish.s.sol --rpc-url '${anvil.url}' --account atropyle-deployer --broadcast --slow`,
     );
     expect(await c.getTransactionCount({ address: holder })).toBe(nonce);
     const json = JSON.parse(readFileSync(join(ROOT, file), 'utf8')) as { calls: Hex };
@@ -225,7 +252,12 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
         ],
         {
           cwd: join(ROOT, 'contracts'),
-          env: { ...process.env, DEWEB_CALLS: `deweb-calls/${name}`, FOUNDRY_BROADCAST: join(forgeDir, 'broadcast') },
+          env: {
+            ...process.env,
+            DEWEB_CALLS: `deweb-calls/${name}`,
+            DEWEB_KECCAK: hash,
+            FOUNDRY_BROADCAST: join(forgeDir, 'broadcast'),
+          },
           encoding: 'utf8',
           windowsHide: true,
           timeout: 600_000,

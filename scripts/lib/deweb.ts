@@ -390,10 +390,32 @@ export interface CallsFile {
 }
 
 /**
- * Data bytes in one --emit file. forge script runs every call of a file inside one simulation, capped by its
- * gas_limit of 2^30: the whole web app (567 KB, 30 calls) simulated at about 187M gas on the real SiteRegistry, so
- * 1 MB stays far below the cap, memory included. A bigger plan goes out in parts: each --emit after the last
- * broadcast resumes from the chain.
+ * forge script's gas_limit (foundry's default, 2^30). One run of 07_DewebPublish.s.sol executes every call of one
+ * --emit file inside it, so a file must fit, and EMIT_GAS_BUDGET keeps it within half.
+ */
+export const SCRIPT_GAS_LIMIT = 1_073_741_824;
+export const EMIT_GAS_BUDGET = SCRIPT_GAS_LIMIT / 2;
+
+/**
+ * Gas per data byte of a SiteRegistry write, from receipts (intrinsic gas included) of 24,000-byte chunks. On the
+ * real registry (an X Layer fork, 21/11/2026): 228.8 for a new file's first chunk (putFile) and 223.6 for an
+ * appendChunk; on MockSiteRegistry, 220.5 for an appendChunk. Rounded up; the fork test checks the real registry
+ * against it.
+ */
+export const REGISTRY_GAS_PER_BYTE = 240;
+
+/**
+ * The script's own gas for a full --emit file, on top of the registry calls: reading and checking the file, the
+ * per-call lines and the calls themselves. Measured for a 984,000-byte file of 41 calls: 108.0M (run 308.5M, calls
+ * 200.5M) on MockSiteRegistry and 108.1M (run 311.6M, calls 203.5M) on the real registry. Rounded up; the anvil
+ * test checks it.
+ */
+export const EMIT_OVERHEAD_GAS = 130_000_000;
+
+/**
+ * Data bytes in one --emit file. A bigger plan goes out in parts, and each --emit after the last broadcast resumes
+ * from the chain. EMIT_OVERHEAD_GAS + EMIT_MAX_BYTES x REGISTRY_GAS_PER_BYTE = 370M, within EMIT_GAS_BUDGET (537M);
+ * the full measured run is 311.6M on the real registry, 29% of SCRIPT_GAS_LIMIT.
  */
 export const EMIT_MAX_BYTES = 1_000_000;
 
@@ -444,10 +466,13 @@ export function checkCommand(file: string, rpcUrl: string): string {
   return `DEWEB_CALLS=${rel} forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url ${shQuote(rpcUrl)}`;
 }
 
-/** The broadcast, run from contracts/ in Git Bash: forge asks for the keystore password before it prints anything. */
-export function publishCommand(file: string, rpcUrl: string): string {
+/**
+ * The broadcast, run from contracts/ in Git Bash: forge asks for the keystore password before it prints anything.
+ * DEWEB_KECCAK pins the file the user checked: the script sends nothing if the file changed since.
+ */
+export function publishCommand(file: string, rpcUrl: string, hash: Hex): string {
   const rel = file.slice('contracts/'.length);
-  return `DEWEB_CALLS=${rel} forge script script/07_DewebPublish.s.sol --rpc-url ${shQuote(rpcUrl)} --account atropyle-deployer --broadcast --slow`;
+  return `DEWEB_CALLS=${rel} DEWEB_KECCAK=${hash} forge script script/07_DewebPublish.s.sol --rpc-url ${shQuote(rpcUrl)} --account atropyle-deployer --broadcast --slow`;
 }
 
 export type PublishMode = { kind: 'dry-run' } | { kind: 'unlocked'; from: Address } | { kind: 'emit'; file: string };
