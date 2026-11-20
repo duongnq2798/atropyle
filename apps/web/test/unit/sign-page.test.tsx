@@ -370,7 +370,7 @@ describe('SignPage sends exactly the decoded payload', () => {
         if (!batch) throw Object.assign(new Error('no'), { code: 4200 });
         if (method === 'wallet_getCapabilities') return { '0xc4': {} };
         if (method === 'wallet_sendCalls') {
-          sent.calls = (params?.[0] as { calls: unknown }).calls;
+          sent.calls = (params as [{ calls: unknown }])[0].calls;
           return { id: 'bundle-1' };
         }
         return { status: 200, receipts: [] };
