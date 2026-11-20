@@ -18,8 +18,11 @@ export function isUnsupported(e: unknown): boolean {
 
 export async function supportsSendCalls(p: Eip1193, account: Address, chainId: number): Promise<boolean> {
   try {
-    const caps = await call<unknown>(p, 'wallet_getCapabilities', [account, [`0x${chainId.toString(16)}`]]);
-    return !!caps && typeof caps === 'object';
+    const key = `0x${chainId.toString(16)}`;
+    const caps = await call<unknown>(p, 'wallet_getCapabilities', [account, [key]]);
+    // EIP-5792 keys the capabilities by chain id; a reply without our chain says nothing about it.
+    const mine = caps && typeof caps === 'object' ? (caps as Record<string, unknown>)[key] : null;
+    return !!mine && typeof mine === 'object';
   } catch {
     return false;
   }

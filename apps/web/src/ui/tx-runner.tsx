@@ -30,11 +30,14 @@ export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: Send
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [result, setResult] = useState<SendResult | null>(null);
+  // Steps already confirmed on chain by an earlier, partly failed send; a retry never signs them again.
+  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
     setView(txView(plan));
     setError(null);
     setResult(null);
+    setOffset(0);
   }, [plan]);
 
   const link = useMemo(() => {
@@ -52,15 +55,21 @@ export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: Send
   const send = async () => {
     setBusy(true);
     setError(null);
+    const base = offset;
     try {
       if (wallet && wallet.chainId !== sdk.atro.chain.id) await app.switchChain();
-      const r = await sdk.atro.send(plan, app.walletClient(), { onStep: (e) => setView((v) => applyStep(v, e)) });
+      const rest = base === 0 ? plan : { ...plan, steps: plan.steps.slice(base) };
+      const r = await sdk.atro.send(rest, app.walletClient(), {
+        onStep: (e) => setView((v) => applyStep(v, { ...e, index: e.index + base })),
+      });
       setResult(r);
       onDone?.(r);
     } catch (e) {
       const err = decodeError(e);
       const index = err.details?.index;
-      if (typeof index === 'number') setView((v) => failStep(v, index, err.toJSON()));
+      const completed = err.details?.completed;
+      if (typeof index === 'number') setView((v) => failStep(v, index + base, err.toJSON()));
+      if (typeof completed === 'number' && completed > 0) setOffset(base + completed);
       setError(err);
     } finally {
       setBusy(false);
@@ -127,7 +136,7 @@ export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: Send
           disabled={busy || !view.canSend}
           onClick={send}
         >
-          {busy ? t('sending') : label}
+          {busy ? t('sending') : offset > 0 ? t('resume', { n: offset + 1 }) : label}
         </button>
       )}
       {link ? (

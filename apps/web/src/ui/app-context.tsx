@@ -40,7 +40,7 @@ interface AppValue {
   walletClient(): WalletClient;
 }
 
-const AppContext = createContext<AppValue | null>(null);
+export const AppContext = createContext<AppValue | null>(null);
 
 const notConnected = () => new AtropyleError('WRONG_ACCOUNT', { message: 'Connect a wallet first.' });
 

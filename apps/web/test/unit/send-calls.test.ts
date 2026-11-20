@@ -34,6 +34,15 @@ describe('EIP-5792', () => {
     expect(await supportsSendCalls(wallet({}).p, A, 196)).toBe(false);
   });
 
+  it('needs capabilities for the requested chain', async () => {
+    const empty = wallet({ wallet_getCapabilities: () => ({}) });
+    expect(await supportsSendCalls(empty.p, A, 196)).toBe(false);
+    const other = wallet({ wallet_getCapabilities: () => ({ '0x1': { atomic: { status: 'supported' } } }) });
+    expect(await supportsSendCalls(other.p, A, 196)).toBe(false);
+    const nul = wallet({ wallet_getCapabilities: () => ({ '0xc4': null }) });
+    expect(await supportsSendCalls(nul.p, A, 196)).toBe(false);
+  });
+
   it('polls wallet_getCallsStatus until the bundle is confirmed', async () => {
     let polls = 0;
     const seen: string[] = [];
