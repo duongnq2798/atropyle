@@ -20,6 +20,37 @@ test('a valid link is checked and signed through wallet_sendCalls', async ({ pag
   expect((await atro.vault(vault).status()).lastAlive).toBeGreaterThan(before);
 });
 
+test('a guardian signs a vote link only after typing the wallet it votes for', async ({
+  page,
+  atro,
+  state,
+  wallet,
+}) => {
+  const vault = state.seeded.guarded;
+  const guardian = ANVIL[3];
+  const target = ANVIL[6];
+  const plan = await atro.vault(vault).prepare({ type: 'voteRecovery', target }, { as: guardian });
+  const w = await wallet({ account: guardian });
+  await page.goto(atro.handoff.link(plan, state.siteUrl));
+  await page.getByTestId('connect').click();
+  await expect(page.getByTestId('sign-step-0')).toHaveAttribute('data-allowed', 'true');
+  await expect(page.getByTestId('sign-step-0').locator('.badge')).toHaveText('Check before you sign');
+  await expect(page.getByTestId('sign-step-0').locator('.badge-ok')).toHaveCount(0);
+  await expect(page.getByTestId('sign-guardian')).toBeVisible();
+  await expect(page.getByTestId('sign-vote-target-0')).toHaveValue('');
+  await expect(page.getByTestId('sign-send')).toBeDisabled();
+
+  await page.getByTestId('sign-vote-target-0').fill(ANVIL[7]);
+  await expect(page.getByTestId('sign-vote-target-0-error')).toHaveAttribute('data-reason', 'mismatch');
+  await expect(page.getByTestId('sign-send')).toBeDisabled();
+  await page.getByTestId('sign-vote-target-0').fill(target.toLowerCase());
+  await expect(page.getByTestId('sign-send')).toBeEnabled();
+  expect(w.calls.map((c) => c.method)).not.toContain('eth_sendTransaction');
+  await page.getByTestId('sign-send').click();
+  await expect(page.getByTestId('sign-done')).toBeVisible();
+  expect((await atro.vault(vault).status()).recVotes).toContainEqual({ guardian, target });
+});
+
 test('a tampered link is refused', async ({ page, atro, state, wallet }) => {
   const vault = state.seeded.simple;
   const usdc = atro.deployment.feeTokens[1];

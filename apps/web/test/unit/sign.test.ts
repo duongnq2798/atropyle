@@ -5,10 +5,11 @@ import {
   type InspectedStep,
   type SignPayload,
   type SignRequestCheck,
+  vaultAbi,
 } from '@atropyle/sdk';
-import type { Address, WalletClient } from 'viem';
+import { type Address, encodeFunctionData, type WalletClient } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { checkToPlan, sendSignRequest, signView } from '../../src/lib/sign';
+import { checkToPlan, sendSignRequest, signView, voteSteps } from '../../src/lib/sign';
 import type { Eip1193 } from '../../src/lib/wallet';
 
 const A: Address = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -89,6 +90,27 @@ describe('signView', () => {
     expect(signView(check([step({ action: 'voteRecovery' })]), ready, 196).guardianWarning).toBe(true);
     expect(signView(check([step({ action: 'attestDeath' })]), ready, 196).guardianWarning).toBe(true);
     expect(signView(check([step({ warnings: [GUARDIAN_WARNING] })]), ready, 196).guardianWarning).toBe(true);
+  });
+});
+
+describe('voteSteps', () => {
+  const voteFor = (target: Address) =>
+    encodeFunctionData({ abi: vaultAbi, functionName: 'voteRecovery', args: [target] });
+  const one = (data: `0x${string}`): SignPayload => ({ chainId: 196, from: A, steps: [{ to: V, data, value: 0n }] });
+  const voteStep = step({ action: 'voteRecovery', warnings: [GUARDIAN_WARNING] });
+
+  it('decodes the wallet a vote names from the calldata, not from the summary', () => {
+    const c = check([{ ...voteStep, summary: `Vote for ${A}.` }]);
+    expect(voteSteps(one(voteFor(B)), c)).toEqual([{ index: 0, target: B }]);
+  });
+
+  it('skips a withdrawal and every other action', () => {
+    expect(voteSteps(one(voteFor('0x0000000000000000000000000000000000000000')), check([voteStep]))).toEqual([]);
+    expect(voteSteps(payload, check([step()]))).toEqual([]);
+  });
+
+  it('keeps a vote whose calldata does not decode, with no target, so it cannot be confirmed', () => {
+    expect(voteSteps(payload, check([voteStep]))).toEqual([{ index: 0, target: null }]);
   });
 });
 

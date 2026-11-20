@@ -4,7 +4,7 @@ export const messages = defineMessages(
   {
     title: 'Signing request',
     intro:
-      'Someone prepared these transactions for the signer below. This page decoded every step from its calldata. It shows no text written in the link.',
+      'Someone prepared these transactions for the signer below. This page decoded every step from its calldata and wrote every summary itself. The only text it shows from the link is the builder codes: short labels of printable characters with no spaces.',
     signer: 'Signer',
     chain: 'Chain',
     vault: 'Vault',
@@ -13,7 +13,13 @@ export const messages = defineMessages(
     target: 'Contract',
     action: 'Action',
     allowedYes: 'Allowed',
+    allowedGuardian: 'Check before you sign',
     allowedNo: 'Refused',
+    voteConfirm:
+      'This link votes to move everything in the vault to a new wallet. Type or paste the address the owner gave you face to face or on a call you trust, not one copied from this page or from the message that brought the link. Signing stays off until it matches.',
+    voteTarget: 'New wallet for step {n}',
+    voteInvalid: 'That is not a valid address. Check it, including its capital letters.',
+    voteMismatch: 'This is not the wallet this link votes for. Do not sign, and ask the owner again.',
     simulation: 'Simulation',
     simOk: 'Passes',
     simFailed: 'Would fail',
@@ -42,7 +48,7 @@ export const messages = defineMessages(
   {
     title: 'Yêu cầu ký',
     intro:
-      'Có người đã soạn các giao dịch này cho người ký bên dưới. Trang này tự giải mã từng bước từ calldata và không hiện chữ nào viết trong link.',
+      'Có người đã soạn các giao dịch này cho người ký bên dưới. Trang này tự giải mã từng bước từ calldata và tự viết mọi tóm tắt. Chữ duy nhất lấy từ link mà trang hiện là builder code: nhãn ngắn gồm ký tự in được, không có khoảng trắng.',
     signer: 'Người ký',
     chain: 'Chain',
     vault: 'Vault',
@@ -51,7 +57,13 @@ export const messages = defineMessages(
     target: 'Contract',
     action: 'Hành động',
     allowedYes: 'Được phép',
+    allowedGuardian: 'Kiểm trước khi ký',
     allowedNo: 'Bị từ chối',
+    voteConfirm:
+      'Link này bầu chuyển toàn bộ tài sản trong vault sang một ví mới. Hãy gõ hoặc dán địa chỉ mà chủ vault đã đưa bạn khi gặp trực tiếp hoặc qua một cuộc gọi bạn tin được, đừng chép từ trang này hay từ tin nhắn gửi link. Nút ký chỉ bật khi hai địa chỉ trùng nhau.',
+    voteTarget: 'Ví mới cho bước {n}',
+    voteInvalid: 'Đây không phải địa chỉ hợp lệ. Hãy kiểm lại, kể cả chữ hoa chữ thường.',
+    voteMismatch: 'Đây không phải ví mà link này bầu. Đừng ký, và hãy hỏi lại chủ vault.',
     simulation: 'Mô phỏng',
     simOk: 'Qua',
     simFailed: 'Sẽ lỗi',

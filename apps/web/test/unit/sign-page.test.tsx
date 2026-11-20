@@ -5,10 +5,12 @@ import {
   type InspectedStep,
   type SignPayload,
   type SignRequestCheck,
+  sendCallsParams,
+  vaultAbi,
 } from '@atropyle/sdk';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import type { ContextType } from 'preact';
-import type { Address } from 'viem';
+import { type Address, encodeFunctionData } from 'viem';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Sdk } from '../../src/lib/sdk';
 import { SignPage } from '../../src/pages/sign';
@@ -216,5 +218,192 @@ describe('SignPage state', () => {
     await screen.findByTestId('sign-resume-blocked');
     expect(screen.queryByTestId('sign-send')).toBeNull();
     expect(screen.getByTestId('sign-confirmed').textContent).toContain(H1);
+  });
+});
+
+const T: Address = '0x976EA74026E726554dB657fA54763abd0C3a0aa9';
+const OTHER: Address = '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955';
+const CHECK_IN = '0x183ff085' as const;
+const vote = (target: Address) => encodeFunctionData({ abi: vaultAbi, functionName: 'voteRecovery', args: [target] });
+
+/** A link whose payload votes for `target` (after a check-in when `withCheckIn`), as inspect would see it. */
+function votePage(target: Address, o: { withCheckIn?: boolean } = {}) {
+  const raws = [
+    ...(o.withCheckIn ? [{ to: V, data: CHECK_IN, value: 0n }] : []),
+    { to: V, data: vote(target), value: 0n },
+  ];
+  const steps = raws.map((r, index) =>
+    r.data === CHECK_IN
+      ? step({ index })
+      : step({ index, action: 'voteRecovery', summary: `Vote for ${target}.`, warnings: [GUARDIAN_WARNING] }),
+  );
+  const sent: unknown[] = [];
+  const sdk = {
+    atro: {
+      chain: { id: 196 },
+      handoff: {
+        parse: () => ({ chainId: 196, from: A, steps: raws }),
+        inspect: async () => ({ ok: true, chainId: 196, from: A, vault: V, steps }),
+      },
+      send: async (plan: unknown) => {
+        sent.push(plan);
+        return { vault: V, steps: [] };
+      },
+    },
+    deployment: { explorerUrl: null },
+  } as unknown as Sdk;
+  const provider = {
+    request: async () => {
+      throw Object.assign(new Error('no'), { code: 4200 });
+    },
+  };
+  const value = {
+    lang: 'en',
+    env: { docsPath: null },
+    sdk,
+    wallet: { account: A, chainId: 196, option: { provider } },
+    walletClient: () => ({}),
+  } as unknown as NonNullable<ContextType<typeof AppContext>>;
+  return {
+    sent,
+    node: (
+      <AppContext.Provider value={value}>
+        <SignPage sdk={sdk} />
+      </AppContext.Provider>
+    ),
+  };
+}
+
+const sendButton = () => screen.getByTestId('sign-send') as HTMLButtonElement;
+const typeTarget = (index: number, v: string) =>
+  fireEvent.input(screen.getByTestId(`sign-vote-target-${index}`), { target: { value: v } });
+
+describe('SignPage guardian vote (spec §16.3)', () => {
+  it('keeps Sign off until the guardian types the wallet the link votes for', async () => {
+    location.hash = `#/sign?p=x&target=${T}`;
+    const { node, sent } = votePage(T);
+    render(node);
+    await screen.findByTestId('sign-vote-target-0');
+    // Nothing is filled in from the link.
+    expect((screen.getByTestId('sign-vote-target-0') as HTMLInputElement).value).toBe('');
+    expect(sendButton().disabled).toBe(true);
+
+    typeTarget(0, OTHER);
+    expect(screen.getByTestId('sign-vote-target-0-error').getAttribute('data-reason')).toBe('mismatch');
+    expect(sendButton().disabled).toBe(true);
+    // A mixed-case address with a broken checksum is a typo, not the same wallet.
+    typeTarget(0, `${T.slice(0, 10)}${T.slice(10, 20).toUpperCase()}${T.slice(20)}`);
+    expect(screen.getByTestId('sign-vote-target-0-error').getAttribute('data-reason')).toBe('invalid');
+    expect(sendButton().disabled).toBe(true);
+
+    typeTarget(0, T.toLowerCase());
+    expect(screen.queryByTestId('sign-vote-target-0-error')).toBeNull();
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.click(sendButton());
+    await screen.findByTestId('sign-done');
+    expect(sent).toHaveLength(1);
+  });
+
+  it('asks only for the vote step of a mixed request', async () => {
+    render(votePage(T, { withCheckIn: true }).node);
+    await screen.findByTestId('sign-vote-target-1');
+    expect(screen.queryByTestId('sign-vote-target-0')).toBeNull();
+    expect(sendButton().disabled).toBe(true);
+    typeTarget(1, T);
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it('asks nothing for a withdrawal, which names no wallet', async () => {
+    render(votePage('0x0000000000000000000000000000000000000000').node);
+    await screen.findByTestId('sign-send');
+    expect(screen.queryByTestId('sign-vote-target-0')).toBeNull();
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it('gives a guardian step a neutral badge, not the green Allowed', async () => {
+    render(votePage(T, { withCheckIn: true }).node);
+    await screen.findByTestId('sign-step-1');
+    const badge = (i: number) => screen.getByTestId(`sign-step-${i}`).querySelector('.badge') as HTMLElement;
+    expect(badge(0).className).toBe('badge badge-ok');
+    expect(badge(0).textContent).toBe('Allowed');
+    expect(badge(1).className).toBe('badge');
+    expect(badge(1).textContent).toBe('Check before you sign');
+  });
+});
+
+describe('SignPage sends exactly the decoded payload', () => {
+  const payload: SignPayload = {
+    chainId: 196,
+    from: A,
+    steps: [
+      { to: V, data: CHECK_IN, value: 0n },
+      { to: A, data: '0x18178358aa', value: 0n },
+    ],
+  };
+  type SentPlan = { steps: { to: string; data: string; value: bigint }[] };
+
+  function sendRig(batch: boolean) {
+    const sent: { plan?: SentPlan; calls?: unknown } = {};
+    const sdk = {
+      atro: {
+        chain: { id: 196 },
+        handoff: {
+          parse: () => payload,
+          inspect: async (p: SignPayload) => ({
+            ok: true,
+            chainId: 196,
+            from: A,
+            vault: V,
+            steps: p.steps.map((s, index) => step({ index, to: s.to })),
+          }),
+          calls: (p: SignPayload) => sendCallsParams(p),
+        },
+        send: async (plan: SentPlan) => {
+          sent.plan = plan;
+          return { vault: V, steps: [] };
+        },
+      },
+      deployment: { explorerUrl: null },
+    } as unknown as Sdk;
+    const provider = {
+      request: async ({ method, params }: { method: string; params?: unknown[] }) => {
+        if (!batch) throw Object.assign(new Error('no'), { code: 4200 });
+        if (method === 'wallet_getCapabilities') return { '0xc4': {} };
+        if (method === 'wallet_sendCalls') {
+          sent.calls = (params?.[0] as { calls: unknown }).calls;
+          return { id: 'bundle-1' };
+        }
+        return { status: 200, receipts: [] };
+      },
+    };
+    const value = {
+      lang: 'en',
+      env: { docsPath: null },
+      sdk,
+      wallet: { account: A, chainId: 196, option: { provider } },
+      walletClient: () => ({}),
+    } as unknown as NonNullable<ContextType<typeof AppContext>>;
+    render(
+      <AppContext.Provider value={value}>
+        <SignPage sdk={sdk} />
+      </AppContext.Provider>,
+    );
+    return sent;
+  }
+
+  it('one by one: the plan sent holds the payload steps, byte for byte', async () => {
+    const sent = sendRig(false);
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await screen.findByTestId('sign-done');
+    expect(sent.calls).toBeUndefined();
+    expect(sent.plan?.steps.map((s) => ({ to: s.to, data: s.data, value: s.value }))).toEqual(payload.steps);
+  });
+
+  it('EIP-5792: wallet_sendCalls carries the payload steps, byte for byte', async () => {
+    const sent = sendRig(true);
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await screen.findByTestId('sign-done');
+    expect(sent.plan).toBeUndefined();
+    expect(sent.calls).toEqual(payload.steps.map((s) => ({ to: s.to, data: s.data, value: '0x0' })));
   });
 });

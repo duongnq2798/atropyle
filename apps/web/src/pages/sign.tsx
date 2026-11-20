@@ -1,11 +1,12 @@
 import { decodeError, GUARDIAN_WARNING, type SignPayload } from '@atropyle/sdk';
 import { useMemo, useState } from 'preact/hooks';
 import type { Hex } from 'viem';
+import { confirmTarget, type TargetCheck } from '../lib/guardian';
 import { explorerTx } from '../lib/links';
 import { href } from '../lib/route';
 import type { Sdk } from '../lib/sdk';
 import type { CallsStatus } from '../lib/send-calls';
-import { type SignOutcome, sendSignRequest, signView } from '../lib/sign';
+import { isGuardianStep, type SignOutcome, sendSignRequest, signView, voteSteps } from '../lib/sign';
 import { uniqueWarnings, warningKey } from '../lib/tx-view';
 import { useApp, useT } from '../ui/app-context';
 import { AddressText, Banner, ErrorBox } from '../ui/components';
@@ -20,6 +21,10 @@ function parse(sdk: Sdk, hash: string): { payload: SignPayload | null; error: un
     return { payload: null, error };
   }
 }
+
+/** A vote whose calldata does not decode: no typed address can match it, so it can never be signed here. */
+const UNDECODED: TargetCheck = { ok: false, reason: 'invalid' };
+const VOTE_REASON = { invalid: 'voteInvalid', mismatch: 'voteMismatch' } as const;
 
 function outcomeHashes(o: SignOutcome): Hex[] {
   if (o.kind === 'sendCalls') return o.result.hashes;
@@ -49,6 +54,8 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
   const [confirmed, setConfirmed] = useState<Hex[]>([]);
   const [offset, setOffset] = useState(0);
   const [resumeBlocked, setResumeBlocked] = useState(false);
+  // What the guardian typed for each vote step, by step index. Always empty on load: never read from the link.
+  const [typed, setTyped] = useState<Record<number, string>>({});
 
   if (!parsed.payload) {
     return (
@@ -70,9 +77,15 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
   const firstFailure = view.failed[0]?.simulation;
   // The guardian warning has its own banner below.
   const warnings = uniqueWarnings(check.steps.map((s) => s.warnings)).filter((w) => w.code !== GUARDIAN_WARNING.code);
+  // A vote moves everything in the vault: the guardian types the wallet, and it must be the one the calldata names.
+  const votes = voteSteps(payload, check).map((v) => ({
+    ...v,
+    check: v.target ? confirmTarget(typed[v.index] ?? '', v.target) : UNDECODED,
+  }));
+  const votesConfirmed = votes.every((v) => v.check.ok);
 
   const sign = async () => {
-    if (!app.wallet) return;
+    if (!app.wallet || !votesConfirmed) return;
     setBusy(true);
     setError(null);
     setStatus('signing');
@@ -151,9 +164,14 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
                 <AddressText address={s.to} explorer={explorer} />
               </td>
               <td>
-                <span class={s.allowed ? 'badge badge-ok' : 'badge badge-bad'}>
-                  {s.allowed ? t('allowedYes') : t('allowedNo')}
-                </span>{' '}
+                {/* A guardian step is allowed but never "fine": it gets a neutral badge, not the green one. */}
+                {!s.allowed ? (
+                  <span class="badge badge-bad">{t('allowedNo')}</span>
+                ) : isGuardianStep(s) ? (
+                  <span class="badge">{t('allowedGuardian')}</span>
+                ) : (
+                  <span class="badge badge-ok">{t('allowedYes')}</span>
+                )}{' '}
                 {s.allowed ? s.summary : s.reason}
                 {s.builderCodes ? (
                   <div class="muted">{t('builderCodes', { codes: s.builderCodes.join(', ') })}</div>
@@ -178,6 +196,35 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           <p>{t('guardianPlain')}</p>
         </Banner>
       ) : null}
+      {votes.length > 0 && view.verdict !== 'refused' ? (
+        <div class="card stack" data-testid="sign-votes">
+          <p>{t('voteConfirm')}</p>
+          {votes.map((v) => (
+            <div class="stack" key={v.index}>
+              <label class="field">
+                <span>{t('voteTarget', { n: v.index + 1 })}</span>
+                <input
+                  data-testid={`sign-vote-target-${v.index}`}
+                  value={typed[v.index] ?? ''}
+                  placeholder={'0x\u{2026}'}
+                  spellcheck={false}
+                  autocomplete="off"
+                  readOnly={busy}
+                  onInput={(ev) => {
+                    const value = (ev.target as HTMLInputElement).value;
+                    setTyped((x) => ({ ...x, [v.index]: value }));
+                  }}
+                />
+              </label>
+              {!v.check.ok && v.check.reason !== 'empty' ? (
+                <p class="field-error" data-testid={`sign-vote-target-${v.index}-error`} data-reason={v.check.reason}>
+                  {t(VOTE_REASON[v.check.reason])}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {view.verdict === 'refused' ? (
         <Banner kind="error" testid="sign-refused">
@@ -198,7 +245,13 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
       ) : null}
 
       {view.canSign && !done && !submitted && !resumeBlocked ? (
-        <button type="button" class="btn btn-primary btn-big" data-testid="sign-send" disabled={busy} onClick={sign}>
+        <button
+          type="button"
+          class="btn btn-primary btn-big"
+          data-testid="sign-send"
+          disabled={busy || !votesConfirmed}
+          onClick={sign}
+        >
           {busy
             ? t('signing')
             : offset > 0

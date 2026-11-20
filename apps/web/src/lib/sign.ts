@@ -10,9 +10,10 @@ import {
   type SignRequestCheck,
   sameAddress,
   type TxPlan,
+  vaultAbi,
   ZERO_ADDRESS,
 } from '@atropyle/sdk';
-import type { Address, WalletClient } from 'viem';
+import { type Address, decodeFunctionData, type Hex, type WalletClient } from 'viem';
 import { type CallsResult, type CallsStatus, CallsUnsupported, sendCalls, supportsSendCalls } from './send-calls';
 import type { Eip1193 } from './wallet';
 
@@ -26,8 +27,37 @@ export interface SignView {
   guardianWarning: boolean;
 }
 
-const isGuardianStep = (s: InspectedStep) =>
+export const isGuardianStep = (s: InspectedStep) =>
   s.warnings.some((w) => w.code === GUARDIAN_WARNING.code) || s.action === 'attestDeath' || s.action === 'voteRecovery';
+
+/** The wallet a voteRecovery calldata votes for, the zero address for a withdrawal, or null for anything else. */
+function voteTargetOf(data: Hex | undefined): Address | null {
+  if (!data) return null;
+  try {
+    const call = decodeFunctionData({ abi: vaultAbi, data });
+    return call.functionName === 'voteRecovery' ? call.args[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface VoteStep {
+  index: number;
+  /** Decoded from the payload's calldata; null when it does not decode, which no typed address can match. */
+  target: Address | null;
+}
+
+/**
+ * The steps that vote for a new wallet: the guardian must type that wallet before signing (spec §16.3). The target
+ * is decoded from the bytes that will be signed, never read from the link's text. A withdrawal names no wallet.
+ */
+export function voteSteps(p: SignPayload, c: SignRequestCheck): VoteStep[] {
+  return c.steps.flatMap((s) => {
+    if (s.action !== 'voteRecovery') return [];
+    const target = voteTargetOf(p.steps[s.index]?.data);
+    return target !== null && sameAddress(target, ZERO_ADDRESS) ? [] : [{ index: s.index, target }];
+  });
+}
 
 export function signView(
   check: SignRequestCheck,
