@@ -1,6 +1,7 @@
 export * from './errors';
 export * from './explain';
 export * from './inputs';
+export * from './prepare';
 export * from './read';
 export * from './schemas';
 export * from './text';

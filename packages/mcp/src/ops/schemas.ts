@@ -361,3 +361,34 @@ export type GetVaultOutput = z.output<typeof GetVaultOutputSchema>;
 export type ListVaultsOutput = z.output<typeof ListVaultsOutputSchema>;
 export type SimulateOutput = z.output<typeof SimulateOutputSchema>;
 export type CheckPlanOutput = z.output<typeof CheckPlanOutputSchema>;
+
+export const HandoffSchema = z.object({
+  link: z
+    .string()
+    .nullable()
+    .describe('Signing link for the Atropyle web app: open it in a wallet browser or scan its QR code'),
+  okxAppLink: z.string().nullable().describe('The same link, opened directly in the dApp browser of the OKX App'),
+  cast: z.array(z.string()).describe('One Foundry cast command per step, without a signer'),
+  calls: SendCallsSchema,
+  notes: z.array(z.string()),
+});
+export const PrepareOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  action: ActionNameSchema,
+  chainId: IntSchema,
+  from: AddressSchema,
+  vault: AddressSchema,
+  plan: TxPlanSchema,
+  handoff: HandoffSchema.nullable().describe('null when a step fails simulation: there is nothing safe to sign'),
+  blocked: z
+    .object({
+      step: IntSchema.describe('0-based index of the failing step'),
+      action: ActionNameSchema,
+      error: ErrorJsonSchema,
+    })
+    .nullable(),
+  ...tail,
+});
+
+export type Handoff = z.output<typeof HandoffSchema>;
+export type PrepareOutput = z.output<typeof PrepareOutputSchema>;
