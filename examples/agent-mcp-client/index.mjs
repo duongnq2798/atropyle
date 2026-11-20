@@ -63,40 +63,48 @@ export async function call(client, name, args) {
 
 const when = (at) => new Date(Number(at) * 1000).toISOString();
 
-export async function run({ command, args, env, owner, heirs, drill = true, log = console.log }) {
+/** The conversation itself, on a connected client. */
+export async function converse(client, { owner, heirs, drill = true, log = console.log }) {
+  log(`Tools: ${(await client.listTools()).tools.map((t) => t.name).join(', ')}`);
+  const plan = planOf({ owner, heirs, drill });
+
+  const check = await call(client, 'atropyle_check_plan', { plan, drill });
+  log(`check_plan: ${check.summary}`);
+  if (!check.ok) {
+    for (const i of check.issues) log(`  ${i.path}: ${i.message}`);
+    return { check, simulate: null, prepare: null };
+  }
+
+  const simulate = await call(client, 'atropyle_simulate', { plan, drill });
+  log(`simulate: ${simulate.summary}`);
+  for (const e of simulate.timeline?.events ?? []) log(`  ${when(e.at)}  ${e.kind}: ${e.from} -> ${e.state}`);
+
+  const prepare = await call(client, 'atropyle_prepare_create_vault', { plan, drill });
+  // The summary and every warning come before the link, so nobody signs without reading them.
+  log(`prepare_create_vault: ${prepare.summary}`);
+  for (const [i, s] of prepare.plan.steps.entries()) log(`  ${i + 1}. ${s.summary}`);
+  for (const w of prepare.warnings) log(`  warning ${w.code}: ${w.message}`);
+  if (prepare.handoff?.link) {
+    log(`Open this link in your wallet, check each step there, then sign:\n${prepare.handoff.link}`);
+  } else if (prepare.blocked) {
+    log(`Nothing to sign: step ${prepare.blocked.step + 1} fails with ${prepare.blocked.error.code}.`);
+  } else {
+    log('Nothing to do: the plan needs no transactions.');
+  }
+  return { check, simulate, prepare };
+}
+
+export async function run({ command, args, env, ...options }) {
   const client = await connect({ command, args, env });
   try {
-    log(`Tools: ${(await client.listTools()).tools.map((t) => t.name).join(', ')}`);
-    const plan = planOf({ owner, heirs, drill });
-
-    const check = await call(client, 'atropyle_check_plan', { plan, drill });
-    log(`check_plan: ${check.summary}`);
-    if (!check.ok) {
-      for (const i of check.issues) log(`  ${i.path}: ${i.message}`);
-      return { check, simulate: null, prepare: null };
-    }
-
-    const simulate = await call(client, 'atropyle_simulate', { plan, drill });
-    log(`simulate: ${simulate.summary}`);
-    for (const e of simulate.timeline?.events ?? []) log(`  ${when(e.at)}  ${e.kind}: ${e.from} -> ${e.state}`);
-
-    const prepare = await call(client, 'atropyle_prepare_create_vault', { plan, drill });
-    // The summary and every warning come before the link, so nobody signs without reading them.
-    log(`prepare_create_vault: ${prepare.summary}`);
-    for (const [i, s] of prepare.plan.steps.entries()) log(`  ${i + 1}. ${s.summary}`);
-    for (const w of prepare.warnings) log(`  warning ${w.code}: ${w.message}`);
-    if (prepare.handoff?.link) {
-      log(`Open this link in your wallet, check each step there, then sign:\n${prepare.handoff.link}`);
-    } else if (prepare.blocked) {
-      log(`Nothing to sign: step ${prepare.blocked.step + 1} fails with ${prepare.blocked.error.code}.`);
-    } else {
-      log('Nothing to do: the plan needs no transactions.');
-    }
-    return { check, simulate, prepare };
+    return await converse(client, options);
   } finally {
     await client.close();
   }
 }
+
+/** 1 when the plan has issues or a step is blocked; a plan with nothing to do is not an error. */
+export const exitCodeOf = (out) => (out.prepare === null || out.prepare.blocked ? 1 : 0);
 
 async function main() {
   const { values } = parseArgs({
@@ -119,8 +127,7 @@ async function main() {
     : { command: 'npx', args: ['-y', SERVER_PACKAGE] };
   if (values.deployment !== undefined) server.args.push('--deployment', values.deployment);
   const out = await run({ ...server, owner: values.owner, heirs: values.heir, drill: !values.real });
-  // Exit 1 when the plan has issues or a step is blocked; a plan with nothing to do is not an error.
-  process.exitCode = out.prepare === null || out.prepare.blocked ? 1 : 0;
+  process.exitCode = exitCodeOf(out);
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startDevnetEnv } from '../../../scripts/lib/devnet-env.ts';
-import { call, connect, planOf, run, SERVER_PACKAGE } from '../index.mjs';
+import { call, connect, converse, exitCodeOf, planOf, run, SERVER_PACKAGE } from '../index.mjs';
 
 const BIN = fileURLToPath(new URL('../../../packages/mcp/dist/bin.js', import.meta.url));
 const readJson = (rel) => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
@@ -24,6 +24,80 @@ describe('client configs', () => {
     });
     expect(plan.heirs.map((h) => h.percent)).toEqual([50, 50]);
     expect(plan.timing).toBe('drill');
+  });
+});
+
+/** A client that returns canned structuredContent per tool and records which tools were called. */
+function stubClient(results) {
+  const called = [];
+  return {
+    called,
+    listTools: async () => ({ tools: [{ name: 'stub' }] }),
+    callTool: async ({ name }) => {
+      called.push(name);
+      return { content: [], structuredContent: results[name] };
+    },
+  };
+}
+const ACCOUNT = '0x1111111111111111111111111111111111111111';
+const LINK = 'https://example.test/#/sign?p=abc';
+const prepared = (extra) => ({
+  summary: 'PREP-SUMMARY',
+  warnings: [{ code: 'W1', message: 'WARNING-ONE' }],
+  plan: { steps: [{ summary: 'STEP-ONE' }] },
+  handoff: null,
+  blocked: null,
+  ...extra,
+});
+const happy = {
+  atropyle_check_plan: { ok: true, summary: 'CHECK', issues: [] },
+  atropyle_simulate: { summary: 'SIM', timeline: { events: [] } },
+};
+
+describe('the conversation, with canned results', () => {
+  const converseWith = async (results) => {
+    const client = stubClient(results);
+    const lines = [];
+    const out = await converse(client, { owner: ACCOUNT, heirs: [ACCOUNT], log: (l) => lines.push(l) });
+    return { client, lines, text: lines.join('\n'), out };
+  };
+
+  it('stops when the check fails: exit 1, prepare is not called', async () => {
+    const r = await converseWith({
+      atropyle_check_plan: { ok: false, summary: 'CHECK', issues: [{ path: 'heirs', message: 'ISSUE-ONE' }] },
+    });
+    expect(exitCodeOf(r.out)).toBe(1);
+    expect(r.client.called).toEqual(['atropyle_check_plan']);
+    expect(r.text).toContain('ISSUE-ONE');
+    expect(r.text).not.toMatch(/#\/sign/);
+  });
+
+  it('prints why a step is blocked and no link: exit 1', async () => {
+    const r = await converseWith({
+      ...happy,
+      atropyle_prepare_create_vault: prepared({ blocked: { step: 1, error: { code: 'SIM_REVERTED' } } }),
+    });
+    expect(exitCodeOf(r.out)).toBe(1);
+    expect(r.text).toContain('step 2 fails with SIM_REVERTED');
+    expect(r.text).not.toContain(LINK);
+    expect(r.text).not.toMatch(/#\/sign/);
+  });
+
+  it('says there is nothing to do and prints no link: exit 0', async () => {
+    const r = await converseWith({ ...happy, atropyle_prepare_create_vault: prepared() });
+    expect(exitCodeOf(r.out)).toBe(0);
+    expect(r.text).toContain('Nothing to do');
+    expect(r.text).not.toMatch(/#\/sign/);
+  });
+
+  it('prints the link last, after the summary, steps and warnings: exit 0', async () => {
+    const r = await converseWith({ ...happy, atropyle_prepare_create_vault: prepared({ handoff: { link: LINK } }) });
+    expect(exitCodeOf(r.out)).toBe(0);
+    expect(r.lines.at(-1)).toContain(LINK);
+    for (const part of ['PREP-SUMMARY', 'STEP-ONE', 'WARNING-ONE']) {
+      expect(r.text.indexOf(part), part).toBeGreaterThanOrEqual(0);
+      expect(r.text.indexOf(part)).toBeLessThan(r.text.indexOf(LINK));
+    }
   });
 });
 
@@ -68,8 +142,21 @@ describe('on the devnet', () => {
     // The summary and every warning come before the link.
     const text = lines.join('\n');
     const linkAt = text.indexOf(out.prepare.handoff.link);
-    expect(linkAt).toBeGreaterThan(text.indexOf(out.prepare.summary));
-    for (const w of out.prepare.warnings) expect(text.indexOf(w.message)).toBeLessThan(linkAt);
+    const summaryAt = text.indexOf(out.prepare.summary);
+    expect(summaryAt).toBeGreaterThanOrEqual(0);
+    expect(linkAt).toBeGreaterThan(summaryAt);
+    expect(out.prepare.plan.steps.length).toBeGreaterThan(0);
+    for (const s of out.prepare.plan.steps) {
+      const at = text.indexOf(s.summary);
+      expect(at, s.summary).toBeGreaterThanOrEqual(0);
+      expect(at).toBeLessThan(linkAt);
+    }
+    expect(out.prepare.warnings.length).toBeGreaterThan(0);
+    for (const w of out.prepare.warnings) {
+      const at = text.indexOf(w.message);
+      expect(at, w.code).toBeGreaterThanOrEqual(0);
+      expect(at).toBeLessThan(linkAt);
+    }
 
     // The test plays the wallet: anvil's unlocked account sends each prepared step. No key anywhere.
     for (const step of out.prepare.plan.steps) {
@@ -110,12 +197,16 @@ describe('on the devnet', () => {
     const client = await connect({ command: process.execPath, args: [BIN, '--deployment', env.deploymentFile] });
     try {
       // The server sends no structuredContent on isError: the envelope is the second text block.
-      const raw = await client.callTool({ name: 'atropyle_get_vault', arguments: { vault: 'not-an-address' } });
+      // A well-formed address with no contract code: the server's own NOT_VAULT path runs.
+      const args = { vault: env.accounts[9] };
+      const raw = await client.callTool({ name: 'atropyle_get_vault', arguments: args });
       expect(raw.isError).toBe(true);
       expect(raw.structuredContent).toBeUndefined();
-      await expect(call(client, 'atropyle_get_vault', { vault: 'not-an-address' })).rejects.toThrow(
-        /^atropyle_get_vault: [A-Z_]+: .+/,
-      );
+      expect(JSON.parse(raw.content[1].text).error.code).toBe('NOT_VAULT');
+      const thrown = await call(client, 'atropyle_get_vault', args).catch((e) => e);
+      expect(thrown).toBeInstanceOf(Error);
+      expect(thrown.message).toContain('atropyle_get_vault: NOT_VAULT: ');
+      expect(thrown.message).not.toContain('ERROR');
     } finally {
       await client.close();
     }
