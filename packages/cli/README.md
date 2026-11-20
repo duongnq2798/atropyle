@@ -15,20 +15,22 @@ npx -y atropyle verify --deployment deployment.json
 
 ## Commands
 
-| Command                                                        | What it does                                                                                   |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `atropyle verify [--vault <addr>]`                             | Proves P1-P8 over all 2^26 inputs from independent RPCs; with `--vault`, checks that vault too |
-| `atropyle status <vault> [--as <addr>]`                        | State, deadlines, countdown, timeline, coverage and the roles of `--as`                        |
-| `atropyle vaults <account>`                                    | Vaults where an account is owner, heir or guardian                                             |
-| `atropyle simulate <vault> <action> --as <addr> [--at <time>]` | What an action would do, now or later                                                          |
-| `atropyle simulate --plan <file> [--as <owner>] [--drill]`     | The timeline of a vault that does not exist yet                                                |
-| `atropyle plan init`                                           | Writes `atropyle.plan.json`                                                                    |
-| `atropyle plan check <file>`                                   | Validates a plan, checks its tokens on chain and shows the current fee                         |
-| `atropyle prepare <action> <target> --as <addr>`               | Prepares and simulates, then hands over: `--format link\|cast\|calls\|json`                    |
-| `atropyle doctor`                                              | Node.js version, every RPC, chain ID, latency and deployment integrity                         |
-| `atropyle mcp`                                                 | The MCP server on stdio, for AI agents                                                         |
+| Command                                                        | What it does                                                                                        |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `atropyle verify [--vault <addr>]`                             | Proves P1-P8 over all 2^26 inputs from independent RPCs; with `--vault`, checks that vault too      |
+| `atropyle status <vault> [--as <addr>]`                        | State, deadlines, countdown, timeline, coverage and the roles of `--as`                             |
+| `atropyle vaults <account>`                                    | Vaults where an account is owner, heir or guardian                                                  |
+| `atropyle simulate <vault> <action> --as <addr> [--at <time>]` | What an action would do, now or later                                                               |
+| `atropyle simulate --plan <file> [--as <owner>] [--drill]`     | The timeline of a vault that does not exist yet                                                     |
+| `atropyle plan init`                                           | Writes `atropyle.plan.json` from flags; in a terminal without `--heir`, asks one question at a time |
+| `atropyle plan check <file>`                                   | Validates a plan, checks its tokens on chain and shows the current fee                              |
+| `atropyle prepare <action> <target> --as <addr>`               | Prepares and simulates, then hands over: `--format link\|cast\|calls\|json`                         |
+| `atropyle doctor`                                              | Node.js version, every RPC, chain ID, latency and deployment integrity                              |
+| `atropyle mcp`                                                 | The MCP server on stdio, for AI agents                                                              |
 
 Actions: `create-vault` (target: a plan file), `check-in`, `set-heirs`, `set-guardians`, `set-timing`, `set-assets`, `attest-death`, `vote-recovery`, `poke`, `distribute`, `revoke-all` (target: a vault address). Run `atropyle <command> --help` for every flag.
+
+In a terminal, `atropyle plan init` without `--heir` asks one question at a time and checks each answer as the flags do. It asks only for wallet addresses and choices, never for a private key, a seed phrase or a password. Recovery is off unless you answer yes. Ctrl+C stops without writing anything. With `--json`, with `--heir` or without a terminal it never asks.
 
 Start with a Drill, a practice vault that runs in minutes instead of months:
 

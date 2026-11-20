@@ -1,6 +1,7 @@
 Usage: atropyle plan init [options]
 
-write atropyle.plan.json from flags
+write atropyle.plan.json from flags; in a terminal without --heir, ask one
+question at a time
 
 Options:
   --template <name>                 simple: heirs only; guarded: heirs and

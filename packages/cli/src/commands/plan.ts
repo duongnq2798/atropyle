@@ -11,6 +11,7 @@ import { formatPlanCheck, formatPlanInit } from '../format';
 import type { Io } from '../io';
 import { emit } from '../output';
 import { type PlanInitOutput, PlanInitOutputSchema } from '../schemas';
+import { askPlan, canAsk, ensureWritable } from './plan-wizard';
 
 export interface PlanInitFlags {
   template?: 'simple' | 'guarded';
@@ -114,7 +115,7 @@ export function registerPlan(program: Command, ctx: Ctx): void {
 
   plan
     .command('init')
-    .description('write atropyle.plan.json from flags')
+    .description('write atropyle.plan.json from flags; in a terminal without --heir, ask one question at a time')
     .addOption(
       new Option('--template <name>', 'simple: heirs only; guarded: heirs and guardians').choices([
         'simple',
@@ -140,7 +141,12 @@ export function registerPlan(program: Command, ctx: Ctx): void {
     .option('--force', 'overwrite the file if it exists')
     .action(
       action(ctx, 'plan init', async (g, cmd) => {
-        const { out, code } = await planInit(ctx.io, cmd.opts<PlanInitFlags>());
+        let flags = cmd.opts<PlanInitFlags>();
+        if ((flags.heir ?? []).length === 0 && canAsk(ctx.io, g)) {
+          await ensureWritable(ctx.io, flags);
+          flags = await askPlan(ctx.io, flags);
+        }
+        const { out, code } = await planInit(ctx.io, flags);
         emit(ctx, g, out, formatPlanInit);
         return code;
       }),

@@ -18,7 +18,8 @@ Global Options:
   --verbose               log every RPC request to stderr
 
 Commands:
-  init [options]          write atropyle.plan.json from flags
+  init [options]          write atropyle.plan.json from flags; in a terminal
+                          without --heir, ask one question at a time
   check [options] <file>  validate a plan file, check its tokens on chain and
                           show the current fee
   help [command]          display help for command
