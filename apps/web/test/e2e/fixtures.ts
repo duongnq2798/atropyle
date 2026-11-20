@@ -10,6 +10,8 @@ export const ANVIL: readonly Address[] = ANVIL_ACCOUNTS;
 
 interface Fixtures {
   state: E2EState;
+  /** Every URL the page requested, in order. */
+  requests: string[];
   deployment: Deployment;
   atro: AtropyleClient;
   wallet: (o: Omit<WalletOptions, 'rpcUrl'>) => Promise<TestWallet>;
@@ -27,13 +29,18 @@ export const test = base.extend<Fixtures>({
     const chain = { ...deployment, rpcUrls: [state.rpcUrl], quorumRpcUrls: [[state.rpcUrl]] };
     await use(createAtropyle({ chain, builderCode: null }));
   },
-  page: async ({ page, state }, use) => {
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright passes fixture dependencies as the first argument
+  requests: async ({}, use) => {
+    await use([]);
+  },
+  page: async ({ page, state, requests }, use) => {
     await routeRpcToAnvil(page, state.rpcUrl);
-    const urls = recordRequests(page);
+    recordRequests(page, requests);
     await use(page);
-    expect(offchain(urls, new URL(state.siteUrl).origin), 'requests that would break the 100% on-chain badge').toEqual(
-      [],
-    );
+    expect(
+      offchain(requests, new URL(state.siteUrl).origin),
+      'requests that would break the 100% on-chain badge',
+    ).toEqual([]);
   },
   wallet: async ({ page, state }, use) => {
     await use((o) => installWallet(page, { rpcUrl: state.rpcUrl, ...o }));

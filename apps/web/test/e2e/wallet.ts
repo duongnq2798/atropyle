@@ -17,6 +17,26 @@ export interface TestWallet {
 
 type Reply = { result?: unknown; error?: { code: number; message: string }; chainChanged?: string };
 
+/** Read-only methods passed through to anvil; everything else the wallet does not implement is refused. */
+const READ_ONLY = new Set([
+  'eth_call',
+  'eth_estimateGas',
+  'eth_getBalance',
+  'eth_getCode',
+  'eth_getStorageAt',
+  'eth_getTransactionCount',
+  'eth_getTransactionReceipt',
+  'eth_getTransactionByHash',
+  'eth_blockNumber',
+  'eth_getBlockByNumber',
+  'eth_getBlockByHash',
+  'eth_gasPrice',
+  'eth_maxPriorityFeePerGas',
+  'eth_feeHistory',
+  'eth_getLogs',
+  'net_version',
+]);
+
 const hex = (n: number) => `0x${n.toString(16)}`;
 
 /**
@@ -73,7 +93,8 @@ export async function installWallet(page: Page, o: WalletOptions): Promise<TestW
           return { result: { id } };
         }
         case 'wallet_getCallsStatus': {
-          const hashes = bundles.get(String(params[0])) ?? [];
+          const hashes = bundles.get(String(params[0]));
+          if (!hashes) return fail(5730, 'Unknown bundle id');
           const receipts = (await Promise.all(hashes.map((h) => anvil('eth_getTransactionReceipt', [h])))) as {
             transactionHash: Hex;
             status: Hex;
@@ -101,6 +122,8 @@ export async function installWallet(page: Page, o: WalletOptions): Promise<TestW
           return { result: await anvil('eth_sendTransaction', [{ ...first, from: account }]) };
         }
         default:
+          // Signing and raw-transaction methods must never reach anvil, which would sign with its dev keys.
+          if (!READ_ONLY.has(method)) return fail(4200, 'Unsupported method');
           return { result: await anvil(method, params) };
       }
     } catch (e) {

@@ -30,8 +30,7 @@ export async function routeRpcToAnvil(page: Page, rpcUrl: string): Promise<void>
   );
 }
 
-export function recordRequests(page: Page): string[] {
-  const urls: string[] = [];
+export function recordRequests(page: Page, urls: string[] = []): string[] {
   page.on('request', (r) => urls.push(r.url()));
   return urls;
 }

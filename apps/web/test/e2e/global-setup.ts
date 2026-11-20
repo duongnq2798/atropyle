@@ -24,6 +24,7 @@ ${r.stderr}`);
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const anvil = await startAnvil();
+  let server: Awaited<ReturnType<typeof startStaticServer>> | undefined;
   try {
     const out = join(mkdtempSync(join(tmpdir(), 'atropyle-e2e-')), 'devnet.json');
     run(`npx tsx scripts/e2e-devnet-prep.ts ${anvil.url} "${out}"`, ROOT);
@@ -45,14 +46,16 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       WEB_OUT_DIR: 'dist-e2e',
     });
 
-    const server = await startStaticServer(join(WEB, 'dist-e2e'));
+    server = await startStaticServer(join(WEB, 'dist-e2e'));
     const snapshot = (await rpcCall(anvil.url, 'evm_snapshot')) as string;
     writeState({ rpcUrl: anvil.url, siteUrl: `http://127.0.0.1:${server.port}/`, snapshot, ...devnet });
+    const started = server;
     return async () => {
-      await server.close();
+      await started.close();
       await anvil.stop();
     };
   } catch (e) {
+    await server?.close();
     await anvil.stop();
     throw e;
   }
