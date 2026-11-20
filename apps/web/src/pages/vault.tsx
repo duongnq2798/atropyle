@@ -1,12 +1,4 @@
-import {
-  formatDuration,
-  sameAddress,
-  type Timeline,
-  type TimelineEventKind,
-  timelineOf,
-  type VaultSnapshot,
-} from '@atropyle/sdk';
-import { useEffect, useState } from 'preact/hooks';
+import { formatDuration, sameAddress, type TimelineEventKind, type VaultSnapshot } from '@atropyle/sdk';
 import type { Address } from 'viem';
 import { chainNow, formatBps, formatRemaining, formatTimestamp } from '../lib/format';
 import { href } from '../lib/route';
@@ -18,6 +10,7 @@ import { AddressText, Banner, ErrorBox, TokenAmount, UntrustedText } from '../ui
 import { messages as labels, ROLE_KEY, STATE_KEY } from '../ui/labels.messages';
 import { OwnerPanel } from './owner-panel';
 import { messages } from './vault.messages';
+import { useNowMs, useVault } from './vault-hooks';
 
 type VaultKey = keyof typeof messages.en;
 
@@ -27,65 +20,17 @@ const EVENT_KEY = {
   drillExpiry: 'nextDrillExpiry',
 } as const satisfies Record<TimelineEventKind, VaultKey>;
 
-interface Loaded {
-  snap: VaultSnapshot;
-  timeline: Timeline;
-  fetchedAtMs: number;
-}
-
-async function loadVault(sdk: Sdk, vault: Address): Promise<Loaded> {
-  const snap = await sdk.atro.vault(vault).snapshot();
-  const engine = await sdk.atro.engineFor(snap.binding.cpu, snap.binding.policyId);
-  return { snap, timeline: timelineOf(engine, snap), fetchedAtMs: Date.now() };
-}
-
-/** Keeps the last good snapshot on screen while it refreshes, so a finished transaction stays visible. */
-function useVault(sdk: Sdk, vault: Address) {
-  const [data, setData] = useState<Loaded | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(true);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    let live = true;
-    setBusy(true);
-    loadVault(sdk, vault).then(
-      (d) => {
-        if (!live) return;
-        setData(d);
-        setError(null);
-        setBusy(false);
-      },
-      (e: unknown) => {
-        if (!live) return;
-        setError(e);
-        setBusy(false);
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [sdk, vault, tick]);
-  return { data, error, busy, reload: () => setTick((x) => x + 1) };
-}
-
-function useNowMs(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
-
 function StatusCard(props: {
   sdk: Sdk;
   snap: VaultSnapshot;
   view: VaultView;
-  now: bigint;
+  fetchedAtMs: number;
   busy: boolean;
   onRefresh: () => void;
 }) {
-  const { sdk, snap, view, now, busy, onRefresh } = props;
+  const { sdk, snap, view, fetchedAtMs, busy, onRefresh } = props;
+  // The clock lives here so only this card re-renders every second.
+  const now = chainNow(snap.status.blockTimestamp, fetchedAtMs, useNowMs(1000));
   const t = useT(messages);
   const l = useT(labels);
   const c = snap.config;
@@ -239,12 +184,10 @@ export function VaultPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
   const c = useT(common);
   const l = useT(labels);
   const { data, error, busy, reload } = useVault(sdk, vault);
-  const nowMs = useNowMs(1000);
   if (!data) return error ? <ErrorBox error={error} onRetry={reload} /> : <p class="muted">{c('loading')}</p>;
 
   const account = app.wallet?.account ?? null;
   const view = vaultView(data.snap, data.timeline, account);
-  const now = chainNow(data.snap.status.blockTimestamp, data.fetchedAtMs, nowMs);
   const foreign = !sameAddress(data.snap.binding.factory, sdk.deployment.factory);
   return (
     <div class="stack" data-testid="vault">
@@ -254,7 +197,14 @@ export function VaultPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
         </Banner>
       ) : null}
       {error ? <ErrorBox error={error} onRetry={reload} /> : null}
-      <StatusCard sdk={sdk} snap={data.snap} view={view} now={now} busy={busy} onRefresh={reload} />
+      <StatusCard
+        sdk={sdk}
+        snap={data.snap}
+        view={view}
+        fetchedAtMs={data.fetchedAtMs}
+        busy={busy}
+        onRefresh={reload}
+      />
       {account ? (
         <p data-testid="vault-roles">
           {view.roles.length > 0

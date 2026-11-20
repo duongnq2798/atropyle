@@ -1,5 +1,5 @@
 import { stringify, type VaultAction, type VaultSnapshot } from '@atropyle/sdk';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Address } from 'viem';
 import {
   assetRows,
@@ -23,8 +23,15 @@ type Tab = 'heirs' | 'guardians' | 'timing' | 'assets';
 const TABS: readonly Tab[] = ['heirs', 'guardians', 'timing', 'assets'];
 const TAB_KEY = { heirs: 'tabHeirs', guardians: 'tabGuardians', timing: 'tabTiming', assets: 'tabAssets' } as const;
 
-function EditConfig(props: { sdk: Sdk; snap: VaultSnapshot; account: Address; onChanged: () => void }) {
-  const { sdk, snap, account, onChanged } = props;
+function EditConfig(props: {
+  sdk: Sdk;
+  snap: VaultSnapshot;
+  account: Address;
+  onChanged: () => void;
+  /** True while the runner prepares or holds an unfinished plan; OwnerPanel then freezes this form's key. */
+  onHeld: (held: boolean) => void;
+}) {
+  const { sdk, snap, account, onChanged, onHeld } = props;
   const t = useT(messages);
   const c = snap.config;
   const [tab, setTab] = useState<Tab | null>(null);
@@ -38,6 +45,11 @@ function EditConfig(props: { sdk: Sdk; snap: VaultSnapshot; account: Address; on
   const [assets, setAssets] = useState(() => assetRows(c.assets));
   // While the runner holds a prepared plan the editors are read-only: a form edit must not change the action under it.
   const [held, setHeld] = useState(false);
+  const report = (h: boolean) => {
+    setHeld(h);
+    onHeld(h);
+  };
+  useEffect(() => () => onHeld(false), []);
 
   const action = (): VaultAction | null => {
     switch (tab) {
@@ -65,6 +77,7 @@ function EditConfig(props: { sdk: Sdk; snap: VaultSnapshot; account: Address; on
             type="button"
             class={x === tab ? 'btn btn-primary' : 'btn'}
             data-testid={`owner-edit-${x}`}
+            disabled={held}
             onClick={() => setTab(x === tab ? null : x)}
           >
             {t(TAB_KEY[x])}
@@ -108,7 +121,7 @@ function EditConfig(props: { sdk: Sdk; snap: VaultSnapshot; account: Address; on
           label={t('save')}
           testid="owner-save"
           onDone={onChanged}
-          onPlan={setHeld}
+          onPlan={report}
         />
       ) : null}
     </section>
@@ -127,6 +140,12 @@ export function OwnerPanel(props: {
   const t = useT(messages);
   const bot = app.env.telegramBot;
   const open = !view.released && !view.expired;
+  // The form is rebuilt from a changed on-chain config (after a save), but never while its runner holds an unfinished
+  // plan: a multi-step save changes the config after step 1, and a remount would lose the remaining steps.
+  const [editHeld, setEditHeld] = useState(false);
+  const editKey = useRef('');
+  const nextKey = `${view.vault}:${stringify(snap.config)}`;
+  if (!editHeld || !editKey.current.startsWith(`${view.vault}:`)) editKey.current = nextKey;
   return (
     <div class="stack" data-testid="owner-panel">
       <section class="card stack">
@@ -171,11 +190,12 @@ export function OwnerPanel(props: {
       ) : null}
       {open ? (
         <EditConfig
-          key={`${view.vault}:${stringify(snap.config)}`}
+          key={editKey.current}
           sdk={sdk}
           snap={snap}
           account={account}
           onChanged={onChanged}
+          onHeld={setEditHeld}
         />
       ) : null}
       <section class="card stack">

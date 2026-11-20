@@ -34,37 +34,52 @@ export function ActionRunner(props: {
   const { sdk, vault, action, as, label, testid, onDone, onProgress, onPlan } = props;
   const t = useT(messages);
   const key = stringify(action);
+  const ctx = `${vault}|${as}|${key}`;
   const [plan, setPlan] = useState<TxPlan | null>(null);
+  const [planCtx, setPlanCtx] = useState('');
   const [committed, setCommitted] = useState(false);
+  const [finished, setFinished] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  // Read by the reset effect, which must not re-run when only `committed` changes.
-  const lock = useRef(false);
-  lock.current = committed;
+  // The lock protects a partly sent plan only; a finished plan has nothing left to protect.
+  const locked = committed && !finished;
+  const held = busy || (plan !== null && !finished);
+  // Read by async callbacks and by the onPlan effect, which must not re-run for a new callback identity.
+  const latest = useRef({ ctx, onPlan });
+  latest.current = { ctx, onPlan };
 
   const clear = () => {
     setPlan(null);
     setCommitted(false);
-    lock.current = false;
+    setFinished(false);
   };
 
+  // `[vault, as, key]` and the lock are triggers: a plan for another action, account or vault is dropped, but never
+  // while it is locked; when the lock opens (a rejection before any hash) this runs again and drops the stale plan.
   useEffect(() => {
-    if (lock.current) return;
-    setPlan(null);
+    if (locked || plan === null || planCtx === ctx) return;
+    clear();
     setError(null);
-  }, [vault, as, key]);
+  }, [ctx, locked, plan, planCtx]);
 
   useEffect(() => {
-    onPlan?.(plan !== null);
-  }, [plan, onPlan]);
+    latest.current.onPlan?.(held);
+  }, [held]);
 
   const prepare = async () => {
+    const started = ctx;
     setBusy(true);
     setError(null);
     try {
-      setPlan(await sdk.atro.vault(vault).prepare(action, { as }));
+      const p = await sdk.atro.vault(vault).prepare(action, { as });
+      // The form may have changed while the SDK was preparing; a plan that differs from the screen is never shown.
+      if (latest.current.ctx !== started) return;
+      setPlan(p);
+      setPlanCtx(started);
+      setCommitted(false);
+      setFinished(false);
     } catch (e) {
-      setError(e);
+      if (latest.current.ctx === started) setError(e);
     } finally {
       setBusy(false);
     }
@@ -79,13 +94,16 @@ export function ActionRunner(props: {
             plan={plan}
             label={label}
             testid={`${testid}-tx`}
-            onDone={(r) => onDone?.(r)}
+            onDone={(r) => {
+              setFinished(true);
+              onDone?.(r);
+            }}
             onProgress={(p) => {
               setCommitted(p.committed);
               onProgress?.(p);
             }}
           />
-          {committed ? null : (
+          {locked ? null : (
             <button type="button" class="btn" data-testid={`${testid}-reset`} onClick={clear}>
               {t('startOver')}
             </button>

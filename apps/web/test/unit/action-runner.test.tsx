@@ -31,8 +31,8 @@ const plan: TxPlan = {
 
 type Send = (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<unknown>;
 
-function setup(send: Send) {
-  const prepare = vi.fn(async () => plan);
+function setup(send: Send, prepareImpl: () => Promise<TxPlan> = async () => plan) {
+  const prepare = vi.fn(prepareImpl);
   const sdk = {
     atro: {
       chain: { id: 31337 },
@@ -49,7 +49,11 @@ function setup(send: Send) {
     wallet: { account: PEOPLE.owner, chainId: 31337 },
     walletClient: () => ({}),
   } as unknown as NonNullable<ContextType<typeof AppContext>>;
-  const ui = (action: VaultAction, onProgress?: (p: { confirmed: number; committed: boolean }) => void) => (
+  const ui = (
+    action: VaultAction,
+    onProgress?: (p: { confirmed: number; committed: boolean }) => void,
+    onPlan?: (held: boolean) => void,
+  ) => (
     <AppContext.Provider value={value}>
       <ActionRunner
         sdk={sdk as never}
@@ -59,6 +63,7 @@ function setup(send: Send) {
         label="Go"
         testid="act"
         onProgress={onProgress}
+        onPlan={onPlan}
       />
     </AppContext.Provider>
   );
@@ -107,11 +112,93 @@ describe('ActionRunner lock', () => {
   it('reports progress and whether a plan is held', async () => {
     const send: Send = () => new Promise(() => {});
     const seen: boolean[] = [];
+    const held: boolean[] = [];
     const { ui } = setup(send);
-    render(ui({ type: 'checkIn' }, (p) => seen.push(p.committed)));
+    render(
+      ui(
+        { type: 'checkIn' },
+        (p) => seen.push(p.committed),
+        (h) => held.push(h),
+      ),
+    );
     fireEvent.click(screen.getByTestId('act'));
     await screen.findByTestId('act-tx-send');
     fireEvent.click(screen.getByTestId('act-tx-send'));
     await waitFor(() => expect(seen).toContain(true));
+    expect(held.at(-1)).toBe(true);
+  });
+
+  it('re-arms after a full success: Start over returns, onPlan(false) is reported, a second run can be prepared', async () => {
+    const send: Send = async (p, _w, o) => {
+      o.onStep?.({ index: 0, total: 1, step: p.steps[0], phase: 'confirmed', hash: `0x${'12'.repeat(32)}` });
+      return { vault: PEOPLE.vault, steps: [] };
+    };
+    const held: boolean[] = [];
+    const { prepare, ui } = setup(send);
+    render(ui({ type: 'checkIn' }, undefined, (h) => held.push(h)));
+    fireEvent.click(screen.getByTestId('act'));
+    await screen.findByTestId('act-tx-send');
+    fireEvent.click(screen.getByTestId('act-tx-send'));
+    await screen.findByTestId('act-tx-done');
+    await waitFor(() => expect(has('act-reset')).toBe(true));
+    await waitFor(() => expect(held.at(-1)).toBe(false));
+    fireEvent.click(screen.getByTestId('act-reset'));
+    fireEvent.click(await screen.findByTestId('act'));
+    await screen.findByTestId('act-tx-send');
+    expect(prepare).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a finished plan on screen while its action is unchanged', async () => {
+    const send: Send = async (p, _w, o) => {
+      o.onStep?.({ index: 0, total: 1, step: p.steps[0], phase: 'confirmed', hash: `0x${'12'.repeat(32)}` });
+      return { vault: PEOPLE.vault, steps: [] };
+    };
+    const { ui } = setup(send);
+    const view = render(ui({ type: 'checkIn' }));
+    fireEvent.click(screen.getByTestId('act'));
+    fireEvent.click(await screen.findByTestId('act-tx-send'));
+    await screen.findByTestId('act-tx-done');
+    view.rerender(ui({ type: 'checkIn' }));
+    expect(has('act-tx-done')).toBe(true);
+    view.rerender(ui({ type: 'revokeAll' }));
+    await waitFor(() => expect(has('act-tx-done')).toBe(false));
+  });
+
+  it('resets a plan kept across an action change once a hashless rejection unlocks it', async () => {
+    let reject: (e: unknown) => void = () => {};
+    const send: Send = () =>
+      new Promise((_, rej) => {
+        reject = rej;
+      });
+    const { ui } = setup(send);
+    const view = render(ui({ type: 'checkIn' }));
+    fireEvent.click(screen.getByTestId('act'));
+    fireEvent.click(await screen.findByTestId('act-tx-send'));
+    await waitFor(() => expect(has('act-reset')).toBe(false));
+    view.rerender(ui({ type: 'revokeAll' }));
+    expect(has('act-tx-send')).toBe(true);
+    reject(new AtropyleError('USER_REJECTED'));
+    await waitFor(() => expect(has('act-tx-send')).toBe(false));
+    expect(has('act')).toBe(true);
+  });
+
+  it('drops a prepare result whose action changed meanwhile and reports held while preparing', async () => {
+    let resolve: (p: TxPlan) => void = () => {};
+    const held: boolean[] = [];
+    const { ui } = setup(
+      () => new Promise(() => {}),
+      () =>
+        new Promise<TxPlan>((r) => {
+          resolve = r;
+        }),
+    );
+    const view = render(ui({ type: 'checkIn' }, undefined, (h) => held.push(h)));
+    fireEvent.click(screen.getByTestId('act'));
+    await waitFor(() => expect(held.at(-1)).toBe(true));
+    view.rerender(ui({ type: 'revokeAll' }, undefined, (h) => held.push(h)));
+    resolve(plan);
+    await waitFor(() => expect(held.at(-1)).toBe(false));
+    expect(has('act-tx-send')).toBe(false);
+    expect(has('act')).toBe(true);
   });
 });
