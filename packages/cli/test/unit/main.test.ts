@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { main } from '../../src/main';
+import { main, redact } from '../../src/main';
 import { VERSION } from '../../src/version';
 import { memoryIo } from './memory-io';
+
+describe('redact', () => {
+  it('drops a URL operand from every "value/argument is invalid" form and keeps a plain one', () => {
+    expect(redact("error: command-argument value 'https://h.test/KEY' is invalid for argument 'vault'.")).toBe(
+      "error: command-argument value '…' is invalid for argument 'vault'.",
+    );
+    expect(redact("error: option '--chain <name>' argument 'https://h.test/KEY' is invalid.")).toBe(
+      "error: option '--chain <name>' argument '…' is invalid.",
+    );
+    expect(redact("error: command-argument value 'mars' is invalid for argument 'vault'.")).toContain("'mars'");
+  });
+});
 
 describe('main', () => {
   it('prints the version', async () => {
@@ -79,6 +91,21 @@ describe('main', () => {
       const b = memoryIo();
       expect(await main(['doctor', '--bogus=1'], b)).toBe(2);
       expect(b.stderr).toContain('--bogus');
+      expect(b.stderr).not.toContain('=1');
+    });
+
+    it.each([false, true])('a flag name that contains the letter s, json=%s', async (json) => {
+      const io = memoryIo();
+      expect(await main(['doctor', '--rpcs=https://h.test/KEY', ...(json ? ['--json'] : [])], io)).toBe(2);
+      expect(io.stdout + io.stderr).not.toContain('KEY');
+      expect(io.stdout + io.stderr).toContain('--rpcs');
+    });
+
+    it('a short option glued to its value keeps only the option letter', async () => {
+      const io = memoryIo();
+      expect(await main(['doctor', '-xhttps://h.test/KEY'], io)).toBe(2);
+      expect(io.stderr).not.toContain('KEY');
+      expect(io.stderr).toContain("'-x…'");
     });
   });
 

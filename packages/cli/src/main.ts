@@ -16,12 +16,16 @@ function wantsJson(argv: readonly string[]): boolean {
  * commander echoes what the user typed: `--flag=value`, an unknown command, a bad option argument. Any of them can be
  * a URL with an API key, and the text goes to logs. Keep the flag name, drop the value; never echo a URL operand.
  */
-function redact(text: string): string {
+export function redact(text: string): string {
   const operand = (value: string) => (URL.canParse(value) ? '…' : value);
   return text
-    .replace(/'(-{1,2}[^'=s]+)=[^']*'/g, "'$1=…'")
+    .replace(/'(-{1,2}[^'=\s]+)=[^']*'/g, "'$1=…'")
+    .replace(/unknown option '(-[^-'\s=…])[^'\s=…]+'/g, "unknown option '$1…'")
     .replace(/unknown command '([^']*)'/g, (_, v: string) => `unknown command '${operand(v)}'`)
-    .replace(/ argument '([^']*)' is invalid/g, (_, v: string) => ` argument '${operand(v)}' is invalid`);
+    .replace(
+      /\b(value|argument) '([^']*)' is invalid/g,
+      (_, k: string, v: string) => `${k} '${operand(v)}' is invalid`,
+    );
 }
 
 function usageMessage(e: CommanderError, argv: readonly string[]): string {
