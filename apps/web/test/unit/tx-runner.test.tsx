@@ -2,7 +2,7 @@
 import { AtropyleError, type PreparedTx, type SendResult, type TxPlan } from '@atropyle/sdk';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import type { ContextType } from 'preact';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppContext } from '../../src/ui/app-context';
 import { TxRunner } from '../../src/ui/tx-runner';
 
@@ -38,12 +38,13 @@ const plan: TxPlan = {
 function harness(
   send: (p: TxPlan, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<SendResult>,
   onProgress?: (p: { confirmed: number; committed: boolean }) => void,
+  link: (p: TxPlan, base: string) => string = () => 'https://example.test/#/sign?p=x',
 ) {
   const value = {
     lang: 'en',
     env: { docsPath: null },
     sdk: {
-      atro: { chain: { id: 196 }, send, handoff: { link: () => 'https://example.test/#/sign?p=x' } },
+      atro: { chain: { id: 196 }, send, handoff: { link } },
       deployment: { explorerUrl: null },
     },
     wallet: { account: A, chainId: 196 },
@@ -90,6 +91,28 @@ describe('TxRunner', () => {
     expect(screen.getByTestId('tx-step-0').getAttribute('data-phase')).toBe('confirmed');
     expect(screen.getByTestId('tx-step-1').getAttribute('data-phase')).toBe('confirmed');
     expect(screen.getByTestId('tx-step-2').getAttribute('data-phase')).toBe('confirmed');
+  });
+
+  it('hands off only the steps that are not confirmed yet', async () => {
+    const writeText = vi.fn(async (_t: string) => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const link = vi.fn((p: TxPlan) => `https://example.test/#/sign?steps=${p.steps.map((s) => s.summary).join(',')}`);
+    const send = async (p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      o.onStep?.({ index: 0, total: p.steps.length, step: p.steps[0], phase: 'confirmed', hash: H });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    };
+    render(harness(send, undefined, link));
+    fireEvent.click(screen.getByTestId('tx-copy-link'));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('https://example.test/#/sign?steps=one,two,three'));
+
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await waitFor(() => expect(screen.getByTestId('tx-send').textContent).toBe('Resume from step 2'));
+    // A hand-off of the whole plan would make the next signer send step 1 again.
+    const last = link.mock.calls.at(-1)?.[0];
+    expect(last?.steps.map((s) => s.summary)).toEqual(['two', 'three']);
+    expect(last).toMatchObject({ chainId: plan.chainId, from: plan.from, vault: plan.vault });
+    fireEvent.click(screen.getByTestId('tx-copy-link'));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('https://example.test/#/sign?steps=two,three'));
   });
 
   it('shows how many steps are confirmed, and only when there is more than one', async () => {

@@ -16,6 +16,11 @@ const PHASE = {
   failed: 'phaseFailed',
 } as const satisfies Record<StepPhase, string>;
 
+/** The steps not confirmed yet: what a retry sends, and what a hand-off link may carry. */
+function remaining(plan: TxPlan, offset: number): TxPlan {
+  return offset === 0 ? plan : { ...plan, steps: plan.steps.slice(offset) };
+}
+
 function signBase(): string {
   return location.href.split('#')[0];
 }
@@ -63,13 +68,14 @@ export function TxRunner(props: {
     onProgress?.({ confirmed, committed });
   }, [confirmed, committed]);
 
+  // After a partial send the link carries only the remaining steps, so the next signer never sends a confirmed one again.
   const link = useMemo(() => {
     try {
-      return sdk.atro.handoff.link(plan, signBase());
+      return sdk.atro.handoff.link(remaining(plan, offset), signBase());
     } catch {
       return null; // payload above PAYLOAD_LIMITS: no hand-off for this plan
     }
-  }, [sdk, plan]);
+  }, [sdk, plan, offset]);
 
   const wallet = app.wallet;
   const wrongAccount = !!wallet && !sameAddress(wallet.account, plan.from);
@@ -81,8 +87,7 @@ export function TxRunner(props: {
     const base = offset;
     try {
       if (wallet && wallet.chainId !== sdk.atro.chain.id) await app.switchChain();
-      const rest = base === 0 ? plan : { ...plan, steps: plan.steps.slice(base) };
-      const r = await sdk.atro.send(rest, app.walletClient(), {
+      const r = await sdk.atro.send(remaining(plan, base), app.walletClient(), {
         onStep: (e) => {
           setView((v) => applyStep(v, { ...e, index: e.index + base }));
         },
