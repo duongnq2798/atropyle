@@ -4,26 +4,29 @@ import { AssetKindSchema } from './schemas';
 
 const addr = (what: string) => z.string().describe(`${what}: a 0x address`);
 
-export const HeirInputSchema = z.object({
+/**
+ * Loose at every level: an unknown key reaches the SDK (validatePlan and validateSection report UNKNOWN_FIELD for it, and
+ * the action path rejects it with PLAN_INVALID), so a misnamed field is an error and never silently dropped.
+ */
+export const HeirInputSchema = z.looseObject({
   account: addr('Heir'),
   bps: z.number().int().optional().describe('Share in basis points (10000 = 100%)'),
   percent: z.number().optional().describe('Share in percent. Give bps or percent, not both'),
 });
 export const TimingInputSchema = z.union([
   z.enum(['drill', 'sixMonths', 'twelveMonths']).describe('Timing preset'),
-  z.object({
+  z.looseObject({
     period: z.union([z.number(), z.string()]).describe('Check-in period: seconds, or 45s, 90m, 12h, 3d, 2w'),
     threshold: z.number().int().describe('Missed periods before the alarm (1 to 15)'),
     window: z.union([z.number(), z.string()]).describe('Time the owner has to cancel an alarm'),
   }),
 ]);
-export const AssetInputSchema = z.object({
+export const AssetInputSchema = z.looseObject({
   kind: AssetKindSchema,
   token: addr('Token contract'),
   id: z.union([z.string(), z.number()]).optional().describe('Token id, for ERC-721 and ERC-1155'),
   heir: z.number().int().optional().describe('Index of the heir who receives this NFT'),
 });
-/** Loose on purpose: unknown keys reach validatePlan, which reports them as UNKNOWN_FIELD. */
 export const PlanInputSchema = z
   .looseObject({
     version: z.literal(1).optional(),
@@ -118,17 +121,45 @@ export type PrepareActionInput = z.output<typeof PrepareActionInputSchema>;
 const badTime = () =>
   new AtropyleError('INVALID_OPTIONS', {
     message: 'Cannot read this time.',
-    hint: 'Use unix seconds, an ISO 8601 date such as 2026-12-01T00:00:00Z, or +<duration> such as +3d.',
+    hint: 'Use unix seconds, a date (2026-12-01, read as UTC midnight), a date-time with its zone (2026-12-01T00:00:00Z or 2026-12-01T09:00:00+07:00), or +<duration> such as +3d.',
   });
+
+const MAX_UNIX_SECONDS = 999_999_999_999n;
+// A date, or a date-time that names its zone. A date-time without a zone would depend on the host's local time.
+const ISO_AT = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2}))?$/;
+
+/** Seconds of an anchored ISO 8601 string, or null when it is malformed, ambiguous or not a real calendar date. */
+function isoSeconds(s: string): bigint | null {
+  const m = ISO_AT.exec(s);
+  if (!m) return null;
+  const [y, mo, d, h, mi, sec] = m.slice(1, 7).map((x) => Number(x ?? 0));
+  const ms = Date.UTC(y, mo - 1, d, h, mi, sec);
+  const back = new Date(ms);
+  // Rolled over (2026-02-30) or out of range (hour 24, minute 60).
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
+  if (h > 23 || mi > 59 || sec > 59) return null;
+  let offset = 0;
+  const zone = m[7];
+  if (zone && zone !== 'Z') {
+    const [zh, zm] = zone.slice(1).split(':').map(Number);
+    if (zh > 23 || zm > 59) return null;
+    offset = (zone[0] === '-' ? -1 : 1) * (zh * 60 + zm) * 60_000;
+  }
+  const utc = ms - offset;
+  return utc >= 0 ? BigInt(Math.floor(utc / 1000)) : null;
+}
 
 /** `--at` and the `at` tool argument. `base` is the timestamp of the latest block. */
 export function parseAt(input: string | number, base: bigint): bigint {
   if (typeof input === 'number') {
-    if (!Number.isSafeInteger(input) || input < 0) throw badTime();
+    if (!Number.isSafeInteger(input) || input < 0 || BigInt(input) > MAX_UNIX_SECONDS) throw badTime();
     return BigInt(input);
   }
   const s = input.trim();
-  if (/^\d+$/.test(s)) return BigInt(s);
+  if (/^\d+$/.test(s)) {
+    if (BigInt(s) > MAX_UNIX_SECONDS) throw badTime();
+    return BigInt(s);
+  }
   if (s.startsWith('+')) {
     try {
       return base + BigInt(parseDuration(s.slice(1), 'at'));
@@ -136,9 +167,7 @@ export function parseAt(input: string | number, base: bigint): bigint {
       throw badTime();
     }
   }
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const ms = Date.parse(s);
-    if (Number.isFinite(ms) && ms >= 0) return BigInt(Math.floor(ms / 1000));
-  }
-  throw badTime();
+  const iso = isoSeconds(s);
+  if (iso === null) throw badTime();
+  return iso;
 }

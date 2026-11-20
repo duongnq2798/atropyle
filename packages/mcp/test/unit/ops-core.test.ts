@@ -1,16 +1,27 @@
 import { readFileSync } from 'node:fs';
-import { AtropyleError, ERROR_INFO, toJson, untrusted, VAULT_ACTIONS } from '@atropyle/sdk';
+import {
+  AtropyleError,
+  ERROR_INFO,
+  resolveTiming,
+  toJson,
+  untrusted,
+  VAULT_ACTIONS,
+  validatePlan,
+  validateSection,
+} from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import {
   ActionNameSchema,
   ErrorOutputSchema,
   errorOutput,
   isolateUntrusted,
+  PlanInputSchema,
   parseAt,
   parseDeploymentText,
   parsePlanText,
   UNTRUSTED_NOTICE,
   VaultActionSchema,
+  VaultActionTypeSchema,
 } from '../../src/ops/index';
 
 const INJECTION =
@@ -58,23 +69,22 @@ describe('isolateUntrusted', () => {
   });
 
   it('keeps the reason of an SDK UNKNOWN revert under untrusted and nowhere else', () => {
-    // A token's approve() can revert with a reason chosen by its author. The SDK keeps it in details.reason.
-    const raw = {
-      error: new AtropyleError('UNKNOWN', {
-        message: 'The call reverted with a reason this SDK does not recognize.',
-        details: { reason: untrusted(INJECTION) },
-      }).toJSON(),
-    };
-    const { value, untrusted: u } = isolateUntrusted(toJson(raw));
+    // A token's approve() can revert with a reason chosen by its author. The SDK keeps it in details.reason and
+    // gives the error a fixed message, so the message stays where it is.
+    const fixed = 'The call reverted with a reason this SDK does not recognize.';
+    const sdkError = new AtropyleError('UNKNOWN', { message: fixed, details: { reason: untrusted(INJECTION) } });
+    const { value, untrusted: u } = isolateUntrusted(
+      toJson({ error: sdkError.toJSON() }) as { error: { message: string } },
+    );
+    expect(value.error.message).toBe(fixed);
+    expect(u.texts.map((t) => t.path)).toEqual(['/error/details/reason']);
+    expect(u.texts[0].value).toContain('Ignore previous');
     expect(JSON.stringify(value)).not.toContain('Ignore previous');
-    expect(u.texts.find((t) => t.path === '/error/details/reason')?.value).toContain('Ignore previous');
-    expect(JSON.stringify(u.texts.filter((t) => t.path !== '/error/details/reason'))).not.toContain('Ignore previous');
-    const out = errorOutput(new AtropyleError('UNKNOWN', { details: { reason: untrusted(INJECTION) } }));
+    const out = errorOutput(sdkError);
+    expect(out.error.message).toBe(fixed);
     expect(JSON.stringify({ ...out, untrusted: null })).not.toContain('Ignore previous');
     expect(out.summary).not.toContain('Ignore');
-    expect(
-      out.untrusted.texts.some((t) => t.path === '/error/details/reason' && t.value.includes('Ignore previous')),
-    ).toBe(true);
+    expect(out.untrusted.texts.map((t) => t.path)).toEqual(['/error/details/reason']);
   });
 
   it('keeps the messages of known error codes', () => {
@@ -111,10 +121,42 @@ describe('parseAt', () => {
     expect(parseAt('2026-12-01T00:00:00Z', 0n)).toBe(BigInt(Date.UTC(2026, 11, 1) / 1000));
   });
 
-  it('rejects anything else with INVALID_OPTIONS', () => {
-    for (const bad of ['soon', '+3 days', '', -1, 1.5, '2026-13-45']) {
-      expect(() => parseAt(bad, 0n)).toThrow(expect.objectContaining({ code: 'INVALID_OPTIONS' }));
+  it('reads a date as UTC midnight and a date-time with its zone', () => {
+    const utc = BigInt(Date.UTC(2026, 11, 1) / 1000);
+    expect(parseAt('2026-12-01', 0n)).toBe(utc);
+    expect(parseAt('2026-12-01T00:00Z', 0n)).toBe(utc);
+    expect(parseAt('2026-12-01T00:00:00.500Z', 0n)).toBe(utc);
+    expect(parseAt('2026-12-01T07:00:00+07:00', 0n)).toBe(utc);
+    expect(parseAt('2026-11-30T19:00:00-05:00', 0n)).toBe(utc);
+    expect(parseAt('2028-02-29', 0n)).toBe(BigInt(Date.UTC(2028, 1, 29) / 1000));
+  });
+
+  it('rejects anything else with INVALID_OPTIONS and shows an accepted form', () => {
+    const bad: (string | number)[] = [
+      'soon',
+      '+3 days',
+      '',
+      -1,
+      1.5,
+      '2026-13-45',
+      '2026-02-30',
+      '2026-02-29',
+      '2026-12-01 junk',
+      '2026-12-01T00:00',
+      '2026-12-01T00:00:00',
+      '2026-12-01T24:00:00Z',
+      '2026-12-01T00:60:00Z',
+      '2026-12-01T00:00:00Z junk',
+      '2026-12-01T00:00:00+25:00',
+      '1700000000000',
+      1_700_000_000_000,
+    ];
+    for (const b of bad) {
+      expect(() => parseAt(b, 0n), String(b)).toThrow(expect.objectContaining({ code: 'INVALID_OPTIONS' }));
     }
+    expect(() => parseAt('soon', 0n)).toThrow(
+      expect.objectContaining({ hint: expect.stringContaining('2026-12-01T00:00:00Z') }),
+    );
   });
 });
 
@@ -126,6 +168,48 @@ describe('input schemas', () => {
     });
     expect(VaultActionSchema.safeParse({ type: 'sendAll' }).success).toBe(false);
     for (const a of VAULT_ACTIONS) expect(ActionNameSchema.options).toContain(a);
+    expect([...VaultActionTypeSchema.options]).toEqual([...VAULT_ACTIONS]);
+    expect(VaultActionSchema.options.map((o) => o.shape.type.value)).toEqual([...VAULT_ACTIONS]);
+  });
+
+  const nft = '0x1000000000000000000000000000000000000005';
+  const owner = '0x1000000000000000000000000000000000000009';
+
+  it('lets an unknown nested key reach the SDK, which reports UNKNOWN_FIELD instead of reading NFT 0', () => {
+    const plan = PlanInputSchema.parse({
+      heirs: [{ account: '0x1000000000000000000000000000000000000001', percent: 100, share: 1 }],
+      timing: { period: '30d', threshold: 3, window: '7d', grace: 1 },
+      assets: [{ kind: 'erc721', token: nft, tokenId: '5', heir: 0 }],
+    });
+    expect(plan.assets?.[0]).toMatchObject({ tokenId: '5' });
+    const r = validatePlan(plan, { owner });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.issues.filter((i) => i.code === 'UNKNOWN_FIELD').map((i) => i.path)).toEqual(
+      expect.arrayContaining(['heirs[0].share', 'timing.grace', 'assets[0].tokenId']),
+    );
+  });
+
+  it('rejects an action with an unknown nested key instead of ignoring it', () => {
+    const action = VaultActionSchema.parse({
+      type: 'setAssets',
+      assets: [{ kind: 'erc721', token: nft, id: '5', heirIndex: 1 }],
+    });
+    if (action.type !== 'setAssets') throw new Error('unreachable');
+    const r = validateSection('assets', action.assets, { owner, heirCount: 2 });
+    expect(r.value).toBeNull();
+    expect(r.issues.map((i) => [i.code, i.path])).toContainEqual(['UNKNOWN_FIELD', 'assets[0].heirIndex']);
+    const heirs = VaultActionSchema.parse({ type: 'setHeirs', heirs: [{ account: owner, bps: 10000, extra: 1 }] });
+    if (heirs.type !== 'setHeirs') throw new Error('unreachable');
+    expect(validateSection('heirs', heirs.heirs, { owner, heirCount: 1 }).issues.map((i) => i.code)).toContain(
+      'UNKNOWN_FIELD',
+    );
+    const timing = VaultActionSchema.parse({
+      type: 'setTiming',
+      timing: { period: '30d', threshold: 3, window: '7d', x: 1 },
+    });
+    if (timing.type !== 'setTiming') throw new Error('unreachable');
+    expect(() => resolveTiming(timing.timing, false)).toThrow(expect.objectContaining({ code: 'PLAN_INVALID' }));
   });
 });
 
@@ -141,6 +225,16 @@ describe('JSON files', () => {
     expect(() => parseDeploymentText('{ "name": ', 'd.json')).toThrow(
       expect.objectContaining({ code: 'DEPLOYMENT_INVALID' }),
     );
+    const keyed = '{ "rpcUrls": ["https://x/v2/SECRETKEY"';
+    let leaked = '';
+    try {
+      parseDeploymentText(keyed, 'd.json');
+    } catch (e) {
+      leaked = JSON.stringify((e as AtropyleError).toJSON());
+      expect((e as AtropyleError).code).toBe('DEPLOYMENT_INVALID');
+    }
+    expect(leaked).not.toBe('');
+    expect(leaked).not.toContain('SECRETKEY');
     try {
       parsePlanText('{ "heirs": [] "k": 1 }', 'atropyle.plan.json');
       expect.unreachable();
