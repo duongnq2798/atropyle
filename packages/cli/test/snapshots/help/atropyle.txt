@@ -21,6 +21,9 @@ Options:
   -h, --help                           display help for command
 
 Commands:
+  verify [options]                     prove the policy circuit over all 2^26
+                                       inputs from independent RPCs; --vault
+                                       checks a vault too
   status [options] <vault>             state, deadlines, timeline, coverage and
                                        the roles of --as in a vault
   vaults <account>                     vaults where an account is owner, heir or
@@ -32,4 +35,6 @@ Commands:
                                        hand them to your wallet; never signs
   doctor                               check Node.js, every RPC, the chain ID,
                                        latency and the deployment integrity
+  mcp                                  run the Atropyle MCP server on stdio (the
+                                       same server as npx -y @atropyle/mcp)
   help [command]                       display help for command

@@ -58,6 +58,12 @@ function logged(inner: Transport, label: string, io: Io): Transport {
   };
 }
 
+/** The URL groups `verify` reads, one per operator: --verify-rpc, else quorumRpcUrls; only the first with --single-rpc. */
+export function verifyGroups(d: Deployment, o: RpcChoice = {}): string[][] {
+  const groups = o.verifyRpc?.length ? o.verifyRpc.map((u) => [u]) : d.quorumRpcUrls.map((grp) => [...grp]);
+  return o.singleRpc ? groups.slice(0, 1) : groups;
+}
+
 export async function sdkOptionsFor(g: Globals, io: Io, o: RpcChoice = {}): Promise<AtropyleOptions> {
   const d = o.deployment ?? (await deploymentFor(g, io));
   for (const u of o.verifyRpc ?? []) if (!URL.canParse(u)) throw new UsageError('--verify-rpc is not a valid URL.');
@@ -68,8 +74,7 @@ export async function sdkOptionsFor(g: Globals, io: Io, o: RpcChoice = {}): Prom
   const wrap = (t: Transport, label: string) => (g.verbose ? logged(t, label, io) : t);
   const read = g.rpc ? httpTransport(g.rpc) : g.verbose ? readTransport([...d.rpcUrls]) : undefined;
   const custom = (o.verifyRpc?.length ?? 0) > 0 || o.singleRpc === true || g.verbose;
-  const groups = o.verifyRpc?.length ? o.verifyRpc.map((u) => [u]) : d.quorumRpcUrls.map((grp) => [...grp]);
-  const operators = o.singleRpc ? groups.slice(0, 1) : groups;
+  const operators = verifyGroups(d, o);
   return {
     chain: d,
     ...(read ? { transport: wrap(read, 'read') } : {}),

@@ -5,6 +5,7 @@ import {
   type ListVaultsOutput,
   type PrepareOutput,
   type SimulateOutput,
+  type VerifyOutput,
 } from '@atropyle/mcp/ops';
 import { formatDuration } from '@atropyle/sdk';
 import { formatUnits } from 'viem';
@@ -192,4 +193,56 @@ export function formatPrepare(o: PrepareOutput, s: Style, qr: string | null, qrN
 /** stderr of --format cast and --format calls, so that stdout stays machine-readable. */
 export function briefPrepare(o: PrepareOutput, s: Style): string {
   return [...headOf(o, s), ...untrustedLines(o.untrusted), ''].join('\n');
+}
+
+const yes = (b: boolean) => (b ? 'yes' : 'NO');
+
+export function formatVerify(o: VerifyOutput, s: Style): string {
+  const at = o.blockNumber === null ? '' : ` at block ${o.blockNumber}`;
+  const lines = [
+    s.bold(`atropyle verify on chain ${o.chainId}${at}`),
+    `RPC operators (${o.rpcs}): ${o.operators.map((g) => g.join(', ')).join(' | ')}`,
+  ];
+  const p = o.policy;
+  if (p) {
+    lines.push('', 'Property  Result  Violations');
+    for (const [name, r] of Object.entries(p.properties)) {
+      lines.push(`${name.padEnd(9)} ${r.ok ? s.green('holds ') : s.red('FAILS ')}  ${r.violations}`);
+    }
+    lines.push('', 'Netlists');
+    for (const n of p.netlists) {
+      const dep = n.matchesDeployment === null ? '-' : yes(n.matchesDeployment);
+      lines.push(`  ${n.role.padEnd(7)} id ${n.id}  ${n.gates} gates  keccak ${n.keccak}`);
+      lines.push(`          matches source: ${yes(n.matchesSource)}  matches deployment: ${dep}`);
+    }
+    lines.push(
+      `CPU ${p.cpu}, policy ${p.policyId}, beacon frozen: ${p.beaconFrozen === null ? 'unknown' : yes(p.beaconFrozen)}`,
+    );
+    lines.push(`Checked ${p.combos.toLocaleString('en-US')} combinations in ${(p.ms / 1000).toFixed(1)} s`);
+    for (const i of p.issues) lines.push(s.red(`  issue: ${i}`));
+    for (const f of p.firstFailures) lines.push(s.red(`  counterexample: ${JSON.stringify(f)}`));
+  } else if (o.policyError) {
+    const e = o.policyError;
+    lines.push('', s.red(`Policy not proven: ${e.code}: ${e.message}`), `  ${e.hint}`);
+  } else {
+    lines.push('', 'Policy proof skipped (--no-policy).');
+  }
+  if (o.vault) {
+    const v = o.vault;
+    lines.push('', s.bold(`Vault ${v.address}: ${v.ok ? s.green('ok') : s.red('FAILED')} (${v.state})`));
+    for (const c of v.checks) {
+      lines.push(
+        `  ${c.ok ? s.green('ok  ') : s.red('FAIL')} ${c.name}${c.ok ? '' : `  expected ${c.expected ?? '-'}, got ${c.actual ?? '-'}`}`,
+      );
+    }
+    if (v.unchanged !== null) lines.push(`  runs the proven policy: ${yes(v.unchanged)}`);
+  }
+  lines.push(
+    ...warningLines(o.warnings, s),
+    '',
+    o.ok ? s.green(o.summary) : s.red(o.summary),
+    ...untrustedLines(o.untrusted),
+    '',
+  );
+  return lines.join('\n');
 }

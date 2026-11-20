@@ -1,0 +1,24 @@
+Usage: atropyle verify [options]
+
+prove the policy circuit over all 2^26 inputs from independent RPCs; --vault
+checks a vault too
+
+Options:
+  --vault <address>    also check this vault against the deployment
+  --no-policy          skip the 2^26 proof and only check the vault
+  --single-rpc         read from the first RPC operator only (warns SINGLE_RPC)
+  --verify-rpc <url>   an RPC operator; repeat for each; replaces the deployment
+                       list
+  -h, --help           display help for command
+
+Global Options:
+  -V, --version        output the version number
+  --chain <name>       chain, default xlayer (env: ATROPYLE_CHAIN); xlayer works
+                       after the mainnet deployment, use --deployment <file>
+                       until then (choices: "xlayer", "local")
+  --rpc <url>          read RPC of that chain (env: ATROPYLE_RPC)
+  --deployment <file>  deployment JSON; wins over --chain (env:
+                       ATROPYLE_DEPLOYMENT)
+  --json               print exactly one JSON object (schemaVersion 1)
+  --no-color           print without colors
+  --verbose            log every RPC request to stderr
