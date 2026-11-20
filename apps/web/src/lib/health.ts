@@ -15,6 +15,8 @@ export interface Health {
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const MAX_RPCS = 16;
+/** A wei amount as a decimal string; 40 digits is far above any real balance. */
+const BALANCE = /^\d{1,40}$/;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isStringOrNull = (v: unknown): v is string | null => v === null || typeof v === 'string';
@@ -30,6 +32,7 @@ export function parseHealth(raw: unknown): Health | null {
   if (!isNumberOrNull(lastCronAgeSec) || !isNumberOrNull(cursorLagBlocks)) return null;
   if (!isObject(keeper) || !isStringOrNull(keeper.address) || !isStringOrNull(keeper.balance)) return null;
   if (typeof keeper.dryRun !== 'boolean') return null;
+  if (keeper.balance !== null && !BALANCE.test(keeper.balance)) return null;
   const list: Health['rpcs'] = [];
   for (const r of rpcs.slice(0, MAX_RPCS)) {
     if (!isObject(r) || typeof r.url !== 'string' || typeof r.ok !== 'boolean' || !isNumberOrNull(r.ms)) return null;
@@ -47,6 +50,7 @@ export function parseHealth(raw: unknown): Health | null {
   };
 }
 
+/** Every failure, a timeout or a refused redirect included, is an AtropyleError UNKNOWN with a plain message. */
 export async function fetchHealth(
   workerUrl: string,
   fetchFn: FetchFn = (input, init) => fetch(input, init),
@@ -54,16 +58,34 @@ export async function fetchHealth(
 ): Promise<Health> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const fail = (message: string) => new AtropyleError('UNKNOWN', { message });
+  const timedOut = () => fail(`The Worker did not answer within ${timeoutMs} ms.`);
   try {
-    const res = await fetchFn(`${workerUrl}/health`, {
-      cache: 'no-store',
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new AtropyleError('UNKNOWN', { message: `The Worker answered HTTP ${res.status}.` });
-    const health = parseHealth(await res.json());
-    if (!health) throw new AtropyleError('UNKNOWN', { message: 'The Worker answered with an unexpected body.' });
+    let res: Response;
+    try {
+      // /health answers from the Worker itself or not at all: a redirect is refused.
+      res = await fetchFn(`${workerUrl}/health`, {
+        cache: 'no-store',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'error',
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      if (ctrl.signal.aborted) throw timedOut();
+      const why = e instanceof Error ? e.message : String(e);
+      throw fail(`Could not reach the Worker: ${why.slice(0, 200)}`);
+    }
+    if (!res.ok) throw fail(`The Worker answered HTTP ${res.status}.`);
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      if (ctrl.signal.aborted) throw timedOut();
+      throw fail('The Worker answered with an unexpected body.');
+    }
+    const health = parseHealth(body);
+    if (!health) throw fail('The Worker answered with an unexpected body.');
     return health;
   } finally {
     clearTimeout(timer);

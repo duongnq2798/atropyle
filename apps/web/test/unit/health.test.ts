@@ -32,8 +32,19 @@ describe('health', () => {
       { ...GOOD, rpcs: [{ url: 'https://a', ok: 'yes', ms: 1 }] },
       { ...GOOD, lastCronAgeSec: '30' },
       { ...GOOD, keeper: { ...GOOD.keeper, dryRun: 'no' } },
+      // The balance is a wei amount as a decimal string, and nothing else.
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: '' } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: '1e18' } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: '-1' } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: '0x10' } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: ' 1' } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: '1'.repeat(41) } },
+      { ...GOOD, keeper: { ...GOOD.keeper, balance: `1${'<b>x</b>'.repeat(1_000)}` } },
     ]) {
       expect(parseHealth(bad)).toBeNull();
+    }
+    for (const balance of ['0', '9'.repeat(40), null]) {
+      expect(parseHealth({ ...GOOD, keeper: { ...GOOD.keeper, balance } })?.keeper.balance).toBe(balance);
     }
   });
 
@@ -45,7 +56,12 @@ describe('health', () => {
     };
     await expect(fetchHealth('https://w.example.workers.dev', answer(200, GOOD))).resolves.toEqual(GOOD);
     expect(seen[0].url).toBe('https://w.example.workers.dev/health');
-    expect(seen[0].init).toMatchObject({ cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    expect(seen[0].init).toMatchObject({
+      cache: 'no-store',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      redirect: 'error',
+    });
     await expect(fetchHealth('https://w.example.workers.dev', answer(500, GOOD))).rejects.toThrow('HTTP 500');
     await expect(fetchHealth('https://w.example.workers.dev', answer(200, { status: 'ok' }))).rejects.toThrow(
       'unexpected body',
@@ -60,11 +76,33 @@ describe('health', () => {
     expect((e as AtropyleError).message).toContain('HTTP 503');
   });
 
-  it('fetchHealth gives up after the timeout', async () => {
+  const failure = async (p: Promise<unknown>) => {
+    const e = await p.catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(AtropyleError);
+    expect((e as AtropyleError).code).toBe('UNKNOWN');
+    return (e as AtropyleError).message;
+  };
+
+  it('fetchHealth gives up after the timeout with an UNKNOWN error that says so', async () => {
     const hang = (_url: string, init?: RequestInit) =>
       new Promise<Response>((_, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
       });
-    await expect(fetchHealth('https://w.example.workers.dev', hang, 10)).rejects.toThrow('aborted');
+    expect(await failure(fetchHealth('https://w.example.workers.dev', hang, 10))).toBe(
+      'The Worker did not answer within 10 ms.',
+    );
+  });
+
+  it('fetchHealth turns a network failure (a refused redirect is one) and a body that is not JSON into UNKNOWN errors', async () => {
+    const offline = async () => {
+      throw new TypeError('Failed to fetch');
+    };
+    expect(await failure(fetchHealth('https://w.example.workers.dev', offline))).toBe(
+      'Could not reach the Worker: Failed to fetch',
+    );
+    const notJson = async () => new Response('<html>Sign in</html>', { status: 200 });
+    expect(await failure(fetchHealth('https://w.example.workers.dev', notJson))).toBe(
+      'The Worker answered with an unexpected body.',
+    );
   });
 });
