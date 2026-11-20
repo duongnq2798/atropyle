@@ -43,7 +43,7 @@ function actionTypeOf(name: string): VaultActionType {
 }
 
 /** `address[:percent]`, repeated. No share anywhere: equal shares, and the rounding remainder goes to the first heir. */
-function parseHeirs(specs: readonly string[]): HeirInput[] {
+export function parseHeirs(specs: readonly string[]): HeirInput[] {
   if (specs.length === 0) throw new UsageError('Give at least one --heir <address[:percent]>.');
   const parsed = specs.map((spec, i) => {
     const parts = spec.split(':');
@@ -65,7 +65,7 @@ function parseHeirs(specs: readonly string[]): HeirInput[] {
   });
 }
 
-function parseAssets(specs: readonly string[]): AssetInput[] {
+export function parseAssets(specs: readonly string[]): AssetInput[] {
   return specs.map((spec, i) => {
     const m = /^(erc20|erc721|erc1155):([^:@]+)(?::(\d+))?(?:@(\d+))?$/.exec(spec.trim());
     if (!m) {

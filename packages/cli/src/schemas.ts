@@ -4,6 +4,9 @@ import {
   GetVaultOutputSchema,
   IntegrityReportSchema,
   ListVaultsOutputSchema,
+  PlanConfigSchema,
+  PlanInputSchema,
+  PlanIssueSchema,
   PrepareOutputSchema,
   SchemaVersionSchema,
   SimulateOutputSchema,
@@ -40,11 +43,27 @@ export const DoctorOutputSchema = z.object({
 });
 export type DoctorOutput = z.output<typeof DoctorOutputSchema>;
 
+export const PlanInitOutputSchema = z.object({
+  schemaVersion: SchemaVersionSchema,
+  ok: z.boolean(),
+  file: z.string(),
+  written: z.boolean(),
+  plan: PlanInputSchema,
+  config: PlanConfigSchema.nullable(),
+  issues: z.array(PlanIssueSchema),
+  next: z.array(z.string()).describe('Commands to run next'),
+  summary: z.string(),
+  warnings: z.array(WarningSchema),
+  untrusted: UntrustedBlockSchema,
+});
+export type PlanInitOutput = z.output<typeof PlanInitOutputSchema>;
+
 /** One published JSON Schema per command: packages/cli/schemas/<name>.json, plus error.json (decision 16). */
 export const CLI_SCHEMAS: Record<string, z.ZodType> = {
   status: GetVaultOutputSchema,
   vaults: ListVaultsOutputSchema,
   simulate: SimulateOutputSchema,
+  'plan-init': PlanInitOutputSchema,
   'plan-check': CheckPlanOutputSchema,
   prepare: PrepareOutputSchema,
   verify: VerifyOutputSchema,

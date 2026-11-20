@@ -16,8 +16,17 @@ async function readText(io: Io, file: string, code: 'PLAN_INVALID' | 'DEPLOYMENT
 }
 
 /** BOM and CRLF are fine; broken JSON is PLAN_INVALID with the file and the parser's position. */
-export const readPlan = async (io: Io, file: string): Promise<unknown> =>
-  parsePlanText(await readText(io, file, 'PLAN_INVALID'), file);
+export async function readPlan(io: Io, file: string): Promise<unknown> {
+  const plan = parsePlanText(await readText(io, file, 'PLAN_INVALID'), file);
+  if (typeof plan !== 'object' || plan === null || Array.isArray(plan)) {
+    throw new AtropyleError('PLAN_INVALID', {
+      message: `${file} must hold one JSON object.`,
+      hint: 'Create a plan with `atropyle plan init`.',
+      details: { file },
+    });
+  }
+  return plan;
+}
 
 export const readDeployment = async (io: Io, file: string): Promise<Deployment> =>
   parseDeploymentText(await readText(io, file, 'DEPLOYMENT_INVALID'), file);

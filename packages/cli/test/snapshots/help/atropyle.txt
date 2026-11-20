@@ -27,6 +27,7 @@ Commands:
                                        guardian
   simulate [options] [vault] [action]  what an action would do now or later
                                        (whatIf), or the timeline of a plan file
+  plan                                 create and check atropyle.plan.json files
   doctor                               check Node.js, every RPC, the chain ID,
                                        latency and the deployment integrity
   help [command]                       display help for command

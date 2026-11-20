@@ -1,0 +1,39 @@
+Usage: atropyle plan init [options]
+
+write atropyle.plan.json from flags
+
+Options:
+  --template <name>                 simple: heirs only; guarded: heirs and
+                                    guardians (choices: "simple", "guarded")
+  --preset <name>                   timing preset (choices: "drill",
+                                    "sixMonths", "twelveMonths")
+  --owner <address>                 owner wallet; plan check and prepare can
+                                    take --as instead
+  --heir <address[:percent]>        an heir and their share; repeat for each
+                                    heir
+  --guardian <address>              a guardian; repeat for each guardian
+  --k <n>                           how many guardians must agree
+  --recovery                        guardians may also recover a lost wallet
+                                    (off unless you give this flag)
+  --asset <kind:token[:id][@heir]>  an asset the vault covers; repeat for each;
+                                    @heir is the heir's index, counting from 0
+  --drill                           a practice vault: minutes instead of months,
+                                    expires after 7 days
+  --out <file>                      file to write (default:
+                                    "atropyle.plan.json")
+  --force                           overwrite the file if it exists
+  -h, --help                        display help for command
+
+Global Options:
+  -V, --version                     output the version number
+  --chain <name>                    chain, default xlayer (env: ATROPYLE_CHAIN);
+                                    xlayer works after the mainnet deployment,
+                                    use --deployment <file> until then (choices:
+                                    "xlayer", "local")
+  --rpc <url>                       read RPC of that chain (env: ATROPYLE_RPC)
+  --deployment <file>               deployment JSON; wins over --chain (env:
+                                    ATROPYLE_DEPLOYMENT)
+  --json                            print exactly one JSON object (schemaVersion
+                                    1)
+  --no-color                        print without colors
+  --verbose                         log every RPC request to stderr

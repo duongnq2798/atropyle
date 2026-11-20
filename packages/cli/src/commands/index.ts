@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 import type { Ctx } from '../context';
 import { registerDoctor } from './doctor';
+import { registerPlan } from './plan';
 import { registerSimulate } from './simulate';
 import { registerStatus } from './status';
 import { registerVaults } from './vaults';
@@ -10,5 +11,6 @@ export function registerCommands(program: Command, ctx: Ctx): void {
   registerStatus(program, ctx);
   registerVaults(program, ctx);
   registerSimulate(program, ctx);
+  registerPlan(program, ctx);
   registerDoctor(program, ctx);
 }

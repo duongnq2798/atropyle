@@ -1,7 +1,14 @@
-import { type GetVaultOutput, iso, type ListVaultsOutput, type SimulateOutput } from '@atropyle/mcp/ops';
+import {
+  type CheckPlanOutput,
+  type GetVaultOutput,
+  iso,
+  type ListVaultsOutput,
+  type SimulateOutput,
+} from '@atropyle/mcp/ops';
 import { formatDuration } from '@atropyle/sdk';
 import { formatUnits } from 'viem';
 import { untrustedLines } from './output';
+import type { PlanInitOutput } from './schemas';
 import type { Style } from './style';
 
 type Timeline = GetVaultOutput['timeline'];
@@ -94,5 +101,37 @@ export function formatSimulate(o: SimulateOutput, s: Style): string {
     lines.push('Timeline if the owner never checks in', ...timelineLines(o.timeline));
   }
   lines.push(...warningLines(o.warnings, s), ...untrustedLines(o.untrusted), '');
+  return lines.join('\n');
+}
+
+const issueLines = (issues: readonly { path: string; code: string; message: string }[], s: Style) =>
+  issues.map((i) => `  ${s.red(i.code.padEnd(18))} ${i.path}: ${i.message}`);
+
+export function formatPlanCheck(o: CheckPlanOutput, s: Style): string {
+  const lines = [o.ok ? s.green(s.bold(o.summary)) : s.red(s.bold(o.summary)), ...issueLines(o.issues, s)];
+  if (o.tokens.length > 0) lines.push('Tokens (names are in the block at the end)');
+  for (const t of o.tokens) {
+    const d = t.info?.decimals ?? null;
+    const kind = t.isContract ? 'contract' : s.red('NOT A CONTRACT');
+    lines.push(
+      `  [${t.index}] ${t.kind} ${t.token}  ${kind}  decimals ${d ?? '-'}  owner holds ${t.held === null ? '-' : amount(t.held, d)}`,
+    );
+  }
+  const fees = o.fees.tokens.map((f) => `${amount(f.fee, f.decimals)} of ${f.token}`);
+  const early = BigInt(o.fees.earlyRemaining) > 0n ? ` (early price for ${o.fees.earlyRemaining} more vaults)` : '';
+  lines.push(`Fee now    ${fees.length > 0 ? fees.join(', or ') : 'none'}${early}`);
+  if (o.contractHeirs.length > 0) {
+    lines.push(
+      s.yellow(`Heirs that are contracts: ${o.contractHeirs.join(', ')}. Make sure they can receive tokens and NFTs.`),
+    );
+  }
+  lines.push(...warningLines(o.warnings, s), ...untrustedLines(o.untrusted), '');
+  return lines.join('\n');
+}
+
+export function formatPlanInit(o: PlanInitOutput, s: Style): string {
+  const lines = [o.ok ? s.green(o.summary) : s.red(o.summary), ...issueLines(o.issues, s)];
+  if (o.next.length > 0) lines.push('', 'Next:', ...o.next.map((c) => `  ${c}`));
+  lines.push(...warningLines(o.warnings, s), '');
   return lines.join('\n');
 }
