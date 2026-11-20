@@ -18,6 +18,10 @@ interface Plugin {
   version: string;
   mcpServers: unknown;
 }
+interface ServerJson {
+  version?: string;
+  packages?: { version?: string }[];
+}
 interface Pkg {
   version?: string;
   scripts?: Record<string, string>;
@@ -36,7 +40,9 @@ describe('Claude Code plugin', () => {
     const version = json<Pkg>('packages/mcp/package.json').version;
     expect(p.name).toBe('atropyle');
     expect(p.version).toBe(version);
-    expect(json<Pkg>('server.json').version).toBe(version);
+    const server = json<ServerJson>('server.json');
+    expect(server.version).toBe(version);
+    expect(server.packages?.[0]?.version).toBe(version);
     expect(p.mcpServers).toEqual({ atropyle: { command: 'npx', args: ['-y', `@atropyle/mcp@${version}`] } });
     expect(text('.claude-plugin/plugin.json')).not.toMatch(/\b(api[_-]?key|private[_-]?key|secret|token|password)\b/i);
   });
@@ -46,6 +52,22 @@ describe('Claude Code plugin', () => {
     expect(existsSync(join(ROOT, '.mcp.json'))).toBe(false);
   });
 });
+
+/** Every npm script that AGENTS.md names, in code blocks and inline, that its package.json lacks. */
+function missingScripts(md: string): string[] {
+  const inline = [...md.matchAll(/`(npm run [\w:-]+[^`]*)`/g)].map((m) => m[1]);
+  const missing: string[] = [];
+  for (const c of [...commandsOf(md), ...inline].filter((x) => x.startsWith('npm run '))) {
+    const m = /^npm run ([\w:-]+)(?:\s+(?:-w|--workspace)[ =](\S+))?/.exec(c);
+    if (!m) throw new Error(`unparsable command: ${c}`);
+    const [, script, workspace] = m;
+    const pkg = workspace === undefined ? 'package.json' : `${workspace}/package.json`;
+    if (!Object.keys(json<Pkg>(pkg).scripts ?? {}).includes(script)) {
+      missing.push(workspace === undefined ? script : `${script} (${workspace})`);
+    }
+  }
+  return missing;
+}
 
 describe('AGENTS.md', () => {
   const agents = text('AGENTS.md');
@@ -65,14 +87,22 @@ describe('AGENTS.md', () => {
   });
 
   it('names only npm scripts that exist', () => {
-    const runs = commandsOf(agents).filter((c) => c.startsWith('npm run '));
-    expect(runs.length).toBeGreaterThan(5);
-    for (const c of runs) {
-      const m = /^npm run ([\w:-]+)(?: -w (\S+))?/.exec(c);
-      expect(m, c).not.toBeNull();
-      const [, script, workspace] = m as RegExpExecArray;
-      const pkg = workspace === undefined ? 'package.json' : `${workspace}/package.json`;
-      expect(Object.keys(json<Pkg>(pkg).scripts ?? {}), c).toContain(script);
-    }
+    expect(commandsOf(agents).filter((c) => c.startsWith('npm run ')).length).toBeGreaterThan(5);
+    expect(missingScripts(agents)).toEqual([]);
+  });
+
+  it('catches inline commands that name a missing script', () => {
+    const bogus = `${agents}\nRun \`npm run no-such-script --workspace packages/cli\` and \`npm run nope -w packages/mcp\`.\n`;
+    expect(missingScripts(bogus)).toEqual(['no-such-script (packages/cli)', 'nope (packages/mcp)']);
+  });
+
+  it('names only paths that exist', () => {
+    // Private notes that are never in git, and a directory that later plans add.
+    const notYet = new Set(['prompts/', 'reports/', 'research_notes/', 'external_research/', 'apps/']);
+    const paths = [...agents.matchAll(/`([\w.-]+(?:\/[\w.-]+)*\/?)`/g)]
+      .map((m) => m[1])
+      .filter((p) => p.endsWith('/') || /\.\w+$/.test(p));
+    expect(paths.length).toBeGreaterThan(8);
+    for (const p of paths) if (!notYet.has(p)) expect(existsSync(join(ROOT, p)), p).toBe(true);
   });
 });
