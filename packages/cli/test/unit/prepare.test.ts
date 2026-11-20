@@ -112,6 +112,14 @@ describe('handOver', () => {
     expect(run({ format: 'link' }, out).io.stdout).toContain('Use --format cast, --format calls or --format okx.');
   });
 
+  it('offers --format okx only when the handoff has OKX commands', () => {
+    const native = run({ format: 'link' }, make({ handoff: handoff({ link: null, okx: null }) })).io.stdout;
+    expect(native).toContain('Use --format cast or --format calls.');
+    expect(native).not.toContain('--format okx');
+    const callsOnly = run({ format: 'link' }, make({ handoff: handoff({ link: null, cast: [], okx: null }) }));
+    expect(callsOnly.io.stdout).toContain('Use --format calls.');
+  });
+
   it('prints calls and exits 0 for a handoff without cast commands in --format calls', () => {
     const r = run({ format: 'calls' }, make({ handoff: handoff({ cast: [] }) }));
     expect(r.code).toBe(0);

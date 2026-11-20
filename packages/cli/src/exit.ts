@@ -7,6 +7,12 @@ export class UsageError extends AtropyleError {
   }
 }
 
+/**
+ * A value the user typed, safe to echo in an error: '…' for a URL, or a value with one inside, which can carry an API
+ * key. None of the options that echo their value takes a URL.
+ */
+export const redactUrl = (value: string): string => (URL.canParse(value) || value.includes('://') ? '…' : value);
+
 export const EXIT = { ok: 0, error: 1, usage: 2, verification: 3, network: 4 } as const;
 
 const USAGE = new Set<string>(['INVALID_OPTIONS', 'INVALID_ADDRESS']);

@@ -6,18 +6,18 @@ Guidance for coding agents that work in this repository.
 
 Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every state change of a vault, and anyone can prove it with `npx atropyle verify`.
 
-| Path                                                  | What                                                                                    |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `contracts/`                                          | Solidity contracts (Foundry)                                                            |
-| `circuits/`                                           | The policy circuit and its netlists                                                     |
-| `packages/sdk/`                                       | `@atropyle/sdk`: read, simulate, verify and prepare                                     |
-| `packages/mcp/`                                       | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`) |
-| `packages/cli/`                                       | `atropyle`: the CLI                                                                     |
-| `skills/`                                             | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                         |
-| `.claude-plugin/`                                     | Claude Code marketplace and plugin                                                      |
-| `examples/`                                           | `agent-mcp-client`: an MCP client that never signs, and client configs                  |
-| `apps/` (web app, Worker, docs; added by later plans) | Not in the repository yet                                                               |
-| `deployments/`                                        | Deployed addresses, per chain                                                           |
+| Path                                                  | What                                                                                                                 |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `contracts/`                                          | Solidity contracts (Foundry)                                                                                         |
+| `circuits/`                                           | The policy circuit and its netlists                                                                                  |
+| `packages/sdk/`                                       | `@atropyle/sdk`: read, simulate, verify and prepare                                                                  |
+| `packages/mcp/`                                       | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                              |
+| `packages/cli/`                                       | `atropyle`: the CLI                                                                                                  |
+| `skills/`                                             | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                      |
+| `.claude-plugin/`                                     | Claude Code marketplace and plugin                                                                                   |
+| `examples/`                                           | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines |
+| `apps/` (web app, Worker, docs; added by later plans) | Not in the repository yet                                                                                            |
+| `deployments/`                                        | Deployed addresses, per chain                                                                                        |
 
 ## Setup
 

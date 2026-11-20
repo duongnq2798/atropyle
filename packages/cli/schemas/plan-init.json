@@ -71,6 +71,7 @@
               "maximum": 9007199254740991
             },
             "recoveryEnabled": {
+              "description": "Recovery. Off unless the owner asks for it. When true, k guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet. The owner can stop it only by checking in before the window ends. Set true only if the owner asked for recovery and would trust any k of the guardians with everything.",
               "type": "boolean"
             },
             "timing": {

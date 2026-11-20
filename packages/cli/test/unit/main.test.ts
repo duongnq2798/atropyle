@@ -109,6 +109,39 @@ describe('main', () => {
     });
   });
 
+  describe('usage errors never echo a URL typed into the wrong place', () => {
+    const KEY_URL = 'https://rpc.example.test/key-abc';
+    const V = '0x0000000000000000000000000000000000000001';
+    const prep = (name: string, ...flags: string[]) => ['prepare', name, V, '--as', V, ...flags];
+    it.each<[string, string[], Record<string, string>]>([
+      ['--deployment', ['doctor', '--deployment', KEY_URL], {}],
+      ['ATROPYLE_DEPLOYMENT', ['doctor'], { ATROPYLE_DEPLOYMENT: KEY_URL }],
+      ['ATROPYLE_CHAIN', ['doctor'], { ATROPYLE_CHAIN: KEY_URL }],
+      ['a plan file', ['plan', 'check', KEY_URL], {}],
+      ['a prepare action', prep(KEY_URL), {}],
+      ['a simulate action', ['simulate', V, KEY_URL, '--as', V], {}],
+      ['--heir', prep('set-heirs', '--heir', 'https://rpc.example.test:8545/key-abc'), {}],
+      ['--heir with a URL after the address', prep('set-heirs', '--heir', `${V}:${KEY_URL}`), {}],
+      ['--asset', prep('set-assets', '--asset', KEY_URL), {}],
+      ['--timing', prep('set-timing', '--timing', KEY_URL), {}],
+    ])('%s', async (_, argv, env) => {
+      for (const json of [false, true]) {
+        const io = memoryIo({ env });
+        expect(await main([...argv, ...(json ? ['--json'] : [])], io), `json=${json}`).not.toBe(0);
+        expect(io.stdout + io.stderr, `json=${json}`).not.toContain('key-abc');
+      }
+    });
+
+    it('still names a plain file and a plain chain', async () => {
+      const file = memoryIo();
+      expect(await main(['doctor', '--deployment', 'missing.json'], file)).toBe(1);
+      expect(file.stderr).toContain('Cannot read missing.json.');
+      const chain = memoryIo({ env: { ATROPYLE_CHAIN: 'mars' } });
+      expect(await main(['doctor'], chain)).toBe(2);
+      expect(chain.stderr).toContain('Unknown chain "mars"');
+    });
+  });
+
   it('exits 2 for `help bogus` without saying no command was given', async () => {
     const io = memoryIo();
     expect(await main(['help', 'bogus', '--json'], io)).toBe(2);

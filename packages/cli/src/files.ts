@@ -1,5 +1,6 @@
 import { parseDeploymentText, parsePlanText } from '@atropyle/mcp/ops';
 import { AtropyleError, type Deployment } from '@atropyle/sdk';
+import { redactUrl } from './exit';
 import type { Io } from './io';
 
 async function readText(io: Io, file: string, code: 'PLAN_INVALID' | 'DEPLOYMENT_INVALID'): Promise<string> {
@@ -11,7 +12,9 @@ async function readText(io: Io, file: string, code: 'PLAN_INVALID' | 'DEPLOYMENT
       reason === 'ENOENT'
         ? 'Check the path. A relative path starts from the current directory.'
         : `The file exists but cannot be read (${reason}). Check its permissions, and that it is a file.`;
-    throw new AtropyleError(code, { message: `Cannot read ${file}.`, hint, details: { file, reason } });
+    // A URL in the wrong flag would otherwise be printed, with any API key in it.
+    const name = redactUrl(file);
+    throw new AtropyleError(code, { message: `Cannot read ${name}.`, hint, details: { file: name, reason } });
   }
 }
 

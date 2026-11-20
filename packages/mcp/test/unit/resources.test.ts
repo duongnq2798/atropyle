@@ -122,4 +122,25 @@ describe('prompts', () => {
     expect(text).toContain('GUARDIAN_VERIFY_OUT_OF_BAND');
     expect(text).toContain('atropyle_verify');
   });
+
+  it('names recovery as a power in both prompts, never as help', async () => {
+    const client = await open();
+    const promptText = async (name: string) =>
+      ((await client.getPrompt({ name, arguments: {} })).messages[0].content as { text: string }).text;
+    const plan = await promptText('plan_inheritance');
+    const guardian = await promptText('guardian_briefing');
+    expect(plan).toContain('wallet they choose');
+    expect(guardian).toContain('a wallet the guardians vote for, meant for the owner’s new wallet');
+    for (const [name, text] of [
+      ['plan_inheritance', plan],
+      ['guardian_briefing', guardian],
+    ]) {
+      expect(text, name).toContain('checking in before the window ends');
+      expect(text, name).not.toMatch(/help me recover/i);
+    }
+    expect(plan).toContain('up to 5 people who can confirm my death)');
+    expect(plan).toContain('Recovery is a separate question, and it is off unless I ask for it');
+    expect(plan).toContain('Offer it only if I would trust any `k` of the guardians with everything');
+    expect(guardian).toContain('Get it from the owner in person, or on a call where you recognise the owner');
+  });
 });

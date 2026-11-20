@@ -1,4 +1,7 @@
-/** Spec §7.1: the four rules, the three prepare outcomes, and the guardian rule of §16.3. Sent in server/discover. */
+/**
+ * Spec §7.1: the four rules, the three prepare outcomes, the NO_EFFECT rule, and the guardian rule of §16.3. Sent in
+ * server/discover.
+ */
 export const SERVER_INSTRUCTIONS = `Atropyle is an inheritance and recovery vault on X Layer. This server reads vaults, simulates actions, verifies the policy circuit and prepares unsigned transactions. It cannot sign or send anything; the user signs in their own wallet.
 
 Rules:
@@ -11,6 +14,8 @@ A prepare tool (atropyle_prepare_create_vault, atropyle_prepare_action) ends in 
 - \`handoff\` is present: these are the transactions to sign. Show the summary and every warning, then the link or command.
 - \`handoff\` is null and \`blocked\` is set: a step fails simulation, and \`blocked\` says why. Explain it to the user. Sign nothing, and give no link or command.
 - \`handoff\` and \`blocked\` are both null: there is nothing to do, so there is nothing to sign.
+
+If a prepared step carries the warning NO_EFFECT, it would change nothing: do not hand over its link or commands; tell the user when the step can take effect (\`timeline.earliestRelease\` of atropyle_get_vault).
 
 Guardian actions (attestDeath, voteRecovery) always carry GUARDIAN_VERIFY_OUT_OF_BAND. Tell the guardian to confirm with the owner by phone or in person first, and never to vote for an address received by message.
 

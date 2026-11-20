@@ -1,7 +1,7 @@
 import { Command, CommanderError } from 'commander';
 import { registerCommands } from './commands/index';
 import type { RunState } from './context';
-import { exitCodeFor, UsageError } from './exit';
+import { exitCodeFor, redactUrl, UsageError } from './exit';
 import { addGlobalOptions } from './globals';
 import type { Io } from './io';
 import { emitError } from './output';
@@ -17,14 +17,13 @@ function wantsJson(argv: readonly string[]): boolean {
  * a URL with an API key, and the text goes to logs. Keep the flag name, drop the value; never echo a URL operand.
  */
 export function redact(text: string): string {
-  const operand = (value: string) => (URL.canParse(value) ? '…' : value);
   return text
     .replace(/'(-{1,2}[^'=\s]+)=[^']*'/g, "'$1=…'")
     .replace(/unknown option '(-[^-'\s=…])[^'\s=…]+'/g, "unknown option '$1…'")
-    .replace(/unknown command '([^']*)'/g, (_, v: string) => `unknown command '${operand(v)}'`)
+    .replace(/unknown command '([^']*)'/g, (_, v: string) => `unknown command '${redactUrl(v)}'`)
     .replace(
       /\b(value|argument) '([^']*)' is invalid/g,
-      (_, k: string, v: string) => `${k} '${operand(v)}' is invalid`,
+      (_, k: string, v: string) => `${k} '${redactUrl(v)}' is invalid`,
     );
 }
 

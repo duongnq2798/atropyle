@@ -47,6 +47,7 @@ describe('prepare operations on the devnet', () => {
     expect(out.handoff?.notes).toContain(OKX_NOTE);
     expect(OKX_NOTE).toContain('--force only after they agree');
     expect(OKX_NOTE).toContain('Run a command only after the user has seen the summary and every warning and agreed');
+    expect(OKX_NOTE).toContain("The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet.");
   });
 
   it('an https webUrl also gives the OKX App link', async () => {

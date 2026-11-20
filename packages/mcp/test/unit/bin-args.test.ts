@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import type { AtropyleError, Deployment } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { parseBinArgs } from '../../src/bin-args';
+import { errorOutput } from '../../src/ops/index';
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/deployment.json', import.meta.url));
 const chainIs =
@@ -91,6 +92,22 @@ describe('parseBinArgs', () => {
     const e = (await parseBinArgs(['--bogus=https://host/v2/SECRETKEY'], {}).catch((x: unknown) => x)) as AtropyleError;
     expect(e.code).toBe('INVALID_OPTIONS');
     expect(JSON.stringify([e.message, e.hint, e.details])).not.toContain('SECRETKEY');
+  });
+
+  it('never echoes a URL given as the deployment file, and still names a plain file', async () => {
+    const KEY_URL = 'https://rpc.example.test/key-abc';
+    for (const [argv, env] of [
+      [['--deployment', KEY_URL], {}],
+      [[], { ATROPYLE_DEPLOYMENT: KEY_URL }],
+    ] as const) {
+      const e = await parseBinArgs(argv, env).catch((x: unknown) => x);
+      const out = errorOutput(e);
+      expect(out.error.code).toBe('DEPLOYMENT_INVALID');
+      // bin.ts writes the summary to stderr; details go nowhere else.
+      expect(JSON.stringify([out.summary, out.error.details])).not.toContain('key-abc');
+    }
+    const plain = errorOutput(await parseBinArgs(['--deployment', 'missing.json'], {}).catch((x: unknown) => x));
+    expect(plain.summary).toContain('missing.json');
   });
 
   it('says once, without the URL, that a silent RPC will not stop the start', async () => {

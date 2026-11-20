@@ -1,6 +1,6 @@
 import type { ChainName } from '@atropyle/sdk';
 import { type Command, Option } from 'commander';
-import { UsageError } from './exit';
+import { redactUrl, UsageError } from './exit';
 import type { Io } from './io';
 
 export interface Globals {
@@ -40,7 +40,9 @@ export function globalsOf(cmd: Command, io: Io): Globals {
   }>();
   const env = (k: string) => io.env[k] || undefined;
   const chain = o.chain ?? env('ATROPYLE_CHAIN') ?? 'xlayer';
-  if (chain !== 'xlayer' && chain !== 'local') throw new UsageError(`Unknown chain "${chain}". Use xlayer or local.`);
+  if (chain !== 'xlayer' && chain !== 'local') {
+    throw new UsageError(`Unknown chain "${redactUrl(chain)}". Use xlayer or local.`);
+  }
   const rpc = o.rpc ?? env('ATROPYLE_RPC');
   // Neither message echoes the value: an RPC URL can carry an API key.
   if (rpc !== undefined && !URL.canParse(rpc))

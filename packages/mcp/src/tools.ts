@@ -102,7 +102,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: 'atropyle_prepare_action',
     title: 'Prepare a vault action',
-    description: `Prepare and simulate one unsigned vault action as \`as\`: checkIn, setHeirs, setGuardians, setTiming, setAssets, attestDeath, voteRecovery, poke, distribute or revokeAll. Guardian actions carry GUARDIAN_VERIFY_OUT_OF_BAND. ${PREPARE_OUTCOMES} This server cannot sign or send.`,
+    description: `Prepare and simulate one unsigned vault action as \`as\`: checkIn, setHeirs, setGuardians, setTiming, setAssets, attestDeath, voteRecovery, poke, distribute or revokeAll. Guardian actions carry GUARDIAN_VERIFY_OUT_OF_BAND. ${PREPARE_OUTCOMES} A step with the warning NO_EFFECT changes nothing: give no link or command for it. This server cannot sign or send.`,
     inputSchema: PrepareActionInputSchema.omit({ webUrl: true }),
     outputSchema: PrepareOutputSchema,
     annotations: READ_ONLY,

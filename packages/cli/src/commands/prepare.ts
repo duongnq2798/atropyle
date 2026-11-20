@@ -10,7 +10,7 @@ import { ACTION_LIST, ACTIONS, buildAction } from '../actions';
 import { type ActionFlags, addActionOptions, addressArg, givenFlags } from '../args';
 import { clientFor } from '../client';
 import { action, type Ctx } from '../context';
-import { EXIT, UsageError } from '../exit';
+import { EXIT, redactUrl, UsageError } from '../exit';
 import { readPlan } from '../files';
 import { briefPrepare, formatPrepare } from '../format';
 import type { Globals } from '../globals';
@@ -63,7 +63,7 @@ async function prepareOf(ctx: Ctx, g: Globals, name: string, target: string, o: 
   }
   // Own keys only (as in actionTypeOf); this check also names create-vault in the message.
   if (!Object.hasOwn(ACTIONS, name)) {
-    throw new UsageError(`Unknown action "${name}". Use create-vault or one of: ${ACTION_LIST}.`);
+    throw new UsageError(`Unknown action "${redactUrl(name)}". Use create-vault or one of: ${ACTION_LIST}.`);
   }
   if (o.drill || o.feeToken !== undefined || o.salt !== undefined) {
     throw new UsageError('--drill, --fee-token and --salt only apply to create-vault.');

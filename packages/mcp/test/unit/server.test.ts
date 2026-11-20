@@ -20,6 +20,15 @@ const STDIO_TOOLS = [
   'atropyle_prepare_action',
 ];
 const VAULT = '0x0000000000000000000000000000000000000001';
+
+/** The description of every `recoveryEnabled` property in a JSON Schema, wherever it sits. */
+function recoveryDescriptions(schema: unknown): unknown[] {
+  if (typeof schema !== 'object' || schema === null) return [];
+  const props = (schema as { properties?: Record<string, { description?: unknown }> }).properties;
+  const own = props !== undefined && Object.hasOwn(props, 'recoveryEnabled') ? [props.recoveryEnabled.description] : [];
+  return [...own, ...Object.values(schema).flatMap(recoveryDescriptions)];
+}
+
 const server =
   (extra: Partial<AtropyleMcpOptions> = {}) =>
   () =>
@@ -54,6 +63,38 @@ describe('MCP server', () => {
     );
     expect(SERVER_INSTRUCTIONS).toMatch(/`handoff` and `blocked` are both null[^.]*nothing to do/s);
     expect(SERVER_INSTRUCTIONS).not.toMatch(/null handoff (always|means)/i);
+  });
+
+  it('tells the agent to hand over nothing for a step with NO_EFFECT', () => {
+    expect(SERVER_INSTRUCTIONS).toContain(
+      'If a prepared step carries the warning NO_EFFECT, it would change nothing: do not hand over its link or commands; tell the user when the step can take effect (`timeline.earliestRelease`',
+    );
+    const d = TOOL_DEFINITIONS.find((t) => t.name === 'atropyle_prepare_action')?.description;
+    expect(d).toContain('A step with the warning NO_EFFECT changes nothing: give no link or command for it.');
+  });
+
+  it('describes recoveryEnabled as a power wherever a tool takes it', async () => {
+    c = await connect(server());
+    const { tools } = await c.client.listTools();
+    const found = tools
+      .map((t) => [t.name, recoveryDescriptions(t.inputSchema)] as const)
+      .filter(([, descriptions]) => descriptions.length > 0);
+    expect(found.map(([name]) => name).sort()).toEqual([
+      'atropyle_check_plan',
+      'atropyle_prepare_action',
+      'atropyle_prepare_create_vault',
+      'atropyle_simulate',
+    ]);
+    for (const [name, descriptions] of found) {
+      for (const d of descriptions) {
+        expect(d, name).toContain('Off unless the owner asks for it');
+        expect(d, name).toContain('k guardians who agree can move everything in the vault to a wallet they choose');
+        expect(d, name).toContain('The owner can stop it only by checking in before the window ends');
+        expect(d, name).toContain(
+          'Set true only if the owner asked for recovery and would trust any k of the guardians with everything',
+        );
+      }
+    }
   });
 
   it('lists the 7 tools of the spec, each read-only with an input and an output schema', async () => {
@@ -175,6 +216,7 @@ describe('MCP server, remote mode', () => {
     expect(text).toContain('npx -y atropyle verify');
     expect(text).toContain('Never ask for a private key, seed phrase or password');
     expect(text).toContain('`handoff` and `blocked` are both null');
+    expect(text).toContain('If a prepared step carries the warning NO_EFFECT, it would change nothing');
   });
 
   it('the prompts do not send the agent to atropyle_verify, which does not exist here', async () => {

@@ -27,15 +27,18 @@ export type BinCommand = { kind: 'help' } | { kind: 'version' } | { kind: 'run';
 
 const CHAINS: readonly string[] = ['xlayer', 'local'];
 const usage = (message: string) => new AtropyleError('INVALID_OPTIONS', { message, hint: 'Run atropyle-mcp --help.' });
+/** '…' for a URL, or a value with one inside: a URL in the wrong flag can carry an API key. As `redactUrl` in the CLI. */
+const redactUrl = (value: string): string => (URL.canParse(value) || value.includes('://') ? '…' : value);
 
 async function loadDeployment(file: string): Promise<Deployment> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');
   } catch {
+    const name = redactUrl(file);
     throw new AtropyleError('DEPLOYMENT_INVALID', {
-      message: `Cannot read the deployment file ${file}.`,
-      details: { file },
+      message: `Cannot read the deployment file ${name}.`,
+      details: { file: name },
     });
   }
   return parseDeploymentText(text, file);

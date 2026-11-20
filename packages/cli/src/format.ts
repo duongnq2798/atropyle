@@ -186,7 +186,12 @@ export function formatPrepare(o: PrepareOutput, s: Style, qr: string | null, qrN
     else if (qrNote) lines.push(s.dim(qrNote));
     if (h.okxAppLink) lines.push('', 'Open in the OKX App:', h.okxAppLink);
   } else if (h) {
-    lines.push('', `Use ${h.cast.length > 0 ? '--format cast, ' : ''}--format calls or --format okx.`);
+    // Only the formats that print something: okx is null when a step sends native value.
+    const formats = [...(h.cast.length > 0 ? ['cast'] : []), 'calls', ...(h.okx === null ? [] : ['okx'])].map(
+      (f) => `--format ${f}`,
+    );
+    const last = formats.pop();
+    lines.push('', `Use ${formats.length > 0 ? `${formats.join(', ')} or ` : ''}${last}.`);
   }
   lines.push('', s.dim('Atropyle never asks for your private key or seed phrase.'), ...untrustedLines(o.untrusted), '');
   return lines.join('\n');

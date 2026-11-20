@@ -30,6 +30,8 @@ This skill drives the `atropyle` CLI. With `--json`, every command prints exactl
 
 Until the X Layer mainnet deployment, add `--deployment <file>` to every command; without it the CLI stops with DEPLOYMENT_MISSING.
 
+`npx -y atropyle` works once the maintainer publishes the package to npm. Until then, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`). On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
+
 ```bash
 npx -y atropyle doctor --json
 ```
@@ -56,7 +58,7 @@ Start with a Drill:
 npx -y atropyle plan init --heir <HEIR_1>:70 --heir <HEIR_2>:30 --guardian <GUARDIAN_1> --guardian <GUARDIAN_2> --k 2 --asset erc20:<TOKEN> --owner <OWNER> --drill --json
 ```
 
-Without guardians, leave out `--guardian` and `--k`. Add `--recovery` if guardians may also recover a lost wallet. For the real vault, run the command again without `--drill`, with `--preset sixMonths` or `--preset twelveMonths`, and with `--force` to replace the file.
+Without guardians, leave out `--guardian` and `--k`. Add `--recovery` only if the owner said yes to recovery in step 3 of the interview. For the real vault, run the command again without `--drill`, with `--preset sixMonths` or `--preset twelveMonths`, and with `--force` to replace the file.
 
 The output has `ok`, `issues` and `next`. With `ok: false` nothing was written and the exit code is 1: fix each issue (`path`, `code`, `message`) and run the command again.
 
@@ -90,9 +92,9 @@ Without `--drill`, an approval of the fee comes first, only when the allowance i
 
 ### With the OKX Agentic Wallet
 
-Only when the user chose to sign with their own OKX Agentic Wallet (`onchainos`). It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
+Only when the user chose to sign with their OKX Agentic Wallet (`onchainos`). The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet. A vault created this way is owned by that account, and its check-ins must come from it. It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
 
-These commands sign and broadcast from the user's wallet, so the user's yes comes before every run. For an existing vault, run `verify --vault` first, as in §6. For create-vault, the Agentic Wallet becomes the vault's owner, because `createVault` uses the sender: its address belongs in `plan init --owner`, and its tokens are what the vault covers.
+These commands sign and broadcast from the Agentic Wallet, so the user's yes comes before every run. For an existing vault, run `verify --vault` first, as in §6. For create-vault, the Agentic Wallet becomes the vault's owner, because `createVault` uses the sender: its address belongs in `plan init --owner`, and its tokens are what the vault covers.
 
 1. Show the user the step (its `action`, `summary` and `simulation`), the `summary` and every entry of `warnings`, and ask for a clear yes to sign it. Run its command only after that yes.
 2. The command may answer `confirming` and exit with code 2, with a message for the user. Show that message to the user and wait for a clear yes.

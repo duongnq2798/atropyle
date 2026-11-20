@@ -1,7 +1,7 @@
 import type { VaultActionInput } from '@atropyle/mcp/ops';
 import { toAddress } from '@atropyle/sdk';
 import { type ActionFlags, durationArg, givenFlags, intArg } from './args';
-import { UsageError } from './exit';
+import { redactUrl, UsageError } from './exit';
 
 type VaultActionType = VaultActionInput['type'];
 // Derived from the zod schema of the ops layer, so a drift is a compile error.
@@ -38,7 +38,9 @@ const FLAGS_OF: Record<VaultActionType, readonly (keyof ActionFlags)[]> = {
 
 /** Own keys only: `constructor` and `__proto__` are not actions. */
 function actionTypeOf(name: string): VaultActionType {
-  if (!Object.hasOwn(ACTIONS, name)) throw new UsageError(`Unknown action "${name}". Use one of: ${ACTION_LIST}.`);
+  if (!Object.hasOwn(ACTIONS, name)) {
+    throw new UsageError(`Unknown action "${redactUrl(name)}". Use one of: ${ACTION_LIST}.`);
+  }
   return ACTIONS[name as keyof typeof ACTIONS];
 }
 
@@ -47,7 +49,9 @@ export function parseHeirs(specs: readonly string[]): HeirInput[] {
   if (specs.length === 0) throw new UsageError('Give at least one --heir <address[:percent]>.');
   const parsed = specs.map((spec, i) => {
     const parts = spec.split(':');
-    if (parts.length > 2) throw new UsageError(`Cannot read --heir "${spec}". Use <address> or <address>:<percent>.`);
+    if (parts.length > 2) {
+      throw new UsageError(`Cannot read --heir "${redactUrl(spec)}". Use <address> or <address>:<percent>.`);
+    }
     return { account: toAddress(parts[0], `heir ${i + 1}`), share: parts[1] };
   });
   const withShare = parsed.filter((h) => h.share !== undefined).length;
@@ -59,7 +63,7 @@ export function parseHeirs(specs: readonly string[]): HeirInput[] {
   return parsed.map((h) => {
     const percent = Number(h.share);
     if (!/^\d+(\.\d+)?$/.test(h.share ?? '') || percent <= 0 || percent > 100) {
-      throw new UsageError(`Cannot read the share "${h.share}". Use a percent such as 70.`);
+      throw new UsageError(`Cannot read the share "${redactUrl(h.share ?? '')}". Use a percent such as 70.`);
     }
     return { account: h.account, percent };
   });
@@ -70,7 +74,7 @@ export function parseAssets(specs: readonly string[]): AssetInput[] {
     const m = /^(erc20|erc721|erc1155):([^:@]+)(?::(\d+))?(?:@(\d+))?$/.exec(spec.trim());
     if (!m) {
       throw new UsageError(
-        `Cannot read --asset "${spec}". Use erc20:<token>, erc721:<token>:<id>@<heir> or erc1155:<token>:<id>@<heir>, where <id> is a number and @<heir> is the heir's index, counting from 0.`,
+        `Cannot read --asset "${redactUrl(spec)}". Use erc20:<token>, erc721:<token>:<id>@<heir> or erc1155:<token>:<id>@<heir>, where <id> is a number and @<heir> is the heir's index, counting from 0.`,
       );
     }
     const [, kind, token, id, heir] = m;
@@ -92,7 +96,7 @@ function parseTiming(f: Pick<ActionFlags, 'timing' | 'period' | 'threshold' | 'w
   }
   if (f.timing !== undefined) {
     if (!PRESETS.includes(f.timing)) {
-      throw new UsageError(`Unknown timing "${f.timing}". Use drill, sixMonths or twelveMonths.`);
+      throw new UsageError(`Unknown timing "${redactUrl(f.timing)}". Use drill, sixMonths or twelveMonths.`);
     }
     return f.timing as TimingInput;
   }

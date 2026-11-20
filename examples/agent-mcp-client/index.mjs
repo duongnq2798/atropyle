@@ -84,12 +84,21 @@ export async function converse(client, { owner, heirs, drill = true, log = conso
   log(`prepare_create_vault: ${prepare.summary}`);
   for (const [i, s] of prepare.plan.steps.entries()) log(`  ${i + 1}. ${s.summary}`);
   for (const w of prepare.warnings) log(`  warning ${w.code}: ${w.message}`);
-  if (prepare.handoff?.link) {
-    log(`Open this link in your wallet, check each step there, then sign:\n${prepare.handoff.link}`);
-  } else if (prepare.blocked) {
-    log(`Nothing to sign: step ${prepare.blocked.step + 1} fails with ${prepare.blocked.error.code}.`);
-  } else {
+  // Three outcomes, told apart by `blocked` and `handoff`. A handoff can have no link: the deployment has no web app.
+  const { blocked, handoff } = prepare;
+  if (blocked) {
+    log(`Nothing to sign: step ${blocked.step + 1} fails with ${blocked.error.code}.`);
+  } else if (handoff === null) {
     log('Nothing to do: the plan needs no transactions.');
+  } else {
+    for (const note of handoff.notes) log(`  note: ${note}`);
+    if (handoff.link) {
+      log(`Open this link in your wallet, check each step there, then sign:\n${handoff.link}`);
+    } else {
+      const n = handoff.calls.calls.length;
+      const what = n === 1 ? '1 transaction to sign is' : `${n} transactions to sign are`;
+      log(`No signing link. ${what} in handoff.calls (wallet_sendCalls parameters) for the owner's wallet.`);
+    }
   }
   return { check, simulate, prepare };
 }
@@ -103,7 +112,10 @@ export async function run({ command, args, env, ...options }) {
   }
 }
 
-/** 1 when the plan has issues or a step is blocked; a plan with nothing to do is not an error. */
+/**
+ * 1 when the plan has issues or a step is blocked. Nothing to do is not an error, and neither is a handoff without a
+ * link: its transactions are in handoff.calls, to sign through another channel.
+ */
 export const exitCodeOf = (out) => (out.prepare === null || out.prepare.blocked ? 1 : 0);
 
 async function main() {

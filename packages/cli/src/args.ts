@@ -64,7 +64,10 @@ export function addActionOptions(cmd: Command): Command {
     .option('--heir <address[:percent]>', 'set-heirs: an heir and their share; repeat for each heir', collect)
     .option('--guardian <address>', 'set-guardians: a guardian; repeat for each', collect)
     .option('--k <n>', 'set-guardians: how many guardians must agree')
-    .option('--recovery', 'set-guardians: guardians may also recover a lost wallet')
+    .option(
+      '--recovery',
+      'set-guardians: k guardians together can move everything to a wallet they choose, for a lost wallet; off unless you give this flag',
+    )
     .option('--timing <preset>', 'set-timing: drill, sixMonths or twelveMonths')
     .option('--period <duration>', 'set-timing: check-in period, such as 30d')
     .option('--threshold <n>', 'set-timing: missed periods before the alarm (1 to 15)')

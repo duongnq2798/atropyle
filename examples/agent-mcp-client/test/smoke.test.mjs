@@ -91,12 +91,31 @@ describe('the conversation, with canned results', () => {
   });
 
   it('prints the link last, after the summary, steps and warnings: exit 0', async () => {
-    const r = await converseWith({ ...happy, atropyle_prepare_create_vault: prepared({ handoff: { link: LINK } }) });
+    const r = await converseWith({
+      ...happy,
+      atropyle_prepare_create_vault: prepared({ handoff: { link: LINK, notes: ['NOTE-LINK'] } }),
+    });
     expect(exitCodeOf(r.out)).toBe(0);
     expect(r.lines.at(-1)).toContain(LINK);
-    for (const part of ['PREP-SUMMARY', 'STEP-ONE', 'WARNING-ONE']) {
+    for (const part of ['PREP-SUMMARY', 'STEP-ONE', 'WARNING-ONE', 'NOTE-LINK']) {
       expect(r.text.indexOf(part), part).toBeGreaterThanOrEqual(0);
       expect(r.text.indexOf(part)).toBeLessThan(r.text.indexOf(LINK));
+    }
+  });
+
+  it('prints the notes and points to handoff.calls when the handoff has no link: exit 0', async () => {
+    const calls = { calls: [{ to: ACCOUNT, data: '0x', value: '0x0' }] };
+    const r = await converseWith({
+      ...happy,
+      atropyle_prepare_create_vault: prepared({ handoff: { link: null, calls, notes: ['NOTE-ONE'] } }),
+    });
+    expect(exitCodeOf(r.out)).toBe(0);
+    expect(r.text).not.toContain('Nothing to do');
+    expect(r.text).toContain('NOTE-ONE');
+    expect(r.text).toContain('1 transaction to sign is in handoff.calls');
+    expect(r.text).not.toMatch(/#\/sign/);
+    for (const part of ['PREP-SUMMARY', 'STEP-ONE', 'WARNING-ONE']) {
+      expect(r.text.indexOf(part), part).toBeLessThan(r.text.indexOf('NOTE-ONE'));
     }
   });
 });

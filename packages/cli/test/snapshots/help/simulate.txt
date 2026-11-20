@@ -21,8 +21,9 @@ Options:
                                     for each heir
   --guardian <address>              set-guardians: a guardian; repeat for each
   --k <n>                           set-guardians: how many guardians must agree
-  --recovery                        set-guardians: guardians may also recover a
-                                    lost wallet
+  --recovery                        set-guardians: k guardians together can move
+                                    everything to a wallet they choose, for a
+                                    lost wallet; off unless you give this flag
   --timing <preset>                 set-timing: drill, sixMonths or twelveMonths
   --period <duration>               set-timing: check-in period, such as 30d
   --threshold <n>                   set-timing: missed periods before the alarm

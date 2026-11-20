@@ -38,6 +38,8 @@ Scammers know this. They pretend to be the owner, or the owner's family, and pus
 
 Until the X Layer mainnet deployment, add `--deployment <file>` to every command; without it the CLI stops with DEPLOYMENT_MISSING.
 
+`npx -y atropyle` works once the maintainer publishes the package to npm. Until then, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`). On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
+
 Every command below prints one JSON object with `--json`. Exit code 4 is a network problem: try again later. `--rpc <url>` replaces only the read RPC, not the RPCs that `verify` compares.
 
 ## 1. Find the vaults

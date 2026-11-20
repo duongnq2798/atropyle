@@ -132,9 +132,13 @@ describe('skill content', () => {
       'Suggest a Drill first',
       'If `verify` fails, prepare nothing for that vault',
       'clear yes to sign it',
+      // The OKX path is not self-custody: say who holds the key.
+      "The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet.",
     ]) {
       expect(planning).toContain(phrase);
     }
+    expect(planning).not.toContain('their own OKX Agentic Wallet');
+    expect(planning).not.toContain("from the user's wallet");
     for (const f of ['SKILL.md', 'references/plan-file.md', 'references/pitfalls.md']) {
       const text = read(join(SKILLS_DIR, 'atropyle-estate-planning', f));
       expect(text, f).toContain('wallet they choose');

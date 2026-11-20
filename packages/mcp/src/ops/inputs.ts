@@ -4,6 +4,10 @@ import { AssetKindSchema } from './schemas';
 
 const addr = (what: string) => z.string().describe(`${what}: a 0x address`);
 
+/** Recovery lets other people take everything, so the tool surface names it as a power (plan-file.md). */
+const RECOVERY_ENABLED =
+  "Recovery. Off unless the owner asks for it. When true, k guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet. The owner can stop it only by checking in before the window ends. Set true only if the owner asked for recovery and would trust any k of the guardians with everything.";
+
 /**
  * Loose at every level: an unknown key reaches the SDK (validatePlan and validateSection report UNKNOWN_FIELD for it, and
  * the action path rejects it with PLAN_INVALID), so a misnamed field is an error and never silently dropped.
@@ -35,7 +39,7 @@ export const PlanInputSchema = z
     heirs: z.array(HeirInputSchema),
     guardians: z.array(z.string()).optional(),
     k: z.number().int().optional(),
-    recoveryEnabled: z.boolean().optional(),
+    recoveryEnabled: z.boolean().optional().describe(RECOVERY_ENABLED),
     timing: TimingInputSchema,
     assets: z.array(AssetInputSchema).optional(),
   })
@@ -48,7 +52,7 @@ export const VaultActionSchema = z.discriminatedUnion('type', [
     type: z.literal('setGuardians'),
     guardians: z.array(z.string()),
     k: z.number().int(),
-    recoveryEnabled: z.boolean(),
+    recoveryEnabled: z.boolean().describe(RECOVERY_ENABLED),
   }),
   z.strictObject({ type: z.literal('setTiming'), timing: TimingInputSchema }),
   z.strictObject({ type: z.literal('setAssets'), assets: z.array(AssetInputSchema) }),
