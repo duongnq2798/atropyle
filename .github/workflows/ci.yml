@@ -178,6 +178,8 @@ jobs:
         run: npx -y @anthropic-ai/claude-code@2.1.327 plugin validate .
       - name: Example agent MCP client
         run: npm run smoke -w examples/agent-mcp-client
+      - name: Example node quickstart
+        run: npm run smoke -w examples/node-quickstart
       - uses: actions/setup-node@v4
         with:
           node-version: 20
