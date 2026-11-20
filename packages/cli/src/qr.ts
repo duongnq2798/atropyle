@@ -1,19 +1,26 @@
 import { renderUnicodeCompact } from 'uqr';
 
-export const QR_SKIPPED_NOTE =
-  'No QR code: the link does not fit in this terminal as a QR code. Open the link instead, or widen the terminal.';
+export type QrResult = { qr: string; note: null } | { qr: null; note: string };
 
 /**
- * A QR code of `text` in half-block characters (one column per module), or null when it cannot be drawn whole:
- * the text is beyond QR capacity, or the code is wider than `columns`. Never a cut-off code.
+ * A QR code of `text` in half-block characters (one column per module), or null with the reason when it cannot be
+ * drawn whole: the text is beyond QR capacity, or the code is wider than `columns`. Never a cut-off code.
  */
-export function renderQr(text: string, columns: number): string | null {
+export function renderQr(text: string, columns: number): QrResult {
   let qr: string;
   try {
     qr = renderUnicodeCompact(text, { ecc: 'L', border: 2 });
-  } catch {
-    return null;
+  } catch (e) {
+    // uqr throws a RangeError when the data exceeds the capacity of the largest QR code.
+    if (!(e instanceof RangeError)) throw e;
+    return { qr: null, note: 'No QR code: the link is too long for a QR code. Open the link instead.' };
   }
   const width = Math.max(...qr.split('\n').map((line) => [...line].length));
-  return width <= columns ? qr.replace(/\n+$/, '') : null;
+  if (width > columns) {
+    return {
+      qr: null,
+      note: 'No QR code: it is too wide for this terminal. Widen the terminal, or open the link instead.',
+    };
+  }
+  return { qr: qr.replace(/\n+$/, ''), note: null };
 }

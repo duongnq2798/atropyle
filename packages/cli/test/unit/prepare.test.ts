@@ -1,4 +1,4 @@
-import type { PrepareOutput } from '@atropyle/mcp/ops';
+import { type PrepareOutput, PrepareOutputSchema, UNTRUSTED_NOTICE } from '@atropyle/mcp/ops';
 import { describe, expect, it } from 'vitest';
 import { handOver, type PrepareFlags } from '../../src/commands/prepare';
 import type { Ctx } from '../../src/context';
@@ -9,9 +9,27 @@ import { memoryIo } from './memory-io';
 
 const VAULT = '0x0000000000000000000000000000000000000001';
 const LINK = 'https://app.atropyle.test/#/sign?p=abc';
+const OKX = 'https://web3.okx.com/download?deeplink=x';
+const WARNING = { code: 'WATCH_OUT', message: 'check this first' };
+const NOTE = 'Step 2 was not simulated on its own: it depends on step 1.';
 
-function stub(over: Partial<PrepareOutput>): PrepareOutput {
-  return {
+type Handoff = NonNullable<PrepareOutput['handoff']>;
+
+const step = {
+  chainId: 31337,
+  from: VAULT,
+  to: VAULT,
+  data: '0x',
+  value: '0',
+  action: 'checkIn',
+  summary: 'Check in.',
+  warnings: [],
+  simulation: { ok: true, gas: '21000' },
+};
+
+/** Built through the schema, so a drift in PrepareOutput fails these tests. */
+function make(over: Record<string, unknown> = {}): PrepareOutput {
+  return PrepareOutputSchema.parse({
     schemaVersion: 1,
     action: 'checkIn',
     chainId: 31337,
@@ -22,14 +40,12 @@ function stub(over: Partial<PrepareOutput>): PrepareOutput {
     blocked: null,
     summary: 'Check in. There is nothing to sign.',
     warnings: [],
-    untrusted: { notice: '', texts: [] },
+    untrusted: { notice: UNTRUSTED_NOTICE, texts: [] },
     ...over,
-  } as unknown as PrepareOutput;
+  });
 }
 
-type Handoff = NonNullable<PrepareOutput['handoff']>;
-
-const handoff = (over: Partial<Handoff>): Handoff => ({
+const handoff = (over: Partial<Handoff> = {}): Handoff => ({
   link: LINK,
   okxAppLink: null,
   cast: ['cast send 0x1 "poke()"'],
@@ -38,52 +54,100 @@ const handoff = (over: Partial<Handoff>): Handoff => ({
   ...over,
 });
 
+const blocked = {
+  step: 0,
+  action: 'checkIn',
+  error: { code: 'NOT_OWNER', message: 'm', hint: 'Use the owner.', docsUrl: 'd' },
+};
+
 const G: Globals = { chain: 'local', json: false, color: false, verbose: false };
 
-function run(format: string, out: PrepareOutput) {
-  const io = memoryIo();
+function run(
+  flags: Partial<PrepareFlags>,
+  out: PrepareOutput,
+  o: { io?: Parameters<typeof memoryIo>[0]; json?: boolean } = {},
+) {
+  const io = memoryIo(o.io);
   const ctx: Ctx = { io, state: { command: 'prepare', json: false, exitCode: 0 } };
-  handOver(ctx, G, { format } as PrepareFlags, out);
-  return io;
+  const code = handOver(ctx, { ...G, json: o.json === true }, { format: 'link', ...flags } as PrepareFlags, out);
+  return { io, code };
 }
 
 describe('handOver', () => {
-  it('exits with an empty stdout and the reason on stderr when --format cast has no cast commands', () => {
-    const out = stub({ handoff: handoff({ cast: [], notes: ['cast commands are omitted: the SDK refused'] }) });
-    const io = run('cast', out);
-    expect(io.stdout).toBe('');
-    expect(io.stderr).toContain('cast commands are omitted');
-    expect(io.stderr).toContain('Check in.');
+  it('exits 1 with an empty stdout and the reason on stderr when --format cast has no cast commands', () => {
+    const out = make({ handoff: handoff({ cast: [], notes: ['cast commands are omitted: the SDK refused'] }) });
+    const r = run({ format: 'cast' }, out);
+    expect(r.code).toBe(1);
+    expect(r.io.stdout).toBe('');
+    expect(r.io.stderr).toContain('cast commands are omitted');
+    expect(r.io.stderr).toContain('Check in.');
   });
 
-  it('exits 1 for an empty cast handoff, a blocked plan and nothing else', () => {
-    const io = memoryIo();
-    const ctx: Ctx = { io, state: { command: 'prepare', json: false, exitCode: 0 } };
-    const flags = { format: 'cast' } as PrepareFlags;
-    expect(handOver(ctx, G, flags, stub({ handoff: handoff({ cast: [] }) }))).toBe(1);
-    expect(handOver(ctx, G, flags, stub({ handoff: handoff({}) }))).toBe(0);
-    expect(handOver(ctx, G, flags, stub({}))).toBe(0);
-    const blocked = { step: 0, action: 'checkIn', error: { code: 'NOT_OWNER', message: 'm', hint: 'h', docsUrl: 'd' } };
-    expect(handOver(ctx, G, flags, stub({ blocked } as Partial<PrepareOutput>))).toBe(1);
+  it('prints calls and exits 0 for a handoff without cast commands in --format calls', () => {
+    const r = run({ format: 'calls' }, make({ handoff: handoff({ cast: [] }) }));
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.io.stdout)).toMatchObject({ version: '2.0.0' });
   });
 
-  it('prints the summary and no link when there is nothing to do', () => {
-    const link = run('link', stub({}));
-    expect(link.stdout).toContain('There is nothing to sign.');
-    expect(link.stdout).not.toContain('#/sign');
+  it('prints the summary, no link, and exits 0 when there is nothing to do', () => {
+    const link = run({ format: 'link' }, make());
+    expect(link.code).toBe(0);
+    expect(link.io.stdout).toContain('There is nothing to sign.');
+    expect(link.io.stdout).not.toContain('#/sign');
     for (const format of ['cast', 'calls']) {
-      const io = run(format, stub({}));
-      expect(io.stdout).toBe('');
-      expect(io.stderr).toContain('There is nothing to sign.');
+      const r = run({ format }, make());
+      expect(r.code).toBe(0);
+      expect(r.io.stdout).toBe('');
+      expect(r.io.stderr).toContain('There is nothing to sign.');
     }
+  });
+
+  it('shows no link, QR or cast command for a blocked plan, even next to a handoff', () => {
+    const out = make({ blocked, handoff: handoff() });
+    for (const format of ['link', 'cast', 'calls']) {
+      const r = run({ format, qr: true }, out);
+      expect(r.code, format).toBe(1);
+      expect(r.io.stdout + r.io.stderr, format).not.toMatch(/#\/sign|cast send|[▀▄█]/u);
+      if (format !== 'link') expect(r.io.stdout, format).toBe('');
+      expect(r.io.stdout + r.io.stderr, format).toContain('Nothing to sign');
+    }
+    const j = run({ format: 'json' }, out, { json: true });
+    expect(j.code).toBe(1);
+    expect(JSON.parse(j.io.stdout).handoff).toBeNull();
+  });
+
+  it('prints the QR-skipped note, and no blocks, when the code is too wide for the terminal', () => {
+    const r = run({ qr: undefined }, make({ handoff: handoff() }), { io: { isTTY: true, columns: 20 } });
+    expect(r.code).toBe(0);
+    expect(r.io.stdout).toContain('too wide for this terminal');
+    expect(r.io.stdout).not.toMatch(/[▀▄█]/u);
+  });
+
+  it('draws a QR code on a TTY by default, and not with --no-qr or off a TTY', () => {
+    const out = make({ handoff: handoff() });
+    expect(run({}, out, { io: { isTTY: true } }).io.stdout).toMatch(/[▀▄█]/u);
+    expect(run({ qr: false }, out, { io: { isTTY: true } }).io.stdout).not.toMatch(/[▀▄█]/u);
+    expect(run({}, out).io.stdout).not.toMatch(/[▀▄█]/u);
+    expect(run({ qr: true }, out).io.stdout).toMatch(/[▀▄█]/u);
+  });
+
+  it('prints warnings, notes, link, QR code and the OKX line in that order', () => {
+    const out = make({
+      plan: { chainId: 31337, from: VAULT, vault: VAULT, steps: [step], summary: 'Check in.', warnings: [] },
+      warnings: [WARNING],
+      handoff: handoff({ notes: [NOTE], okxAppLink: OKX }),
+    });
+    const text = run({ qr: true }, out).io.stdout;
+    const at = [WARNING.message, NOTE, LINK, '█', OKX].map((s) => text.indexOf(s));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
   });
 });
 
 describe('formatPrepare', () => {
   it('prints the notes in link mode too, before the link', () => {
-    const o = stub({ handoff: handoff({ notes: ['Step 2 was not simulated on its own: it depends on step 1.'] }) });
-    const text = formatPrepare(o, PLAIN, null, null);
-    expect(text).toContain('Step 2 was not simulated on its own');
-    expect(text.indexOf('Step 2 was not simulated')).toBeLessThan(text.indexOf(LINK));
+    const text = formatPrepare(make({ handoff: handoff({ notes: [NOTE] }) }), PLAIN, null, null);
+    expect(text).toContain(NOTE);
+    expect(text.indexOf(NOTE)).toBeLessThan(text.indexOf(LINK));
   });
 });

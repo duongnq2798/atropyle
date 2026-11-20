@@ -110,7 +110,9 @@ export const PrepareActionInputSchema = z.object({
   action: VaultActionSchema,
   as: addr('Who signs'),
   allowance: AllowanceSchema.optional(),
-  at: AtSchema.optional(),
+  at: AtSchema.optional().describe(
+    'Predict the effect at this time (the effect field of each step); every step is simulated at the latest block. Same formats as simulate: unix seconds, an ISO 8601 date or date-time, or +<duration> after the latest block, such as +3d',
+  ),
   webUrl: z.url().optional().describe('Base URL of the Atropyle web app for the signing link'),
 });
 

@@ -15,7 +15,7 @@ import { readPlan } from '../files';
 import { briefPrepare, formatPrepare } from '../format';
 import type { Globals } from '../globals';
 import { emit } from '../output';
-import { QR_SKIPPED_NOTE, renderQr } from '../qr';
+import { renderQr } from '../qr';
 import { styleFor } from '../style';
 
 export const PREPARE_FORMATS: string[] = ['link', 'cast', 'calls', 'json'];
@@ -46,17 +46,21 @@ async function prepareOf(ctx: Ctx, g: Globals, name: string, target: string, o: 
     const stray = givenFlags(o);
     if (stray.length > 0) throw new UsageError(`--${stray[0]} does not apply to create-vault.`);
     if (o.at !== undefined) throw new UsageError('--at does not apply to create-vault.');
-    const input: PrepareCreateVaultInput = {
-      plan: (await readPlan(ctx.io, target)) as PrepareCreateVaultInput['plan'],
+    // Flags are checked before the plan file is read, so a bad flag is a usage error even when the file is missing.
+    const flags = {
       ...(o.as === undefined ? {} : { owner: addressArg(o.as, 'as') }),
       ...(o.drill ? { drill: true } : {}),
       ...(o.feeToken === undefined ? {} : { feeToken: addressArg(o.feeToken, 'fee-token') }),
       ...(o.salt === undefined ? {} : { salt: saltArg(o.salt) }),
+    };
+    const input: PrepareCreateVaultInput = {
+      plan: (await readPlan(ctx.io, target)) as PrepareCreateVaultInput['plan'],
+      ...flags,
       ...common,
     };
     return prepareCreateVault(await clientFor(g, ctx.io), input);
   }
-  // Own keys only: `constructor` and `__proto__` are not actions.
+  // Own keys only (as in actionTypeOf); this check also names create-vault in the message.
   if (!Object.hasOwn(ACTIONS, name)) {
     throw new UsageError(`Unknown action "${name}". Use create-vault or one of: ${ACTION_LIST}.`);
   }
@@ -84,25 +88,27 @@ export function handOver(ctx: Ctx, g: Globals, o: PrepareFlags, out: PrepareOutp
   const { io } = ctx;
   const s = styleFor(io, g);
   const code = out.blocked ? EXIT.error : EXIT.ok;
+  // The gate does not trust the ops layer to keep `blocked` and `handoff` exclusive.
+  const shown = out.blocked ? { ...out, handoff: null } : out;
   if (g.json) {
-    emit(ctx, g, out, () => '');
+    emit(ctx, g, shown, () => '');
     return code;
   }
   if (o.format === 'cast' || o.format === 'calls') {
-    io.err(briefPrepare(out, s));
-    if (!out.handoff) return code;
+    io.err(briefPrepare(shown, s));
+    if (!shown.handoff) return code;
     if (o.format === 'cast') {
-      if (out.handoff.cast.length === 0) return EXIT.error;
-      io.out(`${out.handoff.cast.join('\n')}\n`);
+      if (shown.handoff.cast.length === 0) return EXIT.error;
+      io.out(`${shown.handoff.cast.join('\n')}\n`);
     } else {
-      io.out(`${JSON.stringify(out.handoff.calls, null, 2)}\n`);
+      io.out(`${JSON.stringify(shown.handoff.calls, null, 2)}\n`);
     }
     return code;
   }
-  const link = out.handoff?.link ?? null;
+  const link = shown.handoff?.link ?? null;
   const wantQr = link !== null && (o.qr === true || (o.qr === undefined && io.isTTY));
   const qr = wantQr ? renderQr(link, io.columns) : null;
-  io.out(formatPrepare(out, s, qr, wantQr && qr === null ? QR_SKIPPED_NOTE : null));
+  io.out(formatPrepare(shown, s, qr?.qr ?? null, qr?.note ?? null));
   return code;
 }
 
@@ -123,7 +129,10 @@ export function registerPrepare(program: Command, ctx: Ctx): void {
       .option('--drill', 'create-vault: create a Drill, a practice vault')
       .option('--fee-token <address>', 'create-vault: pay the fee with this token')
       .option('--salt <hex>', 'create-vault: 32-byte salt that fixes the vault address')
-      .option('--at <time>', 'simulate at this time: unix seconds, ISO 8601 or +<duration>')
+      .option(
+        '--at <time>',
+        'predict the effect at this time (shown in --json); steps are simulated now. Unix seconds, ISO 8601 or +<duration>',
+      )
       .option('--web-url <url>', 'web app that opens the signing link')
       .option('--qr', 'always print a QR code of the link')
       .option('--no-qr', 'never print a QR code'),

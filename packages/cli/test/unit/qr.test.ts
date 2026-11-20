@@ -5,16 +5,21 @@ const widthOf = (qr: string) => Math.max(...qr.split('\n').map((l) => [...l].len
 
 describe('renderQr', () => {
   it('draws a short link with block characters only', () => {
-    const qr = renderQr('https://app.atropyle.test/#/sign?p=abc', 80);
-    expect(qr).not.toBeNull();
-    expect(qr).toMatch(/^[ ▀▄█\n]+$/u);
-    expect(widthOf(qr as string)).toBeLessThanOrEqual(80);
+    const r = renderQr('https://app.atropyle.test/#/sign?p=abc', 80);
+    expect(r.note).toBeNull();
+    expect(r.qr).toMatch(/^[ ▀▄█\n]+$/u);
+    expect(widthOf(r.qr as string)).toBeLessThanOrEqual(80);
   });
 
-  it('renderQr returns null when the link does not fit', () => {
+  it('renderQr returns no code when the link does not fit, and says why', () => {
     const long = `https://app.atropyle.test/#/sign?p=${'a1'.repeat(750)}`;
-    expect(renderQr(long, 80)).toBeNull();
-    expect(renderQr(long, 400)).not.toBeNull();
-    expect(renderQr('x'.repeat(5000), 400)).toBeNull();
+    const narrow = renderQr(long, 80);
+    expect(narrow.qr).toBeNull();
+    expect(narrow.note).toContain('too wide for this terminal');
+    expect(renderQr(long, 400).qr).not.toBeNull();
+    const huge = renderQr('x'.repeat(5000), 400);
+    expect(huge.qr).toBeNull();
+    expect(huge.note).toContain('too long for a QR code');
+    expect(huge.note).not.toContain('Widen');
   });
 });

@@ -23,8 +23,9 @@ Options:
   --fee-token <address>             create-vault: pay the fee with this token
   --salt <hex>                      create-vault: 32-byte salt that fixes the
                                     vault address
-  --at <time>                       simulate at this time: unix seconds, ISO
-                                    8601 or +<duration>
+  --at <time>                       predict the effect at this time (shown in
+                                    --json); steps are simulated now. Unix
+                                    seconds, ISO 8601 or +<duration>
   --web-url <url>                   web app that opens the signing link
   --qr                              always print a QR code of the link
   --no-qr                           never print a QR code

@@ -110,19 +110,59 @@ describe('atropyle prepare', () => {
     const cast = await cli([...args, '--format', 'cast']);
     expect(cast.code).toBe(1);
     expect(cast.stdout).toBe('');
-    const out = json(await cli([...args, '--json']));
+    const calls = await cli([...args, '--format', 'calls']);
+    expect(calls.code).toBe(1);
+    expect(calls.stdout).toBe('');
+    const raw = await cli([...args, '--json']);
+    expect(raw.code).toBe(1);
+    const out = json(raw);
     expectSchema('prepare', out);
     expect(out).toMatchObject({ handoff: null, blocked: { action: 'voteRecovery', error: { code: 'NOT_GUARDIAN' } } });
   });
 
+  it('--format json is --json, for the output and for errors', async () => {
+    const ok = await cli([
+      'prepare',
+      'check-in',
+      devnet().vaults.simple,
+      '--as',
+      account(1),
+      '--format',
+      'json',
+      ...DEP(),
+    ]);
+    expect(ok.code).toBe(0);
+    expectSchema('prepare', json(ok));
+    const bad = await cli(['prepare', 'fly', devnet().vaults.simple, '--as', account(1), '--format', 'json', ...DEP()]);
+    expect(bad.code).toBe(2);
+    expect(json(bad)).toMatchObject({ error: { code: 'INVALID_OPTIONS' } });
+  });
+
   it('exits 2 on a bad command line', async () => {
     const guarded = devnet().vaults.guarded;
+    const vaultAction = (...flags: string[]) =>
+      cli(['prepare', 'check-in', guarded, '--as', account(1), ...flags, ...DEP()]);
     expect((await cli(['prepare', 'fly', guarded, '--as', account(1), ...DEP()])).code).toBe(2);
-    expect((await cli(['prepare', 'constructor', guarded, '--as', account(1), ...DEP()])).code).toBe(2);
+    const proto = await cli(['prepare', 'constructor', guarded, '--as', account(1), '--json', ...DEP()]);
+    expect(proto.code).toBe(2);
+    expect(json(proto).error.message).toContain('create-vault');
     expect((await cli(['prepare', 'check-in', guarded, ...DEP()])).code).toBe(2);
-    expect(
-      (await cli(['prepare', 'create-vault', 'atropyle.plan.json', '--at', '+1d', ...DEP()], { cwd: planDir() })).code,
-    ).toBe(2);
-    expect((await cli(['prepare', 'check-in', guarded, '--as', account(1), '--format', 'qr', ...DEP()])).code).toBe(2);
+    expect((await vaultAction('--format', 'qr')).code).toBe(2);
+    expect((await vaultAction('--drill')).code).toBe(2);
+    expect((await vaultAction('--fee-token', account(2))).code).toBe(2);
+    expect((await vaultAction('--salt', `0x${'11'.repeat(32)}`)).code).toBe(2);
+    expect((await vaultAction('--web-url', 'not-a-url')).code).toBe(2);
+    const create = (...flags: string[]) =>
+      cli(['prepare', 'create-vault', 'atropyle.plan.json', ...flags, ...DEP()], { cwd: planDir() });
+    expect((await create('--at', '+1d')).code).toBe(2);
+    expect((await create('--salt', '0x12')).code).toBe(2);
+    expect((await create('--heir', account(2))).code).toBe(2);
+  });
+
+  it('checks flags before it reads the plan file', async () => {
+    const r = await cli(['prepare', 'create-vault', 'missing.plan.json', '--salt', '0x12', ...DEP()]);
+    expect(r.code).toBe(2);
+    const missing = await cli(['prepare', 'create-vault', 'missing.plan.json', ...DEP()]);
+    expect(missing.code).toBe(1);
   });
 });
