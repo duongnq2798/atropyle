@@ -132,6 +132,7 @@ jobs:
         with:
           # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
           submodules: true
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
