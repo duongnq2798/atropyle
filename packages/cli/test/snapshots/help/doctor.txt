@@ -1,0 +1,18 @@
+Usage: atropyle doctor [options]
+
+check Node.js, every RPC, the chain ID, latency and the deployment integrity
+
+Options:
+  -h, --help           display help for command
+
+Global Options:
+  -V, --version        output the version number
+  --chain <name>       chain, default xlayer (env: ATROPYLE_CHAIN); xlayer works
+                       after the mainnet deployment, use --deployment <file>
+                       until then (choices: "xlayer", "local")
+  --rpc <url>          read RPC of that chain (env: ATROPYLE_RPC)
+  --deployment <file>  deployment JSON; wins over --chain (env:
+                       ATROPYLE_DEPLOYMENT)
+  --json               print exactly one JSON object (schemaVersion 1)
+  --no-color           print without colors
+  --verbose            log every RPC request to stderr
