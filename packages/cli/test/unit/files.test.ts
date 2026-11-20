@@ -10,6 +10,7 @@ const PLAN_FILES = {
   'list.json': '[]',
   'string.json': '"plan"',
   'null.json': 'null',
+  'number.json': '7',
 };
 
 describe('readPlan', () => {
@@ -19,10 +20,11 @@ describe('readPlan', () => {
     const e = (await readPlan(io, 'broken.json').catch((x) => x)) as AtropyleError;
     expect(e).toMatchObject({ code: 'PLAN_INVALID', details: { file: 'broken.json' } });
     expect(e.details?.error).toMatch(/position \d+/);
-    for (const name of ['list.json', 'string.json', 'null.json']) {
+    const kinds = { 'list.json': 'array', 'string.json': 'string', 'null.json': 'null', 'number.json': 'number' };
+    for (const [name, found] of Object.entries(kinds)) {
       expect(await readPlan(io, name).catch((x) => x), name).toMatchObject({
         code: 'PLAN_INVALID',
-        details: { file: name },
+        details: { file: name, found },
       });
     }
     expect(((await readPlan(io, 'missing.json').catch((x) => x)) as AtropyleError).code).toBe('PLAN_INVALID');

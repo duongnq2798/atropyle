@@ -56,6 +56,26 @@ describe('plan init', () => {
     expect(await main(['plan', 'init', '--template', 'simple', ...GUARDED, '--json'], io)).toBe(2);
   });
 
+  it('refuses --recovery with the simple template', async () => {
+    const io = memoryIo();
+    expect(await main(['plan', 'init', '--template', 'simple', '--heir', A(2), '--recovery'], io)).toBe(2);
+    expect(io.files.size).toBe(0);
+  });
+
+  it('quotes the file in the next commands when it has a space', async () => {
+    const io = memoryIo();
+    expect(await main(['plan', 'init', '--heir', A(2), '--out', 'my plan.json', '--json'], io)).toBe(0);
+    expect(io.files.has('my plan.json')).toBe(true);
+    expect(JSON.parse(io.stdout).next).toEqual([
+      "npx -y atropyle plan check 'my plan.json' --as <OWNER>",
+      "npx -y atropyle simulate --plan 'my plan.json' --as <OWNER>",
+      "npx -y atropyle prepare create-vault 'my plan.json' --as <OWNER>",
+    ]);
+    const odd = memoryIo();
+    expect(await main(['plan', 'init', '--heir', A(2), '--out', "it's.json", '--json'], odd)).toBe(0);
+    expect(JSON.parse(odd.stdout).next[0]).toBe("npx -y atropyle plan check 'it'\\''s.json' --as <OWNER>");
+  });
+
   it('exits 2 for a bad --owner, before writing anything', async () => {
     const io = memoryIo();
     expect(await main(['plan', 'init', '--heir', A(2), '--owner', 'nope', '--json'], io)).toBe(2);
@@ -65,6 +85,12 @@ describe('plan init', () => {
 });
 
 describe('plan check', () => {
+  it('reports a bad --as before a missing file', async () => {
+    const io = memoryIo();
+    expect(await main(['plan', 'check', 'missing.json', '--as', 'nope', '--json'], io)).toBe(2);
+    expect(JSON.parse(io.stdout).error.code).toBe('INVALID_ADDRESS');
+  });
+
   it('exits 2 for a bad --as', async () => {
     const io = memoryIo({ files: { 'p.json': '{}' } });
     expect(await main(['plan', 'check', 'p.json', '--as', 'nope', '--json'], io)).toBe(2);
@@ -78,6 +104,6 @@ describe('plan help', () => {
     expect(await main(['plan', 'init', '--help'], io)).toBe(0);
     expect(io.stdout).not.toContain('(default: [])');
     expect(io.stdout).toContain('counting from 0');
-    expect(io.stdout).toContain('(off unless you give this flag)');
+    expect(io.stdout).toContain('wallet; off unless you give this flag');
   });
 });

@@ -22,7 +22,7 @@ export async function readPlan(io: Io, file: string): Promise<unknown> {
     throw new AtropyleError('PLAN_INVALID', {
       message: `${file} must hold one JSON object.`,
       hint: 'Create a plan with `atropyle plan init`.',
-      details: { file },
+      details: { file, found: plan === null ? 'null' : Array.isArray(plan) ? 'array' : typeof plan },
     });
   }
   return plan;

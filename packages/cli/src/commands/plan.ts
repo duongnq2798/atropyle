@@ -58,6 +58,10 @@ function buildPlan(f: PlanInitFlags): PlanInput {
   return { version: 1, ...(f.owner === undefined ? {} : { owner: toAddress(f.owner, 'owner') }), ...body };
 }
 
+/** A path that runs as printed in a POSIX shell. */
+const shellQuote = (path: string): string =>
+  /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
+
 export async function planInit(io: Io, f: PlanInitFlags): Promise<{ out: PlanInitOutput; code: number }> {
   const doc = buildPlan(f);
   const result = validatePlan(doc);
@@ -84,6 +88,7 @@ export async function planInit(io: Io, f: PlanInitFlags): Promise<{ out: PlanIni
     throw e;
   }
   const c = result.config;
+  const file = shellQuote(f.out);
   const as = c.owner === null ? ' --as <OWNER>' : '';
   const guardians = c.guardians.length > 0 ? `, ${plural(c.guardians.length, 'guardian')} (k = ${c.k})` : '';
   const out = finish(PlanInitOutputSchema, {
@@ -94,9 +99,9 @@ export async function planInit(io: Io, f: PlanInitFlags): Promise<{ out: PlanIni
     config: c,
     issues: [],
     next: [
-      `npx -y atropyle plan check ${f.out}${as}`,
-      `npx -y atropyle simulate --plan ${f.out}${as}`,
-      `npx -y atropyle prepare create-vault ${f.out}${as}`,
+      `npx -y atropyle plan check ${file}${as}`,
+      `npx -y atropyle simulate --plan ${file}${as}`,
+      `npx -y atropyle prepare create-vault ${file}${as}`,
     ],
     summary: `Wrote ${f.out}: ${plural(c.heirs.length, 'heir')}${guardians}, ${plural(c.assets.length, 'asset')}${c.drill ? ', as a Drill' : ''}. Check it next, then simulate it and prepare it for signing.`,
     warnings: result.warnings,
@@ -121,7 +126,10 @@ export function registerPlan(program: Command, ctx: Ctx): void {
     .option('--heir <address[:percent]>', 'an heir and their share; repeat for each heir', collect)
     .option('--guardian <address>', 'a guardian; repeat for each guardian', collect)
     .option('--k <n>', 'how many guardians must agree')
-    .option('--recovery', 'guardians may also recover a lost wallet (off unless you give this flag)')
+    .option(
+      '--recovery',
+      'k guardians together can release the vault to a new wallet they choose, for a lost wallet; off unless you give this flag',
+    )
     .option(
       '--asset <kind:token[:id][@heir]>',
       "an asset the vault covers; repeat for each; @heir is the heir's index, counting from 0",
@@ -147,9 +155,11 @@ export function registerPlan(program: Command, ctx: Ctx): void {
     .action(
       action(ctx, 'plan check', async (g, cmd, file: string) => {
         const o = cmd.opts<{ as?: string; drill?: boolean }>();
+        // Flags are checked before the file is read: a usage error beats a missing file.
+        const owner = o.as === undefined ? undefined : addressArg(o.as, 'as');
         const input: CheckPlanInput = {
           plan: (await readPlan(ctx.io, file)) as CheckPlanInput['plan'],
-          ...(o.as === undefined ? {} : { owner: addressArg(o.as, 'as') }),
+          ...(owner === undefined ? {} : { owner }),
           ...(o.drill ? { drill: true } : {}),
         };
         const out = await checkPlan(await clientFor(g, ctx.io), input);

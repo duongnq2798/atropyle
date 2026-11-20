@@ -13,8 +13,9 @@ Options:
                                     heir
   --guardian <address>              a guardian; repeat for each guardian
   --k <n>                           how many guardians must agree
-  --recovery                        guardians may also recover a lost wallet
-                                    (off unless you give this flag)
+  --recovery                        k guardians together can release the vault
+                                    to a new wallet they choose, for a lost
+                                    wallet; off unless you give this flag
   --asset <kind:token[:id][@heir]>  an asset the vault covers; repeat for each;
                                     @heir is the heir's index, counting from 0
   --drill                           a practice vault: minutes instead of months,

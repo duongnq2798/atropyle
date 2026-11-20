@@ -77,4 +77,25 @@ describe('atropyle plan', () => {
     expect(flag.code, flag.stdout).toBe(2);
     expect(json(flag).error.code).toBe('INVALID_ADDRESS');
   });
+
+  it('exits 4 for an --rpc that does not answer, without printing its URL', async () => {
+    const dir = tmp();
+    expect((await cli(['plan', 'init', ...guarded(), '--drill', ...DEP()], { cwd: dir })).code).toBe(0);
+    const url = 'http://127.0.0.1:1/secret-key';
+    const r = await cli(['plan', 'check', 'atropyle.plan.json', '--json', ...DEP(), '--rpc', url], { cwd: dir });
+    expect(r.code, r.stdout).toBe(4);
+    expectSchema('error', json(r));
+    expect(r.stdout + r.stderr).not.toContain('secret-key');
+  });
+
+  it('checks a plan as a Drill with --drill', async () => {
+    const dir = tmp();
+    const heir = `--heir=${account(2)}`;
+    expect((await cli(['plan', 'init', heir, `--owner=${account(1)}`, ...DEP()], { cwd: dir })).code).toBe(0);
+    const plain = await cli(['plan', 'check', 'atropyle.plan.json', '--json', ...DEP()], { cwd: dir });
+    expect(json(plain).config.drill).toBe(false);
+    const r = await cli(['plan', 'check', 'atropyle.plan.json', '--drill', '--json', ...DEP()], { cwd: dir });
+    expect(r.code, r.stdout).toBe(0);
+    expect(json(r).config.drill).toBe(true);
+  });
 });
