@@ -39,7 +39,8 @@ describe('transferRows', () => {
 describe('historyFromBlock', () => {
   it('reads a bounded window and never goes below block 0', () => {
     expect(HISTORY_BLOCKS).toBe(10_000n);
-    expect(historyFromBlock(50_000n)).toBe(40_000n);
-    expect(historyFromBlock(100n)).toBe(0n);
+    expect(historyFromBlock(50_000n, 1n)).toBe(40_000n);
+    expect(historyFromBlock(100n, 0n)).toBe(0n);
+    expect(historyFromBlock(5_000n, 4_000n)).toBe(4_000n);
   });
 });

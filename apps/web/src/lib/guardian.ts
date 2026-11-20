@@ -1,5 +1,5 @@
 import { sameAddress, type VaultSnapshot } from '@atropyle/sdk';
-import { type Address, getAddress, isAddress } from 'viem';
+import { type Address, getAddress, isAddress, zeroAddress } from 'viem';
 
 export type TargetCheck = { ok: true; target: Address } | { ok: false; reason: 'empty' | 'invalid' | 'mismatch' };
 
@@ -14,6 +14,8 @@ export function confirmTarget(first: string, second: string): TargetCheck {
   if (a === '' || b === '') return { ok: false, reason: 'empty' };
   if (!isAddress(a) || !isAddress(b)) return { ok: false, reason: 'invalid' };
   if (a.toLowerCase() !== b.toLowerCase()) return { ok: false, reason: 'mismatch' };
+  // Zero is the withdraw marker on chain; a vote for it would not be a vote for a wallet.
+  if (a.toLowerCase() === zeroAddress) return { ok: false, reason: 'invalid' };
   return { ok: true, target: getAddress(a) };
 }
 

@@ -1,5 +1,5 @@
 import { GUARDIAN_WARNING, type VaultSnapshot } from '@atropyle/sdk';
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { Address } from 'viem';
 import { confirmTarget, guardianRows, tally } from '../lib/guardian';
 import { telegramLink } from '../lib/links';
@@ -9,7 +9,6 @@ import { ActionRunner } from '../ui/action-runner';
 import { useApp, useT } from '../ui/app-context';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, Banner } from '../ui/components';
-import { messages as editors } from '../ui/editors.messages';
 import { messages } from './guardian.messages';
 
 const REASON_KEY = { invalid: 'reasonInvalid', mismatch: 'reasonMismatch' } as const;
@@ -24,16 +23,22 @@ export function GuardianPanel(props: {
   const { sdk, snap, view, account, onChanged } = props;
   const app = useApp();
   const t = useT(messages);
-  const e = useT(editors);
   const c = useT(common);
   // Both fields start empty on every visit: nothing here is ever read from the URL (spec §16.3).
   const [first, setFirst] = useState('');
   const [second, setSecond] = useState('');
+  // True while a runner holds a prepared plan: its form must neither change nor unmount (the T11/T12 lock rule).
+  const [voteHeld, setVoteHeld] = useState(false);
+  const [withdrawHeld, setWithdrawHeld] = useState(false);
   const rows = guardianRows(snap, account);
   const me = rows.find((r) => r.me);
   const votes = tally(rows);
   const k = snap.config.k;
   const check = confirmTarget(first, second);
+  // The last confirmed target: a held vote keeps voting for it even if the fields change after Send.
+  const confirmed = useRef<Address | null>(null);
+  if (check.ok) confirmed.current = check.target;
+  const voteTarget = check.ok ? check.target : voteHeld ? confirmed.current : null;
   const open = !view.released && !view.expired;
   const bot = app.env.telegramBot;
   const value = (ev: Event) => (ev.target as HTMLInputElement).value;
@@ -105,9 +110,9 @@ export function GuardianPanel(props: {
       ) : null}
       {open && snap.config.recoveryEnabled ? (
         <section class="card stack">
-          <h3>{t('voteTitle')}</h3>
+          <h3 data-testid="guardian-vote-title">{t('voteTitle')}</h3>
           <Banner kind="warn" testid="guardian-power">
-            {e('recoveryPower', { k })}
+            {t('power', { k })}
           </Banner>
           <p class="muted">{t('voteHelp')}</p>
           <label class="field">
@@ -118,6 +123,7 @@ export function GuardianPanel(props: {
               placeholder="0x…"
               spellcheck={false}
               autocomplete="off"
+              readOnly={voteHeld}
               onInput={(ev) => setFirst(value(ev))}
             />
           </label>
@@ -129,6 +135,7 @@ export function GuardianPanel(props: {
               placeholder="0x…"
               spellcheck={false}
               autocomplete="off"
+              readOnly={voteHeld}
               onInput={(ev) => setSecond(value(ev))}
             />
           </label>
@@ -137,15 +144,16 @@ export function GuardianPanel(props: {
               {t(REASON_KEY[check.reason])}
             </p>
           ) : null}
-          {check.ok ? (
+          {voteTarget ? (
             <ActionRunner
               sdk={sdk}
               vault={view.vault}
-              action={{ type: 'voteRecovery', target: check.target }}
+              action={{ type: 'voteRecovery', target: voteTarget }}
               as={account}
               label={t('vote')}
               testid="guardian-vote"
               kind="danger"
+              onPlan={setVoteHeld}
               onDone={onChanged}
             />
           ) : (
@@ -153,7 +161,7 @@ export function GuardianPanel(props: {
               {t('vote')}
             </button>
           )}
-          {me?.target ? (
+          {me?.target || withdrawHeld ? (
             <ActionRunner
               sdk={sdk}
               vault={view.vault}
@@ -161,6 +169,7 @@ export function GuardianPanel(props: {
               as={account}
               label={t('withdraw')}
               testid="guardian-withdraw"
+              onPlan={setWithdrawHeld}
               onDone={onChanged}
             />
           ) : null}

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { GUARDIAN_WARNING, type PreparedTx, type TxPlan, type VaultSnapshot } from '@atropyle/sdk';
+import { AtropyleError, GUARDIAN_WARNING, type PreparedTx, type TxPlan, type VaultSnapshot } from '@atropyle/sdk';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import type { ContextType } from 'preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -33,9 +33,9 @@ const plan: TxPlan = {
   warnings: [GUARDIAN_WARNING],
 };
 
-function mount(snap: VaultSnapshot, lang: 'en' | 'vi' = 'en') {
+function mount(snap: VaultSnapshot, lang: 'en' | 'vi' = 'en', o: { prepare?: () => Promise<TxPlan> } = {}) {
   const account = PEOPLE.g1;
-  const prepare = vi.fn(async () => plan);
+  const prepare = vi.fn(o.prepare ?? (async () => plan));
   const sdk = {
     atro: {
       chain: { id: 31337 },
@@ -52,13 +52,19 @@ function mount(snap: VaultSnapshot, lang: 'en' | 'vi' = 'en') {
     wallet: { account, chainId: 31337 },
     walletClient: () => ({}),
   } as unknown as NonNullable<ContextType<typeof AppContext>>;
-  const view = vaultView(snap, fixtureTimeline(), account);
-  render(
+  const ui = (next: VaultSnapshot) => (
     <AppContext.Provider value={value}>
-      <GuardianPanel sdk={sdk as never} snap={snap} view={view} account={account} onChanged={() => {}} />
-    </AppContext.Provider>,
+      <GuardianPanel
+        sdk={sdk as never}
+        snap={next}
+        view={vaultView(next, fixtureTimeline(), account)}
+        account={account}
+        onChanged={() => {}}
+      />
+    </AppContext.Provider>
   );
-  return { prepare };
+  const { rerender } = render(ui(snap));
+  return { prepare, rerender: (next: VaultSnapshot) => rerender(ui(next)) };
 }
 
 const input = (id: string, value: string) => fireEvent.input(screen.getByTestId(id), { target: { value } });
@@ -68,16 +74,19 @@ describe('guardian panel', () => {
     mount(fixtureSnapshot());
     const power = screen.getByTestId('guardian-power');
     expect(power.textContent).toBe(
-      '2 guardians who agree can move everything in the vault to a wallet they choose. It is meant for your new wallet if you lose your key. You can stop it only by checking in before the window ends.',
+      "2 guardians who agree, you included, can move everything in the vault to a wallet you choose. It is meant for the owner's new wallet if they lose their key. The owner can stop it only by checking in before the window ends.",
     );
     // The power comes before the first field of the vote form.
     expect(
       power.compareDocumentPosition(screen.getByTestId('guardian-target')) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(screen.getByTestId('guardian-vote-title').textContent).toBe(
+      'Vote to move everything in the vault to a new wallet',
+    );
     cleanup();
     mount(fixtureSnapshot(), 'vi');
     expect(screen.getByTestId('guardian-power').textContent).toBe(
-      '2 người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Tính năng này dành cho ví mới của bạn nếu bạn mất khoá. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+      '2 người giám hộ cùng đồng ý, trong đó có bạn, thì có thể chuyển toàn bộ tài sản trong vault sang một ví do bạn chọn. Tính năng này dành cho ví mới của chủ vault nếu họ mất khoá. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     );
   });
 
@@ -137,5 +146,60 @@ describe('guardian panel', () => {
     const { prepare } = mount(fixtureSnapshot());
     fireEvent.click(screen.getByTestId('guardian-attest'));
     await waitFor(() => expect(prepare).toHaveBeenCalledWith({ type: 'attestDeath', on: true }, { as: PEOPLE.g1 }));
+  });
+
+  it('keeps a committed vote mounted and the target fields read-only while the plan is held', async () => {
+    const { prepare, rerender } = mount(fixtureSnapshot());
+    input('guardian-target', PEOPLE.stranger);
+    input('guardian-target-again', PEOPLE.stranger);
+    const first = screen.getByTestId('guardian-target') as HTMLInputElement;
+    const again = screen.getByTestId('guardian-target-again') as HTMLInputElement;
+    expect(first.readOnly).toBe(false);
+    fireEvent.click(screen.getByTestId('guardian-vote'));
+    fireEvent.click(await screen.findByTestId('guardian-vote-tx-send'));
+    await waitFor(() => expect(first.readOnly && again.readOnly).toBe(true));
+    // A keystroke that reaches the field anyway must not unmount the vote that was sent.
+    input('guardian-target', PEOPLE.owner);
+    expect(screen.getByTestId('guardian-vote-tx')).toBeTruthy();
+    const voted = fixtureSnapshot();
+    voted.status.recVotes = [{ guardian: PEOPLE.g1, target: PEOPLE.stranger }];
+    rerender(voted);
+    expect(screen.getByTestId('guardian-vote-tx')).toBeTruthy();
+    expect(prepare).toHaveBeenCalledOnce();
+  });
+
+  it('keeps Withdraw mounted after the vote it clears is gone, and prepares a null target', async () => {
+    const snap = fixtureSnapshot();
+    snap.status.recVotes = [{ guardian: PEOPLE.g1, target: PEOPLE.stranger }];
+    const { prepare, rerender } = mount(snap);
+    fireEvent.click(screen.getByTestId('guardian-withdraw'));
+    await screen.findByTestId('guardian-withdraw-tx-send');
+    expect(prepare).toHaveBeenCalledWith({ type: 'voteRecovery', target: null }, { as: PEOPLE.g1 });
+    rerender(fixtureSnapshot());
+    expect(screen.getByTestId('guardian-withdraw-tx')).toBeTruthy();
+  });
+
+  it('hides the vote and attest sections once the vault is released', () => {
+    const snap = fixtureSnapshot();
+    snap.status.state = 'releasedInherit';
+    mount(snap);
+    expect(screen.getByTestId('guardian-warning')).toBeTruthy();
+    expect(screen.queryByTestId('guardian-attest')).toBeNull();
+    expect(screen.queryByTestId('guardian-target')).toBeNull();
+    expect(screen.queryByTestId('guardian-vote')).toBeNull();
+  });
+
+  it('shows the decoded failure and disables Send for a target the contract refuses', async () => {
+    const refused: TxPlan = {
+      ...plan,
+      steps: [{ ...step, simulation: { ok: false, error: new AtropyleError('INVALID_TARGET').toJSON() } }],
+    };
+    mount(fixtureSnapshot(), 'en', { prepare: async () => refused });
+    input('guardian-target', PEOPLE.owner);
+    input('guardian-target-again', PEOPLE.owner);
+    fireEvent.click(screen.getByTestId('guardian-vote'));
+    const send = (await screen.findByTestId('guardian-vote-tx-send')) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    expect(screen.getByTestId('error').getAttribute('data-code')).toBe('INVALID_TARGET');
   });
 });

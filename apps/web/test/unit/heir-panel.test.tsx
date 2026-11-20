@@ -47,6 +47,7 @@ interface Opts {
   events?: () => Promise<VaultEvent[]>;
   send?: () => Promise<SendResult>;
   blockNumber?: bigint;
+  factoryBlock?: bigint;
 }
 
 function mount(o: Opts = {}) {
@@ -62,7 +63,7 @@ function mount(o: Opts = {}) {
       send: o.send ?? (() => new Promise(() => {})),
       handoff: { link: () => 'https://example.test/#/sign?p=x' },
     },
-    deployment: fixtureDeployment({ chainId: 31337, explorerUrl: null }),
+    deployment: fixtureDeployment({ chainId: 31337, explorerUrl: null, factoryBlock: o.factoryBlock ?? 1n }),
   };
   const value = {
     lang: o.lang ?? 'en',
@@ -71,19 +72,22 @@ function mount(o: Opts = {}) {
     wallet: { account: PEOPLE.heirA, chainId: 31337 },
     walletClient: () => ({}),
   } as unknown as NonNullable<ContextType<typeof AppContext>>;
-  const view = vaultView(snap, fixtureTimeline(), PEOPLE.heirA);
-  render(
-    <AppContext.Provider value={value}>
-      <HeirPanel
-        sdk={sdk as never}
-        view={view}
-        recoveryTarget={snap.status.recoveryTarget}
-        account={PEOPLE.heirA}
-        onChanged={() => {}}
-      />
-    </AppContext.Provider>,
-  );
-  return { events };
+  const ui = (state: StateName, vault: Address = PEOPLE.vault) => {
+    const next = { ...snap, status: { ...snap.status, state, vault } };
+    return (
+      <AppContext.Provider value={value}>
+        <HeirPanel
+          sdk={sdk as never}
+          view={vaultView(next, fixtureTimeline(), PEOPLE.heirA)}
+          recoveryTarget={snap.status.recoveryTarget}
+          account={PEOPLE.heirA}
+          onChanged={() => {}}
+        />
+      </AppContext.Provider>
+    );
+  };
+  const { rerender } = render(ui(snap.status.state));
+  return { events, rerender: (state: StateName, vault?: Address) => rerender(ui(state, vault)) };
 }
 
 describe('heir panel', () => {
@@ -106,6 +110,9 @@ describe('heir panel', () => {
     mount({ state: 'releasedRecover', recoveryTarget: PEOPLE.stranger });
     const text = screen.getByTestId('heir-recovery').textContent ?? '';
     expect(text).toContain('released to the recovery wallet');
+    const help = screen.getByTestId('heir-claim-help').textContent;
+    expect(help).toBe('Claim sends everything in the vault to the recovery wallet above.');
+    expect(help).not.toContain('as the vault was set up');
     expect(text).toContain(PEOPLE.stranger);
     expect(screen.getByTestId('heir-claim')).toBeTruthy();
     expect(screen.queryByTestId('heir-poke')).toBeNull();
@@ -164,5 +171,41 @@ describe('heir panel', () => {
     mount({ state: 'releasedInherit' });
     fireEvent.click(screen.getByTestId('heir-history'));
     expect((await screen.findByTestId('heir-history-list')).textContent).toContain('last few hours');
+  });
+
+  it('keeps the inheritance wording for Claim when the vault is released to the heirs', () => {
+    mount({ state: 'releasedInherit' });
+    expect(screen.getByTestId('heir-claim-help').textContent).toContain('as the vault was set up');
+  });
+
+  it('keeps Raise alarm mounted after the alarm releases the vault', async () => {
+    const { rerender } = mount({ state: 'grace' });
+    fireEvent.click(screen.getByTestId('heir-poke'));
+    await screen.findByTestId('heir-poke-tx-send');
+    rerender('releasedInherit');
+    expect(screen.getByTestId('heir-poke-tx')).toBeTruthy();
+  });
+
+  it('never reads history from before the factory existed', async () => {
+    const { events } = mount({ state: 'releasedInherit', blockNumber: 5_000n, factoryBlock: 4_000n });
+    fireEvent.click(screen.getByTestId('heir-history'));
+    await waitFor(() => expect(events).toHaveBeenCalledWith({ fromBlock: 4_000n }));
+  });
+
+  it('ignores a history response that arrives after the vault changed', async () => {
+    let resolve: (e: VaultEvent[]) => void = () => {};
+    const { rerender } = mount({
+      state: 'releasedInherit',
+      events: () =>
+        new Promise<VaultEvent[]>((r) => {
+          resolve = r;
+        }),
+    });
+    fireEvent.click(screen.getByTestId('heir-history'));
+    rerender('releasedInherit', PEOPLE.token);
+    resolve([ev('Distributed', { assetIndex: 0n, to: PEOPLE.heirA, amountOrId: 5n }, 0)]);
+    await waitFor(() => expect((screen.getByTestId('heir-history') as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByTestId('heir-history-list-0')).toBeNull();
+    expect(screen.queryByTestId('heir-history-list')).toBeNull();
   });
 });

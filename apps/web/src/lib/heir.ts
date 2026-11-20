@@ -14,8 +14,10 @@ export interface TransferRow {
 /** About 3 hours of X Layer blocks. The SDK default (a day) is 864 eth_getLogs calls on a 100-block public node. */
 export const HISTORY_BLOCKS = 10_000n;
 
-export function historyFromBlock(blockNumber: bigint): bigint {
-  return blockNumber > HISTORY_BLOCKS ? blockNumber - HISTORY_BLOCKS : 0n;
+/** Never before the factory existed, as the SDK default does. */
+export function historyFromBlock(blockNumber: bigint, factoryBlock: bigint): bigint {
+  const from = blockNumber > HISTORY_BLOCKS ? blockNumber - HISTORY_BLOCKS : 0n;
+  return from > factoryBlock ? from : factoryBlock;
 }
 
 /** One row per transfer the vault attempted: events Distributed and TransferFailed (Plan 1), in log order. */

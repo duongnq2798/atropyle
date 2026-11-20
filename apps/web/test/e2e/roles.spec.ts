@@ -14,7 +14,9 @@ test('a guardian votes for a new wallet only after typing it twice', async ({ pa
   await expect(page.getByTestId('guardian-warning')).toContainText(
     'confirm the request through a channel you already trust',
   );
-  await expect(page.getByTestId('guardian-power')).toContainText('2 guardians who agree can move everything');
+  await expect(page.getByTestId('guardian-power')).toContainText(
+    '2 guardians who agree, you included, can move everything',
+  );
   await expect(page.getByTestId('guardian-target')).toHaveValue('');
   await expect(page.getByTestId('guardian-target-again')).toHaveValue('');
 
@@ -58,8 +60,33 @@ test('an heir raises the alarm, then claims and sees each transfer', async ({ pa
   await page.getByTestId('heir-claim-tx-send').click();
   await expect(page.getByTestId('heir-claim-tx-done')).toBeVisible();
   await expect(page.getByTestId('heir-results-0')).toHaveAttribute('data-ok', 'true');
-  expect(await balance()).toBeGreaterThan(before);
+  const distributed = (await atro.vault(vault).events()).filter((e) => e.name === 'Distributed');
+  expect(distributed).toHaveLength(1);
+  const paid = distributed[0].args.amountOrId;
+  expect(typeof paid === 'bigint' && paid > 0n).toBe(true);
+  expect((await balance()) - before).toBe(paid);
 
   await page.getByTestId('heir-history').click();
   await expect(page.getByTestId('heir-history-list-0')).toHaveAttribute('data-ok', 'true');
+});
+
+test('a guardian confirms the death and the confirmation is recorded on chain', async ({
+  page,
+  state,
+  atro,
+  wallet,
+}) => {
+  const vault = state.seeded.guarded;
+  const guardian = ANVIL[4];
+  expect((await atro.vault(vault).status()).inhVoters).toEqual([]);
+  await wallet({ account: guardian });
+  await page.goto(`${state.siteUrl}#/v/${vault}`);
+  await page.getByTestId('connect').click();
+  await expect(page.getByTestId('guardian-panel')).toBeVisible();
+  await page.getByTestId('guardian-attest').click();
+  await expect(page.getByTestId('warning-GUARDIAN_VERIFY_OUT_OF_BAND')).toBeVisible();
+  await page.getByTestId('guardian-attest-tx-send').click();
+  await expect(page.getByTestId('guardian-attest-tx-done')).toBeVisible();
+  expect((await atro.vault(vault).status()).inhVoters).toEqual([guardian]);
+  await expect(page.getByTestId(`guardian-row-${guardian.toLowerCase()}`)).toHaveAttribute('data-attested', 'true');
 });

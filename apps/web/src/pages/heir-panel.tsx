@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Address } from 'viem';
 import { historyFromBlock, type TransferRow, transferRows } from '../lib/heir';
 import { telegramLink } from '../lib/links';
@@ -82,21 +82,36 @@ export function HeirPanel(props: {
   const [history, setHistory] = useState<TransferRow[] | null>(null);
   const [historyError, setHistoryError] = useState<unknown>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [pokeHeld, setPokeHeld] = useState(false);
+  // The vault this panel shows now; null after unmount. A history response for another vault is dropped.
+  const current = useRef<Address | null>(view.vault);
+  useEffect(() => {
+    current.current = view.vault;
+    setHistory(null);
+    setHistoryError(null);
+    setHistoryBusy(false);
+    return () => {
+      current.current = null;
+    };
+  }, [view.vault]);
   const bot = app.env.telegramBot;
   const recoveryText =
     view.state === 'recovery' ? 'recoveryPending' : view.state === 'releasedRecover' ? 'releasedRecover' : null;
 
   // A bounded window: the SDK default (a day of blocks) is hundreds of eth_getLogs calls on a public node.
   const loadHistory = async () => {
+    const vault = view.vault;
     setHistoryBusy(true);
     setHistoryError(null);
     try {
-      const events = await sdk.atro.vault(view.vault).events({ fromBlock: historyFromBlock(view.blockNumber) });
-      setHistory(transferRows(events));
+      const events = await sdk.atro
+        .vault(vault)
+        .events({ fromBlock: historyFromBlock(view.blockNumber, sdk.deployment.factoryBlock) });
+      if (current.current === vault) setHistory(transferRows(events));
     } catch (e) {
-      setHistoryError(e);
+      if (current.current === vault) setHistoryError(e);
     } finally {
-      setHistoryBusy(false);
+      if (current.current === vault) setHistoryBusy(false);
     }
   };
 
@@ -108,7 +123,7 @@ export function HeirPanel(props: {
           {t(recoveryText)} <AddressText address={recoveryTarget} />
         </p>
       ) : null}
-      {!view.released && !view.expired ? (
+      {(!view.released || pokeHeld) && !view.expired ? (
         <>
           <p class="muted">{t('pokeHelp')}</p>
           <ActionRunner
@@ -118,13 +133,16 @@ export function HeirPanel(props: {
             as={account}
             label={t('poke')}
             testid="heir-poke"
+            onPlan={setPokeHeld}
             onDone={onChanged}
           />
         </>
       ) : null}
       {view.released && !view.expired ? (
         <>
-          <p class="muted">{t('claimHelp')}</p>
+          <p class="muted" data-testid="heir-claim-help">
+            {view.state === 'releasedRecover' ? t('claimHelpRecover') : t('claimHelp')}
+          </p>
           <ActionRunner
             sdk={sdk}
             vault={view.vault}

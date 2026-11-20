@@ -15,6 +15,11 @@ describe('guardian helpers', () => {
     });
   });
 
+  it('confirmTarget refuses the zero address', () => {
+    const zero = '0x0000000000000000000000000000000000000000';
+    expect(confirmTarget(zero, zero)).toEqual({ ok: false, reason: 'invalid' });
+  });
+
   it('guardianRows shows every guardian with their confirmation and vote', () => {
     const snap = fixtureSnapshot();
     snap.status.inhVoters = [PEOPLE.g2];
