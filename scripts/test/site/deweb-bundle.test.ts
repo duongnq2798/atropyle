@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import type { SiteTarget } from '../../lib/site-build';
@@ -10,6 +11,7 @@ import { loadSite } from '../../lib/site-files';
 
 // Builds the real web app twice. Needs `npm run build` at the root first (the web app imports the built SDK).
 const WEB = fileURLToPath(new URL('../../../apps/web', import.meta.url));
+const VITE_BIN = join(dirname(createRequire(join(WEB, 'package.json')).resolve('vite/package.json')), 'bin', 'vite.js');
 const SENTINEL_HOST = 'health.atropyle.invalid';
 const dirs: Record<SiteTarget, string> = { deweb: '', pages: '' };
 
@@ -26,13 +28,9 @@ function build(target: SiteTarget): void {
   };
   delete env.VITE_DEPLOYMENT;
   delete env.VITE_DOCS_PATH;
-  const r = spawnSync('npx', ['vite', 'build'], {
-    cwd: WEB,
-    env,
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  });
-  if (r.status !== 0) throw new Error(`vite build (${target}) failed:\n${r.stdout}\n${r.stderr}`);
+  // Run vite's own entry with this Node: no shell, so no DEP0190 and no .cmd lookup on Windows.
+  const r = spawnSync(process.execPath, [VITE_BIN, 'build'], { cwd: WEB, env, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`vite build (${target}) failed:\n${r.error ?? ''}\n${r.stdout}\n${r.stderr}`);
 }
 
 function filesWithSentinel(dir: string): string[] {

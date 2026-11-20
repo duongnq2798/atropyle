@@ -1,5 +1,6 @@
+import { join, resolve } from 'node:path';
 import { expect, test } from 'vitest';
-import { DOCS_BASE, docsEnv, parseSiteArgs, webEnv } from '../../lib/site-build';
+import { DOCS_BASE, docsEnv, outDirProblem, parseSiteArgs, webEnv } from '../../lib/site-build';
 
 test('parseSiteArgs reads target, --no-docs and --out', () => {
   expect(parseSiteArgs(['--target', 'deweb'])).toEqual({ target: 'deweb', docs: true, dir: 'site-dist/deweb' });
@@ -44,4 +45,15 @@ test('docsEnv sets DOCS_BASE per target', () => {
   expect(DOCS_BASE).toEqual({ deweb: '/docs/', pages: '/atropyle/docs/' });
   expect(docsEnv('deweb', { PATH: '/bin' })).toEqual({ PATH: '/bin', DOCS_BASE: '/docs/' });
   expect(docsEnv('pages', {})).toEqual({ DOCS_BASE: '/atropyle/docs/' });
+});
+
+test('outDirProblem refuses the repo root, its parents and the web build output', () => {
+  const root = resolve('/work/atropyle');
+  expect(outDirProblem(root, root)).toContain('repository root');
+  expect(outDirProblem(resolve('/work'), root)).toContain('repository root');
+  expect(outDirProblem(join(root, 'apps', 'web', 'dist'), root)).toContain('apps/web/dist');
+  expect(outDirProblem(join(root, 'apps', 'web', 'dist', 'x'), root)).toContain('apps/web/dist');
+  expect(outDirProblem(join(root, 'apps', 'web'), root)).toContain('apps/web/dist');
+  expect(outDirProblem(join(root, 'site-dist', 'deweb'), root)).toBeNull();
+  expect(outDirProblem(resolve('/tmp/site'), root)).toBeNull();
 });

@@ -151,12 +151,28 @@ export function hostAllowed(host: string): boolean {
   return patterns.some((p) => (p.startsWith('*.') ? h.endsWith(p.slice(1)) : h === p));
 }
 
+// Optional "userinfo@" first, so that "https://ipfs.io@evil.example" is read with its real host.
 // Host is a DNS name or a bracketed IPv6 literal, with an optional port.
-const JS_URL = /\b(?:https?|wss?):\/\/(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)(?::\d+)?/gi;
+const JS_URL =
+  /\b(?:https?|wss?):\/\/(?:[^\s"'`\\/?#@<>]*@)?(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)(?::\d+)?/gi;
 
-/** `scheme://host[:port]` of every absolute URL literal; template strings like `https://${x}` do not match. */
+/** `scheme://[userinfo@]host[:port]` of every absolute URL literal; template strings like `https://${x}` do not match. */
 export function jsUrls(text: string): string[] {
   return [...new Set(text.match(JS_URL) ?? [])];
+}
+
+const INLINE_SCRIPT = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+
+/** True when a URL found in JavaScript must be reported: unparseable, has userinfo, or its real host is not allowed. */
+function jsUrlProblem(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return true;
+  }
+  if (u.username !== '' || u.password !== '' || url.includes('@')) return true;
+  return !hostAllowed(u.hostname);
 }
 
 export interface SiteReport {
@@ -169,10 +185,16 @@ export function checkSite(files: readonly SiteFile[]): SiteReport {
   const { external } = scanSite(new Map(files.map((f) => [f.path, { bytes: f.bytes, contentType: f.contentType }])));
   const td = new TextDecoder('utf-8', { fatal: false });
   const js: Finding[] = [];
+  const scan = (path: string, text: string) => {
+    for (const url of jsUrls(text)) if (jsUrlProblem(url)) js.push({ path, url, where: 'js' });
+  };
   for (const f of files) {
-    if (!/\.m?js$/i.test(f.path)) continue;
-    for (const url of jsUrls(td.decode(f.bytes))) {
-      if (!hostAllowed(new URL(url).hostname)) js.push({ path: f.path, url, where: 'js' });
+    if (/\.m?js$/i.test(f.path)) scan(f.path, td.decode(f.bytes));
+    else if (/html/i.test(f.contentType)) {
+      // Inline <script> bodies are JavaScript too; the gateway scan only sees attributes.
+      const html = td.decode(f.bytes);
+      INLINE_SCRIPT.lastIndex = 0;
+      for (let m = INLINE_SCRIPT.exec(html); m; m = INLINE_SCRIPT.exec(html)) scan(f.path, m[1]);
     }
   }
   return { ok: external.length === 0 && js.length === 0, external, js };

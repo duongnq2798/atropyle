@@ -1,5 +1,11 @@
 import { expect, test } from 'vitest';
-import { checkInternalLinks, normalizeGatewayPath, resolveGatewayPath } from '../../lib/gateway-path';
+import {
+  checkInternalLinks,
+  normalizeGatewayPath,
+  resolveGatewayPath,
+  resolveNormalized,
+} from '../../lib/gateway-path';
+import { collectReferences } from '../../lib/onchain-check';
 import { makeSiteFile } from '../../lib/site-files';
 
 const file = (path: string, text = '') => makeSiteFile(path, new TextEncoder().encode(text));
@@ -53,4 +59,57 @@ test('Starlight file-format links resolve exactly', () => {
     file('docs/sdk.html'),
   ];
   expect(checkInternalLinks(files, 'docs/', 'index.html')).toEqual([]);
+});
+
+const BS = String.fromCharCode(92);
+const SITE = ['index.html', 'docs/index.html', 'docs/guide.html', 'assets/a.js'];
+
+test('traversal-like gateway paths never resolve outside the site set', () => {
+  const set = new Set(SITE);
+  const raws = [
+    '/..',
+    '/../index.html',
+    '/docs/../../etc/passwd',
+    '/%2e%2e/%2e%2e/secret',
+    '/%2E%2E%2Findex.html',
+    `/docs${BS}..${BS}secret`,
+    `${BS}${BS}server${BS}share`,
+    '//docs//guide.html',
+    '/docs/guide.html%00.png',
+    '/docs/\0guide',
+    '/%00',
+  ];
+  for (const raw of raws) {
+    const r = resolveGatewayPath(set, 'index.html', raw);
+    if (r !== null) expect(set.has(r.path), `${JSON.stringify(raw)} -> ${r.path}`).toBe(true);
+  }
+  expect(resolveGatewayPath(set, 'index.html', '/..')).toBeNull();
+  expect(resolveGatewayPath(set, 'index.html', '/%2e%2e')).toBeNull();
+  expect(resolveGatewayPath(set, 'index.html', '//docs//guide.html')).toEqual({
+    kind: 'exact',
+    path: 'docs/guide.html',
+  });
+});
+
+test('traversal-like refs in checkInternalLinks stay inside the site set', () => {
+  const refs = [
+    '../../../etc/passwd',
+    '%2e%2e/%2e%2e/x.css',
+    '..%2f..%2fx',
+    `${BS}${BS}host${BS}x.js`,
+    '//host/x.js',
+    'a%00b',
+  ];
+  const html = refs.map((r) => `<a href="${r}">x</a>`).join('');
+  const files = [file('index.html'), file('docs/index.html', html)];
+  const problems = checkInternalLinks(files, 'docs/', 'index.html');
+  for (const p of problems) expect(p.ref.startsWith('/')).toBe(false);
+  // A ref with leftover ".." segments is only a literal key to the gateway: it matches no file, never one outside.
+  const set = new Set(files.map((f) => f.path));
+  for (const ref of collectReferences(html, 'html', 'docs/')) {
+    const r = resolveNormalized(set, 'index.html', ref);
+    if (r !== null) expect(set.has(r.path)).toBe(true);
+    expect(set.has(ref)).toBe(false);
+  }
+  expect(() => checkInternalLinks(files, 'docs/', null)).not.toThrow();
 });

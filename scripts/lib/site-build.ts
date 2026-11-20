@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 export type SiteTarget = 'deweb' | 'pages';
 
@@ -50,4 +50,24 @@ export function docsEnv(target: SiteTarget, base: NodeJS.ProcessEnv): NodeJS.Pro
 
 export function hasDocsWorkspace(root: string): boolean {
   return existsSync(join(root, 'apps', 'docs', 'package.json'));
+}
+
+const contains = (outer: string, inner: string) => {
+  const r = relative(outer, inner);
+  return r === '' || (!r.startsWith('..') && !isAbsolute(r));
+};
+
+/**
+ * `site:build` deletes the output directory first. Refuse one that is, contains or lies inside the repo root
+ * or the web build output, so a wrong `--out` cannot wipe the checkout.
+ */
+export function outDirProblem(out: string, root: string): string | null {
+  const o = resolve(out);
+  const webDist = join(root, 'apps', 'web', 'dist');
+  if (contains(o, resolve(root)))
+    return `--out ${o} is the repository root or one of its parents; refusing to delete it`;
+  if (contains(o, webDist) || contains(webDist, o)) {
+    return `--out ${o} overlaps apps/web/dist, which the build copies from; choose another directory`;
+  }
+  return null;
 }

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
 import { siteProblems } from '../../lib/site-check';
 
@@ -17,7 +17,7 @@ afterAll(() => {
 test('siteProblems reports a missing index.html', () => {
   const dir = temp();
   expect(siteProblems(dir, 'deweb')).toEqual([
-    `index.html is missing in ${dir}; run npm run site:build -- --target deweb`,
+    `index.html is missing in ${dir.split(sep).join('/')}; run npm run site:build -- --target deweb`,
   ]);
 });
 

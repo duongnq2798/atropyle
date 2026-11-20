@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { checkInternalLinks } from './gateway-path';
 import { checkSite } from './onchain-check';
 import type { SiteTarget } from './site-build';
@@ -7,7 +7,7 @@ import { limitProblems, loadSite } from './site-files';
 
 export function siteProblems(dir: string, target: SiteTarget): string[] {
   if (!existsSync(join(dir, 'index.html'))) {
-    return [`index.html is missing in ${dir}; run npm run site:build -- --target ${target}`];
+    return [`index.html is missing in ${dir.split(sep).join('/')}; run npm run site:build -- --target ${target}`];
   }
   if (target === 'pages') {
     return existsSync(join(dir, '.nojekyll')) ? [] : ['.nojekyll is missing (GitHub Pages would hide _astro/)'];

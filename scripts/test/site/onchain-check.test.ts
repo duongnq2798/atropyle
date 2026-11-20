@@ -129,3 +129,29 @@ test('RPC_HOSTS equals the hosts of the web ONCHAIN_RPCS', () => {
   const hosts = [...(list?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => new URL(m[1]).hostname);
   expect([...RPC_HOSTS].sort()).toEqual(hosts.sort());
 });
+
+test('userinfo in a JS URL cannot hide the real host', () => {
+  expect(jsUrls('a("https://ipfs.io@evil.example/x")')).toEqual(['https://ipfs.io@evil.example']);
+  const r = checkSite([
+    file('assets/a.js', 'a("https://ipfs.io@evil.example/x");b("https://rpc.xlayer.tech:443@evil.example/y")'),
+  ]);
+  expect(r.js.map((f) => f.url)).toEqual(['https://ipfs.io@evil.example', 'https://rpc.xlayer.tech:443@evil.example']);
+  // Userinfo is a finding even when the host itself is allowed.
+  expect(checkSite([file('assets/a.js', 'a("https://user:pw@rpc.xlayer.tech/")')]).js).toEqual([
+    { path: 'assets/a.js', url: 'https://user:pw@rpc.xlayer.tech', where: 'js' },
+  ]);
+});
+
+test('an unparseable URL in JS is a finding and does not throw', () => {
+  const r = checkSite([file('assets/a.js', 'a("http://1.2.3.4.5");b("https://999.1.1.1")')]);
+  expect(r.ok).toBe(false);
+  expect(r.js.map((f) => f.url).sort()).toEqual(['http://1.2.3.4.5', 'https://999.1.1.1']);
+});
+
+test('inline <script> bodies in HTML are scanned for hosts', () => {
+  const html =
+    '<script>fetch("https://evil.example/x")</script><script type="module">const a="https://rpc.xlayer.tech"</script>';
+  expect(checkSite([file('index.html', html)]).js).toEqual([
+    { path: 'index.html', url: 'https://evil.example', where: 'js' },
+  ]);
+});
