@@ -2,6 +2,7 @@ import { decodeError, GUARDIAN_WARNING, type SignPayload } from '@atropyle/sdk';
 import { useMemo, useState } from 'preact/hooks';
 import type { Hex } from 'viem';
 import { explorerTx } from '../lib/links';
+import { href } from '../lib/route';
 import type { Sdk } from '../lib/sdk';
 import type { CallsStatus } from '../lib/send-calls';
 import { type SignOutcome, sendSignRequest, signView } from '../lib/sign';
@@ -26,10 +27,15 @@ function outcomeHashes(o: SignOutcome): Hex[] {
   return [];
 }
 
+/** Keyed by the hash: a second link never inherits the outcome, status or error of the first. */
 export function SignPage({ sdk }: { sdk: Sdk }) {
+  const hash = useHash();
+  return <SignRequest key={hash} sdk={sdk} hash={hash} />;
+}
+
+function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
   const app = useApp();
   const t = useT(messages);
-  const hash = useHash();
   const parsed = useMemo(() => parse(sdk, hash), [sdk, hash]);
   const inspected = useAsync(
     async () => (parsed.payload ? sdk.atro.handoff.inspect(parsed.payload) : null),
@@ -39,6 +45,10 @@ export function SignPage({ sdk }: { sdk: Sdk }) {
   const [status, setStatus] = useState<CallsStatus | 'signing' | null>(null);
   const [outcome, setOutcome] = useState<SignOutcome | null>(null);
   const [error, setError] = useState<unknown>(null);
+  // Steps of a one-by-one send already confirmed on chain; a resume signs only what is left.
+  const [confirmed, setConfirmed] = useState<Hex[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [resumeBlocked, setResumeBlocked] = useState(false);
 
   if (!parsed.payload) {
     return (
@@ -66,17 +76,32 @@ export function SignPage({ sdk }: { sdk: Sdk }) {
     setBusy(true);
     setError(null);
     setStatus('signing');
+    const base = offset;
+    const request = base === 0 ? payload : { ...payload, steps: payload.steps.slice(base) };
     try {
       if (view.verdict === 'wrongChain') await app.switchChain();
       const r = await sendSignRequest(
         { atro: sdk.atro, provider: app.wallet.option.provider, walletClient: app.walletClient() },
-        payload,
-        { onStatus: setStatus, onStep: (e) => setStatus(e.phase === 'signing' ? 'signing' : 'pending') },
+        request,
+        {
+          onStatus: setStatus,
+          onStep: (e) => {
+            setStatus(e.phase === 'signing' ? 'signing' : 'pending');
+            const h = e.hash;
+            if (e.phase === 'confirmed' && h) setConfirmed((c) => (c.includes(h) ? c : [...c, h]));
+          },
+        },
       );
       setOutcome(r);
-      if (r.kind === 'refused') inspected.reload();
+      if (r.kind === 'refused') {
+        if (base > 0) setResumeBlocked(true);
+        else inspected.reload();
+      }
     } catch (e) {
-      setError(decodeError(e));
+      const err = decodeError(e);
+      const completed = err.details?.completed;
+      if (typeof completed === 'number' && completed > 0) setOffset(base + completed);
+      setError(err);
     } finally {
       setBusy(false);
       setStatus(null);
@@ -85,9 +110,12 @@ export function SignPage({ sdk }: { sdk: Sdk }) {
 
   const done =
     outcome !== null && (outcome.kind === 'sequential' || (outcome.kind === 'sendCalls' && outcome.result.ok));
-  // A bundle still pending after the wait: signing again could send the same calls twice.
-  const submitted = outcome?.kind === 'sendCalls' && !outcome.result.ok && outcome.result.status === 'pending';
-  const bundleFailed = outcome?.kind === 'sendCalls' && !outcome.result.ok && outcome.result.status !== 'pending';
+  // The wallet took the bundle. Only 400 (not sent) and 500 (reverted) allow another try; pending, partial and
+  // unknown statuses could still be on chain, and signing again could move assets twice.
+  const bundle = outcome?.kind === 'sendCalls' && !outcome.result.ok ? outcome.result : null;
+  const submitted = bundle !== null && bundle.status !== 'failed' && bundle.status !== 'reverted';
+  const bundleFailed = bundle !== null && bundle.status !== 'pending';
+  const doneHashes = outcome ? [...new Set([...confirmed, ...outcomeHashes(outcome)])] : [];
 
   return (
     <section class="stack">
@@ -169,30 +197,57 @@ export function SignPage({ sdk }: { sdk: Sdk }) {
         </Banner>
       ) : null}
 
-      {view.canSign && !done && !submitted ? (
+      {view.canSign && !done && !submitted && !resumeBlocked ? (
         <button type="button" class="btn btn-primary btn-big" data-testid="sign-send" disabled={busy} onClick={sign}>
           {busy
             ? t('signing')
-            : view.verdict === 'wrongChain'
-              ? t('switchAndSign', { n: check.steps.length })
-              : t('sign', { n: check.steps.length })}
+            : offset > 0
+              ? t('resume', { n: offset + 1 })
+              : view.verdict === 'wrongChain'
+                ? t('switchAndSign', { n: check.steps.length })
+                : t('sign', { n: check.steps.length })}
         </button>
       ) : null}
-      {status || submitted ? (
+      {status || bundle?.status === 'pending' ? (
         <p data-testid="sign-status" data-status={status ?? 'pending'}>
           {status === 'signing' ? t('signing') : t('pending')}
         </p>
       ) : null}
       {error ? <ErrorBox error={error} /> : null}
-      {bundleFailed && outcome?.kind === 'sendCalls' ? (
+      {confirmed.length > 0 && !done ? (
+        <div data-testid="sign-confirmed" class="stack">
+          <p>{t('confirmedSoFar')}</p>
+          {confirmed.map((h) => (
+            <div key={h} class="mono">
+              {h}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {resumeBlocked ? (
+        <div class="stack" data-testid="sign-resume-blocked">
+          {check.vault ? (
+            <a href={href({ name: 'vault', vault: check.vault })}>{t('openVault')}</a>
+          ) : (
+            <p>{t('openVault')}</p>
+          )}
+        </div>
+      ) : null}
+      {bundle ? (
+        <div class="stack" data-testid="sign-bundle-id">
+          <p class="mono">{t('bundleId', { id: bundle.id })}</p>
+          {submitted ? <p>{t('checkWallet')}</p> : null}
+        </div>
+      ) : null}
+      {bundleFailed && bundle ? (
         <Banner kind="error" testid="sign-bundle-failed">
-          {t('bundleFailed', { status: outcome.result.status })}
+          {t('bundleFailed', { status: bundle.status })}
         </Banner>
       ) : null}
       {done && outcome ? (
         <Banner kind="info" testid="sign-done">
           <p>{t('done')}</p>
-          {outcomeHashes(outcome).map((h) =>
+          {doneHashes.map((h) =>
             explorer ? (
               <div key={h}>
                 <a href={explorerTx(explorer, h)} target="_blank" rel="noopener noreferrer">

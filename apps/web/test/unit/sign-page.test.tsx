@@ -1,6 +1,12 @@
 // @vitest-environment happy-dom
-import { GUARDIAN_WARNING, type InspectedStep, type SignRequestCheck } from '@atropyle/sdk';
-import { cleanup, render, screen, waitFor } from '@testing-library/preact';
+import {
+  AtropyleError,
+  GUARDIAN_WARNING,
+  type InspectedStep,
+  type SignPayload,
+  type SignRequestCheck,
+} from '@atropyle/sdk';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import type { ContextType } from 'preact';
 import type { Address } from 'viem';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -88,5 +94,127 @@ describe('SignPage', () => {
     render(page([bad]));
     await waitFor(() => expect(screen.getByTestId('sign-refused')).toBeTruthy());
     expect(screen.queryByTestId('sign-send')).toBeNull();
+  });
+});
+
+const H1 = `0x${'11'.repeat(32)}` as const;
+const raw = { to: V, data: '0x', value: 0n } as const;
+
+interface Rig {
+  steps?: number;
+  /** wallet_getCallsStatus reply; undefined means the wallet cannot batch. */
+  bundle?: unknown;
+  send?: (plan: { steps: unknown[] }, w: unknown, o: { onStep?: (e: unknown) => void }) => Promise<unknown>;
+  inspected?: SignPayload[];
+  refuseSlice?: boolean;
+}
+
+function rig(r: Rig = {}) {
+  const n = r.steps ?? 1;
+  const inspected = r.inspected ?? [];
+  const sdk = {
+    atro: {
+      chain: { id: 196 },
+      handoff: {
+        parse: (h: string) => ({ chainId: 196, from: A, steps: Array.from({ length: n }, () => raw), tag: h }),
+        inspect: async (p: SignPayload) => {
+          inspected.push(p);
+          const steps = p.steps.map((_, index) => step({ index }));
+          const ok = !(r.refuseSlice && p.steps.length < n);
+          return { ok, chainId: 196, from: A, vault: V, steps: ok ? steps : [step({ allowed: false })] };
+        },
+        calls: () => ({ calls: [] }),
+      },
+      send: r.send ?? (async () => ({ vault: V, steps: [] })),
+    },
+    deployment: { explorerUrl: null },
+  } as unknown as Sdk;
+  const provider = {
+    request: async ({ method }: { method: string }) => {
+      if (r.bundle === undefined) throw Object.assign(new Error('no'), { code: 4200 });
+      if (method === 'wallet_getCapabilities') return { '0xc4': {} };
+      if (method === 'wallet_sendCalls') return { id: 'bundle-1' };
+      return r.bundle;
+    },
+  };
+  const value = {
+    lang: 'en',
+    env: { docsPath: null },
+    sdk,
+    wallet: { account: A, chainId: 196, option: { provider } },
+    walletClient: () => ({}),
+  } as unknown as NonNullable<ContextType<typeof AppContext>>;
+  return (
+    <AppContext.Provider value={value}>
+      <SignPage sdk={sdk} />
+    </AppContext.Provider>
+  );
+}
+
+describe('SignPage state', () => {
+  it('forgets the outcome of one link when another link is opened', async () => {
+    location.hash = '#/sign?p=A';
+    render(rig());
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await screen.findByTestId('sign-done');
+    location.hash = '#/sign?p=B';
+    window.dispatchEvent(new Event('hashchange'));
+    await screen.findByTestId('sign-send');
+    expect(screen.queryByTestId('sign-done')).toBeNull();
+  });
+
+  const bundle = (status: number) => ({ status, receipts: [] });
+
+  it.each([600, 777])('offers no second signature after a bundle with status %i', async (status) => {
+    render(rig({ bundle: bundle(status) }));
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await screen.findByTestId('sign-bundle-id');
+    expect(screen.getByTestId('sign-bundle-id').textContent).toContain('bundle-1');
+    expect(screen.queryByTestId('sign-send')).toBeNull();
+  });
+
+  it.each([400, 500])('offers another try after a bundle with status %i', async (status) => {
+    render(rig({ bundle: bundle(status) }));
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await screen.findByTestId('sign-bundle-failed');
+    expect(screen.getByTestId('sign-send')).toBeTruthy();
+  });
+
+  it('resumes a partly failed send with only the remaining steps and shows the confirmed hashes', async () => {
+    const seen: number[] = [];
+    let attempt = 0;
+    const send = async (plan: { steps: unknown[] }, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      seen.push(plan.steps.length);
+      attempt++;
+      if (attempt === 1) {
+        o.onStep?.({ index: 0, phase: 'confirmed', hash: H1 });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      }
+      return { vault: V, steps: [] };
+    };
+    const inspected: SignPayload[] = [];
+    render(rig({ steps: 2, send, inspected }));
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await waitFor(() => expect(screen.getByTestId('sign-confirmed').textContent).toContain(H1));
+    expect(screen.getByTestId('sign-send').textContent).toBe('Resume from step 2');
+    fireEvent.click(screen.getByTestId('sign-send'));
+    await screen.findByTestId('sign-done');
+    expect(seen).toEqual([2, 1]);
+    expect(inspected.at(-1)?.steps).toHaveLength(1);
+    expect(screen.getByTestId('sign-done').textContent).not.toContain('Resume');
+  });
+
+  it('points to the vault page when the remaining steps are refused', async () => {
+    const send = async (_p: unknown, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      o.onStep?.({ index: 0, phase: 'confirmed', hash: H1 });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    };
+    render(rig({ steps: 2, send, refuseSlice: true }));
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await waitFor(() => expect(screen.getByTestId('sign-send').textContent).toBe('Resume from step 2'));
+    fireEvent.click(screen.getByTestId('sign-send'));
+    await screen.findByTestId('sign-resume-blocked');
+    expect(screen.queryByTestId('sign-send')).toBeNull();
+    expect(screen.getByTestId('sign-confirmed').textContent).toContain(H1);
   });
 });

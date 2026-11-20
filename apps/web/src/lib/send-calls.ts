@@ -28,7 +28,8 @@ export async function supportsSendCalls(p: Eip1193, account: Address, chainId: n
   }
 }
 
-export type CallsStatus = 'pending' | 'confirmed' | 'failed' | 'reverted' | 'partial';
+/** 'failed' is code 400 and 'reverted' is 500; 'unknown' is any status this app does not know. */
+export type CallsStatus = 'pending' | 'confirmed' | 'failed' | 'reverted' | 'partial' | 'unknown';
 
 export interface CallsResult {
   id: string;
@@ -43,7 +44,8 @@ export function normalizeStatus(raw: unknown): CallsStatus {
   if (raw === 'CONFIRMED' || raw === 200) return 'confirmed';
   if (raw === 500) return 'reverted';
   if (raw === 600) return 'partial';
-  return 'failed';
+  if (raw === 400 || raw === 'FAILED') return 'failed';
+  return 'unknown';
 }
 
 export interface SendCallsOptions {
@@ -71,8 +73,15 @@ export async function sendCalls(p: Eip1193, params: SendCallsParams, o: SendCall
   if (typeof id !== 'string') throw new AtropyleError('UNKNOWN', { message: 'The wallet returned no call bundle id.' });
   const deadline = Date.now() + (o.timeoutMs ?? 600_000);
   for (;;) {
-    const r = await call<CallsStatusReply | null>(p, 'wallet_getCallsStatus', [id]);
-    const status = normalizeStatus(r?.status);
+    // The wallet already accepted the bundle: a failing poll says nothing about it, so it counts as still pending.
+    let r: CallsStatusReply | null = null;
+    let polled = true;
+    try {
+      r = await call<CallsStatusReply | null>(p, 'wallet_getCallsStatus', [id]);
+    } catch {
+      polled = false;
+    }
+    const status = polled ? normalizeStatus(r?.status) : 'pending';
     o.onStatus?.(status);
     if (status !== 'pending') {
       const receipts = r?.receipts ?? [];

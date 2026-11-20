@@ -95,4 +95,40 @@ describe('EIP-5792', () => {
       ok: false,
     });
   });
+
+  it('keeps polling when a status poll throws, then reports the bundle', async () => {
+    let n = 0;
+    const w = wallet({
+      wallet_sendCalls: () => ({ id: 'b' }),
+      wallet_getCallsStatus: () => {
+        if (++n === 1) throw new Error('rpc down');
+        return { status: 200, receipts: [{ transactionHash: H1, status: '0x1' }] };
+      },
+    });
+    expect(await sendCalls(w.p, PARAMS, { sleep: noSleep })).toMatchObject({ id: 'b', status: 'confirmed', ok: true });
+    expect(n).toBe(2);
+  });
+
+  it('returns pending with the bundle id when every poll throws until the deadline', async () => {
+    const w = wallet({
+      wallet_sendCalls: () => ({ id: 'b' }),
+      wallet_getCallsStatus: () => {
+        throw new Error('rpc down');
+      },
+    });
+    expect(await sendCalls(w.p, PARAMS, { sleep: noSleep, timeoutMs: 0 })).toEqual({
+      id: 'b',
+      status: 'pending',
+      hashes: [],
+      ok: false,
+    });
+  });
+
+  it('tells 400, 500, 600 and unknown statuses apart', () => {
+    expect(normalizeStatus(400)).toBe('failed');
+    expect(normalizeStatus(500)).toBe('reverted');
+    expect(normalizeStatus(600)).toBe('partial');
+    expect(normalizeStatus(777)).toBe('unknown');
+    expect(normalizeStatus(undefined)).toBe('unknown');
+  });
 });

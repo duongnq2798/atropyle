@@ -32,6 +32,12 @@ export const messages = defineMessages(
     guardianPlain:
       'Guardians: never vote because of a message or a link alone. Call the owner or the family on a number you already know, and compare the address character by character.',
     viewTx: 'View transaction',
+    resume: 'Resume from step {n}',
+    confirmedSoFar: 'Already confirmed on chain. These steps are not sent again:',
+    openVault: 'Open the vault page to finish',
+    bundleId: 'Call bundle id: {id}',
+    checkWallet:
+      'Your wallet accepted this request. Check your wallet or the explorer for the result before you try again.',
   },
   {
     title: 'Yêu cầu ký',
@@ -64,5 +70,10 @@ export const messages = defineMessages(
     guardianPlain:
       'Người giám hộ: đừng bao giờ bầu chỉ vì một tin nhắn hay một link. Hãy gọi cho chủ vault hoặc gia đình qua số bạn đã biết, rồi so địa chỉ từng ký tự.',
     viewTx: 'Xem giao dịch',
+    resume: 'Tiếp tục từ bước {n}',
+    confirmedSoFar: 'Đã xác nhận trên chain. Các bước này sẽ không được gửi lại:',
+    openVault: 'Mở trang vault để hoàn tất',
+    bundleId: 'Mã bó lệnh: {id}',
+    checkWallet: 'Ví của bạn đã nhận yêu cầu này. Hãy xem kết quả trong ví hoặc trên explorer trước khi thử lại.',
   },
 );
