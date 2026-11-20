@@ -3,12 +3,13 @@ import { useState } from 'preact/hooks';
 import type { Sdk } from '../lib/sdk';
 import { runProof } from '../lib/verify-client';
 import { proofSummary } from '../lib/verify-view';
-import { useT } from '../ui/app-context';
-import { AddressText, Banner, ErrorBox } from '../ui/components';
+import { useApp, useT } from '../ui/app-context';
+import { AddressText, Banner, ErrorBox, UntrustedText } from '../ui/components';
 import { messages } from './verify.messages';
 
 export function ProofResult({ sdk, result }: { sdk: Sdk; result: PolicyVerification }) {
   const t = useT(messages);
+  const { env } = useApp();
   const s = proofSummary(result);
   const explorer = sdk.deployment.explorerUrl;
   return (
@@ -20,7 +21,7 @@ export function ProofResult({ sdk, result }: { sdk: Sdk; result: PolicyVerificat
       <p>{t('rpcs', { n: s.rpcs })}</p>
       {s.rpcs < 2 ? (
         <Banner kind="warn" testid="proof-single-rpc">
-          {t('singleRpc')}
+          {t(env.target === 'deweb' ? 'singleRpc' : 'singleRpcPages')}
         </Banner>
       ) : null}
       <table class="table">
@@ -42,7 +43,7 @@ export function ProofResult({ sdk, result }: { sdk: Sdk; result: PolicyVerificat
       </table>
       {s.issues.map((i) => (
         <Banner kind="error" key={i}>
-          {i}
+          <UntrustedText value={i} max={300} />
         </Banner>
       ))}
       <h3>{t('netlists')}</h3>

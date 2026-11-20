@@ -59,7 +59,14 @@ export function evaluateInWorker(bundle: PolicyBundle, o: EvalOptions = {}): Pro
     };
     const msg: WorkerIn = { type: 'evaluate', bundle };
     if (o.blocks !== undefined) msg.blocks = o.blocks;
-    w.postMessage(msg);
+    try {
+      w.postMessage(msg);
+    } catch (cause) {
+      // For example a DataCloneError: the worker never got the job, so do not leave it running.
+      w.terminate();
+      const why = cause instanceof Error ? cause.message : String(cause);
+      reject(new AtropyleError('UNKNOWN', { message: `The proof worker could not start: ${why}`, cause }));
+    }
   });
 }
 
@@ -84,25 +91,64 @@ export function proofKey(sdk: Pick<Sdk, 'deployment' | 'rpc'>): string {
   return `${sdk.deployment.chainId}:${sdk.deployment.factory.toLowerCase()}:${groups}`;
 }
 
-const proofs = new Map<string, Promise<PolicyVerification>>();
+type ProgressFn = (done: number, total: number) => void;
 
-/** `#/proof` then `#/v/<vault>/verify` run the 2^26 enumeration only once per session (Plan 4, decision 8). */
+interface Flight {
+  promise: Promise<PolicyVerification>;
+  listeners: Set<ProgressFn>;
+  last: [number, number] | null;
+}
+
+const proofs = new Map<string, Flight>();
+
+/**
+ * `#/proof` then `#/v/<vault>/verify` run the 2^26 enumeration only once per session (Plan 4, decision 8).
+ * A caller that joins a proof already in flight still gets its progress.
+ */
 export function runProof(sdk: Sdk, o: EvalOptions = {}): Promise<PolicyVerification> {
-  const cacheable = o.blocks === undefined;
+  if (o.blocks !== undefined) return start(sdk, o, new Set(o.onProgress ? [o.onProgress] : []), null);
   const key = proofKey(sdk);
-  const hit = cacheable ? proofs.get(key) : undefined;
-  if (hit) return hit;
-  const p = (async () => {
+  const hit = proofs.get(key);
+  if (hit) {
+    if (o.onProgress) {
+      hit.listeners.add(o.onProgress);
+      if (hit.last) o.onProgress(hit.last[0], hit.last[1]);
+    }
+    return hit.promise;
+  }
+  const flight: Flight = { promise: null as unknown as Promise<PolicyVerification>, listeners: new Set(), last: null };
+  if (o.onProgress) flight.listeners.add(o.onProgress);
+  flight.promise = start(sdk, o, flight.listeners, flight);
+  proofs.set(key, flight);
+  flight.promise.then(
+    () => flight.listeners.clear(),
+    () => {
+      flight.listeners.clear();
+      if (proofs.get(key) === flight) proofs.delete(key);
+    },
+  );
+  return flight.promise;
+}
+
+function start(
+  sdk: Sdk,
+  o: EvalOptions,
+  listeners: Set<ProgressFn>,
+  flight: Flight | null,
+): Promise<PolicyVerification> {
+  return (async () => {
     const { readPolicyBundle } = await import('@atropyle/sdk/verify');
     const q = await quorumClient(sdk);
     const bundle = await readPolicyBundle(q.client, sdk.deployment, q.rpcs);
-    return evaluateInWorker(bundle, o);
+    return evaluateInWorker(bundle, {
+      blocks: o.blocks,
+      worker: o.worker,
+      onProgress: (done, total) => {
+        if (flight) flight.last = [done, total];
+        for (const fn of [...listeners]) fn(done, total);
+      },
+    });
   })();
-  if (cacheable) {
-    proofs.set(key, p);
-    p.catch(() => proofs.delete(key));
-  }
-  return p;
 }
 
 export async function runVaultVerify(

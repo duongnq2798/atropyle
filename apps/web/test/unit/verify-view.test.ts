@@ -93,3 +93,16 @@ describe('proofSummary', () => {
     expect(s).toMatchObject({ ok: true, combos: 67_108_864, seconds: 12.3, rpcs: 2, blockNumber: 5n });
   });
 });
+
+describe('vaultVerifyRows detail', () => {
+  it('keeps the head and the tail of a 20 KB value', () => {
+    const actual = `0x${'ab'.repeat(10_000)}`;
+    const checks = ALL_OK.map((c) =>
+      c.name === 'vault.proxy' ? { name: c.name, ok: false, expected: '0xaa', actual } : c,
+    );
+    const row = vaultVerifyRows(verification({ checks })).find((r) => r.id === 'proxy');
+    expect(row?.detail?.length).toBeLessThan(100);
+    expect(row?.detail).toContain('\u2026');
+    expect(row?.detail?.startsWith('0xaa \u2192 0xabab')).toBe(true);
+  });
+});

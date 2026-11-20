@@ -5,7 +5,7 @@ import type { Sdk } from '../lib/sdk';
 import { runVaultVerify } from '../lib/verify-client';
 import { type RowId, type RowState, vaultVerifyRows } from '../lib/verify-view';
 import { useT } from '../ui/app-context';
-import { AddressText, Banner, ErrorBox } from '../ui/components';
+import { AddressText, Banner, ErrorBox, UntrustedText } from '../ui/components';
 import { useAsync } from '../ui/use-async';
 import { ProofResult } from './proof';
 import { messages } from './verify.messages';
@@ -42,6 +42,8 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
   if (quick.status === 'error') return <ErrorBox error={quick.error} onRetry={quick.reload} />;
   const v = full.status === 'ok' && full.value ? full.value : quick.value;
   const rows = vaultVerifyRows(v);
+  // The cheap pass marks the policy row unknown; do not call that a failure while the proof is still running.
+  const pending = full.status === 'loading' || (full.status === 'ok' && full.value === null);
   const allPass = rows.every((r) => r.state === 'pass');
   const explorer = sdk.deployment.explorerUrl;
 
@@ -54,8 +56,12 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
       <p class="muted">
         {t('verifyIntro')} {t('atBlock', { block: v.blockNumber })}
       </p>
-      <div data-testid="verify-overall" data-ok={String(allPass)}>
-        <Banner kind={allPass ? 'info' : 'warn'}>{allPass ? t('overallOk') : t('overallNo')}</Banner>
+      <div data-testid="verify-overall" data-ok={pending ? 'pending' : String(allPass)}>
+        {pending ? (
+          <Banner kind="info">{t('checkingPolicy')}</Banner>
+        ) : (
+          <Banner kind={allPass ? 'info' : 'warn'}>{allPass ? t('overallOk') : t('overallNo')}</Banner>
+        )}
       </div>
       <table class="table">
         <tbody>
@@ -65,12 +71,12 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
               <td>
                 <span class={BADGE[r.state]}>{t(STATE[r.state])}</span>
               </td>
-              <td class="mono">{r.detail}</td>
+              <td class="mono">{r.detail ? <UntrustedText value={r.detail} max={160} /> : null}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {full.status === 'loading' && progress ? (
+      {pending && progress ? (
         <div>
           <progress data-testid="verify-progress" max={progress[1]} value={progress[0]} />
           <p class="muted">{t('running', { done: progress[0], total: progress[1] })}</p>

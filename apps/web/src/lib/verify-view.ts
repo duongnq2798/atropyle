@@ -10,6 +10,11 @@ export interface VerifyRow {
   detail: string | null;
 }
 
+/** A failing check can carry a vault's whole runtime bytecode; keep the head and the tail only. */
+function abbreviate(s: string, max = 66): string {
+  return s.length <= max ? s : `${s.slice(0, 34)}…${s.slice(-30)}`;
+}
+
 function rowOf(id: RowId, checks: readonly IntegrityCheck[], names: readonly string[]): VerifyRow {
   const found = names.map((n) => checks.find((c) => c.name === n));
   if (found.some((c) => !c)) return { id, state: 'unknown', detail: null };
@@ -18,7 +23,7 @@ function rowOf(id: RowId, checks: readonly IntegrityCheck[], names: readonly str
   return {
     id,
     state: 'fail',
-    detail: bad.expected !== undefined ? `${bad.expected} → ${bad.actual ?? '?'}` : bad.name,
+    detail: bad.expected !== undefined ? `${abbreviate(bad.expected)} → ${abbreviate(bad.actual ?? '?')}` : bad.name,
   };
 }
 
