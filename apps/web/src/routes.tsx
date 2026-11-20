@@ -1,4 +1,5 @@
 import type { Route } from './lib/route';
+import { CreatePage } from './pages/create';
 import { HomePage } from './pages/home';
 import { BadAddressPage, NotFoundPage } from './pages/not-found';
 import { ProofPage } from './pages/proof';
@@ -17,6 +18,12 @@ export function RouteView({ route }: { route: Route }) {
       return <RequireSdk>{(sdk) => <SignPage sdk={sdk} />}</RequireSdk>;
     case 'verify':
       return <RequireSdk>{(sdk) => <VerifyPage sdk={sdk} vault={route.vault} />}</RequireSdk>;
+    case 'create':
+      return (
+        <RequireSdk>
+          {(sdk) => <CreatePage key={route.drill ? 'drill' : 'real'} sdk={sdk} drill={route.drill} />}
+        </RequireSdk>
+      );
     case 'home':
       return <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>;
     default:

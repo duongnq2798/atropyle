@@ -78,6 +78,13 @@ export function TxRunner(props: { plan: TxPlan; label: string; onDone?: (r: Send
 
   return (
     <section class="card stack" data-testid={id}>
+      {view.total > 1 ? (
+        <progress
+          data-testid={`${id}-progress`}
+          value={view.rows.filter((r) => r.phase === 'confirmed').length}
+          max={view.total}
+        />
+      ) : null}
       {view.warnings.map((w) => (
         <Banner kind="warn" key={warningKey(w)} testid={`warning-${w.code}`}>
           {w.message}
