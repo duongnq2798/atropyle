@@ -16,16 +16,16 @@ describe('readPlan', () => {
   it('reads plan files with a BOM and reports broken JSON', async () => {
     const io = memoryIo({ files: PLAN_FILES });
     expect(await readPlan(io, 'bom.json')).toEqual({ version: 1, heirs: [] });
-    const e = await readPlan(io, 'broken.json').catch((x) => x);
+    const e = (await readPlan(io, 'broken.json').catch((x) => x)) as AtropyleError;
     expect(e).toMatchObject({ code: 'PLAN_INVALID', details: { file: 'broken.json' } });
-    expect(e.details.error).toMatch(/position \d+/);
+    expect(e.details?.error).toMatch(/position \d+/);
     for (const name of ['list.json', 'string.json', 'null.json']) {
       expect(await readPlan(io, name).catch((x) => x), name).toMatchObject({
         code: 'PLAN_INVALID',
         details: { file: name },
       });
     }
-    expect((await readPlan(io, 'missing.json').catch((x) => x)).code).toBe('PLAN_INVALID');
+    expect(((await readPlan(io, 'missing.json').catch((x) => x)) as AtropyleError).code).toBe('PLAN_INVALID');
   });
 
   it('prints a short error for broken JSON, not a stack trace', async () => {
