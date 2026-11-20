@@ -27,6 +27,8 @@
     "deployment:write": "npm run build -w circuits && tsx scripts/write-deployment.ts",
     "site:build": "tsx scripts/build-site.ts",
     "site:check": "tsx scripts/check-site.ts",
+    "deweb:publish": "tsx scripts/deweb-publish.ts",
+    "deweb:site": "tsx scripts/deweb-site.ts",
     "test:site": "vitest run --config scripts/vitest.site.config.ts"
   },
   "devDependencies": {

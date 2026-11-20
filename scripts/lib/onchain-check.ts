@@ -111,7 +111,7 @@ export function collectReferences(text: string, kind: 'html' | 'css', fromDir = 
 // --- Plan 4's own layer: absolute URLs written into JavaScript. The gateway does not scan JS. ---
 
 /**
- * The only chain nodes the gateway counts as the site's own on X Layer (Quyết định 4).
+ * The only chain nodes the gateway counts as the site's own on X Layer (Plan 4, decision 4).
  * Mirrors ONCHAIN_RPCS in apps/web/src/lib/rpc.ts; a test keeps the two in step.
  */
 export const RPC_HOSTS = ['rpc.xlayer.tech', 'xlayerrpc.okx.com'] as const;

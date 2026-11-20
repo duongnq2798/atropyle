@@ -4,7 +4,7 @@ import { join, relative, sep } from 'node:path';
 
 type Hex = `0x${string}`;
 
-/** SiteRegistry.CHUNK_MAX() on X Layer (read on-chain, Quyết định 11). */
+/** SiteRegistry.CHUNK_MAX() on X Layer (read on-chain, Plan 4, decision 11). */
 export const CHUNK_MAX = 24_000;
 /** TapeKit limits: 350 chunks per file, 5,000 paths per site. */
 export const LIMITS = { fileBytes: 8_400_000, paths: 5_000 } as const;
