@@ -1,0 +1,234 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --card: #f9fafb;
+  --accent: #b45309;
+  --ok: #047857;
+  --warn: #b45309;
+  --bad: #b91c1c;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f17;
+    --fg: #e5e7eb;
+    --muted: #9ca3af;
+    --line: #1f2937;
+    --card: #111827;
+    --accent: #f59e0b;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+a {
+  color: var(--accent);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-decoration: none;
+  color: var(--fg);
+}
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex: 1;
+}
+.beta {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  border-radius: 999px;
+}
+.banner {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.banner-warn {
+  border-color: var(--warn);
+}
+.banner-error {
+  border-color: var(--bad);
+}
+.card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  margin: 12px 0;
+}
+.stack > * + * {
+  margin-top: 12px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.btn-big {
+  font-size: 1.1rem;
+  padding: 12px 20px;
+}
+.muted {
+  color: var(--muted);
+}
+.mono,
+.addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.addr {
+  word-break: break-all;
+}
+.untrusted {
+  border-bottom: 1px dotted var(--muted);
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid currentColor;
+}
+.badge-ok {
+  color: var(--ok);
+}
+.badge-warn {
+  color: var(--warn);
+}
+.badge-bad {
+  color: var(--bad);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+.field input,
+.field select,
+.field textarea {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.field-error {
+  color: var(--bad);
+  font-size: 0.9rem;
+}
+.steps {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  flex-wrap: wrap;
+}
+.steps li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.steps .step-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.code {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.hidden {
+  display: none;
+}
+progress {
+  width: 100%;
+}
+footer {
+  max-width: 960px;
+  margin: 24px auto;
+  padding: 0 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
