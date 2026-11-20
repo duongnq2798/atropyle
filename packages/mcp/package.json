@@ -1,0 +1,72 @@
+{
+  "name": "@atropyle/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Atropyle inheritance vaults on X Layer: read, simulate, verify and prepare. Never signs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duongnq2798/atropyle.git",
+    "directory": "packages/mcp"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "mcpName": "io.github.duongnq2798/atropyle",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "x-layer",
+    "inheritance",
+    "crypto",
+    "okx"
+  ],
+  "bin": {
+    "atropyle-mcp": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ops": {
+      "types": "./dist/ops/index.d.ts",
+      "default": "./dist/ops/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "test:e2e": "vitest run -c vitest.e2e.config.ts",
+    "check:pkg": "publint && attw --pack . --profile esm-only",
+    "inspector:smoke": "node scripts/inspector-smoke.mjs",
+    "server-json:check": "tsx scripts/validate-server-json.ts"
+  },
+  "dependencies": {
+    "@atropyle/sdk": "0.1.0",
+    "@modelcontextprotocol/server": "2.4.0",
+    "viem": "^2.45.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@modelcontextprotocol/client": "2.4.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "publint": "0.3.25"
+  }
+}
