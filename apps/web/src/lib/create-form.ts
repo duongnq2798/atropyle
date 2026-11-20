@@ -1,13 +1,16 @@
 import {
+  type Asset,
   type AssetInput,
   type AssetKind,
   type Deployment,
+  type Heir,
   type HeirInput,
   type PlanInput,
   type PlanIssue,
   PRESETS,
   type PresetName,
   planTemplate,
+  type Timing,
   type TimingInput,
 } from '@atropyle/sdk';
 import type { Address } from 'viem';
@@ -184,4 +187,32 @@ export function tokenChoices(d: Deployment): TokenChoice[] {
 /** "TapeOut circuit": circuits are ERC-721 tokens of their processor (Plan 1); this one is Atropyle's. */
 export function circuitShortcut(d: Deployment): AssetRow {
   return { kind: 'erc721', token: d.cpu, id: '', heir: '0' };
+}
+
+/** The inverse of heirsInput: bps back to percent, empty for a single heir. */
+export function heirRows(heirs: readonly Heir[]): HeirRow[] {
+  return heirs.map((h) => ({ account: h.account, percent: heirs.length === 1 ? '' : String(h.bps / 100) }));
+}
+
+export function assetRows(assets: readonly Asset[]): AssetRow[] {
+  return assets.map((a) => ({
+    kind: a.kind,
+    token: a.token,
+    id: a.kind === 'erc20' ? '' : a.id.toString(),
+    heir: String(a.heir),
+  }));
+}
+
+/** A preset when the timing is exactly one this kind of vault offers, otherwise custom fields. */
+export function timingFormOf(t: Timing, drill: boolean): TimingForm {
+  const preset = presetsFor(drill).find(
+    (p) => PRESETS[p].period === t.period && PRESETS[p].threshold === t.threshold && PRESETS[p].window === t.window,
+  );
+  if (preset) return { preset, period: '', threshold: '', window: '' };
+  return {
+    preset: 'custom',
+    period: exactDuration(t.period),
+    threshold: String(t.threshold),
+    window: exactDuration(t.window),
+  };
 }

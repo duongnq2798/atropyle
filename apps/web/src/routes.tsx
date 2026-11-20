@@ -4,6 +4,7 @@ import { HomePage } from './pages/home';
 import { BadAddressPage, NotFoundPage } from './pages/not-found';
 import { ProofPage } from './pages/proof';
 import { SignPage } from './pages/sign';
+import { VaultPage } from './pages/vault';
 import { VerifyPage } from './pages/verify';
 import { RequireSdk } from './ui/components';
 
@@ -26,6 +27,8 @@ export function RouteView({ route }: { route: Route }) {
           {(sdk) => <CreatePage key={route.drill ? 'drill' : 'real'} sdk={sdk} drill={route.drill} />}
         </RequireSdk>
       );
+    case 'vault':
+      return <RequireSdk>{(sdk) => <VaultPage key={route.vault} sdk={sdk} vault={route.vault} />}</RequireSdk>;
     default:
       return <NotFoundPage path={route.name === 'notFound' ? route.path : `/${route.name}`} />;
   }
