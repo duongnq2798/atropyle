@@ -140,6 +140,16 @@ describe('on the devnet', () => {
     return body.result;
   }
 
+  // anvil mines the transaction at once, but the receipt can still be null for a moment on a busy runner.
+  async function receipt(hash) {
+    for (let i = 0; i < 100; i++) {
+      const r = await rpc('eth_getTransactionReceipt', [hash]);
+      if (r) return r;
+      await new Promise((done) => setTimeout(done, 100));
+    }
+    throw new Error(`no receipt for ${hash} after 10 s`);
+  }
+
   it('plans, simulates and prepares a Drill whose steps create the vault', async () => {
     const owner = env.accounts[8];
     const server = { command: process.execPath, args: [BIN, '--deployment', env.deploymentFile] };
@@ -182,7 +192,7 @@ describe('on the devnet', () => {
       const hash = await rpc('eth_sendTransaction', [
         { from: step.from, to: step.to, data: step.data, value: `0x${BigInt(step.value).toString(16)}` },
       ]);
-      expect((await rpc('eth_getTransactionReceipt', [hash])).status).toBe('0x1');
+      expect((await receipt(hash)).status).toBe('0x1');
     }
 
     const client = await connect(server);
