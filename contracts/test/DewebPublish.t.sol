@@ -249,6 +249,27 @@ contract DewebPublishTest is Test {
         h.load("deweb-calls/test/dup-key.json");
     }
 
+    // These three have the length of good.json and the same parsed values, so each passes the length check and fails at
+    // one text compare of load(): the head, the tail, or the hex of `calls`.
+
+    function test_loadRefusesAHeadInOtherTextWithTheSameValues() public {
+        // "registry" in lowercase: the same address, but not the checksummed text --emit writes.
+        vm.expectRevert(DewebCalls.NotCanonicalJson.selector);
+        h.load("deweb-calls/test/head.json");
+    }
+
+    function test_loadRefusesATailInOtherText() public {
+        // A space where --emit writes the newline before the closing brace.
+        vm.expectRevert(DewebCalls.NotCanonicalJson.selector);
+        h.load("deweb-calls/test/tail.json");
+    }
+
+    function test_loadRefusesCallsInUppercaseHex() public {
+        // One hex digit of `calls` in uppercase: the same bytes, but not the lowercase text --emit writes.
+        vm.expectRevert(DewebCalls.NotCanonicalJson.selector);
+        h.load("deweb-calls/test/hex-case.json");
+    }
+
     function test_loadRefusesTrailingBytesAfterTheCalls() public {
         vm.expectRevert(DewebCalls.NotCanonicalCalls.selector);
         h.load("deweb-calls/test/trailing.json");
