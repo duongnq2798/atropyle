@@ -43,7 +43,13 @@ describe('node-quickstart on the devnet', () => {
       return (await res.json()).result;
     };
     const hash = await rpc('eth_sendTransaction', [{ from: step.from, to: step.to, data: step.data, value: '0x0' }]);
-    expect((await rpc('eth_getTransactionReceipt', [hash])).status).toBe('0x1');
+    // anvil mines the transaction at once, but the receipt can still be null for a moment on a busy runner.
+    let receipt = null;
+    for (let i = 0; i < 100 && !receipt; i++) {
+      receipt = await rpc('eth_getTransactionReceipt', [hash]);
+      if (!receipt) await new Promise((done) => setTimeout(done, 100));
+    }
+    expect(receipt?.status).toBe('0x1');
   });
 
   it('prints no link and reports failure when a step fails in simulation', async () => {

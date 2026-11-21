@@ -24,7 +24,12 @@
     "devnet:fork": "npm run build -w circuits && tsx scripts/devnet.ts --fork",
     "devnet:warp": "tsx scripts/devnet-warp.ts",
     "devnet:seed": "npm run build -w circuits && tsx scripts/devnet-seed.ts",
-    "deployment:write": "npm run build -w circuits && tsx scripts/write-deployment.ts"
+    "deployment:write": "npm run build -w circuits && tsx scripts/write-deployment.ts",
+    "site:build": "tsx scripts/build-site.ts",
+    "site:check": "tsx scripts/check-site.ts",
+    "deweb:publish": "tsx scripts/deweb-publish.ts",
+    "deweb:site": "tsx scripts/deweb-site.ts",
+    "test:site": "vitest run --config scripts/vitest.site.config.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
@@ -33,6 +38,7 @@
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "viem": "2.58.0",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "yaml": "2.9.1"
   }
 }

@@ -10,7 +10,7 @@ import {
   toHex,
 } from 'viem';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ANVIL_ACCOUNTS } from '../../../../scripts/lib/anvil';
+import { ANVIL_ACCOUNTS, deployForeignVault } from '../../../../scripts/lib/anvil';
 import {
   AtropyleError,
   createAtropyle,
@@ -18,6 +18,7 @@ import {
   parseBuilderCodeSuffix,
   type Simulation,
   stringify,
+  type VaultAction,
 } from '../../src/index';
 import {
   deployToken,
@@ -378,5 +379,38 @@ describe('prepare on the devnet', () => {
     );
     // The same reads through an endpoint that answers: the plan has its steps.
     expect((await atro.vault(plan.vault).prepare({ type: 'revokeAll' }, { as: OWNER })).steps).toHaveLength(1);
+  });
+
+  it('refuses a contract that answers like a vault and names the factory, but that the factory did not create', async () => {
+    const created = await atro.prepare.createVault(drillPlan, { owner: OWNER, drill: true });
+    const createStep = created.steps.find((s) => s.action === 'createVault');
+    if (!createStep) throw new Error('no createVault step');
+    const fake = await deployForeignVault(env.rpcUrl, env.deployment, {
+      from: OWNER,
+      createVaultData: createStep.data,
+    });
+    const v = atro.vault(fake);
+    const snap = await v.snapshot();
+    // Every read answers, the owner's tokens are listed, and the vault names the real factory: only isVault differs.
+    expect(snap.binding.factory).toBe(env.deployment.factory);
+    expect(snap.config.owner).toBe(OWNER);
+    expect(snap.status.assets[0].held).toBeGreaterThan(0n);
+    expect(await v.registered()).toBe(false);
+    expect(await v.registered({ blockNumber: snap.status.blockNumber })).toBe(false);
+    const actions: VaultAction[] = [
+      { type: 'setAssets', assets: [{ kind: 'erc20', token: usdt0 }] },
+      { type: 'checkIn' },
+      { type: 'revokeAll' },
+    ];
+    for (const action of actions) {
+      await expect(v.prepare(action, { as: OWNER })).rejects.toMatchObject({
+        code: 'NOT_VAULT',
+        details: { vault: fake },
+      });
+    }
+    // The same plan sent to the deployment's factory makes a vault that is registered and prepares as usual.
+    await sendPlanRaw(env, created);
+    expect(await atro.vault(created.vault).registered()).toBe(true);
+    expect((await atro.vault(created.vault).prepare({ type: 'checkIn' }, { as: OWNER })).steps).toHaveLength(1);
   });
 });

@@ -8,6 +8,7 @@ import { AtropyleError } from '../errors';
 import type { GuardianPart, PlanIssue } from '../plan/types';
 import { planError, resolveTiming, validateSection } from '../plan/validate';
 import { predictAction } from '../policy/predict';
+import { isRegistered } from '../read/registered';
 import { readSnapshot } from '../read/snapshot';
 import type { VaultSnapshot } from '../read/types';
 import { type Asset, type Heir, isReleasedState, type Warning } from '../types';
@@ -259,6 +260,19 @@ async function build(
   }
 }
 
+/**
+ * A contract can answer every vault read and name the real factory in `factory()`, so only the deployment's own
+ * factory decides. Without this, a fake vault whose `assets()` lists the owner's tokens would get approvals to itself.
+ */
+async function assertRegistered(x: PrepareContext, snap: VaultSnapshot): Promise<void> {
+  const vault = snap.status.vault;
+  if (await isRegistered(x, vault, snap.status.blockNumber)) return;
+  throw new AtropyleError('NOT_VAULT', {
+    message: `${vault} was not created by the Atropyle factory ${x.deployment.factory}. Do not sign or approve anything for it.`,
+    details: { vault },
+  });
+}
+
 export async function prepareAction(
   x: PrepareContext,
   vault: Address,
@@ -268,6 +282,7 @@ export async function prepareAction(
   assertActionType(action);
   const as = toAddress(opts.as, 'as');
   const snap = await readSnapshot(x, vault);
+  await assertRegistered(x, snap);
   const { drafts, warnings } = await build(x, snap, action, opts);
   const engine = await x.engineFor(snap.binding.cpu, snap.binding.policyId);
   const effect = predictAction(engine, snap, action, as, opts.at ?? snap.status.blockTimestamp);
