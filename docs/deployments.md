@@ -217,9 +217,8 @@ npm run deweb:publish -- --emit contracts/deweb-calls/site.json
    DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url 'https://rpc.xlayer.tech'
    ```
 2. So keccak256 đó với keccak256 mà `--emit` đã in. Khác nhau thì dừng.
-3. Chạy lệnh broadcast (có `DEWEB_KECCAK`). Nếu file khác file đã kiểm, forge dừng với `HashMismatch` hoặc `NoExpectedHash` và không gửi gì:
+3. Vẫn trong `contracts/`, chạy lệnh broadcast (có `DEWEB_KECCAK`). Nếu file khác file đã kiểm, forge dừng với `HashMismatch` hoặc `NoExpectedHash` và không gửi gì:
    ```bash
-   cd contracts
    DEWEB_CALLS=deweb-calls/site.json DEWEB_KECCAK=0x<hash> forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow
    ```
 4. Xoá file phần vừa gửi xong: `rm contracts/deweb-calls/site.json` (từ gốc repo) hoặc `rm deweb-calls/site.json` (trong `contracts/`).
