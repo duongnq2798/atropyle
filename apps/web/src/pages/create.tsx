@@ -297,6 +297,8 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
   const index = STEPS.indexOf(step);
   const shown = issuesFor(step, issues);
   const locked = plan !== null;
+  // The switch mounts a fresh wizard: it would lose the remaining steps of a plan the wallet already accepted.
+  const switchable = !progress.committed || created !== null;
   const preparePlan = (p: TxPlan | null) => {
     setPlan(p);
     setProgress({ confirmed: 0, committed: false });
@@ -330,11 +332,13 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
       <h1>{drill ? t('titleDrill') : t('title')}</h1>
       {drill ? (
         <Banner kind="info" testid="create-drill-banner">
-          {t('drillBanner')} <a href={href({ name: 'create', drill: false })}>{t('switchToReal')}</a>
+          {t('drillBanner')}{' '}
+          {switchable ? <a href={href({ name: 'create', drill: false })}>{t('switchToReal')}</a> : null}
         </Banner>
       ) : (
         <Banner kind="warn" testid="create-real-banner">
-          {t('realBanner')} <a href={href({ name: 'create', drill: true })}>{t('switchToDrill')}</a>
+          {t('realBanner')}{' '}
+          {switchable ? <a href={href({ name: 'create', drill: true })}>{t('switchToDrill')}</a> : null}
         </Banner>
       )}
       {created ? <Created vault={created} /> : null}

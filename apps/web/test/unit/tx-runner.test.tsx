@@ -93,6 +93,51 @@ describe('TxRunner', () => {
     expect(screen.getByTestId('tx-step-2').getAttribute('data-phase')).toBe('confirmed');
   });
 
+  it('asks before the page unloads only while a sent plan is unfinished', async () => {
+    const leaving = () => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    let attempt = 0;
+    const send = async (p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      attempt++;
+      if (attempt === 1) {
+        o.onStep?.({ index: 0, total: p.steps.length, step: p.steps[0], phase: 'confirmed', hash: H });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      }
+      for (const [index, s] of p.steps.entries()) {
+        o.onStep?.({ index, total: p.steps.length, step: s, phase: 'confirmed', hash: H });
+      }
+      return { vault: V as `0x${string}`, steps: [] };
+    };
+    const { unmount } = render(harness(send));
+    expect(leaving()).toBe(false);
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await waitFor(() => expect(screen.getByTestId('tx-send').textContent).toBe('Resume from step 2'));
+    await waitFor(() => expect(leaving()).toBe(true));
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await screen.findByTestId('tx-done');
+    // Preact runs effects after paint.
+    await waitFor(() => expect(leaving()).toBe(false));
+    unmount();
+    expect(leaving()).toBe(false);
+  });
+
+  it('drops its unload guard when it unmounts mid-plan', async () => {
+    const send = async (p: TxPlan, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      o.onStep?.({ index: 0, total: p.steps.length, step: p.steps[0], phase: 'confirmed', hash: H });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    };
+    const { unmount } = render(harness(send));
+    fireEvent.click(screen.getByTestId('tx-send'));
+    await waitFor(() => expect(screen.getByTestId('tx-send').textContent).toBe('Resume from step 2'));
+    unmount();
+    const e = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
   it('hands off only the steps that are not confirmed yet', async () => {
     const writeText = vi.fn(async (_t: string) => {});
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

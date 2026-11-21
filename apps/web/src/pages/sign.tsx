@@ -12,6 +12,7 @@ import { useApp, useT } from '../ui/app-context';
 import { AddressText, Banner, ErrorBox } from '../ui/components';
 import { useAsync } from '../ui/use-async';
 import { useHash } from '../ui/use-hash';
+import { useLeaveGuard } from '../ui/use-leave-guard';
 import { messages } from './sign.messages';
 
 function parse(sdk: Sdk, hash: string): { payload: SignPayload | null; error: unknown } {
@@ -56,6 +57,10 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
   const [resumeBlocked, setResumeBlocked] = useState(false);
   // What the guardian typed for each vote step, by step index. Always empty on load: never read from the link.
   const [typed, setTyped] = useState<Record<number, string>>({});
+  // Closing the tab mid-send, or with confirmed steps and steps left, loses the only copy of what remains to sign.
+  const finished =
+    outcome !== null && (outcome.kind === 'sequential' || (outcome.kind === 'sendCalls' && outcome.result.ok));
+  useLeaveGuard((busy || offset > 0) && !finished && !resumeBlocked);
 
   if (!parsed.payload) {
     return (
@@ -121,8 +126,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
     }
   };
 
-  const done =
-    outcome !== null && (outcome.kind === 'sequential' || (outcome.kind === 'sendCalls' && outcome.result.ok));
+  const done = finished;
   // The wallet took the bundle. Only 400 (not sent) and 500 (reverted) allow another try; pending, partial and
   // unknown statuses could still be on chain, and signing again could move assets twice.
   const bundle = outcome?.kind === 'sendCalls' && !outcome.result.ok ? outcome.result : null;

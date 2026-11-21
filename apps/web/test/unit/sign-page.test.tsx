@@ -206,6 +206,30 @@ describe('SignPage state', () => {
     expect(screen.getByTestId('sign-done').textContent).not.toContain('Resume');
   });
 
+  it('asks before the page unloads while a one-by-one send has steps left', async () => {
+    const leaving = () => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    let attempt = 0;
+    const send = async (_plan: { steps: unknown[] }, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
+      attempt++;
+      if (attempt === 1) {
+        o.onStep?.({ index: 0, phase: 'confirmed', hash: H1 });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      }
+      return { vault: V, steps: [] };
+    };
+    render(rig({ steps: 2, send }));
+    fireEvent.click(await screen.findByTestId('sign-send'));
+    await waitFor(() => expect(screen.getByTestId('sign-send').textContent).toBe('Resume from step 2'));
+    await waitFor(() => expect(leaving()).toBe(true));
+    fireEvent.click(screen.getByTestId('sign-send'));
+    await screen.findByTestId('sign-done');
+    await waitFor(() => expect(leaving()).toBe(false));
+  });
+
   it('points to the vault page when the remaining steps are refused', async () => {
     const send = async (_p: unknown, _w: unknown, o: { onStep?: (e: unknown) => void }) => {
       o.onStep?.({ index: 0, phase: 'confirmed', hash: H1 });

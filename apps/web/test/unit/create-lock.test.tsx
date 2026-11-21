@@ -213,4 +213,46 @@ describe('the wizard around a prepared plan', () => {
     );
     expect(screen.getByTestId('create-tx-send').textContent).toBe('Resume from step 2');
   });
+
+  it('hides the Drill/real switch and guards a page unload while a sent plan is unfinished', async () => {
+    const leaving = () => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    const send: Send = async (p, _w, o) => {
+      o.onStep?.({ index: 0, total: p.steps.length, step: p.steps[0], phase: 'confirmed', hash: H });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    };
+    await toAssets(send);
+    const banner = () => screen.getByTestId('create-drill-banner');
+    // Prepared but not sent: switching only drops a plan nothing was sent for.
+    expect(banner().querySelector('a')).not.toBeNull();
+    expect(leaving()).toBe(false);
+    click('create-tx-send');
+    await waitFor(() => expect(screen.getByTestId('create-tx-step-1').getAttribute('data-phase')).toBe('failed'));
+    // The switch would mount a fresh wizard and lose step 2 of a vault that step 1 already created.
+    expect(banner().querySelector('a')).toBeNull();
+    expect(banner().textContent).toContain('Drill');
+    await waitFor(() => expect(leaving()).toBe(true));
+  });
+
+  it('gives the switch back and lets the page go once the plan is finished', async () => {
+    const send: Send = async (p, _w, o) => {
+      for (const [index, s] of p.steps.entries()) {
+        o.onStep?.({ index, total: p.steps.length, step: s, phase: 'confirmed', hash: H });
+      }
+      return { vault: VAULT, steps: [] };
+    };
+    await toAssets(send);
+    click('create-tx-send');
+    await screen.findByTestId('create-created');
+    expect(screen.getByTestId('create-drill-banner').querySelector('a')).not.toBeNull();
+    // Preact runs effects after paint.
+    await waitFor(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(false);
+    });
+  });
 });

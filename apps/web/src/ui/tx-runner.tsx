@@ -5,6 +5,7 @@ import { applyStep, failStep, type StepPhase, txView, warningKey } from '../lib/
 import { useApp, useT } from './app-context';
 import { AddressText, Banner, CopyButton, ErrorBox } from './components';
 import { messages } from './tx-runner.messages';
+import { useLeaveGuard } from './use-leave-guard';
 
 const PHASE = {
   ready: 'phaseReady',
@@ -67,6 +68,7 @@ export function TxRunner(props: {
   useEffect(() => {
     onProgress?.({ confirmed, committed });
   }, [confirmed, committed]);
+  useLeaveGuard(committed && result === null);
 
   // After a partial send the link carries only the remaining steps, so the next signer never sends a confirmed one again.
   const link = useMemo(() => {
