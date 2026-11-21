@@ -51,6 +51,54 @@ Bạn tự ký mọi giao dịch bằng keystore Foundry. Không dán private ke
 cast code $DEPLOYER --rpc-url xlayer   # phải in 0x
 ```
 
+### Một lệnh: `npm run deploy:mainnet`
+
+`scripts/deploy-mainnet.ts` chạy đúng năm bước trong bảng dưới, theo thứ tự, từ terminal của bạn (chạy ở gốc repo). Forge ký bằng keystore và tự hỏi mật khẩu. Script không thấy khoá hay mật khẩu, và không tự đọc bàn phím: lời xác nhận do một tiến trình con ngắn đọc, nên lời hỏi mật khẩu của forge có console cho riêng nó.
+
+```bash
+cast wallet new atropyle-deployer   # một lần: tạo keystore mã hoá, đặt mật khẩu, in địa chỉ (không in khoá)
+# gửi ít nhất 0.2 BEM và 0.02 OKB tới địa chỉ vừa in
+npm run deploy:mainnet -- --deployer 0x... --treasury 0x...
+```
+
+Giữ file `~/.foundry/keystores/atropyle-deployer` và mật khẩu của nó. Ví deployer sở hữu các circuit, và cũng là ví ký bước publish DeWEB về sau. Muốn dùng ví sẵn có thay vì ví mới, nhập nó bằng `cast wallet import atropyle-deployer --interactive` (như mục dưới). Diễn tập trên fork tốn khoảng 0,14 BEM và 0,004 OKB.
+
+Trước khi gửi bất cứ thứ gì, script kiểm:
+
+- chainId là 196;
+- `contracts/.env` không đặt tên nào forge sẽ đọc vào các bước. Forge tự nạp file đó và điền mọi biến còn trống, nên `REPLACE_PROCESSOR`, các id, `ETH_*`, `FOUNDRY_*` hay `DAPP_*` ở đó sẽ lọt vào. Script chỉ đọc tên biến;
+- keystore tồn tại;
+- không vai trò nào là tài khoản mặc định của anvil;
+- `DEPLOYER` là EOA không có code và có đủ BEM, OKB;
+- test treasury trên fork chạy qua (chỉ đọc, mục "Kiểm treasury trước bước 04");
+- keystore mở ra đúng `DEPLOYER`: `cast wallet address --account atropyle-deployer` hỏi mật khẩu một lần.
+
+Rồi script in tóm tắt (đọc kỹ dòng `TREASURY`: nó bất biến sau bước 04) và chờ bạn gõ `deploy`. Sau đó forge hỏi mật khẩu một lần mỗi bước.
+
+Mỗi bước, script làm bốn việc:
+
+1. Ghi `pending` (bước và nonce hiện tại của `DEPLOYER`) vào `broadcast/atropyle-deploy/196/progress.json`.
+2. Chạy forge script với `--account atropyle-deployer --broadcast --slow`. Env của forge lấy từ file progress: biến cũ trong shell (kể cả `ETH_*`, `FOUNDRY_*`, `DAPP_*`) không lọt vào.
+3. Lưu giá trị bước in ra vào file progress, kèm bản sao `run-latest.json`, rồi xoá `pending`.
+4. Đọc lại kết quả từ chain như mục "Đọc lại từ chain sau mỗi bước".
+
+Chạy lại đúng lệnh thì script tiếp từ bước còn thiếu. Bước đã có giá trị chỉ được đọc lại, không gửi lại. Cuối cùng script ghi `exports.env` và chạy ForkTest (chỉ đọc) trên deployment thật.
+
+Script không bao giờ tự gửi lại một bước có thể đã gửi một phần:
+
+- Forge lỗi, hoặc bạn bấm Ctrl+C, sau khi đã gửi (nonce đổi, hoặc bản ghi forge có hash mới): `pending` được giữ và script dừng. Lần chạy sau cũng dừng ở đó. Xem `run-latest.json` và receipt, thêm giá trị của bước vào file progress rồi chạy lại. Muốn gửi phần còn lại (mục ghi chú của từng bước nói khi nào an toàn), xoá `pending` trước.
+- Forge lỗi trước khi gửi gì (sai mật khẩu, mô phỏng revert): script xoá `pending` và bảo bạn chạy lại.
+- `broadcast/<script>/196/run-latest.json` đã có mà file progress không có giá trị nào của bước đó (chạy tay, hoặc mất file progress): script dừng.
+
+Các cờ khác:
+
+- `--smoke-heir` mặc định là `TREASURY`, và phải khác `DEPLOYER`.
+- `--legacy` khi RPC từ chối giao dịch EIP-1559.
+- Mất file progress sau khi bước 01 đã lên chain: chạy lại cùng lệnh, thêm `--skip-balance-check`, vì ví đã tiêu 0,1 BEM nên dưới ngưỡng 0,2. Các forge script vẫn tự kiểm đúng số tiền chúng cần. Bước 01 sẽ báo ví đã có processor Atropyle. Script hỏi, và bạn gõ `continue` để dùng tiếp processor đó.
+- `--rehearsal http://127.0.0.1:<port>` gửi bằng `--unlocked`, chỉ tới anvil có chainId 31337 (phần "Diễn tập"), và bỏ qua bước kiểm keystore. Bản ghi nằm ở `broadcast/atropyle-deploy/31337/`, nên lệnh dọn `rm -rf broadcast/*/31337` cũng xoá nó.
+
+Các mục dưới là quy trình từng bước bằng tay, cũng là thứ script làm theo.
+
 Chuẩn bị một lần:
 
 ```bash

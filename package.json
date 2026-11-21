@@ -24,6 +24,7 @@
     "devnet:fork": "npm run build -w circuits && tsx scripts/devnet.ts --fork",
     "devnet:warp": "tsx scripts/devnet-warp.ts",
     "devnet:seed": "npm run build -w circuits && tsx scripts/devnet-seed.ts",
+    "deploy:mainnet": "tsx scripts/deploy-mainnet.ts",
     "deployment:write": "npm run build -w circuits && tsx scripts/write-deployment.ts",
     "site:build": "tsx scripts/build-site.ts",
     "site:check": "tsx scripts/check-site.ts",
