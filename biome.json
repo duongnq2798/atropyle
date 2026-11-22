@@ -25,7 +25,8 @@
       "!apps/web/dist-e2e",
       "!apps/web/test-results",
       "!apps/web/playwright-report",
-      "!apps/web/test/e2e/.state.json"
+      "!apps/web/test/e2e/.state.json",
+      "!apps/backend/src/email/templates.gen.ts"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
