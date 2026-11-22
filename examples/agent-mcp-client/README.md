@@ -31,7 +31,7 @@ node examples/agent-mcp-client/index.mjs --local --deployment deployments/local.
 
 ## Run it against X Layer mainnet
 
-Without `--local` the example starts the published server, `npx -y @atropyle/mcp@0.1.0`. With no `--deployment` that server reads X Layer mainnet. This works only after two steps that belong to the maintainer: the mainnet deployment of the contracts and the npm publish of `@atropyle/mcp`. Until then, use `--local --deployment <file>` as above.
+Without `--local` the example starts the published server, `npx -y @atropyle/mcp@0.1.0`. With no `--deployment` that server reads X Layer mainnet, where the contracts are deployed. The npm publish of `@atropyle/mcp` is still a step for the maintainer; until it is done, add `--local`, which runs the same server from this repository and reads X Layer mainnet too.
 
 ```bash
 node examples/agent-mcp-client/index.mjs --owner 0xYourWallet --heir 0xHeirOne:70 --heir 0xHeirTwo:30
@@ -45,7 +45,7 @@ node examples/agent-mcp-client/index.mjs --owner 0xYourWallet --heir 0xHeirOne:7
 | Claude Desktop | [config/claude-desktop.json](config/claude-desktop.json)   | merge into `claude_desktop_config.json`                                                                 |
 | Cursor         | [config/cursor.mcp.json](config/cursor.mcp.json)           | `.cursor/mcp.json` in your project, or `~/.cursor/mcp.json`                                             |
 
-Each config pins `@atropyle/mcp@0.1.0` and sets no environment, so the server reads X Layer mainnet. That works after the mainnet deployment and the npm publish. Until then, point the server at a deployment file by adding `"--deployment", "<file>"` to `args`, and run it from a checkout with `node packages/mcp/dist/bin.js` instead of `npx`.
+Each config pins `@atropyle/mcp@0.1.0` and sets no environment, so the server reads X Layer mainnet. `npx` finds the server after the npm publish; until then, run it from a checkout with `node packages/mcp/dist/bin.js` instead of `npx`. To read another deployment, such as a local devnet, add `"--deployment", "<file>"` to `args`.
 
 The Claude Code plugin of this repository bundles the same server with two Agent Skills:
 

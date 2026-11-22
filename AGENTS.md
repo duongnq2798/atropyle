@@ -79,7 +79,7 @@ cd packages/cli && npx vitest run -u test/unit/help.test.ts && cd ../..
 
 ## Claude Code plugin and default chain
 
-`.claude-plugin/` packages the two skills and the MCP server (`npx -y @atropyle/mcp@<version>`). The plugin sets no environment, so its MCP server reads X Layer mainnet. That works only after the mainnet deployment and the npm publish of `@atropyle/mcp`, which are steps for the maintainer. Until then, use the CLI or the MCP server with a local deployment: `--deployment deployments/local.json`, written by `npm run devnet` (tracked in git and regenerated each run; stage it only when the change is intended).
+`.claude-plugin/` packages the two skills and the MCP server (`npx -y @atropyle/mcp@<version>`). The plugin sets no environment, so its MCP server reads X Layer mainnet, where the contracts are deployed (`deployments/xlayer.json`, `docs/deployments.md`). `npx` finds the server only after the npm publish of `@atropyle/mcp`, a step for the maintainer; until then, run the CLI or the MCP server from this checkout. For a local devnet, pass `--deployment deployments/local.json`, written by `npm run devnet` (tracked in git and regenerated each run; stage it only when the change is intended).
 
 The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/mcp/package.json` and `server.json` must match. A unit test fails when they differ.
 

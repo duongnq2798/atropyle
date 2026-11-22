@@ -6,7 +6,7 @@ Command line for [Atropyle](https://github.com/duongnq2798/atropyle) inheritance
 
 Requires Node.js 20 or newer.
 
-The default chain is X Layer (`--chain xlayer`). It works after the mainnet deployment; until then pass `--deployment <file>` with a deployment JSON (for example one from a local devnet), as the examples below that read the chain do:
+The default chain is X Layer mainnet (`--chain xlayer`); its deployment ships with the CLI, and the addresses are in [`docs/deployments.md`](../../docs/deployments.md). To read another deployment, such as a local devnet, pass `--deployment <file>`, as the examples below that read the chain do:
 
 ```bash
 npx -y atropyle doctor --deployment deployment.json

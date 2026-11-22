@@ -153,7 +153,8 @@ describe('skill content', () => {
       for (const phrase of [
         'there is nothing to do and nothing to sign',
         'Explain `blocked.error`, sign nothing',
-        'add `--deployment <file>` to every command; without it the CLI stops with DEPLOYMENT_MISSING.',
+        'The default chain is X Layer mainnet, where Atropyle is deployed.',
+        'Add `--deployment <file>` to every command only to work against another deployment',
       ]) {
         expect(text, `${skill}: ${phrase}`).toContain(phrase);
       }

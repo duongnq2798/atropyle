@@ -22,7 +22,7 @@ node examples/node-quickstart/index.mjs <vault from the devnet output> 0x7099797
 
 ## X Layer mainnet
 
-Without a deployment file the example reads X Layer mainnet through the public RPCs of the deployment. That works once the mainnet deployment is published; until then, pass a deployment file as above.
+Without a deployment file the example reads X Layer mainnet, through the public RPCs of the deployment that ships with the SDK.
 
 ```bash
 node examples/node-quickstart/index.mjs 0xYourVault 0xYourWallet

@@ -11,9 +11,8 @@ Options:
 
 Global Options:
   -V, --version        output the version number
-  --chain <name>       chain, default xlayer (env: ATROPYLE_CHAIN); xlayer works
-                       after the mainnet deployment, use --deployment <file>
-                       until then (choices: "xlayer", "local")
+  --chain <name>       chain, default xlayer (X Layer mainnet; env:
+                       ATROPYLE_CHAIN) (choices: "xlayer", "local")
   --rpc <url>          read RPC of that chain (env: ATROPYLE_RPC)
   --deployment <file>  deployment JSON; wins over --chain (env:
                        ATROPYLE_DEPLOYMENT)

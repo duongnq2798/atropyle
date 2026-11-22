@@ -26,14 +26,13 @@ describe('atropyle-mcp bin', () => {
     expect(help.stdout).toContain('Usage: atropyle-mcp');
   });
 
-  it('without a deployment, exits 1 and says to pass --deployment', () => {
-    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('ATROPYLE_')));
-    const r = spawnSync(process.execPath, [BIN], { encoding: 'utf8', timeout: 20_000, env });
+  it('exits 1 on a deployment file it cannot read, with the error on stderr only', () => {
+    // A bare relative name: an absolute Windows path (E:\...) parses as a URL and is redacted to '…'.
+    const r = run('--deployment', 'no-such-deployment.json');
     expect(r.status).toBe(1);
     expect(r.stdout).toBe('');
-    expect(r.stderr).toContain('DEPLOYMENT_MISSING');
-    expect(r.stderr).toContain('--deployment <file>');
-    expect(r.stderr).toContain('ATROPYLE_DEPLOYMENT');
+    expect(r.stderr).toContain('DEPLOYMENT_INVALID');
+    expect(r.stderr).toContain('no-such-deployment.json');
   });
 
   it('exits 1 on a bad flag, with the error on stderr only', () => {

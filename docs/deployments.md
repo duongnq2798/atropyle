@@ -1,22 +1,30 @@
 # Atropyle — địa chỉ trên X Layer mainnet (chainId 196)
 
-Mọi địa chỉ dưới đây do ví deployer của dự án tạo. Kiểm lại bằng `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` với các biến env tương ứng.
+Mọi địa chỉ dưới đây do ví deployer của dự án tạo, bằng `npm run deploy:mainnet` ngày 22/11/2026: 17 giao dịch, block 76566929 tới 76567053, tốn 0,14 BEM và 0,00407 OKB. Bản máy đọc: [`deployments/xlayer.json`](../deployments/xlayer.json), sinh bằng `npm run deployment:write` (chỉ đọc chain, qua hai RPC operator độc lập).
+
+Kiểm lại bằng một lệnh, chỉ đọc chain (từ checkout: `node packages/cli/dist/bin.js verify`; sau khi publish npm: `npx atropyle verify`). Kết quả lúc ghi file, block 76567369: P1-P8 đúng trên cả 67.108.864 tổ hợp, netlist của cả ba circuit khớp source trong `circuits/`, beacon đã đóng băng, hai RPC operator đồng ý. Kiểm bằng Foundry: `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` với các biến env của `contracts/broadcast/atropyle-deploy/196/exports.env` (10 PASS, 1 SKIP là `test_tapeoutBudget`, đúng như thiết kế).
 
 | Thành phần | Giá trị | Giao dịch |
 |---|---|---|
-| Deployer | — | |
-| Processor `ATRO` (Circuits) | — | — |
-| Transistors của `ATRO` | — | |
+| Deployer | [`0xC0a61674Fa1caAd04500073ea94Ec9006D7A2375`](https://www.oklink.com/xlayer/address/0xC0a61674Fa1caAd04500073ea94Ec9006D7A2375) | |
+| Processor `ATRO` (Circuits) | [`0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05`](https://www.oklink.com/xlayer/address/0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05) | [`createCPU`](https://www.oklink.com/xlayer/tx/0xc7b23c69e2489d22656035afc127eb0e5baab5fe67657a02d8245977d9dd3978) |
+| Transistors của `ATRO` | [`0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc`](https://www.oklink.com/xlayer/address/0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc) | |
 | Beacon circuits (đã đóng băng) | `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` | |
-| Circuit `KofN5` | id — | — |
-| Circuit `Ge4` | id — | — |
-| Circuit `AtropylePolicy v1` | id — | — |
-| `AtropyleVault` (implementation) | — | — |
-| `AtropyleFactory` | — | — |
-| Treasury | — | |
-| Vault Drill thử | — | — |
+| Circuit `KofN5` | id 1 (8 vào, 1 ra, 41 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xd0d34990ea061bd1d0a5296bb2a9ea6db8e6dcd0314ab3db57005926719d97c2) |
+| Circuit `Ge4` | id 2 (8 vào, 1 ra, 25 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0x59ef44370f1c29a6e548285bf15714fe987d1654636b32724acd79f617fd187a) |
+| Circuit `AtropylePolicy v1` | id 3 (23 vào, 3 ra, 3 bit trạng thái, 199 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xff066290337ec07a39159ce060e69cbe0cb681d82f775cf39c8d530a6caa1afd) |
+| `AtropyleVault` (implementation) | [`0x96Ea6249e14F5F62ab87A5D76800B1C564c4d881`](https://www.oklink.com/xlayer/address/0x96Ea6249e14F5F62ab87A5D76800B1C564c4d881) | [create](https://www.oklink.com/xlayer/tx/0xb6f292f79f6e79591e64c990fe8d9448c378f7d6fcea7a70e2df8d24449666b0) |
+| `AtropyleFactory` | [`0x7eCbBECA8F90A868A12aF48B766264bf9c87a651`](https://www.oklink.com/xlayer/address/0x7eCbBECA8F90A868A12aF48B766264bf9c87a651) | [create](https://www.oklink.com/xlayer/tx/0xb4e4c9723a64903677d6292b11ee47d4d11298bc085f88c4fc7e7f1e3674b372) |
+| Treasury | [`0x990221559B7EB3516204dc73535d6581391cFAa4`](https://www.oklink.com/xlayer/address/0x990221559B7EB3516204dc73535d6581391cFAa4) | |
+| Vault Drill thử | [`0x481F28748959036B48bc6779797228D74f15f4b9`](https://www.oklink.com/xlayer/address/0x481F28748959036B48bc6779797228D74f15f4b9) | [`createVault`](https://www.oklink.com/xlayer/tx/0x237c4446b30a8ff889cd7eabd982452676baa4b6d2b72c6a67c88277e673b717), [`poke`](https://www.oklink.com/xlayer/tx/0x7702346baa6d84172b6b6900037e31f2db95d079760c410c95fa7c8764542e7d) |
 
-Gas `step` đo trên mainnet: —
+Phí tạo vault của factory: 1,99 (100 vault trả phí đầu tiên) rồi 9,90 USDT0, USDC hoặc USDG, chuyển thẳng về treasury. Vault Drill miễn phí.
+
+Gas `step` đo trên các contract đã deploy (ForkTest, fork mainnet): 624406. Một vòng đời Drill đầy đủ (tạo, approve, poke, hai lần attestDeath, distribute): 3736276 gas.
+
+Source chưa verify trên OKLink: bước này cần `OKLINK_API_KEY` của maintainer (lệnh ở `contracts/README.md`). Builder code chưa có: `builderCode` trong `deployments/xlayer.json` là `null` cho tới khi maintainer có code và chạy lại `npm run deployment:write -- --builder-code <code>`.
+
+Các giao dịch còn lại của năm bước (approve BEM, mint transistor) nằm trong `contracts/broadcast/atropyle-deploy/196/` trên máy deploy (git bỏ qua thư mục này).
 
 ## Site DeWEB
 
