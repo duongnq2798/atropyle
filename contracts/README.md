@@ -61,6 +61,14 @@ cast wallet new atropyle-deployer   # một lần: tạo keystore mã hoá, đ�
 npm run deploy:mainnet -- --deployer 0x... --treasury 0x...
 ```
 
+Trên Windows, Foundry cài từ Git Bash thường chỉ có trong PATH của Git Bash. PowerShell khi đó báo `cast : The term 'cast' is not recognized`. Thêm PATH cho cửa sổ PowerShell đang mở rồi chạy lại:
+
+```powershell
+$env:Path += ";$env:USERPROFILE\.foundry\bin"
+```
+
+Bản thân script không cần bước này. Nếu `forge`/`cast` không có trong PATH, nó tự dùng `~/.foundry/bin` (có in ra một dòng báo). Không thấy ở cả hai chỗ thì script dừng và nói rõ là thiếu Foundry, chứ không báo nhầm là thiếu keystore.
+
 Giữ file `~/.foundry/keystores/atropyle-deployer` và mật khẩu của nó. Ví deployer sở hữu các circuit, và cũng là ví ký bước publish DeWEB về sau. Muốn dùng ví sẵn có thay vì ví mới, nhập nó bằng `cast wallet import atropyle-deployer --interactive` (như mục dưới). Diễn tập trên fork tốn khoảng 0,14 BEM và 0,004 OKB.
 
 Trước khi gửi bất cứ thứ gì, script kiểm:

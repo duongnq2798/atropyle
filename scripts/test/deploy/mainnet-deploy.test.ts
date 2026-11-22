@@ -12,6 +12,7 @@ import {
   parseExports,
   type Roles,
   readProgress,
+  resolveFoundry,
   STAGES,
   stageDone,
   writeProgress,
@@ -172,6 +173,29 @@ it('exportLines lists the roles, then the known stage values in stage order', ()
     `export ATRO_CPU=${HEIR}`,
     'export POLICY_ID=6',
   ]);
+});
+
+describe('resolveFoundry', () => {
+  const home = '/home/u';
+  const bin = join(home, '.foundry', 'bin');
+
+  it('uses PATH when forge and cast are on it', () => {
+    expect(resolveFoundry(true, home, 'win32', () => false)).toEqual({ use: 'path' });
+  });
+
+  it('falls back to ~/.foundry/bin when it holds both, with .exe on Windows', () => {
+    const win = new Set([join(bin, 'forge.exe'), join(bin, 'cast.exe')]);
+    expect(resolveFoundry(false, home, 'win32', (p) => win.has(p))).toEqual({ use: 'dir', dir: bin });
+    const unix = new Set([join(bin, 'forge'), join(bin, 'cast')]);
+    expect(resolveFoundry(false, home, 'linux', (p) => unix.has(p))).toEqual({ use: 'dir', dir: bin });
+    expect(resolveFoundry(false, home, 'win32', (p) => unix.has(p))).toHaveProperty('error');
+  });
+
+  it('says plainly that forge and cast are missing, and how to add them to PATH', () => {
+    const only = new Set([join(bin, 'forge.exe')]);
+    const r = resolveFoundry(false, home, 'win32', (p) => only.has(p));
+    expect('error' in r && r.error).toMatch(/forge and cast were found neither on PATH nor in .*\$env:Path/);
+  });
 });
 
 it('addressArg checksums an address and throws on anything else', () => {
