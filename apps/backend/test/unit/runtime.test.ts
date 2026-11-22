@@ -101,7 +101,7 @@ describe('buildDeps (production wiring, spec §9.2)', () => {
 describe('lazyHandler', () => {
   const req = () => new Request('https://ref.supabase.co/functions/v1/health');
 
-  it('answers 500 while the secrets are missing, then builds once when they are set', async () => {
+  it('answers 500 while the secrets are missing, then builds on the next request once they are set', async () => {
     const log = memoryLog();
     const deps = { marker: 'deps' } as unknown as Deps;
     let ready = false;
@@ -150,5 +150,42 @@ describe('lazyHandler', () => {
     expect(logged).toContain('TOKEN_SECRET must be at least 32 characters');
     expect(logged).not.toContain('hunter2');
     expect(pg.urls).toEqual([]);
+  });
+  it('never logs the database URL when the database client cannot be created', async () => {
+    const log = memoryLog();
+    const url = 'postgres://u:pw-secret@@@x';
+    const factory: PgFactory = (u) => {
+      throw new TypeError(`Invalid URL: ${u}`);
+    };
+    const h = lazyHandler(
+      async () => new Response('unreachable'),
+      envOf({ SUPABASE_DB_URL: url }),
+      (env) => buildDeps(env, { pg: factory }),
+      log,
+    );
+    const res = await h(req());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      type: 'about:blank',
+      title: 'The service is not configured yet.',
+      status: 500,
+      code: 'INTERNAL',
+    });
+    expect(JSON.stringify(log.lines)).not.toContain('pw-secret');
+    expect(JSON.stringify(log.lines)).toContain('SUPABASE_DB_URL is not a valid database URL');
+  });
+
+  it('logs only the error name for an unexpected build failure', async () => {
+    const log = memoryLog();
+    const h = lazyHandler(
+      async () => new Response('unreachable'),
+      envOf(),
+      () => {
+        throw new RangeError('leaks pw-secret');
+      },
+      log,
+    );
+    expect((await h(req())).status).toBe(500);
+    expect(log.lines).toEqual([{ level: 'error', msg: 'backend could not be built', data: { error: 'RangeError' } }]);
   });
 });

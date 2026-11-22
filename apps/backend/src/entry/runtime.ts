@@ -42,8 +42,15 @@ export function buildDeps(env: Env, o: BuildOptions = {}): Deps {
     transport: config.rpcUrls === null ? undefined : readTransport(config.rpcUrls),
   });
   const signer = keeperSignerFromEnv(env, atro.chain, readTransport(config.rpcUrls ?? atro.deployment.rpcUrls));
+  let sql: Deps['sql'];
+  try {
+    sql = connectPostgres(dbUrl, o.pg);
+  } catch {
+    // The client's own error can quote the URL, which holds the database password: never pass it on.
+    throw new ConfigError(['SUPABASE_DB_URL is not a valid database URL']);
+  }
   return {
-    sql: connectPostgres(dbUrl, o.pg),
+    sql,
     chain: createSdkChain(atro, { wallet: signer.wallet }),
     mailer: config.resendApiKey === null ? disabledMailer() : resendMailer({ apiKey: config.resendApiKey }),
     clock: systemClock,
@@ -71,7 +78,9 @@ export function lazyHandler(
       try {
         deps = build(env);
       } catch (e) {
-        log.error('backend not configured', { error: errorText(e) });
+        // Only a ConfigError is safe to log: it names variables, never values. Any other error may quote a secret.
+        if (e instanceof ConfigError) log.error('backend not configured', { error: errorText(e) });
+        else log.error('backend could not be built', { error: e instanceof Error ? e.name : 'Error' });
         return problem(500, 'INTERNAL', 'The service is not configured yet.');
       }
     }
