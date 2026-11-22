@@ -1,0 +1,21 @@
+Subject: Đã tới hạn check-in, vault 0x5FbD…0aa3
+
+Đã tới hạn check-in
+
+Hạn check-in là 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam). Từ giờ, bất kỳ ai cũng có thể bật báo động cho vault này.
+
+Hãy check-in từ ví chủ ngay bây giờ để chặn báo động trước khi nó bắt đầu.
+
+Hạn chót: 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam)
+
+Check-in ngay: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Vai trò của bạn: chủ ví
+Hãy đối chiếu địa chỉ này với địa chỉ trên trang vault trước khi làm gì.
+
+--
+Atropyle không bao giờ yêu cầu bạn ký bất cứ thứ gì qua email. Mọi thao tác đều diễn ra trên trang vault, trong ví của chính bạn.
+Bạn nhận email này vì địa chỉ này đã đăng ký nhận thông báo cho vault trên atropyle.test.
+Huỷ đăng ký vault này: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle đang chạy beta trên X Layer. Thông báo chỉ mang tính hỗ trợ: chain mới là nguồn sự thật, không phải email này.

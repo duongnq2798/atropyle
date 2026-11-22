@@ -1,0 +1,22 @@
+Subject: A guardian voted to recover your vault 0x5FbD…0aa3
+
+A guardian voted to recover your vault
+
+A guardian voted to move this vault to a new wallet. If enough guardians agree, a recovery window starts.
+
+If you did not ask for this, open the vault page now, while you still hold the owner wallet.
+
+Guardian: 0x90F79bf6EB2c4f870365E785982E1f101E93b906
+Proposed wallet: 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+
+Open the vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: owner
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

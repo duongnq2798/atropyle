@@ -240,3 +240,38 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  # Read-only and keyless: unit tests on PGlite with a fake chain and captured email, the function bundles, then a
+  # whole Drill on a local anvil with an unlocked keeper account. No step deploys to Supabase, sends an email or
+  # reaches X Layer.
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - run: npm ci
+      - run: forge build
+        working-directory: contracts
+      - name: Build circuits and the SDK
+        run: npm run build
+      - name: Typecheck and unit tests
+        run: npm run typecheck -w apps/backend && npm test -w apps/backend
+      - name: Email templates are up to date
+        run: npm run emails:check -w apps/backend
+      - name: Function bundles build under the size cap
+        run: npm run build -w apps/backend
+      - name: E2E on a local anvil, a whole Drill driven by tick
+        run: npm run test:e2e -w apps/backend
