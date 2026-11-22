@@ -1,0 +1,46 @@
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { buildEnvFor } from './build-env';
+
+export const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
+export const OUT_DIR = fileURLToPath(new URL('../../out', import.meta.url));
+/** `next` has no exports map, so its bin resolves by path from the hoisted package. */
+export const NEXT_BIN = createRequire(import.meta.url).resolve('next/dist/bin/next');
+/**
+ * Quyết định 3, settled by the spike of Plan 7A Task 2: [] keeps Turbopack. Set ['--webpack'] when
+ * `npm run worker:check` or test/build/fonts.test.ts fails under Turbopack and passes under webpack.
+ */
+export const BUNDLER_FLAGS: readonly string[] = [];
+
+export interface RunOptions {
+  env?: NodeJS.ProcessEnv;
+  args?: readonly string[];
+  /** Capture output instead of printing it (tests). */
+  quiet?: boolean;
+}
+
+export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [NEXT_BIN, command, ...BUNDLER_FLAGS, ...(o.args ?? [])], {
+      cwd: APP_DIR,
+      env: buildEnvFor(o.env ?? process.env),
+      stdio: o.quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      windowsHide: true,
+    });
+    let output = '';
+    child.stdout?.on('data', (d: Buffer) => {
+      output += d.toString();
+    });
+    child.stderr?.on('data', (d: Buffer) => {
+      output += d.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code: code ?? 1, output }));
+  });
+}
+
+/** `next build` into out/, then the postbuild steps (Task 15 adds the CSP). */
+export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  return runNext('build', o);
+}

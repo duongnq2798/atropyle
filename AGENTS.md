@@ -16,6 +16,7 @@ Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A c
 | `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                      |
 | `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                   |
 | `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines |
+| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                |
 | `apps/web-legacy/` | The previous web app (Vite + Preact), tested in CI until the v2 cutover, then deleted                                |
 | `deployments/`     | Deployed addresses, per chain                                                                                        |
 | `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper      |

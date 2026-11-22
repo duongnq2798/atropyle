@@ -542,6 +542,7 @@ Hôm nay là 22/11. Khoá tính năng 2/12, nộp bài 6/12. Có hai plan chạy
 | 12 | Bỏ GitHub Pages, giữ Vercel và DeWEB | Hai nơi đủ; bớt một bản phải bảo trì | Nếu Vercel bị chặn thì còn DeWEB |
 | 13 | Plan 8 thay Plan 5 | Cùng mục tiêu (chỉ mục, thông báo, keeper) trên stack mới | Phần Worker đã viết trong plan cũ bị bỏ (chưa có mã) |
 | 14 | Preact sang `apps/web-legacy`, Next.js ở `apps/web` ngay từ task đầu | Đường dẫn cuối có sẵn; CI và script sửa một lần; bản cũ vẫn được test tới lúc xoá | Hai app cùng chạy CI trong khoảng một tuần, CI chậm hơn |
+| 15 | Turbopack (mặc định của Next 16) cho build và dev | Spike ở Plan 7A Task 2: worker module nạp `@atropyle/sdk/verify` và một chunk lười của chính nó dưới CSP `worker-src 'self'` trong Chromium | Bản Next sau làm hỏng worker hoặc font thì đổi `BUNDLER_FLAGS` sang `--webpack`, một dòng trong `scripts/lib/run-next.ts` |
 
 ## 17. Rủi ro
 

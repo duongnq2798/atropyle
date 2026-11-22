@@ -275,3 +275,30 @@ jobs:
         run: npm run build -w apps/backend
       - name: E2E on a local anvil, a whole Drill driven by tick
         run: npm run test:e2e -w apps/backend
+
+  # The Next.js web app v2 (Plan 7A). Read-only and keyless: no step signs or broadcasts anything.
+  web-next:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build circuits and the SDK
+        run: npm run build
+      - name: Typecheck and unit tests
+        run: npm run typecheck -w apps/web && npm test -w apps/web
+      - name: Chromium for Playwright
+        run: npm run playwright:install -w apps/web
+      - name: Production builds of both targets
+        run: npm run test:build -w apps/web
+      - name: The worker loads under a strict CSP
+        run: npm run worker:check -w apps/web
