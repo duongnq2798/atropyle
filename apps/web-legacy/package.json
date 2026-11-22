@@ -1,5 +1,5 @@
 {
-  "name": "@atropyle/web",
+  "name": "@atropyle/web-legacy",
   "version": "0.1.0",
   "private": true,
   "type": "module",

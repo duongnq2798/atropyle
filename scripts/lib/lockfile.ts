@@ -91,7 +91,11 @@ export function entryFrom(view: unknown, dev: boolean, optional: boolean): LockE
   if (typeof o.license === 'string') e.license = o.license;
   if (optional) e.optional = true;
   const deps = o.dependencies;
-  if (deps && typeof deps === 'object' && Object.keys(deps).length > 0) e.dependencies = deps as Record<string, string>;
+  if (deps && typeof deps === 'object' && Object.keys(deps).length > 0) {
+    // npm lists dependencies sorted; npm view prints them in the order of the manifest.
+    const sorted = Object.entries(deps as Record<string, string>).sort(([a], [b]) => a.localeCompare(b, 'en'));
+    e.dependencies = Object.fromEntries(sorted);
+  }
   return e;
 }
 

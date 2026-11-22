@@ -63,11 +63,11 @@ const contains = (outer: string, inner: string) => {
  */
 export function outDirProblem(out: string, root: string): string | null {
   const o = resolve(out);
-  const webDist = join(root, 'apps', 'web', 'dist');
+  const webDist = join(root, 'apps', 'web-legacy', 'dist');
   if (contains(o, resolve(root)))
     return `--out ${o} is the repository root or one of its parents; refusing to delete it`;
   if (contains(o, webDist) || contains(webDist, o)) {
-    return `--out ${o} overlaps apps/web/dist, which the build copies from; choose another directory`;
+    return `--out ${o} overlaps apps/web-legacy/dist, which the build copies from; choose another directory`;
   }
   return null;
 }

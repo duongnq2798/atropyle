@@ -51,9 +51,9 @@ test('outDirProblem refuses the repo root, its parents and the web build output'
   const root = resolve('/work/atropyle');
   expect(outDirProblem(root, root)).toContain('repository root');
   expect(outDirProblem(resolve('/work'), root)).toContain('repository root');
-  expect(outDirProblem(join(root, 'apps', 'web', 'dist'), root)).toContain('apps/web/dist');
-  expect(outDirProblem(join(root, 'apps', 'web', 'dist', 'x'), root)).toContain('apps/web/dist');
-  expect(outDirProblem(join(root, 'apps', 'web'), root)).toContain('apps/web/dist');
+  expect(outDirProblem(join(root, 'apps', 'web-legacy', 'dist'), root)).toContain('apps/web-legacy/dist');
+  expect(outDirProblem(join(root, 'apps', 'web-legacy', 'dist', 'x'), root)).toContain('apps/web-legacy/dist');
+  expect(outDirProblem(join(root, 'apps', 'web-legacy'), root)).toContain('apps/web-legacy/dist');
   expect(outDirProblem(join(root, 'site-dist', 'deweb'), root)).toBeNull();
   expect(outDirProblem(resolve('/tmp/site'), root)).toBeNull();
 });

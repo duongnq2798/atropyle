@@ -39,10 +39,10 @@ function main(): void {
   const docs = args.docs && hasDocsWorkspace(ROOT);
   if (args.docs && !docs) console.log('apps/docs does not exist yet: building the web app only.');
 
-  npm(['run', 'build', '-w', 'apps/web'], webEnv(args.target, docs, process.env));
+  npm(['run', 'build', '-w', 'apps/web-legacy'], webEnv(args.target, docs, process.env));
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  cpSync(join(ROOT, 'apps', 'web', 'dist'), out, { recursive: true });
+  cpSync(join(ROOT, 'apps', 'web-legacy', 'dist'), out, { recursive: true });
   if (docs) {
     npm(['run', 'build', '-w', 'apps/docs'], docsEnv(args.target, process.env));
     cpSync(join(ROOT, 'apps', 'docs', 'dist'), join(out, 'docs'), { recursive: true });

@@ -105,6 +105,20 @@ describe('lockfile check', () => {
     expect(e).toEqual({ version: '1.2.0', resolved: 'https://r/x-1.2.0.tgz', integrity: 'sha512-b', license: 'MIT' });
   });
 
+  it('lists dependencies sorted like npm, whatever order npm view prints them in', () => {
+    const e = entryFrom(
+      {
+        version: '1.0.0',
+        'dist.tarball': 'https://r/x.tgz',
+        'dist.integrity': 'sha512-a',
+        dependencies: { tslib: '^2.4.0', '@emnapi/wasi-threads': '2.2.0' },
+      },
+      false,
+      false,
+    );
+    expect(Object.keys(e.dependencies ?? {})).toEqual(['@emnapi/wasi-threads', 'tslib']);
+  });
+
   it('refuses an npm view answer without a tarball or integrity', () => {
     expect(() => entryFrom({ version: '1.0.0' }, false, false)).toThrow(/tarball|integrity/);
   });
