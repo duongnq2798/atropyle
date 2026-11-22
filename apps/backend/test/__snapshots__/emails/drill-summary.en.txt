@@ -1,0 +1,22 @@
+Subject: How your Drill went, vault 0x5FbD…0aa3
+
+Your Drill has ended
+
+Your Drill vault ran its full 7 days and has now expired. It never reached release: your check-ins kept it alive.
+
+The vault page keeps the full record. When you are ready, create a real vault: the rules are the same, and only the timing is yours to choose.
+
+Check-ins: 3
+Alarms: 1
+
+Open the vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: owner
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

@@ -1,0 +1,21 @@
+Subject: Alarm on a vault you guard, 0x5FbD…0aa3
+
+A vault you guard raised an alarm
+
+The owner missed their check-in, so the inheritance window has started.
+
+The owner can still cancel it by checking in before Wed 25 Nov 2026, 09:30 UTC. Try to reach them, then open the vault page to see what you can do as a guardian.
+
+Deadline: Wed 25 Nov 2026, 09:30 UTC
+
+Open the vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: guardian
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

@@ -1,0 +1,21 @@
+Subject: Check in soon, vault 0x5FbD…0aa3
+
+Your check-in is coming due
+
+80% of the time before your next check-in has passed.
+
+Check in before Mon 23 Nov 2026, 14:05 UTC. After that, anyone can raise the alarm on this vault.
+
+Deadline: Mon 23 Nov 2026, 14:05 UTC
+
+Check in now: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: owner
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

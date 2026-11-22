@@ -16,3 +16,4 @@ apps/web/test/e2e/.state.json
 # Calls written by npm run deweb:publish -- --emit; only the forge test fixtures are committed.
 contracts/deweb-calls/*
 !contracts/deweb-calls/test/
+apps/backend/.preview/

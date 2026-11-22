@@ -1,0 +1,21 @@
+Subject: Vault 0x5FbD…0aa3: the inheritance window has started
+
+The inheritance window has started
+
+The owner of this vault missed their check-in, so the alarm was raised. If they check in before Wed 25 Nov 2026, 09:30 UTC, nothing changes.
+
+If they do not, the vault releases its assets to its heirs after that time. You do not need to do anything now, and nobody will ask you to sign or to pay.
+
+Deadline: Wed 25 Nov 2026, 09:30 UTC
+
+Open the vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: heir
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

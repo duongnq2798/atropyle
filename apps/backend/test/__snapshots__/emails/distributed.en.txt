@@ -1,0 +1,25 @@
+Subject: Assets paid out from vault 0x5FbD…0aa3
+
+A payout landed
+
+This vault paid out in transaction 0xab12ab12…12ab12.
+
+Transaction: 0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12
+
+Paid out:
+10000 of token 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 to 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+Token #42 of 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 to 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+Open the vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Check the amounts in your wallet. Token names are left out on purpose: compare each token address with the vault page.
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: heir
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.

@@ -1,0 +1,25 @@
+Subject: Tài sản đã được chi trả từ vault 0x5FbD…0aa3
+
+Một khoản chi trả đã về
+
+Vault này đã chi trả trong giao dịch 0xab12ab12…12ab12.
+
+Giao dịch: 0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12
+
+Đã chi trả:
+10000 token 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 cho 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+Token #42 của 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 cho 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+
+Mở vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+
+Hãy kiểm tra số dư trong ví. Tên token cố ý không hiển thị ở đây: hãy đối chiếu từng địa chỉ token với trang vault.
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Vai trò của bạn: người thừa kế
+Hãy đối chiếu địa chỉ này với địa chỉ trên trang vault trước khi làm gì.
+
+--
+Atropyle không bao giờ yêu cầu bạn ký bất cứ thứ gì qua email. Mọi thao tác đều diễn ra trên trang vault, trong ví của chính bạn.
+Bạn nhận email này vì địa chỉ này đã đăng ký nhận thông báo cho vault trên atropyle.test.
+Huỷ đăng ký vault này: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle đang chạy beta trên X Layer. Thông báo chỉ mang tính hỗ trợ: chain mới là nguồn sự thật, không phải email này.

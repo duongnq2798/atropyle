@@ -1,0 +1,19 @@
+Subject: Confirm alerts for vault 0x5FbD…0aa3
+
+Confirm your alerts
+
+Someone, hopefully you, asked for alerts about this Atropyle vault, as its owner.
+
+Confirm to start. If it was not you, ignore this email: nothing is sent until you confirm, and the request is deleted after 48 hours.
+
+Confirm alerts: https://atropyle.test/alerts/confirm/#t=confirm-token-0123456789-abcdefghijklmnopqr
+
+Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Your role: owner
+Compare this address with the one on the vault page before you act.
+
+--
+Atropyle never asks you to sign anything by email. Every action happens on the vault page, in your own wallet.
+You get this email because this address subscribed to alerts for this vault on atropyle.test.
+Unsubscribe from this vault: https://atropyle.test/alerts/unsubscribe/#t=sample-token-0123456789-abcdefghijklmnopqrs
+Atropyle is in beta on X Layer. Alerts are best effort: the chain, not this email, is the source of truth.
