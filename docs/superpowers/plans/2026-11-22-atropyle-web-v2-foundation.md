@@ -1,0 +1,17527 @@
+# Atropyle Plan 7A — Nền tảng web v2 (Next.js) — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Chuyển web Preact sang `apps/web-legacy`, dựng ở `apps/web` một app Next.js 16 xuất tĩnh (hai target `vercel` và `deweb`) với đủ nền móng cho Plan 7B dựng trang: token màu và chữ đạt AA, font tự host, i18n EN/VI, motion và `HoldButton`, `Thread` và `StateBadge`, bộ primitive, khung trang với chuyển hướng link cũ, lớp ví và `ConnectSheet`, đọc chain bằng TanStack Query, Web Worker cho proof, engine giao dịch `useTxRunner`, client API (chỉ bản vercel), CSP theo hash, ngân sách kích thước, e2e có axe và Lighthouse.
+
+**Architecture:**
+- `next build` với `output: 'export'` sinh `out/` tĩnh. Một wrapper (`scripts/next.ts`) tắt telemetry, kiểm target, đặt rỗng `NEXT_PUBLIC_API_URL` ở bản deweb, chọn bundler theo kết quả spike, rồi chạy bước postbuild chèn CSP có hash của mọi script inline.
+- **Ranh giới nạp lười:** mã khung (shell, primitive, hook) chỉ `import type` từ `@atropyle/sdk` và `viem`. Giá trị của SDK và viem chỉ được nạp qua `import()` từ các file trong thư mục `impl/`, từ `src/workers/` và từ thư mục route con `src/app/<segment>/`. Một test quét mã nguồn giữ luật này, để trang `/` đạt 170 kB gzip.
+- Logic thuần đã có test của web cũ (i18n, store, format, tx-view, wallet, send-calls, verify-client, rpc, sdk, stats-view, errors-view) được port nguyên văn kèm test. Giao diện viết mới bằng React 19, Tailwind v4, Radix và `motion`.
+- E2E Playwright chạy bản build `deweb` trên anvil với ví giả (port từ web cũ), kiểm axe ở cả hai theme, kiểm mọi request (badge "100% on-chain") và mọi vi phạm CSP.
+
+**Tech Stack:** Next.js 16.4.6 (App Router, static export), React 19.3.1, TypeScript 5.9.3, Tailwind CSS 4.3.5 (`@tailwindcss/postcss`), `motion` 14.14.0, Radix (dialog 1.3.1, popover 1.3.1, tooltip 1.4.1, visually-hidden 1.2.13), lucide-react 1.73.0, @tanstack/react-query 5.107.1, uqr 0.1.3, viem 2.58.0, `@atropyle/sdk` 0.1.0, Fontsource variable 5.3.0 (Fraunces, Inter, JetBrains Mono, chỉ dùng lúc dev để chép woff2), Vitest 3.2.7 + happy-dom 21.0.4 + @testing-library/react 16.3.3, @playwright/test 1.65.1 + @axe-core/playwright 4.14.0, size-limit 14.3.0, lighthouse 13.6.0 + chrome-launcher 1.2.3, tsx 4.20.6, Biome 2.6.8.
+
+**Spec:**
+- `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§0–§8, §9.6, §10–§13, §16, §17). §9.6 là hợp đồng API, không được sửa.
+- Plan 4 (web cũ, để biết mã được port): `docs/superpowers/plans/2026-11-18-atropyle-web.md`.
+- Plan 7B (các trang) dùng mục "Interfaces for Plan 7B" ở cuối plan này.
+
+## Global Constraints
+
+- Node.js 24, npm workspaces (`circuits`, `packages/*`, `apps/*`, `examples/*`), Biome 2.6.8 (`npx biome ci .`), TypeScript 5.9.3 strict, Vitest 3.2.7. Mọi dependency ghim chính xác (`npm install -E`, không `^`).
+- Phiên bản đã xác minh ngày 22/11/2026 (`npm view`, mỗi bản đã ra ít nhất 7 ngày): next 16.4.6; react, react-dom 19.3.1; @types/react, @types/react-dom 19.3.0; motion 14.14.0; tailwindcss, @tailwindcss/postcss 4.3.5; @radix-ui/react-dialog 1.3.1; @radix-ui/react-popover 1.3.1; @radix-ui/react-tooltip 1.4.1; @radix-ui/react-visually-hidden 1.2.13; lucide-react 1.73.0; @tanstack/react-query 5.107.1; uqr 0.1.3; @testing-library/react 16.3.3; @testing-library/dom 10.4.2; happy-dom 21.0.4; @fontsource-variable/fraunces, inter, jetbrains-mono 5.3.0; @playwright/test 1.65.1; @axe-core/playwright 4.14.0; size-limit, @size-limit/file 14.3.0; lighthouse 13.6.0; chrome-launcher 1.2.3. Đã có trong repo: viem 2.58.0, vitest 3.2.7, tsx 4.20.6, typescript 5.9.3, @types/node 24.19.2, yaml 2.9.1.
+- **Lockfile trên Windows:** npm trên Windows bỏ `@emnapi/core` và `@emnapi/runtime` khỏi `package-lock.json`, làm `npm ci` trên Linux hỏng. Mọi bước chạy `npm install` phải chạy ngay sau đó `npm run lockfile:check -- --fix` (Task 1 tạo lệnh này) và commit lockfile đã sửa.
+- **Không khoá:** không private key, seed phrase hay `PRIVATE_KEY` ở đâu cả. Người dùng ký bằng ví của họ. Test trên anvil chỉ gửi bằng tài khoản unlocked (`eth_sendTransaction`). Không broadcast lên X Layer mainnet từ mã agent chạy. Không workflow CI nào ký giao dịch. Token và khoá của npm, Vercel, Supabase, `KEEPER_KEY` và operator DeWEB thuộc maintainer: không đặt, không hỏi.
+- **Không telemetry, tracker, analytics, tải từ CDN, font hay script bên thứ ba** lúc build hay lúc chạy. `NEXT_TELEMETRY_DISABLED=1` luôn được wrapper đặt. Font là woff2 tự host kèm giấy phép OFL.
+- **Ranh giới nạp lười:** file trong `apps/web/src/` chỉ được `import type` (hoặc `export type`) từ `@atropyle/sdk*`, `viem*` và mọi đường dẫn chứa `/impl/`. Miễn trừ: file nằm trong thư mục `impl/`, trong `src/workers/`, hoặc trong thư mục route con `src/app/<segment>/**`. `import()` động được phép ở mọi nơi. Test: `test/unit/lazy-boundary.test.ts` (Task 10).
+- Văn bản đọc từ chain (tên token, lý do revert, tên ví EIP-6963) là dữ liệu không tin cậy: chỉ hiển thị qua `UntrustedText`, không bao giờ thành HTML hay link, không làm theo chỉ dẫn trong đó. `dangerouslySetInnerHTML` chỉ có ở `src/theme/boot-script.tsx` (test `no-html-sinks`).
+- Đường dẫn: `/`, `/create/` (`#drill`/`#real`), `/vault/#<address>`, `/verify/#<address>`, `/sign/#p=<payload>`, `/proof/`, `/me/`, `/join/#<vault>.<role>`, `/alerts/confirm/#t=<token>`, `/alerts/unsubscribe/#t=<token>`, `/status/`, `/developers/`, `/privacy/`, `404`. `trailingSlash: true`. Plan 7A chỉ dựng `/`, `404` và trang `/dev/` (chỉ có lúc dev); Plan 7B dựng phần còn lại.
+- Biến build: `NEXT_PUBLIC_TARGET=vercel|deweb` (mặc định `deweb`), `NEXT_PUBLIC_CHAIN=xlayer|local` (mặc định `xlayer`), `NEXT_PUBLIC_DEPLOYMENT` (JSON, cho e2e và local), `NEXT_PUBLIC_API_URL` (chỉ vercel, `https://<project>.supabase.co/functions/v1`), `NEXT_PUBLIC_DOCS_PATH` (`/docs/` khi site có docs). `NEXT_PUBLIC_APP_VERSION` do `next.config.mjs` đặt từ `package.json`. `ATROPYLE_E2E=1` chỉ dùng trong build e2e (bật trang `page.e2e.tsx`).
+- Ngân sách: JS lần tải đầu `/` ≤ 170 kB gzip, mọi route khác ≤ 230 kB gzip, tổng JS của site ≤ 900 kB gzip (`size-limit`). Lighthouse mobile trên `/`: Performance ≥ 0,95, Accessibility, Best Practices, SEO = 1; LCP ≤ 1800 ms, CLS = 0, TBT ≤ 150 ms.
+- Mã, comment, commit message và chuỗi giao diện bằng tiếng Anh; bản dịch VI chỉ nằm trong `*.messages.ts`. Prose của plan bằng tiếng Việt.
+- JSON: `bigint` là chuỗi thập phân, địa chỉ có checksum.
+- Commit: `git add` từng đường dẫn cụ thể (không bao giờ `git add -A` hay `git add .`). Message dạng `feat(web): …`, kết thúc bằng dòng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Không đụng `prompts/`, `reports/`, `research_notes/`, `external_research/`.
+- Mỗi task kết thúc xanh trên: test của chính nó, `npm run typecheck`, `npx biome ci .`. Lỗi format hoặc thứ tự import của Biome sửa bằng `npx biome check --write <đường dẫn>`; lỗi lint khác sửa tay, không tắt luật.
+- Thứ tự build: `npm run build` (circuits rồi SDK) trước mọi lệnh của `apps/web`, vì app đọc `dist` của SDK.
+- Mọi lệnh trong plan chạy bằng Git Bash (cú pháp POSIX), không bao giờ bằng PowerShell, kể cả ở các task không ghi rõ.
+
+## Quyết định
+
+Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`, `npm pack` vào thư mục nháp và đọc file, hoặc đọc mã trong repo), trừ khi ghi khác.
+
+1. **Phiên bản.** Danh sách ở Global Constraints. Hai gói có bản mới hơn nhưng chưa đủ 7 ngày nên lùi về bản trước: lucide-react 1.77.0 → **1.73.0**, @tanstack/react-query 5.108.2 → **5.107.1**. uqr 0.1.3 ra ngày 3/4/2026, MIT, không dependency, `sideEffects: false`. chrome-launcher 1.2.3. Trong lucide-react 1.73.0 (đọc `dist`): **không có** `CircleAlert`, `TriangleAlert`, `Fingerprint`; dùng `CircleExclamationPoint`, `TriangleExclamationPoint`. Lucide tự thêm `aria-hidden="true"` khi không có prop a11y; nét mặc định 2, plan luôn truyền `strokeWidth={1.5}` (spec §4.5).
+2. **`next.config.mjs`, không `.ts`.** Next 16.4.6 biên dịch `next.config.ts` bằng SWC sang CommonJS (`handleCJS`, trừ khi bật `__NEXT_NODE_NATIVE_TS_LOADER_ENABLED`), nên `import.meta.url` không dùng được. File `.mjs` là ESM thật. Config là hàm của `phase`; so với chuỗi `'phase-development-server'` thay vì import `next/constants` (gói `next` không có `exports`, import tên từ CJS dễ vỡ).
+3. **Bundler: Turbopack mặc định, spike quyết định.** `next build` của 16.4.6 có cờ `--webpack` (đọc `dist/bin/next`). Task 2 dựng trang `page.e2e.tsx` tạo worker bằng `new Worker(new URL(...), { type: 'module' })`, worker import `@atropyle/sdk/verify` và một `import()` động, rồi chạy trong Chromium dưới CSP `worker-src 'self'`. Đạt với Turbopack thì giữ (`BUNDLER_FLAGS = []`); hỏng thì thử `--webpack`; cả hai hỏng thì dừng và báo BLOCKED. Kết quả ghi vào spec §16 hàng 15.
+4. **tsconfig dùng `extends`.** `writeConfigurationDefaults` của Next 16.4.6 return ngay khi tsconfig có `extends` hoặc `references`, nên Next không tự sửa tsconfig lúc build. `next-env.d.ts` (Next tự sinh) bị ignore trong git và Biome, không nằm trong `include`.
+5. **Telemetry:** `dist/telemetry/storage.js` tắt telemetry khi `NEXT_TELEMETRY_DISABLED` có giá trị. Wrapper luôn đặt `1`.
+6. **Config cố định:** `output: 'export'`, `trailingSlash: true`, `images.unoptimized`, `reactStrictMode`, `productionBrowserSourceMaps: false`, `typescript.ignoreBuildErrors: true` (typecheck chạy riêng bằng `tsc`, Next không chạy lần hai), `turbopack.root` = gốc monorepo (Turbopack chỉ resolve file dưới thư mục này; `node_modules` nằm ở gốc). Không có khoá `viewTransition`: React 19.3.1 đã export `ViewTransition` và `addTransitionType` ổn định (đọc `cjs/react.production.js` và `@types/react` 19.3.0).
+7. **Token light được làm đậm để đạt AA** (tính bằng công thức WCAG 2.x). Spec §4.3 ghi `thread #A86F12`, `alive #127A63`, `grace #A35A00`; trên `surface-3 #E7DFD1` chúng không đạt 4,5:1. Plan dùng **`thread #86590E`, `alive #106F5A`, `grace #945100`** (tối thiểu 4,60:1 trên mọi surface). Thêm `on-thread`, `on-danger`, `line`, `line-strong` (≥ 3:1 cho viền điều khiển, WCAG 1.4.11). Tỉ lệ nhỏ nhất: dark 5,50 (danger trên surface-3), light 4,60 (thread trên surface-3); `ink/bg` dark 15,77 và light 16,45 (AAA). Task 3 cập nhật bảng §4.3 và thêm spec §16 hàng 16.
+8. **Font bằng `next/font/local`, 9 lần gọi** (3 họ × 3 subset vietnamese, latin-ext, latin). Đọc `dist/compiled/@next/font/dist/local/loader.js` và validator: `declarations` được phép chứa `font-family` (loader bỏ tên họ tự sinh khi có `hasCustomFontFamily`), chỉ cấm `src`, `font-display`, `font-weight`, `font-style`. Nhờ vậy cả 3 file của một họ dùng chung tên `'Atropyle Fraunces'` với `unicode-range` riêng: trình duyệt chỉ tải subset cần. Chỉ subset latin có `adjustFontFallback` (sinh mặt `'Atropyle Fraunces Fallback'` có size-adjust, giữ CLS 0). Chỉ preload Fraunces latin và Inter latin. Plugin `postcss-next-font` của webpack đã đọc; hành vi của Turbopack với tên họ tự đặt nằm trong binary native nên chưa xác minh: test build `fonts.test.ts` (Task 4) quyết định, hỏng thì chuyển `BUNDLER_FLAGS` sang `--webpack`.
+9. **Fontsource 5.3.0:** trục Fraunces `opsz 9–144`, `wght 100–900`, `SOFT 0–100`, `WONK 0–1`; Inter `wght 100–900`; JetBrains Mono `wght 100–800`. File `LICENSE` của cả ba là SIL OFL 1.1. Woff2 được chép vào `src/fonts/files/`; test so SHA-256 với `node_modules/@fontsource-variable/*/files`.
+10. **Thang chữ** 8 bậc, fluid giữa viewport 360 và 1440 px (12 → 96 px): `caption 0.75rem`, `small 0.875rem`, `body clamp(1rem, 0.9792rem + 0.0926vw, 1.0625rem)`, `lead clamp(1.125rem, 1.0625rem + 0.2778vw, 1.3125rem)`, `title clamp(1.375rem, 1.25rem + 0.5556vw, 1.75rem)`, `h2 clamp(1.75rem, 1.5rem + 1.1111vw, 2.5rem)`, `h1 clamp(2.25rem, 1.6667rem + 2.5926vw, 4rem)`, `display clamp(2.75rem, 1.6667rem + 4.8148vw, 6rem)`. Tiêu đề VI có line-height ≥ 1.15 qua `:root:lang(vi)` (cần `@theme` không `inline` cho bậc chữ).
+11. **Spring CSS:** `stiffness 380, damping 32, mass 1` có ζ = 0,8208, nghiệm x(t) = 1 − e^(−16t)(cos 11,1356t + 1,43683 sin 11,1356t). Lấy mẫu 25 điểm trong 443 ms thành `linear(...)` cho CSS (test so với công thức, sai số 0,0006). `motion` dùng chính bộ số này cho animation JS.
+12. **CSP tách làm hai lớp** (spec §8 nói bản vercel đặt CSP qua header): `vercel.json` là file tĩnh trong repo nên không chứa được hash của script inline sinh ra lúc build. Vì vậy **cả hai bản** nhận `<meta http-equiv="Content-Security-Policy">` có hash từng trang (postbuild), còn header của Vercel chỉ mang những gì meta không làm được: `frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` (không có `default-src`, vì header không hash được script inline sẽ chặn chúng). `style-src` cần `'unsafe-inline'`: HTML prerender chứa thuộc tính `style` (style ban đầu của `motion`, màu avatar). Task 15 thêm spec §16 hàng 17.
+13. **Ranh giới nạp lười** (Global Constraints) để đạt 170 kB cho `/`. Bốn thứ nhỏ của SDK được chép tại chỗ để khung không phải nạp SDK: `untrusted` (`src/lib/untrusted.ts`, bản sao từng byte của `packages/sdk/src/untrusted.ts`, có test so nội dung), `formatDuration` (test so hành vi), `DOCS_BASE_URL` (test so giá trị), `sameAddress`. `stringify` của store thay bằng `jsonStringify` tại chỗ (bigint thành chuỗi thập phân).
+14. **Theme không nháy:** script inline duy nhất (`boot-script.tsx`) đặt `data-theme` trước khi vẽ, chỉ khi người dùng đã chọn `light` hoặc `dark`; chế độ `system` để CSS `@media (prefers-color-scheme: light)` lo. Cùng script chuyển hướng link cũ ở `/` (spec §3). Nguồn script là `Function.prototype.toString()` của hai hàm tự chứa, có test chạy thật trong `node:vm`.
+15. **Ngôn ngữ:** static export không biết ngôn ngữ người xem, nên lần vẽ đầu luôn là EN, rồi effect đọc lựa chọn đã lưu hoặc `navigator.languages` và đổi sang VI nếu cần (chấp nhận một lần nháy chữ; ghi ở rủi ro). `<html lang>` được cập nhật theo.
+16. **Link ngoài trên DeWEB:** quét tĩnh của gateway (`scripts/lib/onchain-check.ts`, regex `ATTR` trên `src|href|action|…`) tính cả `href` ra ngoài trong HTML prerender. Primitive `ExternalLink` ở bản deweb render chữ thường lúc prerender và lần vẽ đầu, chỉ thành `<a>` sau khi mount. Test build `html-purity.test.ts` (Task 15) giữ luật này.
+17. **Ví:** giữ lớp ví tự viết (spec §16 hàng 8), port nguyên văn. Deep link OKX App chưa xác minh (spec §17), nên `ConnectSheet` khi không có ví chỉ hiện hướng dẫn, nút sao chép link và mã QR (uqr: `encode(text, { ecc, border })` trả `data: boolean[][]`, đọc `dist/index.d.ts`; render thành một `<path>` SVG, không dùng `renderSVG` vì nó trả chuỗi HTML).
+18. **TanStack Query:** khoá query chỉ gồm chuỗi và số: `['atropyle', chainId, 'sdk', 'cross'|'own']`, `[..., 'vault', <địa chỉ chữ thường>]`, `[..., 'stats', 'api'|'chain']`, … Query SDK có `staleTime`/`gcTime` vô hạn, không retry, không structural sharing. Retry tối đa 2 lần, trừ mã lỗi vĩnh viễn (`NOT_VAULT`, `INVALID_ADDRESS`, `DEPLOYMENT_INVALID`, `DEPLOYMENT_MISSING`, `LINK_INVALID`, `PLAN_INVALID`, `INVALID_OPTIONS`, `USER_REJECTED`, `WRONG_CHAIN`, `WRONG_ACCOUNT`, `POLICY_MISMATCH`, `DRILL_EXPIRED`). `useVault` không dùng `placeholderData` (đổi địa chỉ sẽ hiện vault cũ).
+19. **Worker được kiểm bằng trang chỉ có trong build e2e.** Trên devnet không có circuit policy, nên proof hỏng với `POLICY_UNAVAILABLE` trước khi tới worker (đọc `apps/web/test/e2e/verify.spec.ts` của web cũ). Vì vậy trang `src/app/e2e/worker/page.e2e.tsx` (chỉ build khi `ATROPYLE_E2E=1`, qua `pageExtensions`) gửi một bundle hỏng vào worker thật và chờ lỗi SDK quay về: chứng minh chunk worker nạp được dưới CSP và SDK chạy trong worker. `npm run worker:check` (Task 2) và e2e `worker.spec.ts` (Task 15) dùng trang này; bản build production không có nó (test build).
+20. **`HoldButton`:** giữ chuột hoặc chạm 600 ms thì xác nhận; nhả sớm thì huỷ và nháy gợi ý. **Enter xác nhận ngay** (spec §4.6: "bấm phím Enter cũng được"); Space là giữ (nhả sớm thì huỷ). Click có `detail === 0` (công nghệ hỗ trợ kích hoạt) xác nhận ngay; click chuột thường bị bỏ qua. Khi reduced motion, thanh tiến độ đổi `opacity` thay vì `scaleX`.
+21. **Trang `/dev/` chỉ có lúc dev:** `pageExtensions` thêm `dev.tsx` khi `phase === 'phase-development-server'`; file `src/app/dev/page.dev.tsx` không thành route khi build production (tên `page.dev` khác `page`). Test build kiểm `out/dev/` không tồn tại.
+22. **Link điều hướng `prefetch={false}`** cho tới khi Plan 7B dựng route đích: prefetch tới route chưa có sinh lỗi 404 trong console, làm hỏng Lighthouse Best Practices.
+23. **Biome:** `css.parser.tailwindDirectives: true` (đọc `biome explain` 2.6.8; file mẫu có `@import "tailwindcss"`, `@theme`, `@theme inline`, `linear()`, `color-mix`, `::view-transition-*` qua `biome ci`). Chuỗi CSS dùng nháy kép (mặc định của formatter CSS). Các luật ảnh hưởng thiết kế: `useUniqueElementIds` cấm `id` là chuỗi cố định (dùng `useId()`), `noSvgWithoutTitle`, `noStaticElementInteractions`, `useSemanticElements`, `noDangerouslySetInnerHtml`, `useExhaustiveDependencies` đều là error.
+24. **Lighthouse chạy cục bộ:** `lighthouse` 13.6.0 qua `chrome-launcher` 1.2.3 với Chromium của Playwright (`chromium.executablePath()`), phục vụ `out/` bằng server tĩnh của app. Mỗi route chạy 3 lần, lấy trung vị điểm Performance. Không dịch vụ ngoài.
+25. **Lockfile:** `scripts/lockfile-check.ts` tìm mọi dependency mà không đường resolve nào của node trỏ tới entry trong `package-lock.json` (đã thử: lockfile hiện tại cho 0 thiếu; bỏ hai entry emnapi cho đúng 2 thiếu). `--fix` lấy `version`, `dist.tarball`, `dist.integrity`, `license`, `dependencies` bằng `npm view`, đặt `dev`/`optional` theo entry cha, sắp xếp khoá bằng `localeCompare(…, 'en')` (đã thử: thứ tự khoá của lockfile hiện tại trùng hoàn toàn), ghi lại bằng `JSON.stringify(…, null, 2) + '\n'` (đã thử: trùng từng byte).
+26. **Header CSP của Vercel và cache:** `vercel.json` có `"framework": null`, `"outputDirectory": "out"`, lệnh cài và build chạy ở gốc monorepo (`cd ../.. && npm ci`; build SDK rồi app với `NEXT_PUBLIC_TARGET=vercel`), header bảo mật và cache bất biến cho `/_next/static/`.
+27. **Phiên ví của cả site** (Task 11): `KEYS.wallet` nhớ `rdns`, nguồn và tên của ví, không bao giờ nhớ địa chỉ. Lần ghé sau khôi phục im lặng: tìm lại đúng ví qua EIP-6963 rồi hỏi `eth_accounts`, không bao giờ `eth_requestAccounts` hay mở cửa sổ của ví; ví đã gỡ (`gone`) thì quên lựa chọn, ví đang khoá (`locked`) thì giữ lựa chọn và hiện nút Connect. Mỗi lần kết nối, khôi phục hay ngắt tăng một `epoch`, kết quả về muộn của lượt cũ bị bỏ. SDK và viem chỉ nạp khi cần (`switchChain`, `walletClient`) qua `queryClient.fetchQuery(sdkQuery(…))` và `peekChainImpl()`, nên header không kéo SDK vào lần tải đầu. Mã QR nạp lười và chỉ vẽ khi URL ≤ `QR_MAX_CHARS` (512 ký tự). Sự kiện `disconnect` mã 1013 (MetaMask mất kết nối tạm tới chain) bị bỏ qua.
+28. **Proof một lần mỗi phiên** (Task 12): query proof dùng `skipToken` cho tới khi người dùng bấm chạy, `gcTime` vô hạn và không retry, nên kết quả sống cả phiên và hai trang dùng chung một lượt đang chạy. Tiến độ nằm trong một store ngoài React (`useSyncExternalStore`), để trang mount lại giữa chừng vẫn thấy đúng tiến độ.
+29. **Engine giao dịch** (Task 13): `useTxRunner` trả một object `TxRunner` mà trang giữ và đưa cho `TxCard`. Link ký trên máy khác là `/sign/#p=…` của chính site (`toSignHref`), không có khi đang gửi hay khi đã xong. Bộ giải mã lỗi nằm trong chunk `tx/impl`, nạp cùng thẻ giao dịch. Đổi plan reset trạng thái ngay trong lúc render (không qua effect), và cờ `inFlight` chặn lần gửi thứ hai trước khi React kịp vẽ lại.
+30. **URL backend** (Task 14): ba lớp giữ URL khỏi bản deweb (`build-env.ts` đặt chuỗi rỗng, `next.config.mjs` đặt rỗng, `env.ts` chỉ đọc URL sau phép so target). Chuỗi rỗng, không phải xoá biến, vì `@next/env` chỉ nạp khoá từ `.env*` khi biến `undefined`; bản vercel không có URL trong môi trường cũng nhận chuỗi rỗng, nên URL chỉ đến từ môi trường build, đúng nguồn của CSP. Test build dùng một sentinel trong môi trường và một sentinel trong `.env.production.local`. `getApi()` là hàm (đọc lúc gọi, test thay được), client kiểm hình dạng mọi câu trả lời theo §9.6 (lệch thì `BAD_RESPONSE`), và mã lỗi vĩnh viễn của API vào `PERMANENT_CODES`.
+31. **E2E, kích thước và Lighthouse** (Task 15): e2e chạy bản build **deweb** (không backend, chịu quét on-chain) với deployment devnet có `rpcUrls` là hai origin OKX; Playwright chuyển mọi request tới chúng sang anvil. Server tĩnh của e2e và Lighthouse gửi đúng header của `vercel.json` và nén gzip như Vercel, nên hai lớp CSP được thử cùng nhau và Lighthouse đo số byte thật. Mỗi test e2e có ba lưới chặn tự động: request off-chain, vi phạm CSP (`securitypolicyviolation` qua `exposeFunction`), lỗi trang. axe chạy WCAG 2.2 AA ở cả hai theme sau khi mọi animation hữu hạn dừng. `size-limit` đo bản sao script của từng trang trong `.size/` (tên chunk của bundler có thể chứa ký tự glob). Hash CSP tính trên text đã đổi CRLF thành LF như parser HTML. `src/app/icon.svg` tránh lỗi 404 `/favicon.ico` trong console (Best Practices). `vercel.json` không có HSTS: Vercel tự gửi, còn `includeSubDomains` hay `preload` là quyết định về domain của maintainer.
+
+## Review Focus
+
+1. **Link cũ do SDK, CLI và MCP in ra** (`#/sign?p=<payload dài>`, `#/sign?p=a&p=b`, `#/v/<a>/verify`, `#/create?drill=1`, hash lạ, hash trên đường dẫn khác `/`): chuyển đúng một lần, giữ payload từng byte (kể cả hai tham số `p` để trang ký từ chối), không chuyển hash lạ. Test: `legacyTarget keeps the payload byte for byte` và `legacyTarget leaves unknown hashes alone` (Task 9), `legacy links land on the new routes` (Task 15).
+2. **Bộ nhớ trình duyệt bị chặn hoặc hỏng** (cửa sổ riêng tư, `localStorage` ném lỗi, giá trị theme/lang/ví rác): trang vẫn vẽ, dùng mặc định, script boot không ném. Test: `boot survives a localStorage that throws` (Task 9), `a stored garbage theme falls back to system` (Task 5), `restore ignores a remembered wallet that is gone` (Task 11).
+3. **Ví đổi trạng thái giữa chừng** (đổi tài khoản, đổi chain, ngắt, trả mảng tài khoản rác): trạng thái cập nhật, hiện cảnh báo sai chain, không crash, không giữ tài khoản cũ. Test: `wallet events update the account and chain and drop garbage` (Task 11).
+4. **Chỉ bàn phím, công nghệ hỗ trợ và reduced motion:** `HoldButton` dùng được bằng Enter, Space và click của trình đọc màn hình; khi reduced motion không còn animation chạy lúc nghỉ. Test: `HoldButton keyboard and assistive activation` (Task 6), `reduced motion leaves no running animation` (Task 15).
+5. **Bản deweb rò URL backend hoặc link ngoài** (`NEXT_PUBLIC_API_URL` có trong môi trường lúc build deweb; footer có link GitHub): không chuỗi nào của URL API nằm trong `out/`, không thuộc tính HTML nào trỏ ra ngoài. Test: `the deweb build never contains the API url` (Task 14), `deweb HTML has no external attribute` (Task 15).
+
+---
+
+## File Structure
+
+```
+package.json                              (sửa) script lockfile:check (Task 1)
+package-lock.json                         (sửa) workspace apps/web-legacy, apps/web mới; entry emnapi giữ nguyên
+biome.json                                (sửa) đường dẫn legacy, ignore output Next và .size, css.parser.tailwindDirectives
+.gitignore                                (sửa) đường dẫn legacy, output Next, báo cáo e2e và Lighthouse, .size
+.github/workflows/ci.yml                  (sửa) job web chạy apps/web-legacy; job web-next mới (Task 2, Task 15)
+AGENTS.md                                 (sửa) bảng thư mục và lệnh (Task 1, Task 15)
+docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md  (sửa) §4.3 token light, §16 hàng 15–17
+scripts/
+  lockfile-check.ts                       npm run lockfile:check [-- --fix]
+  lib/lockfile.ts                         resolveIn, missingDeps, withEntries, entryFrom, fixLock, serializeLock
+  test/tooling/lockfile.test.ts
+  test/site/ci-web-next.test.ts           kiểm job web-next
+  build-site.ts, lib/site-build.ts, lib/onchain-check.ts, test/site/*.test.ts, vitest.site.config.ts  (sửa đường dẫn)
+apps/web-legacy/                          web Preact cũ (git mv từ apps/web), workspace @atropyle/web-legacy
+apps/web/
+  package.json  next.config.mjs  postcss.config.mjs  tsconfig.json  vitest.config.ts  vitest.build.config.ts
+  playwright.config.ts  .size-limit.mjs  vercel.json  README.md
+  public/robots.txt  public/licenses/fonts/OFL-{Fraunces,Inter,JetBrainsMono}.txt
+  scripts/
+    next.ts                               tsx scripts/next.ts build|dev
+    worker-check.ts                       build e2e + Chromium dưới CSP chặt: worker nạp được
+    lighthouse.ts                         Lighthouse cục bộ trên out/, 3 lần mỗi route, lấy trung vị
+    lib/build-env.ts  lib/run-next.ts  lib/static-server.ts  lib/csp.ts  lib/site-headers.ts  lib/lighthouse-score.ts
+  src/
+    app/layout.tsx  page.tsx  not-found.tsx  globals.css  icon.svg
+    app/dev/page.dev.tsx  gallery.tsx  wallet-gallery.tsx  tx-gallery.tsx      (chỉ có lúc dev)
+    app/e2e/worker/page.e2e.tsx           smoke worker (chỉ build e2e)
+    config/env.ts                         target, chain, API URL, explorer
+    routes.ts                             ROUTES, NAV, href builders, legacyTarget, toSdkSignLink
+    fonts/index.ts  fonts/ranges.ts  fonts/files/*.woff2 (9 file)
+    i18n/core.ts  i18n/provider.tsx
+    lib/store.ts  kv.tsx  untrusted.ts  duration.ts  docs.ts  address.ts  hash.ts  format.ts  links.ts  cn.ts
+       use-mounted.ts  use-now.ts
+    messages/{labels,common,shell,ui,tx,wallet,create,developers,guardian,heir,home,owner,sign,status,vault,verify,action-runner,editors}.messages.ts
+    theme/theme.ts  provider.tsx  boot.ts  boot-script.tsx
+    motion/tokens.ts  features.ts  provider.tsx  view-transition.tsx  haptics.ts  use-hold.ts
+    thread/geometry.ts  state.ts  thread.tsx  glyphs.tsx  state-badge.tsx
+    ui/button.tsx  icon-button.tsx  hold-button.tsx  address.tsx  identicon.ts  amount.tsx  countdown.tsx  skeleton.tsx
+       empty-state.tsx  inline-error.tsx  banner.tsx  copy-button.tsx  untrusted-text.tsx  external-link.tsx
+       visually-hidden.tsx  dialog.tsx  popover.tsx  tooltip.tsx  qr-code.tsx  spinner.tsx  text-field.tsx
+    shell/providers.tsx  frame.tsx  header.tsx  footer.tsx  nav-list.tsx  settings-menu.tsx  mobile-menu.tsx
+       skip-link.tsx  lang-switch.tsx  theme-switch.tsx  haptics-switch.tsx  wordmark.tsx
+    home/hero.tsx                         cảnh đầu của trang chủ (Plan 7B thay)
+    chain/types.ts  load.ts  query-client.ts  keys.ts  provider.tsx  hooks.ts  use-stats.ts  time.ts
+    chain/impl/index.ts  rpc.ts  sdk.ts  vault.ts  stats.ts  stats-view.ts            (chỉ nạp qua loadChainImpl)
+    wallet/types.ts  load.ts  remember.ts  network.ts  provider.tsx  connect-sheet.tsx  wallet-button.tsx
+       wallet-menu.tsx  network-banner.tsx  use-vault-roles.ts
+    wallet/impl/index.ts  wallet.ts  send-calls.ts  session.ts                       (chỉ nạp qua loadWalletImpl)
+    verify/types.ts  load.ts  hooks.ts  verify-view.ts
+    verify/impl/index.ts  verify-client.ts                                           (chỉ nạp qua loadVerifyImpl)
+    workers/verify.worker.ts  smoke.worker.ts  smoke-lazy.ts
+    tx/tx-view.ts  load.ts  use-error-view.ts  error-box.tsx  use-tx-runner.ts  tx-card.tsx  tx-progress.tsx
+       use-leave-guard.ts  sign-href.ts
+    tx/impl/index.ts  errors-view.ts  decode.ts  describe.ts                         (chỉ nạp qua loadTxImpl)
+    api/types.ts  client.ts  instance.ts  hooks.ts                                   (chỉ bản vercel gọi mạng)
+  test/setup.ts
+  test/helpers/render.tsx  helpers/wallet.ts
+  test/unit/*.test.ts(x)  test/unit/fixtures.ts                                       (port + mới)
+  test/build/global-setup.ts  paths.ts  *.test.ts                                     (hai lần next build thật, rồi đọc out/)
+  test/e2e/global-setup.ts  network.ts  fixtures.ts  helpers.ts  state.ts  wallet.ts  *.spec.ts
+  (ignore) out/  .size/  test-results/  playwright-report/  lighthouse-report/  test/e2e/.site/  test/e2e/.state.json
+```
+
+---
+### Task 1: Công cụ lockfile và chuyển web cũ sang `apps/web-legacy`
+
+Mọi lệnh chạy ở gốc repo trừ khi ghi khác. Task này không cài gói mới; nó đổi tên workspace và tạo lệnh `lockfile:check` mà mọi task sau dùng.
+
+**Files:**
+- Create: `scripts/lib/lockfile.ts`, `scripts/lockfile-check.ts`, `scripts/test/tooling/lockfile.test.ts`
+- Modify: `scripts/vitest.site.config.ts` (thêm thư mục test tooling), `package.json` (script `lockfile:check`)
+- Move: `apps/web/` → `apps/web-legacy/` (`git mv`); Modify: `apps/web-legacy/package.json` (tên `@atropyle/web-legacy`)
+- Modify (đường dẫn): `.github/workflows/ci.yml:222,226,228,236,241`, `.gitignore:12-15`, `biome.json:24-28`, `AGENTS.md:19,40,53,56,61,62,67,68`, `scripts/build-site.ts:42,45`, `scripts/lib/site-build.ts:66,70`, `scripts/lib/onchain-check.ts:115`, `scripts/test/site/ci-web.test.ts:49,64,65,67,72,76,93`, `scripts/test/site/deweb-bundle.test.ts:13`, `scripts/test/site/onchain-check.test.ts:126`, `scripts/test/site/site-build.test.ts:54-56`, `package-lock.json`
+
+**Interfaces:**
+- Consumes: không có.
+- Produces: `npm run lockfile:check` (in danh sách thiếu, exit 1) và `npm run lockfile:check -- --fix` (thêm entry thiếu, exit 0 khi sạch). `scripts/lib/lockfile.ts`:
+  - `interface LockEntry`, `interface Lockfile`, `interface Missing { name: string; range: string; from: string; at: string }`
+  - `resolveIn(packages: Record<string, LockEntry>, from: string, name: string): string | null`
+  - `missingDeps(lock: Lockfile): Missing[]`
+  - `withEntries(lock: Lockfile, add: Record<string, LockEntry>): Lockfile`
+  - `entryFrom(view: unknown, dev: boolean, optional: boolean): LockEntry`
+  - `type NpmView = (spec: string) => unknown`; `npmView: NpmView`
+  - `fixLock(lock: Lockfile, view: NpmView, rounds?: number): { lock: Lockfile; added: string[]; missing: Missing[] }`
+  - `serializeLock(lock: Lockfile): string`
+- Workspace web cũ: `@atropyle/web-legacy` ở `apps/web-legacy`. Job CI `web` giữ id, chạy `-w apps/web-legacy`.
+
+- [ ] **Step 1: Viết test hỏng cho công cụ lockfile**
+
+Tạo `scripts/test/tooling/lockfile.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  entryFrom,
+  fixLock,
+  type Lockfile,
+  missingDeps,
+  type NpmView,
+  resolveIn,
+  serializeLock,
+  withEntries,
+} from '../../lib/lockfile';
+
+const FILE = fileURLToPath(new URL('../../../package-lock.json', import.meta.url));
+const raw = () => readFileSync(FILE, 'utf8');
+const real = (): Lockfile => JSON.parse(raw()) as Lockfile;
+const CORE = 'node_modules/@emnapi/core';
+const RUNTIME = 'node_modules/@emnapi/runtime';
+
+function stripped(): Lockfile {
+  const lock = real();
+  delete lock.packages[CORE];
+  delete lock.packages[RUNTIME];
+  return lock;
+}
+
+/** What `npm view <spec> version dist.tarball dist.integrity license dependencies --json` prints, built from the real lockfile. */
+const viewFromLock: NpmView = (spec) => {
+  const at = spec.lastIndexOf('@');
+  const name = spec.slice(0, at);
+  const e = real().packages[`node_modules/${name}`];
+  if (!e) throw new Error(`no fixture for ${spec}`);
+  return {
+    version: e.version,
+    'dist.tarball': e.resolved,
+    'dist.integrity': e.integrity,
+    license: e.license,
+    ...(e.dependencies ? { dependencies: e.dependencies } : {}),
+  };
+};
+
+describe('lockfile check', () => {
+  it('finds every dependency of the repository lockfile', () => {
+    expect(missingDeps(real())).toEqual([]);
+  });
+
+  it('reports the two emnapi entries that npm on Windows drops', () => {
+    const missing = missingDeps(stripped());
+    expect(missing.map((m) => m.name).sort()).toEqual(['@emnapi/core', '@emnapi/runtime']);
+    expect(missing.every((m) => m.from === 'node_modules/@rolldown/binding-wasm32-wasi')).toBe(true);
+    expect(missing.every((m) => m.at === `node_modules/${m.name}`)).toBe(true);
+  });
+
+  it('resolves like node: own node_modules first, then each parent, then the root', () => {
+    const packages = {
+      '': {},
+      'node_modules/a': { version: '1.0.0' },
+      'node_modules/b': { version: '1.0.0' },
+      'node_modules/b/node_modules/a': { version: '2.0.0' },
+      'node_modules/b/node_modules/c': { version: '1.0.0' },
+      'apps/x': {},
+    };
+    expect(resolveIn(packages, 'node_modules/b/node_modules/c', 'a')).toBe('node_modules/b/node_modules/a');
+    expect(resolveIn(packages, 'node_modules/b', 'a')).toBe('node_modules/b/node_modules/a');
+    expect(resolveIn(packages, 'apps/x', 'a')).toBe('node_modules/a');
+    expect(resolveIn(packages, '', 'zz')).toBeNull();
+  });
+
+  it('keeps the exact key order of the repository lockfile', () => {
+    const lock = real();
+    expect(Object.keys(withEntries(lock, {}).packages)).toEqual(Object.keys(lock.packages));
+  });
+
+  it('builds an entry exactly like the one npm wrote', () => {
+    const e = entryFrom(viewFromLock('@emnapi/core@2.0.0-beta.2'), true, true);
+    expect(JSON.stringify(e)).toBe(JSON.stringify(real().packages[CORE]));
+  });
+
+  it('takes the highest version when npm view returns a list for a range', () => {
+    const e = entryFrom(
+      [
+        { version: '1.0.0', 'dist.tarball': 'https://r/x-1.0.0.tgz', 'dist.integrity': 'sha512-a', license: 'MIT' },
+        { version: '1.2.0', 'dist.tarball': 'https://r/x-1.2.0.tgz', 'dist.integrity': 'sha512-b', license: 'MIT' },
+      ],
+      false,
+      false,
+    );
+    expect(e).toEqual({ version: '1.2.0', resolved: 'https://r/x-1.2.0.tgz', integrity: 'sha512-b', license: 'MIT' });
+  });
+
+  it('refuses an npm view answer without a tarball or integrity', () => {
+    expect(() => entryFrom({ version: '1.0.0' }, false, false)).toThrow(/tarball|integrity/);
+  });
+
+  it('restores the stripped lockfile byte for byte', () => {
+    const r = fixLock(stripped(), viewFromLock);
+    expect(r.missing).toEqual([]);
+    expect(r.added.sort()).toEqual([CORE, RUNTIME]);
+    expect(serializeLock(r.lock)).toBe(raw());
+  });
+});
+```
+
+Sửa `scripts/vitest.site.config.ts`, dòng `include`:
+
+```ts
+    include: ['scripts/test/site/**/*.test.ts', 'scripts/test/deploy/**/*.test.ts', 'scripts/test/tooling/**/*.test.ts'],
+```
+
+- [ ] **Step 2: Chạy test, xác nhận hỏng**
+
+Run: `npx vitest run --config scripts/vitest.site.config.ts scripts/test/tooling/lockfile.test.ts`
+Expected: FAIL, `Cannot find module '../../lib/lockfile'`.
+
+- [ ] **Step 3: Viết `scripts/lib/lockfile.ts` và `scripts/lockfile-check.ts`**
+
+`scripts/lib/lockfile.ts`:
+
+```ts
+import { spawnSync } from 'node:child_process';
+
+export interface LockEntry {
+  version?: string;
+  resolved?: string;
+  integrity?: string;
+  link?: boolean;
+  dev?: boolean;
+  optional?: boolean;
+  license?: string;
+  dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface Lockfile {
+  name?: string;
+  lockfileVersion: number;
+  requires?: boolean;
+  packages: Record<string, LockEntry>;
+  [key: string]: unknown;
+}
+
+export interface Missing {
+  name: string;
+  range: string;
+  /** The lockfile path of the package that depends on it. */
+  from: string;
+  /** Where npm puts it: a missing package has no copy anywhere on the resolution path, so the top level is free. */
+  at: string;
+}
+
+const isWorkspace = (path: string): boolean => path === '' || !path.includes('node_modules/');
+
+/** Node's lookup: the package's own node_modules, then every parent's, then the root's. */
+export function resolveIn(packages: Record<string, LockEntry>, from: string, name: string): string | null {
+  let base = from;
+  for (;;) {
+    const candidate = base === '' ? `node_modules/${name}` : `${base}/node_modules/${name}`;
+    if (packages[candidate]) return candidate;
+    if (base === '') return null;
+    const i = base.lastIndexOf('/node_modules/');
+    base = i >= 0 ? base.slice(0, i) : '';
+  }
+}
+
+/** Every dependency (and every devDependency of a workspace) that no entry of the lockfile satisfies. */
+export function missingDeps(lock: Lockfile): Missing[] {
+  const out: Missing[] = [];
+  const seen = new Set<string>();
+  for (const [path, entry] of Object.entries(lock.packages)) {
+    if (entry.link) continue;
+    const deps: Record<string, string> = {
+      ...entry.dependencies,
+      ...entry.optionalDependencies,
+      ...(isWorkspace(path) ? entry.devDependencies : {}),
+    };
+    for (const [name, range] of Object.entries(deps)) {
+      if (resolveIn(lock.packages, path, name)) continue;
+      const key = `${name}@${range}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name, range, from: path, at: `node_modules/${name}` });
+    }
+  }
+  return out;
+}
+
+/** npm writes the root entry first, then every path in `localeCompare` order (checked against the real file). */
+export function withEntries(lock: Lockfile, add: Record<string, LockEntry>): Lockfile {
+  const all = { ...lock.packages, ...add };
+  const keys = Object.keys(all).sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, 'en')));
+  const packages: Record<string, LockEntry> = {};
+  for (const k of keys) packages[k] = all[k] as LockEntry;
+  return { ...lock, packages };
+}
+
+export function entryFrom(view: unknown, dev: boolean, optional: boolean): LockEntry {
+  const picked = Array.isArray(view) ? view[view.length - 1] : view;
+  const o = (picked ?? {}) as Record<string, unknown>;
+  const version = o.version;
+  const resolved = o['dist.tarball'];
+  const integrity = o['dist.integrity'];
+  if (typeof version !== 'string' || typeof resolved !== 'string' || typeof integrity !== 'string') {
+    throw new Error('npm view returned no version, tarball or integrity');
+  }
+  // Same key order as npm: version, resolved, integrity, dev, license, optional, dependencies.
+  const e: LockEntry = { version, resolved, integrity };
+  if (dev) e.dev = true;
+  if (typeof o.license === 'string') e.license = o.license;
+  if (optional) e.optional = true;
+  const deps = o.dependencies;
+  if (deps && typeof deps === 'object' && Object.keys(deps).length > 0) e.dependencies = deps as Record<string, string>;
+  return e;
+}
+
+export type NpmView = (spec: string) => unknown;
+
+/** `npm` is a .cmd on Windows, so it runs through a shell there; the quotes keep `^` and `<` literal for cmd.exe. */
+export const npmView: NpmView = (spec) => {
+  const win = process.platform === 'win32';
+  const r = spawnSync(
+    'npm',
+    [
+      'view',
+      win ? `"${spec}"` : spec,
+      'version',
+      'dist.tarball',
+      'dist.integrity',
+      'license',
+      'dependencies',
+      '--json',
+    ],
+    { encoding: 'utf8', shell: win, windowsHide: true },
+  );
+  if (r.status !== 0) throw new Error(`npm view ${spec} failed:\n${r.stderr}`);
+  return JSON.parse(r.stdout) as unknown;
+};
+
+export function fixLock(
+  lock: Lockfile,
+  view: NpmView,
+  rounds = 5,
+): { lock: Lockfile; added: string[]; missing: Missing[] } {
+  let current = lock;
+  const added: string[] = [];
+  for (let i = 0; i < rounds; i++) {
+    const missing = missingDeps(current);
+    if (missing.length === 0) return { lock: current, added, missing };
+    const add: Record<string, LockEntry> = {};
+    for (const m of missing) {
+      const parent = current.packages[m.from] ?? {};
+      const dev = parent.dev === true || (isWorkspace(m.from) && !!parent.devDependencies?.[m.name]);
+      const optional = parent.optional === true || !!parent.optionalDependencies?.[m.name];
+      add[m.at] = entryFrom(view(`${m.name}@${m.range}`), dev, optional);
+      added.push(m.at);
+    }
+    current = withEntries(current, add);
+  }
+  return { lock: current, added, missing: missingDeps(current) };
+}
+
+export function serializeLock(lock: Lockfile): string {
+  return `${JSON.stringify(lock, null, 2)}\n`;
+}
+```
+
+`scripts/lockfile-check.ts`:
+
+```ts
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { fixLock, type Lockfile, missingDeps, npmView, serializeLock } from './lib/lockfile';
+
+// npm on Windows drops @emnapi/core and @emnapi/runtime (optional wasm deps) from the lockfile, and `npm ci` on
+// Linux then fails. Run this after every `npm install`.
+const FILE = fileURLToPath(new URL('../package-lock.json', import.meta.url));
+const fix = process.argv.includes('--fix');
+const lock = JSON.parse(readFileSync(FILE, 'utf8')) as Lockfile;
+const missing = missingDeps(lock);
+
+if (missing.length === 0) {
+  console.log('package-lock.json: every dependency resolves.');
+  process.exit(0);
+}
+if (!fix) {
+  for (const m of missing) console.error(`missing ${m.name}@${m.range} (needed by ${m.from || 'the root'})`);
+  console.error('Run: npm run lockfile:check -- --fix');
+  process.exit(1);
+}
+const r = fixLock(lock, npmView);
+writeFileSync(FILE, serializeLock(r.lock));
+for (const a of r.added) console.log(`added ${a}`);
+if (r.missing.length > 0) {
+  for (const m of r.missing) console.error(`still missing ${m.name}@${m.range}`);
+  process.exit(1);
+}
+```
+
+Trong `package.json` ở gốc, thêm sau dòng `"test:site": …` (nhớ dấu phẩy):
+
+```json
+    "test:site": "vitest run --config scripts/vitest.site.config.ts",
+    "lockfile:check": "tsx scripts/lockfile-check.ts"
+```
+
+- [ ] **Step 4: Chạy test và lệnh, xác nhận đạt**
+
+Run: `npx vitest run --config scripts/vitest.site.config.ts scripts/test/tooling/lockfile.test.ts`
+Expected: PASS, 8 test.
+
+Run: `npm run lockfile:check`
+Expected: `package-lock.json: every dependency resolves.`
+
+Run: `npm run typecheck:scripts && npx biome ci .`
+Expected: không lỗi.
+
+- [ ] **Step 5: Commit công cụ**
+
+```bash
+git add scripts/lib/lockfile.ts scripts/lockfile-check.ts scripts/test/tooling/lockfile.test.ts scripts/vitest.site.config.ts package.json
+git commit -m "chore: lockfile:check finds and restores entries npm on Windows drops" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 6: Chuyển web cũ sang `apps/web-legacy` và sửa mọi tham chiếu**
+
+Chạy trong Git Bash (GNU sed):
+
+```bash
+git mv apps/web apps/web-legacy
+sed -i 's#"name": "@atropyle/web"#"name": "@atropyle/web-legacy"#' apps/web-legacy/package.json
+sed -i -e 's#-w apps/web\b#-w apps/web-legacy#g' -e 's#path: apps/web/playwright-report#path: apps/web-legacy/playwright-report#' .github/workflows/ci.yml
+sed -i 's#^apps/web/#apps/web-legacy/#' .gitignore
+sed -i 's#"!apps/web/#"!apps/web-legacy/#' biome.json
+sed -i -e "s#'-w', 'apps/web'#'-w', 'apps/web-legacy'#" -e "s#join(ROOT, 'apps', 'web', 'dist')#join(ROOT, 'apps', 'web-legacy', 'dist')#" scripts/build-site.ts
+sed -i -e "s#join(root, 'apps', 'web', 'dist')#join(root, 'apps', 'web-legacy', 'dist')#" -e 's#overlaps apps/web/dist#overlaps apps/web-legacy/dist#' scripts/lib/site-build.ts
+sed -i 's#apps/web/src/lib/rpc.ts#apps/web-legacy/src/lib/rpc.ts#' scripts/lib/onchain-check.ts scripts/test/site/onchain-check.test.ts
+sed -i -e "s#-w apps/web'#-w apps/web-legacy'#g" -e 's#apps/web/.size-limit.json#apps/web-legacy/.size-limit.json#' scripts/test/site/ci-web.test.ts
+sed -i "s#'../../../apps/web'#'../../../apps/web-legacy'#" scripts/test/site/deweb-bundle.test.ts
+sed -i -e "s#join(root, 'apps', 'web'#join(root, 'apps', 'web-legacy'#g" -e "s#'apps/web/dist'#'apps/web-legacy/dist'#g" scripts/test/site/site-build.test.ts
+sed -i 's#-w apps/web\b#-w apps/web-legacy#g' AGENTS.md
+```
+
+Trong `AGENTS.md`, thay dòng bảng của `apps/web/` (dòng 19) bằng hai dòng:
+
+```markdown
+| `apps/web/`                                         | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A and 7B                   |
+| `apps/web-legacy/`                                  | The previous web app (Vite + Preact), tested in CI until the v2 cutover, then deleted                               |
+```
+
+Kiểm không còn tham chiếu cũ (ngoài `docs/`):
+
+Run: `git grep -nE "apps/web([^-]|$)" -- . ':!docs' ':!apps/web-legacy' ':!package-lock.json' | grep -v "apps/web-legacy"`
+Expected: chỉ còn dòng bảng `apps/web/` mới trong `AGENTS.md`.
+
+- [ ] **Step 7: Cập nhật lockfile và khôi phục entry emnapi**
+
+```bash
+npm install
+npm run lockfile:check -- --fix
+npm run lockfile:check
+git diff --stat package-lock.json
+```
+
+Expected: `npm install` đổi `"apps/web"` thành `"apps/web-legacy"` và link `node_modules/@atropyle/web` thành `node_modules/@atropyle/web-legacy`. `lockfile:check` cuối in `every dependency resolves.` Nếu `--fix` in `added node_modules/@emnapi/…` thì đó đúng là bẫy của Windows; giữ thay đổi.
+
+- [ ] **Step 8: Chạy lại toàn bộ kiểm tra của web cũ và script**
+
+```bash
+npm run build
+npm test -w apps/web-legacy
+npm run typecheck
+npx biome ci .
+cd contracts && forge build && cd ..
+npm run test:site
+```
+
+Expected: tất cả PASS. `ci-web.test.ts` đọc job `web` với lệnh `-w apps/web-legacy`; `site-build.test.ts` và `deweb-bundle.test.ts` đọc `apps/web-legacy`.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add apps/web-legacy .github/workflows/ci.yml .gitignore biome.json AGENTS.md package-lock.json scripts/build-site.ts scripts/lib/site-build.ts scripts/lib/onchain-check.ts scripts/test/site/ci-web.test.ts scripts/test/site/deweb-bundle.test.ts scripts/test/site/onchain-check.test.ts scripts/test/site/site-build.test.ts
+git commit -m "refactor(web): move the Preact app to apps/web-legacy" -m "The Next.js app takes apps/web from the next commit; CI keeps testing the legacy app until the v2 cutover (spec §13)." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+(`git mv` đã ghi việc xoá các đường dẫn cũ vào index; không `git add apps/web`, vì đường dẫn đó không còn.)
+
+---
+
+### Task 2: Khung Next.js 16, cấu hình môi trường, wrapper build và spike Web Worker
+
+**Files:**
+- Create: `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/next.config.mjs`, `apps/web/vitest.config.ts`, `apps/web/vitest.build.config.ts`, `apps/web/test/setup.ts`
+- Create: `apps/web/src/config/env.ts`, `apps/web/src/app/layout.tsx`, `apps/web/src/app/page.tsx`
+- Create: `apps/web/scripts/next.ts`, `apps/web/scripts/lib/build-env.ts`, `apps/web/scripts/lib/run-next.ts`, `apps/web/scripts/lib/static-server.ts`, `apps/web/scripts/worker-check.ts`
+- Create: `apps/web/src/app/e2e/worker/page.e2e.tsx`, `apps/web/src/workers/smoke.worker.ts`, `apps/web/src/workers/smoke-lazy.ts`
+- Create: `apps/web/test/unit/env.test.ts`, `apps/web/test/unit/build-env.test.ts`, `apps/web/test/unit/static-server.test.ts`, `apps/web/test/build/paths.ts`, `apps/web/test/build/global-setup.ts`, `apps/web/test/build/output.test.ts`
+- Create: `scripts/test/site/ci-web-next.test.ts`
+- Modify: `.github/workflows/ci.yml` (job `web-next` ở cuối), `.gitignore`, `biome.json`, `package-lock.json`, `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§16 hàng 15)
+
+**Interfaces:**
+- Consumes: `@atropyle/sdk` 0.1.0 (`ChainName` type, `getDeployment` chỉ trong test), Task 1 (`npm run lockfile:check`).
+- Produces:
+  - `src/config/env.ts`: `type Target = 'vercel' | 'deweb'`; `interface RawEnv`; `interface AppEnv { target: Target; chain: ChainName; deploymentJson: string | null; apiUrl: string | null; docsPath: '/docs/' | null; version: string }`; `targetOf(raw?: string): Target`; `chainNameOf(raw?: string): ChainName`; `apiUrlOf(target: Target, raw?: string): string | null`; `readEnv(raw: RawEnv): AppEnv`; `chainIdOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): number`; `explorerUrlOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): string | null`; `XLAYER_EXPLORER = 'https://www.oklink.com/xlayer'`; `ENV: AppEnv`; `IS_VERCEL: boolean`.
+  - `scripts/lib/build-env.ts`: `buildEnvFor(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv`.
+  - `scripts/lib/run-next.ts`: `APP_DIR`, `OUT_DIR`, `NEXT_BIN`, `BUNDLER_FLAGS: readonly string[]`, `interface RunOptions { env?: NodeJS.ProcessEnv; args?: readonly string[]; quiet?: boolean }`, `runNext(command: 'build' | 'dev', o?: RunOptions): Promise<{ code: number; output: string }>`, `buildApp(o?: RunOptions): Promise<{ code: number; output: string }>`.
+  - `scripts/lib/static-server.ts`: `startStaticServer(root: string, port?: number, headers?: Record<string, string>): Promise<{ port: number; url: string; close(): Promise<void> }>` (`/x/` → `x/index.html`, thiếu thì `404.html` với status 404).
+  - `test/build/paths.ts`: `BUILD_OUT`, `API_SENTINEL = 'https://api.atropyle.invalid/functions/v1'`, `outOf(target: 'vercel' | 'deweb'): string`.
+  - Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|playwright:install -w apps/web`.
+  - Alias import `@/` → `apps/web/src/` (tsconfig `paths`, Vitest `resolve.alias`).
+
+- [ ] **Step 1: Tạo `apps/web/package.json` rồi cài gói**
+
+```json
+{
+  "name": "@atropyle/web",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx scripts/next.ts dev",
+    "build": "tsx scripts/next.ts build",
+    "test": "vitest run",
+    "test:build": "vitest run --config vitest.build.config.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "worker:check": "tsx scripts/worker-check.ts",
+    "playwright:install": "playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "@atropyle/sdk": "0.1.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "viem": "2.58.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "happy-dom": "21.0.4",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}
+```
+
+```bash
+npm install
+npm run lockfile:check -- --fix
+npm run lockfile:check
+```
+
+Expected: `every dependency resolves.` (`@atropyle/sdk` 0.1.0 là workspace, npm tạo link.)
+
+- [ ] **Step 2: Cấu hình TypeScript, Vitest, Next và bỏ qua output**
+
+`apps/web/tsconfig.json` (có `extends` nên Next không tự sửa file này, Quyết định 4):
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "paths": { "@/*": ["./src/*"] },
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "test", "scripts", "*.ts"]
+}
+```
+
+`apps/web/vitest.config.ts`:
+
+```ts
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const src = fileURLToPath(new URL('./src/', import.meta.url));
+
+export default defineConfig({
+  esbuild: { jsx: 'automatic' },
+  resolve: { alias: [{ find: /^@\//, replacement: src }] },
+  test: {
+    include: ['test/unit/**/*.test.{ts,tsx}'],
+    environment: 'happy-dom',
+    setupFiles: ['./test/setup.ts'],
+    env: { NEXT_PUBLIC_APP_VERSION: '0.0.0-test' },
+  },
+});
+```
+
+`apps/web/vitest.build.config.ts`:
+
+```ts
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
+
+const src = fileURLToPath(new URL('./src/', import.meta.url));
+
+// Real `next build` runs for both targets (test/build/global-setup.ts), then every file reads the output.
+export default defineConfig({
+  resolve: { alias: [{ find: /^@\//, replacement: src }] },
+  test: {
+    include: ['test/build/**/*.test.ts'],
+    environment: 'node',
+    globalSetup: ['./test/build/global-setup.ts'],
+    fileParallelism: false,
+    testTimeout: 60_000,
+  },
+});
+```
+
+`apps/web/test/setup.ts`:
+
+```ts
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+afterEach(() => {
+  cleanup();
+});
+```
+
+`apps/web/next.config.mjs` (Quyết định 2, 6):
+
+```js
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const TARGETS = ['vercel', 'deweb'];
+
+/**
+ * A function of the phase so that dev-only pages (`page.dev.tsx`, the /dev/ gallery) never reach a production build,
+ * and e2e-only pages (`page.e2e.tsx`) exist only when ATROPYLE_E2E=1.
+ * @param {string} phase
+ * @returns {import('next').NextConfig}
+ */
+export default function config(phase) {
+  const target = process.env.NEXT_PUBLIC_TARGET || 'deweb';
+  if (!TARGETS.includes(target)) throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
+  // The deweb build must never carry the backend URL (spec §2); scripts/lib/build-env.ts drops it too.
+  if (target !== 'vercel') delete process.env.NEXT_PUBLIC_API_URL;
+  const pageExtensions = ['tsx', 'ts'];
+  if (phase === 'phase-development-server') pageExtensions.unshift('dev.tsx');
+  if (process.env.ATROPYLE_E2E === '1') pageExtensions.unshift('e2e.tsx');
+  return {
+    output: 'export',
+    trailingSlash: true,
+    images: { unoptimized: true },
+    reactStrictMode: true,
+    poweredByHeader: false,
+    productionBrowserSourceMaps: false,
+    // `npm run typecheck` runs tsc on the whole app; the build does not type-check a second time.
+    typescript: { ignoreBuildErrors: true },
+    pageExtensions,
+    // node_modules live at the monorepo root.
+    turbopack: { root: fileURLToPath(new URL('../..', import.meta.url)) },
+    env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
+  };
+}
+```
+
+Thêm vào cuối `.gitignore` ở gốc (`out/` đã có sẵn):
+
+```gitignore
+apps/web/.next/
+apps/web/next-env.d.ts
+apps/web/test/build/.out/
+apps/web/test/e2e/.site/
+apps/web/test/e2e/.state.json
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/lighthouse-report/
+```
+
+Thêm vào mảng `files.includes` của `biome.json`, sau dòng `"!apps/web-legacy/test/e2e/.state.json"` (nhớ dấu phẩy ở dòng trước):
+
+```json
+      "!apps/web/.next",
+      "!apps/web/out",
+      "!apps/web/next-env.d.ts",
+      "!apps/web/test/build/.out",
+      "!apps/web/test/e2e/.site",
+      "!apps/web/test/e2e/.state.json",
+      "!apps/web/test-results",
+      "!apps/web/playwright-report",
+      "!apps/web/lighthouse-report"
+```
+
+- [ ] **Step 3: Viết test hỏng cho `env.ts`, `build-env.ts` và server tĩnh**
+
+`apps/web/test/unit/env.test.ts`:
+
+```ts
+import { getDeployment } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import {
+  apiUrlOf,
+  chainIdOf,
+  chainNameOf,
+  explorerUrlOf,
+  readEnv,
+  targetOf,
+  XLAYER_EXPLORER,
+} from '../../src/config/env';
+
+describe('env', () => {
+  it('defaults to the deweb target and refuses unknown targets', () => {
+    expect(targetOf(undefined)).toBe('deweb');
+    expect(targetOf(' ')).toBe('deweb');
+    expect(targetOf('deweb')).toBe('deweb');
+    expect(targetOf('vercel')).toBe('vercel');
+    expect(() => targetOf('pages')).toThrow(/vercel or deweb/);
+  });
+
+  it('defaults to X Layer and refuses unknown chains', () => {
+    expect(chainNameOf(undefined)).toBe('xlayer');
+    expect(chainNameOf('local')).toBe('local');
+    expect(() => chainNameOf('mainnet')).toThrow(/xlayer or local/);
+  });
+
+  it('keeps the API URL only for the vercel target, https only, without a trailing slash', () => {
+    const url = 'https://abc.supabase.co/functions/v1/';
+    expect(apiUrlOf('deweb', url)).toBeNull();
+    expect(apiUrlOf('vercel', url)).toBe('https://abc.supabase.co/functions/v1');
+    expect(apiUrlOf('vercel', undefined)).toBeNull();
+    expect(() => apiUrlOf('vercel', 'http://abc.supabase.co/functions/v1')).toThrow(/https/);
+    expect(() => apiUrlOf('vercel', 'https://u:p@abc.supabase.co/f')).toThrow(/credentials/);
+    expect(() => apiUrlOf('vercel', 'https://abc.supabase.co/f?x=1')).toThrow(/query/);
+    expect(() => apiUrlOf('vercel', 'not a url')).toThrow(/not a URL/);
+  });
+
+  it('reads every build variable', () => {
+    const env = readEnv({
+      NEXT_PUBLIC_TARGET: 'vercel',
+      NEXT_PUBLIC_CHAIN: 'local',
+      NEXT_PUBLIC_DEPLOYMENT: '{"chainId":31337}',
+      NEXT_PUBLIC_API_URL: 'https://abc.supabase.co/functions/v1',
+      NEXT_PUBLIC_DOCS_PATH: '/docs/',
+      NEXT_PUBLIC_APP_VERSION: '0.2.0',
+    });
+    expect(env).toEqual({
+      target: 'vercel',
+      chain: 'local',
+      deploymentJson: '{"chainId":31337}',
+      apiUrl: 'https://abc.supabase.co/functions/v1',
+      docsPath: '/docs/',
+      version: '0.2.0',
+    });
+    expect(readEnv({})).toEqual({
+      target: 'deweb',
+      chain: 'xlayer',
+      deploymentJson: null,
+      apiUrl: null,
+      docsPath: null,
+      version: '0.0.0',
+    });
+  });
+
+  it('knows the chain id and explorer without loading the SDK', () => {
+    expect(chainIdOf({ chain: 'xlayer', deploymentJson: null })).toBe(196);
+    expect(chainIdOf({ chain: 'local', deploymentJson: null })).toBe(31337);
+    expect(chainIdOf({ chain: 'xlayer', deploymentJson: '{"chainId":31337}' })).toBe(31337);
+    expect(chainIdOf({ chain: 'xlayer', deploymentJson: '{' })).toBe(196);
+    expect(explorerUrlOf({ chain: 'xlayer', deploymentJson: null })).toBe(XLAYER_EXPLORER);
+    expect(explorerUrlOf({ chain: 'local', deploymentJson: null })).toBeNull();
+    expect(explorerUrlOf({ chain: 'local', deploymentJson: '{"explorerUrl":null}' })).toBeNull();
+    expect(explorerUrlOf({ chain: 'local', deploymentJson: '{"explorerUrl":"javascript:alert(1)"}' })).toBeNull();
+  });
+
+  it('matches the explorer and chain id of the SDK deployment', () => {
+    const d = getDeployment('xlayer');
+    expect(XLAYER_EXPLORER).toBe(d.explorerUrl);
+    expect(chainIdOf({ chain: 'xlayer', deploymentJson: null })).toBe(d.chainId);
+  });
+});
+```
+
+`apps/web/test/unit/build-env.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { buildEnvFor } from '../../scripts/lib/build-env';
+
+describe('build env', () => {
+  it('always disables Next telemetry', () => {
+    expect(buildEnvFor({}).NEXT_TELEMETRY_DISABLED).toBe('1');
+  });
+
+  it('defaults to deweb and drops the API URL there', () => {
+    const env = buildEnvFor({ NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' });
+    expect(env.NEXT_PUBLIC_TARGET).toBe('deweb');
+    expect('NEXT_PUBLIC_API_URL' in env).toBe(false);
+  });
+
+  it('keeps the API URL for vercel', () => {
+    const env = buildEnvFor({
+      NEXT_PUBLIC_TARGET: 'vercel',
+      NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1',
+    });
+    expect(env.NEXT_PUBLIC_API_URL).toBe('https://x.supabase.co/functions/v1');
+  });
+
+  it('refuses an unknown target', () => {
+    expect(() => buildEnvFor({ NEXT_PUBLIC_TARGET: 'pages' })).toThrow(/vercel or deweb/);
+  });
+
+  it('removes NODE_ENV, which Next sets itself, and never mutates its input', () => {
+    const base = { NODE_ENV: 'test', NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' };
+    const env = buildEnvFor(base);
+    expect('NODE_ENV' in env).toBe(false);
+    expect(base).toEqual({ NODE_ENV: 'test', NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' });
+  });
+});
+```
+
+`apps/web/test/unit/static-server.test.ts` (môi trường node):
+
+```ts
+// @vitest-environment node
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { startStaticServer } from '../../scripts/lib/static-server';
+
+describe('static server', () => {
+  const root = mkdtempSync(join(tmpdir(), 'atropyle-static-'));
+  let server: Awaited<ReturnType<typeof startStaticServer>>;
+
+  beforeAll(async () => {
+    writeFileSync(join(root, 'index.html'), '<p>home</p>');
+    writeFileSync(join(root, '404.html'), '<p>missing</p>');
+    mkdirSync(join(root, 'proof'));
+    writeFileSync(join(root, 'proof', 'index.html'), '<p>proof</p>');
+    writeFileSync(join(root, 'font.woff2'), 'x');
+    server = await startStaticServer(root, 0, { 'content-security-policy': "default-src 'self'" });
+  });
+  afterAll(() => server.close());
+
+  it('serves directory index pages with and without the trailing slash', async () => {
+    expect(await (await fetch(`${server.url}/`)).text()).toBe('<p>home</p>');
+    expect(await (await fetch(`${server.url}/proof/`)).text()).toBe('<p>proof</p>');
+    expect(await (await fetch(`${server.url}/proof`)).text()).toBe('<p>proof</p>');
+  });
+
+  it('answers 404 with the 404 page', async () => {
+    const r = await fetch(`${server.url}/nope/`);
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe('<p>missing</p>');
+  });
+
+  it('sends the extra headers and the right content types', async () => {
+    const r = await fetch(`${server.url}/font.woff2`);
+    expect(r.headers.get('content-type')).toBe('font/woff2');
+    expect(r.headers.get('content-security-policy')).toBe("default-src 'self'");
+  });
+
+  it('never serves a file outside the root', async () => {
+    const r = await fetch(`${server.url}/..%2f..%2fetc%2fpasswd`);
+    expect([403, 404]).toContain(r.status);
+  });
+});
+```
+
+- [ ] **Step 4: Chạy test, xác nhận hỏng**
+
+Run: `npm test -w apps/web`
+Expected: FAIL, không tìm thấy `../../src/config/env`, `../../scripts/lib/build-env`, `../../scripts/lib/static-server`.
+
+- [ ] **Step 5: Viết `env.ts`, `build-env.ts`, `run-next.ts`, `static-server.ts`, `next.ts`**
+
+`apps/web/src/config/env.ts`:
+
+```ts
+import type { ChainName } from '@atropyle/sdk';
+
+export type Target = 'vercel' | 'deweb';
+
+export interface RawEnv {
+  NEXT_PUBLIC_TARGET?: string;
+  NEXT_PUBLIC_CHAIN?: string;
+  NEXT_PUBLIC_DEPLOYMENT?: string;
+  NEXT_PUBLIC_API_URL?: string;
+  NEXT_PUBLIC_DOCS_PATH?: string;
+  NEXT_PUBLIC_APP_VERSION?: string;
+}
+
+export interface AppEnv {
+  target: Target;
+  chain: ChainName;
+  /** Deployment JSON for e2e and local builds; null reads the SDK's built-in deployment of `chain`. */
+  deploymentJson: string | null;
+  /** Supabase Functions base URL; only the vercel build has one (spec §9.6). */
+  apiUrl: string | null;
+  /** Set by the site build when the site carries its own docs. */
+  docsPath: '/docs/' | null;
+  version: string;
+}
+
+/** The SDK deployment of X Layer uses this explorer; test/unit/env.test.ts keeps the two equal. */
+export const XLAYER_EXPLORER = 'https://www.oklink.com/xlayer';
+
+export function targetOf(raw: string | undefined): Target {
+  const t = raw?.trim() ?? '';
+  if (t === '' || t === 'deweb') return 'deweb';
+  if (t === 'vercel') return 'vercel';
+  throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${t}"`);
+}
+
+export function chainNameOf(raw: string | undefined): ChainName {
+  const c = raw?.trim() ?? '';
+  if (c === '' || c === 'xlayer') return 'xlayer';
+  if (c === 'local') return 'local';
+  throw new Error(`NEXT_PUBLIC_CHAIN must be xlayer or local, got "${c}"`);
+}
+
+export function apiUrlOf(target: Target, raw: string | undefined): string | null {
+  if (target !== 'vercel') return null;
+  const s = raw?.trim();
+  if (!s) return null;
+  let u: URL;
+  try {
+    u = new URL(s);
+  } catch {
+    throw new Error('NEXT_PUBLIC_API_URL is not a URL');
+  }
+  if (u.protocol !== 'https:') throw new Error('NEXT_PUBLIC_API_URL must use https');
+  if (u.username || u.password) throw new Error('NEXT_PUBLIC_API_URL must not carry credentials');
+  if (u.search || u.hash) throw new Error('NEXT_PUBLIC_API_URL must not carry a query or a fragment');
+  return `${u.origin}${u.pathname.replace(/\/+$/, '')}`;
+}
+
+export function readEnv(raw: RawEnv): AppEnv {
+  const target = targetOf(raw.NEXT_PUBLIC_TARGET);
+  return {
+    target,
+    chain: chainNameOf(raw.NEXT_PUBLIC_CHAIN),
+    deploymentJson: raw.NEXT_PUBLIC_DEPLOYMENT?.trim() ? raw.NEXT_PUBLIC_DEPLOYMENT : null,
+    apiUrl: apiUrlOf(target, raw.NEXT_PUBLIC_API_URL),
+    docsPath: raw.NEXT_PUBLIC_DOCS_PATH === '/docs/' ? '/docs/' : null,
+    version: raw.NEXT_PUBLIC_APP_VERSION?.trim() || '0.0.0',
+  };
+}
+
+function deploymentField(json: string | null, key: string): unknown {
+  if (!json) return undefined;
+  try {
+    const d = JSON.parse(json) as Record<string, unknown>;
+    return d && typeof d === 'object' ? d[key] : undefined;
+  } catch {
+    // The SDK reports an invalid deployment when it loads; the shell only needs a best guess.
+    return undefined;
+  }
+}
+
+export function chainIdOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): number {
+  const id = deploymentField(env.deploymentJson, 'chainId');
+  if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) return id;
+  return env.chain === 'local' ? 31337 : 196;
+}
+
+export function explorerUrlOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): string | null {
+  if (env.deploymentJson) {
+    const url = deploymentField(env.deploymentJson, 'explorerUrl');
+    return typeof url === 'string' && url.startsWith('https://') ? url : null;
+  }
+  return env.chain === 'xlayer' ? XLAYER_EXPLORER : null;
+}
+
+// Next inlines each `process.env.NEXT_PUBLIC_*` member at build time, so every one is read by its full name.
+export const ENV: AppEnv = readEnv({
+  NEXT_PUBLIC_TARGET: process.env.NEXT_PUBLIC_TARGET,
+  NEXT_PUBLIC_CHAIN: process.env.NEXT_PUBLIC_CHAIN,
+  NEXT_PUBLIC_DEPLOYMENT: process.env.NEXT_PUBLIC_DEPLOYMENT,
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_DOCS_PATH: process.env.NEXT_PUBLIC_DOCS_PATH,
+  NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
+});
+
+/** A literal comparison the minifier folds, so vercel-only code is dropped from the deweb bundle. */
+export const IS_VERCEL: boolean = process.env.NEXT_PUBLIC_TARGET === 'vercel';
+```
+
+`apps/web/scripts/lib/build-env.ts`:
+
+```ts
+/** The environment every `next build` and `next dev` runs with (Quyết định 5 and spec §2). */
+export function buildEnvFor(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base, NEXT_TELEMETRY_DISABLED: '1' };
+  const target = env.NEXT_PUBLIC_TARGET?.trim() || 'deweb';
+  if (target !== 'vercel' && target !== 'deweb') {
+    throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
+  }
+  env.NEXT_PUBLIC_TARGET = target;
+  if (target === 'deweb') delete env.NEXT_PUBLIC_API_URL;
+  // Vitest sets NODE_ENV=test; Next picks production or development itself and warns on anything else.
+  delete env.NODE_ENV;
+  return env;
+}
+```
+
+`apps/web/scripts/lib/run-next.ts`:
+
+```ts
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { buildEnvFor } from './build-env';
+
+export const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
+export const OUT_DIR = fileURLToPath(new URL('../../out', import.meta.url));
+/** `next` has no exports map, so its bin resolves by path from the hoisted package. */
+export const NEXT_BIN = createRequire(import.meta.url).resolve('next/dist/bin/next');
+/**
+ * Quyết định 3, settled by the spike of Plan 7A Task 2: [] keeps Turbopack. Set ['--webpack'] when
+ * `npm run worker:check` or test/build/fonts.test.ts fails under Turbopack and passes under webpack.
+ */
+export const BUNDLER_FLAGS: readonly string[] = [];
+
+export interface RunOptions {
+  env?: NodeJS.ProcessEnv;
+  args?: readonly string[];
+  /** Capture output instead of printing it (tests). */
+  quiet?: boolean;
+}
+
+export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [NEXT_BIN, command, ...BUNDLER_FLAGS, ...(o.args ?? [])], {
+      cwd: APP_DIR,
+      env: buildEnvFor(o.env ?? process.env),
+      stdio: o.quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      windowsHide: true,
+    });
+    let output = '';
+    child.stdout?.on('data', (d: Buffer) => {
+      output += d.toString();
+    });
+    child.stderr?.on('data', (d: Buffer) => {
+      output += d.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code: code ?? 1, output }));
+  });
+}
+
+/** `next build` into out/, then the postbuild steps (Task 15 adds the CSP). */
+export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  return runNext('build', o);
+}
+```
+
+`apps/web/scripts/lib/static-server.ts`:
+
+```ts
+import { readFile, stat } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { extname, join, normalize } from 'node:path';
+
+const TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.txt': 'text/plain; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.webmanifest': 'application/manifest+json',
+  '.wasm': 'application/wasm',
+};
+
+async function isFile(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Serves a static export like Vercel and the DeWEB gateway: `/x/` and `/x` read `x/index.html`, anything missing
+ * gets `404.html` with status 404. Port 0 picks a free port.
+ */
+export async function startStaticServer(
+  root: string,
+  port = 0,
+  headers: Record<string, string> = {},
+): Promise<{ port: number; url: string; close(): Promise<void> }> {
+  const server = createServer(async (req, res) => {
+    let path: string;
+    try {
+      path = decodeURIComponent(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+    } catch {
+      res.writeHead(400).end('bad request');
+      return;
+    }
+    const rel = normalize(path).replace(/^[/\\]+/, '');
+    if (rel.startsWith('..')) {
+      res.writeHead(403).end();
+      return;
+    }
+    const candidates = [join(root, rel), join(root, rel, 'index.html')];
+    let file: string | null = null;
+    for (const c of candidates) {
+      if (await isFile(c)) {
+        file = c;
+        break;
+      }
+    }
+    const status = file ? 200 : 404;
+    const target = file ?? join(root, '404.html');
+    try {
+      const body = await readFile(target);
+      res.writeHead(status, {
+        ...headers,
+        'content-type': TYPES[extname(target)] ?? 'application/octet-stream',
+        'cache-control': 'no-store',
+      });
+      res.end(body);
+    } catch {
+      res.writeHead(404, headers).end('not found');
+    }
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve());
+  });
+  const addr = server.address();
+  const bound = typeof addr === 'object' && addr ? addr.port : port;
+  return {
+    port: bound,
+    url: `http://127.0.0.1:${bound}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+```
+
+`apps/web/scripts/next.ts`:
+
+```ts
+import { buildApp, runNext } from './lib/run-next';
+
+const [command, ...args] = process.argv.slice(2);
+if (command !== 'build' && command !== 'dev') {
+  console.error('usage: tsx scripts/next.ts build|dev [next arguments]');
+  process.exit(2);
+}
+const r = command === 'build' ? await buildApp({ args }) : await runNext('dev', { args });
+process.exit(r.code);
+```
+
+- [ ] **Step 6: Chạy test, xác nhận đạt**
+
+Run: `npm run build && npm test -w apps/web`
+Expected: PASS (env 6, build-env 5, static-server 4).
+
+- [ ] **Step 7: Trang tối thiểu và trang smoke worker (chỉ build e2e)**
+
+`apps/web/src/app/layout.tsx` (Task 9 thay bằng khung đầy đủ):
+
+```tsx
+import type { ReactNode } from 'react';
+
+export const metadata = { title: 'Atropyle', description: 'Inheritance and wallet recovery on X Layer.' };
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+`apps/web/src/app/page.tsx` (Task 9 thay):
+
+```tsx
+export default function HomePage() {
+  return (
+    <main>
+      <h1>Atropyle</h1>
+    </main>
+  );
+}
+```
+
+`apps/web/src/workers/smoke-lazy.ts`:
+
+```ts
+/** Loaded with import() inside the smoke worker: proves that a worker can fetch its own lazy chunks. */
+export const MARK = 'lazy-chunk-loaded';
+```
+
+`apps/web/src/workers/smoke.worker.ts`:
+
+```ts
+import { evaluatePolicyBundle, type PolicyBundle } from '@atropyle/sdk/verify';
+
+export type SmokeResult = { state: 'ok' | 'error'; detail: string };
+
+// Typed by hand: the WebWorker lib clashes with the DOM lib of this project.
+const scope = self as unknown as {
+  postMessage(m: SmokeResult): void;
+  onmessage: ((e: MessageEvent<unknown>) => void) | null;
+};
+
+/** A bundle without the policy netlist: the SDK must refuse it with POLICY_UNAVAILABLE, before any enumeration. */
+const EMPTY = {
+  cpu: '0x0000000000000000000000000000000000000000',
+  policyId: 0n,
+  netlists: [],
+} as unknown as PolicyBundle;
+
+/**
+ * Plan 7A Quyết định 3 and 19: the worker chunk loads under `worker-src 'self'`, runs SDK verify code and loads a
+ * lazy chunk of its own.
+ */
+scope.onmessage = async () => {
+  let mark: string;
+  try {
+    mark = (await import('./smoke-lazy')).MARK;
+  } catch (e) {
+    scope.postMessage({ state: 'error', detail: `lazy chunk failed: ${String(e)}` });
+    return;
+  }
+  try {
+    await evaluatePolicyBundle(EMPTY);
+    scope.postMessage({ state: 'error', detail: 'a bundle without a policy was accepted' });
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    scope.postMessage(
+      code === 'POLICY_UNAVAILABLE'
+        ? { state: 'ok', detail: `${mark}; the SDK refused the bundle with ${code}` }
+        : { state: 'error', detail: `unexpected error: ${String(e)}` },
+    );
+  }
+};
+```
+
+`apps/web/src/app/e2e/worker/page.e2e.tsx`:
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import type { SmokeResult } from '../../../workers/smoke.worker';
+
+type Check = SmokeResult | { state: 'running'; detail: string };
+
+function runSmoke(): Promise<SmokeResult> {
+  return new Promise((resolve) => {
+    const w = new Worker(new URL('../../../workers/smoke.worker.ts', import.meta.url), { type: 'module' });
+    const done = (r: SmokeResult) => {
+      w.terminate();
+      resolve(r);
+    };
+    w.onmessage = (e: MessageEvent<SmokeResult>) => done(e.data);
+    w.onerror = (e) => done({ state: 'error', detail: e.message || 'the worker failed to load' });
+    w.postMessage('run');
+  });
+}
+
+/** Only in builds with ATROPYLE_E2E=1 (next.config.mjs pageExtensions). Read by scripts/worker-check.ts and e2e. */
+export default function WorkerSmokePage() {
+  const [smoke, setSmoke] = useState<Check>({ state: 'running', detail: '' });
+  useEffect(() => {
+    let live = true;
+    runSmoke().then((r) => {
+      if (live) setSmoke(r);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <main>
+      <h1>Worker smoke test</h1>
+      <p data-testid="worker-smoke" data-state={smoke.state}>
+        {smoke.detail}
+      </p>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 8: Viết `worker-check.ts` (spike)**
+
+`apps/web/scripts/worker-check.ts`:
+
+```ts
+import { chromium } from '@playwright/test';
+import { buildApp, OUT_DIR } from './lib/run-next';
+import { startStaticServer } from './lib/static-server';
+
+// The strictest policy the site will run under for workers and connections. Inline scripts stay allowed here
+// because a header cannot carry the per-page hashes; the meta CSP of Task 15 adds those on top.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+].join('; ');
+
+const built = await buildApp({ env: { ...process.env, ATROPYLE_E2E: '1', NEXT_PUBLIC_TARGET: 'deweb' } });
+if (built.code !== 0) process.exit(built.code);
+
+const server = await startStaticServer(OUT_DIR, 0, { 'content-security-policy': CSP });
+const browser = await chromium.launch();
+let ok = false;
+try {
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${server.url}/e2e/worker/`);
+  const smoke = page.getByTestId('worker-smoke');
+  await page.waitForSelector('[data-testid="worker-smoke"]:not([data-state="running"])', { timeout: 90_000 });
+  const state = await smoke.getAttribute('data-state');
+  console.log(`worker smoke: ${state} — ${await smoke.textContent()}`);
+  for (const e of errors) console.error(`console: ${e}`);
+  ok = state === 'ok' && !errors.some((e) => /Content Security Policy/i.test(e));
+} finally {
+  await browser.close();
+  await server.close();
+}
+console.log(ok ? 'worker-check: PASS' : 'worker-check: FAIL');
+process.exit(ok ? 0 : 1);
+```
+
+- [ ] **Step 9: Chạy spike và ghi quyết định bundler**
+
+```bash
+npm run playwright:install -w apps/web
+npm run worker:check -w apps/web
+```
+
+- **Kết quả A (mong đợi):** in `worker smoke: ok — lazy-chunk-loaded; the SDK refused the bundle with POLICY_UNAVAILABLE` và `worker-check: PASS`. Giữ `BUNDLER_FLAGS = []`.
+- **Kết quả B:** FAIL với Turbopack. Đổi trong `scripts/lib/run-next.ts` thành `export const BUNDLER_FLAGS: readonly string[] = ['--webpack'];` rồi chạy lại `npm run worker:check -w apps/web`. PASS thì giữ webpack.
+- **Kết quả C:** FAIL với cả hai. Dừng task, báo người điều phối là BLOCKED, kèm toàn bộ output của hai lần chạy. Không viết workaround (ví dụ bỏ `worker-src`).
+
+Thêm hàng 15 vào bảng §16 của spec `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md`, ngay sau hàng 14. Kết quả A:
+
+```markdown
+| 15 | Turbopack (mặc định của Next 16) cho build và dev | Spike ở Plan 7A Task 2: worker module nạp `@atropyle/sdk/verify` và một chunk lười của chính nó dưới CSP `worker-src 'self'` trong Chromium | Bản Next sau làm hỏng worker hoặc font thì đổi `BUNDLER_FLAGS` sang `--webpack`, một dòng trong `scripts/lib/run-next.ts` |
+```
+
+Kết quả B (dán dòng lỗi mà `worker-check` in ra với Turbopack vào chỗ nói "lỗi"):
+
+```markdown
+| 15 | webpack (`next build --webpack`) cho build và dev | Spike ở Plan 7A Task 2: với Turbopack, worker không chạy dưới CSP `worker-src 'self'` (lỗi: dòng `worker smoke: error — …` của worker-check); webpack chạy | Build chậm hơn Turbopack; thử lại Turbopack ở bản Next sau bằng cách đặt `BUNDLER_FLAGS = []` |
+```
+
+- [ ] **Step 10: Test build thật cho hai target**
+
+`apps/web/test/build/paths.ts`:
+
+```ts
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const BUILD_OUT = fileURLToPath(new URL('./.out', import.meta.url));
+/** Present in the environment of both builds; must reach only the vercel build (Task 14). */
+export const API_SENTINEL = 'https://api.atropyle.invalid/functions/v1';
+export const outOf = (target: 'vercel' | 'deweb'): string => join(BUILD_OUT, target);
+```
+
+`apps/web/test/build/global-setup.ts`:
+
+```ts
+import { cpSync, existsSync, rmSync } from 'node:fs';
+import { buildApp, OUT_DIR } from '../../scripts/lib/run-next';
+import { API_SENTINEL, BUILD_OUT, outOf } from './paths';
+
+/** Two real production builds; ATROPYLE_REUSE_BUILD=1 reuses the last ones for a quick rerun. */
+export default async function setup(): Promise<void> {
+  if (process.env.ATROPYLE_REUSE_BUILD === '1' && existsSync(outOf('vercel')) && existsSync(outOf('deweb'))) return;
+  rmSync(BUILD_OUT, { recursive: true, force: true });
+  for (const target of ['vercel', 'deweb'] as const) {
+    // Typed: spreading process.env next to other keys drops its index signature, and `delete` needs it.
+    const env: NodeJS.ProcessEnv = { ...process.env, NEXT_PUBLIC_TARGET: target, NEXT_PUBLIC_API_URL: API_SENTINEL };
+    delete env.ATROPYLE_E2E;
+    const r = await buildApp({ env, quiet: true });
+    if (r.code !== 0) throw new Error(`next build (${target}) failed:\n${r.output}`);
+    cpSync(OUT_DIR, outOf(target), { recursive: true });
+  }
+}
+```
+
+`apps/web/test/build/output.test.ts`:
+
+```ts
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { outOf } from './paths';
+
+for (const target of ['vercel', 'deweb'] as const) {
+  describe(`${target} build`, () => {
+    const out = outOf(target);
+
+    it('is a static site with a home page and a 404 page', () => {
+      expect(existsSync(join(out, 'index.html'))).toBe(true);
+      expect(existsSync(join(out, '404.html'))).toBe(true);
+    });
+
+    it('ships neither the dev gallery nor the e2e pages', () => {
+      expect(existsSync(join(out, 'dev'))).toBe(false);
+      expect(existsSync(join(out, 'e2e'))).toBe(false);
+    });
+  });
+}
+```
+
+Run: `npm run test:build -w apps/web`
+Expected: PASS (4 test). Lần đầu mất vài phút vì hai lần `next build`.
+
+- [ ] **Step 11: Job CI `web-next` và test của nó**
+
+`scripts/test/site/ci-web-next.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from 'vitest';
+import { parse } from 'yaml';
+
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+interface Step {
+  name?: string;
+  uses?: string;
+  run?: string;
+  if?: string;
+  env?: Record<string, string>;
+  with?: Record<string, unknown>;
+  'working-directory'?: string;
+}
+interface Job {
+  permissions?: Record<string, string>;
+  steps: Step[];
+}
+
+const workflow = parse(readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')) as { jobs: Record<string, Job> };
+const job = workflow.jobs['web-next'] as Job;
+const commands = (): string[] =>
+  (job?.steps ?? [])
+    .flatMap((s) => (s.run ?? '').split(/&&|\n/))
+    .map((c) => c.trim())
+    .filter((c) => c !== '');
+const scriptsOf = (dir: string): string[] =>
+  Object.keys(
+    (JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8')) as { scripts?: Record<string, string> })
+      .scripts ?? {},
+  );
+
+/** Grows with Plan 7A: Task 15 adds the e2e, size and Lighthouse steps. */
+const WEB_NEXT_COMMANDS = [
+  'npm ci',
+  'npm run build',
+  'npm run typecheck -w apps/web',
+  'npm test -w apps/web',
+  'npm run playwright:install -w apps/web',
+  'npm run test:build -w apps/web',
+  'npm run worker:check -w apps/web',
+];
+
+test('the web-next job reads only, holds no secret and signs nothing', () => {
+  expect(job).toBeDefined();
+  expect(job.permissions).toEqual({ contents: 'read' });
+  expect(JSON.stringify(job)).not.toMatch(
+    /secrets\.|PRIVATE_KEY|DEWEB_OPERATOR_KEY|KEEPER_KEY|SUPABASE_ACCESS_TOKEN|VERCEL_TOKEN|--broadcast|cast send|deweb:publish|eth_sendRawTransaction/,
+  );
+});
+
+test('the web-next job checks out without keeping credentials and pins every action', () => {
+  const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
+  expect(checkout?.with?.['persist-credentials']).toBe(false);
+  for (const s of job.steps) if (s.uses) expect(s.uses, s.uses).toMatch(/@v\d+$/);
+  expect(commands().some((c) => c.startsWith('npx'))).toBe(false);
+});
+
+test('the web-next job builds the SDK first, then tests, then builds both targets', () => {
+  const c = commands();
+  for (const want of WEB_NEXT_COMMANDS) expect(c, want).toContain(want);
+  expect(c.indexOf('npm run build')).toBeLessThan(c.indexOf('npm test -w apps/web'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(
+    c.indexOf('npm run worker:check -w apps/web'),
+  );
+});
+
+test('the web-next job runs only npm scripts that exist', () => {
+  const runs = commands().filter((c) => c.startsWith('npm run ') || c.startsWith('npm test'));
+  expect(runs.length).toBeGreaterThanOrEqual(WEB_NEXT_COMMANDS.length - 1);
+  for (const c of runs) {
+    const m = /^npm (?:run ([\w:-]+)|(test))(?: -w (\S+))?/.exec(c);
+    expect(m, c).not.toBeNull();
+    const [, script, npmTest, workspace] = m as RegExpExecArray;
+    expect(scriptsOf(workspace ?? '.'), c).toContain(script ?? npmTest);
+  }
+});
+```
+
+Thêm job vào cuối `.github/workflows/ci.yml` (cùng mức thụt với job `web`):
+
+```yaml
+  # The Next.js web app v2 (Plan 7A). Read-only and keyless: no step signs or broadcasts anything.
+  web-next:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build circuits and the SDK
+        run: npm run build
+      - name: Typecheck and unit tests
+        run: npm run typecheck -w apps/web && npm test -w apps/web
+      - name: Chromium for Playwright
+        run: npm run playwright:install -w apps/web
+      - name: Production builds of both targets
+        run: npm run test:build -w apps/web
+      - name: The worker loads under a strict CSP
+        run: npm run worker:check -w apps/web
+```
+
+Run: `npx vitest run --config scripts/vitest.site.config.ts scripts/test/site/ci-web-next.test.ts scripts/test/site/ci-web.test.ts`
+Expected: PASS.
+
+- [ ] **Step 12: Kiểm toàn repo và commit**
+
+```bash
+npm run typecheck
+npx biome ci .
+npm run lockfile:check
+git status --short
+```
+
+Expected: không lỗi; `git status` không liệt kê `apps/web/.next`, `apps/web/out`, `apps/web/next-env.d.ts` hay `apps/web/test/build/.out`.
+
+```bash
+git add apps/web/package.json apps/web/tsconfig.json apps/web/next.config.mjs apps/web/vitest.config.ts apps/web/vitest.build.config.ts apps/web/test/setup.ts apps/web/src/config/env.ts apps/web/src/app/layout.tsx apps/web/src/app/page.tsx apps/web/src/app/e2e/worker/page.e2e.tsx apps/web/src/workers/smoke.worker.ts apps/web/src/workers/smoke-lazy.ts apps/web/scripts/next.ts apps/web/scripts/worker-check.ts apps/web/scripts/lib/build-env.ts apps/web/scripts/lib/run-next.ts apps/web/scripts/lib/static-server.ts apps/web/test/unit/env.test.ts apps/web/test/unit/build-env.test.ts apps/web/test/unit/static-server.test.ts apps/web/test/build/paths.ts apps/web/test/build/global-setup.ts apps/web/test/build/output.test.ts scripts/test/site/ci-web-next.test.ts .github/workflows/ci.yml .gitignore biome.json package-lock.json docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md
+git commit -m "feat(web): Next.js 16 static export scaffold, build wrapper and worker spike" -m "Ruling 15 of the spec records the bundler the spike settled." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3: Token màu, Tailwind v4 và test tương phản AA
+
+**Files:**
+- Create: `apps/web/postcss.config.mjs`, `apps/web/src/app/globals.css`, `apps/web/test/unit/contrast.test.ts`
+- Modify: `apps/web/src/app/layout.tsx`, `apps/web/package.json`, `package-lock.json`, `biome.json`, `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§4.3, §16 hàng 16)
+
+**Interfaces:**
+- Consumes: Task 2 (layout, Vitest).
+- Produces (lớp Tailwind mà mọi task sau dùng):
+  - Màu: `bg`, `surface-1`, `surface-2`, `surface-3`, `ink`, `ink-muted`, `thread`, `on-thread`, `alive`, `grace`, `recovery`, `release`, `danger`, `on-danger`, `line`, `line-strong` (ví dụ `bg-surface-1`, `text-ink-muted`, `border-line`, `outline-thread`). Biến CSS gốc: `--atro-<tên>`; `--avatar-l` (độ sáng OKLCH của avatar).
+  - Chữ: `text-caption|small|body|lead|title|h2|h1|display` (mỗi bậc có line-height riêng; VI ≥ 1.15 cho tiêu đề), `font-display`, `font-sans` (mặc định), `font-mono`.
+  - Easing: `ease-out-expo`, `ease-in-out-sine`, `ease-spring` (`linear()` 443 ms). Animation: `animate-thread-pulse`, `animate-thread-tremble`, `animate-shimmer` (luôn dùng kèm `motion-safe:`).
+  - Lớp animation cho Radix: `atro-overlay`, `atro-dialog`, `atro-sheet`, `atro-pop` (theo `data-state`).
+  - Theme: không có `data-theme` thì theo hệ thống; `data-theme="dark"|"light"` trên `<html>` thì ép.
+
+- [ ] **Step 1: Cài Tailwind và bật cú pháp Tailwind cho Biome**
+
+```bash
+npm install -E -D -w apps/web tailwindcss@4.3.5 @tailwindcss/postcss@4.3.5
+npm run lockfile:check -- --fix
+npm run lockfile:check
+```
+
+Expected: `every dependency resolves.` (Tailwind v4 kéo binary `@tailwindcss/oxide-*` tuỳ nền tảng; `--fix` thêm lại gói tuỳ chọn nào mà npm trên Windows bỏ sót.)
+
+`apps/web/postcss.config.mjs`:
+
+```js
+export default {
+  plugins: { '@tailwindcss/postcss': {} },
+};
+```
+
+Trong `biome.json`, thêm khoá `css` ngay sau khoá `javascript`:
+
+```json
+  "css": { "parser": { "tailwindDirectives": true } },
+```
+
+- [ ] **Step 2: Viết test tương phản (hỏng vì chưa có CSS)**
+
+`apps/web/test/unit/contrast.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const CSS_FILE = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
+const css = () => readFileSync(CSS_FILE, 'utf8');
+
+/** The `--atro-*` colours declared in the first rule after a `/* tokens:<name> *\/` marker. */
+function tokens(marker: string): Record<string, string> {
+  const text = css();
+  const at = text.indexOf(`/* tokens:${marker} */`);
+  if (at < 0) throw new Error(`marker tokens:${marker} not found`);
+  const first = text.indexOf('--atro-', at);
+  const body = text.slice(first, text.indexOf('}', first));
+  const out: Record<string, string> = {};
+  for (const m of body.matchAll(/--atro-([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) out[m[1]] = m[2].toLowerCase();
+  return out;
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const v = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2.x contrast ratio. */
+function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+const NAMES = [
+  'bg',
+  'surface-1',
+  'surface-2',
+  'surface-3',
+  'ink',
+  'ink-muted',
+  'thread',
+  'on-thread',
+  'alive',
+  'grace',
+  'recovery',
+  'release',
+  'danger',
+  'on-danger',
+  'line',
+  'line-strong',
+];
+const SURFACES = ['bg', 'surface-1', 'surface-2', 'surface-3'];
+const TEXT = ['ink', 'ink-muted', 'thread', 'alive', 'grace', 'recovery', 'release', 'danger'];
+
+describe('colour tokens', () => {
+  it('declares the same sixteen colours for both themes, and the system light block equals the light block', () => {
+    expect(Object.keys(tokens('dark')).sort()).toEqual([...NAMES].sort());
+    expect(Object.keys(tokens('light')).sort()).toEqual([...NAMES].sort());
+    expect(tokens('light-system')).toEqual(tokens('light'));
+  });
+
+  it('maps every token to a Tailwind colour', () => {
+    for (const n of NAMES) expect(css(), n).toContain(`--color-${n}: var(--atro-${n});`);
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    describe(theme, () => {
+      const t = () => tokens(theme);
+
+      it('every text colour reaches AA (4.5:1) on every surface', () => {
+        for (const fg of TEXT)
+          for (const bg of SURFACES) {
+            expect(contrast(t()[fg], t()[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+          }
+      });
+
+      it('body text on the background reaches AAA (7:1)', () => {
+        expect(contrast(t().ink, t().bg)).toBeGreaterThanOrEqual(7);
+      });
+
+      it('text on filled buttons reaches AA', () => {
+        expect(contrast(t()['on-thread'], t().thread)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t()['on-danger'], t().danger)).toBeGreaterThanOrEqual(4.5);
+      });
+
+      it('control borders and the focus ring reach 3:1 on every surface (WCAG 1.4.11)', () => {
+        for (const bg of SURFACES) {
+          expect(contrast(t()['line-strong'], t()[bg]), `line-strong on ${bg}`).toBeGreaterThanOrEqual(3);
+          expect(contrast(t().thread, t()[bg]), `focus ring on ${bg}`).toBeGreaterThanOrEqual(3);
+        }
+      });
+    });
+  }
+});
+```
+
+Run: `npm test -w apps/web -- contrast`
+Expected: FAIL, `ENOENT … globals.css`.
+
+- [ ] **Step 3: Viết `globals.css`**
+
+`apps/web/src/app/globals.css`:
+
+```css
+@import "tailwindcss";
+
+/*
+ * Atropyle tokens (spec §4.3, §4.4, Quyết định 7, 10, 11 of Plan 7A). The default palette and type scale are
+ * replaced, not extended: only Atropyle colours and steps exist.
+ */
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.5;
+  --text-body: clamp(1rem, 0.9792rem + 0.0926vw, 1.0625rem);
+  --text-body--line-height: 1.6;
+  --text-lead: clamp(1.125rem, 1.0625rem + 0.2778vw, 1.3125rem);
+  --text-lead--line-height: 1.5;
+  --text-title: clamp(1.375rem, 1.25rem + 0.5556vw, 1.75rem);
+  --text-title--line-height: 1.25;
+  --text-h2: clamp(1.75rem, 1.5rem + 1.1111vw, 2.5rem);
+  --text-h2--line-height: 1.1;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h1: clamp(2.25rem, 1.6667rem + 2.5926vw, 4rem);
+  --text-h1--line-height: 1.04;
+  --text-h1--letter-spacing: -0.015em;
+  --text-display: clamp(2.75rem, 1.6667rem + 4.8148vw, 6rem);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.02em;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
+  /* stiffness 380, damping 32, mass 1, sampled over 443 ms (src/motion/tokens.ts SPRING_LINEAR). */
+  --ease-spring: linear(
+    0,
+    0.0531,
+    0.1741,
+    0.321,
+    0.4681,
+    0.601,
+    0.7132,
+    0.8031,
+    0.872,
+    0.9225,
+    0.958,
+    0.9817,
+    0.9966,
+    1.0052,
+    1.0095,
+    1.0109,
+    1.0106,
+    1.0095,
+    1.0079,
+    1.0063,
+    1.0048,
+    1.0035,
+    1.0024,
+    1.0016,
+    1
+  );
+
+  --animate-thread-pulse: thread-pulse 2.4s var(--ease-in-out-sine) infinite;
+  --animate-thread-tremble: thread-tremble 0.9s var(--ease-in-out-sine) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes thread-pulse {
+    0%,
+    100% {
+      opacity: 0.22;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+  @keyframes thread-tremble {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    25% {
+      transform: translateY(-0.6px);
+    }
+    75% {
+      transform: translateY(0.6px);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+}
+
+/* Colours and families resolve at use, so one class works in both themes and with the self-hosted fonts. */
+@theme inline {
+  --color-bg: var(--atro-bg);
+  --color-surface-1: var(--atro-surface-1);
+  --color-surface-2: var(--atro-surface-2);
+  --color-surface-3: var(--atro-surface-3);
+  --color-ink: var(--atro-ink);
+  --color-ink-muted: var(--atro-ink-muted);
+  --color-thread: var(--atro-thread);
+  --color-on-thread: var(--atro-on-thread);
+  --color-alive: var(--atro-alive);
+  --color-grace: var(--atro-grace);
+  --color-recovery: var(--atro-recovery);
+  --color-release: var(--atro-release);
+  --color-danger: var(--atro-danger);
+  --color-on-danger: var(--atro-on-danger);
+  --color-line: var(--atro-line);
+  --color-line-strong: var(--atro-line-strong);
+
+  --font-display: var(--font-fraunces, ui-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains, ui-monospace), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* tokens:dark */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --atro-bg: #0b0d12;
+  --atro-surface-1: #12151c;
+  --atro-surface-2: #181c25;
+  --atro-surface-3: #20252f;
+  --atro-ink: #ece7dd;
+  --atro-ink-muted: #a59f94;
+  --atro-thread: #e8b65a;
+  --atro-on-thread: #0b0d12;
+  --atro-alive: #5cc8b0;
+  --atro-grace: #f0a23b;
+  --atro-recovery: #7fa8ff;
+  --atro-release: #b7a6ff;
+  --atro-danger: #ff6b5e;
+  --atro-on-danger: #0b0d12;
+  --atro-line: #2a303c;
+  --atro-line-strong: #737985;
+  --avatar-l: 0.78;
+}
+
+/* tokens:light */
+[data-theme="light"] {
+  color-scheme: light;
+  --atro-bg: #f6f1e7;
+  --atro-surface-1: #fffdf8;
+  --atro-surface-2: #f0eadf;
+  --atro-surface-3: #e7dfd1;
+  --atro-ink: #16130f;
+  --atro-ink-muted: #5e574c;
+  --atro-thread: #86590e;
+  --atro-on-thread: #fffdf8;
+  --atro-alive: #106f5a;
+  --atro-grace: #945100;
+  --atro-recovery: #2e5bc7;
+  --atro-release: #5b44c9;
+  --atro-danger: #b42318;
+  --atro-on-danger: #fffdf8;
+  --atro-line: #ddd3c2;
+  --atro-line-strong: #80766a;
+  --avatar-l: 0.52;
+}
+
+/* tokens:light-system */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --atro-bg: #f6f1e7;
+    --atro-surface-1: #fffdf8;
+    --atro-surface-2: #f0eadf;
+    --atro-surface-3: #e7dfd1;
+    --atro-ink: #16130f;
+    --atro-ink-muted: #5e574c;
+    --atro-thread: #86590e;
+    --atro-on-thread: #fffdf8;
+    --atro-alive: #106f5a;
+    --atro-grace: #945100;
+    --atro-recovery: #2e5bc7;
+    --atro-release: #5b44c9;
+    --atro-danger: #b42318;
+    --atro-on-danger: #fffdf8;
+    --atro-line: #ddd3c2;
+    --atro-line-strong: #80766a;
+    --avatar-l: 0.52;
+  }
+}
+
+/* Vietnamese stacks diacritics (ặ, ỗ, ữ): headings never go below 1.15 (spec §4.2). */
+:root:lang(vi) {
+  --text-display--line-height: 1.15;
+  --text-h1--line-height: 1.15;
+  --text-h2--line-height: 1.18;
+  --text-title--line-height: 1.3;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings:
+      "SOFT" var(--soft, 30),
+      "WONK" var(--wonk, 0);
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-thread) 35%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-thread);
+    outline-offset: 2px;
+  }
+}
+
+/* Shared-element and theme transitions (src/motion/view-transition.tsx). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease-out-expo);
+}
+::view-transition-group(atropyle-thread) {
+  animation-duration: 443ms;
+  animation-timing-function: var(--ease-spring);
+}
+
+/* Radix overlays animate on `data-state` (tooltips open as `delayed-open` or `instant-open`); Radix waits for the
+   closing animation before it unmounts. */
+@media (prefers-reduced-motion: no-preference) {
+  .atro-overlay[data-state="open"] {
+    animation: atro-fade-in 240ms var(--ease-out-expo);
+  }
+  .atro-overlay[data-state="closed"] {
+    animation: atro-fade-out 160ms var(--ease-out-expo);
+  }
+  .atro-dialog[data-state="open"] {
+    animation: atro-rise-in 443ms var(--ease-spring);
+  }
+  .atro-dialog[data-state="closed"] {
+    animation: atro-rise-out 160ms var(--ease-out-expo);
+  }
+  .atro-pop:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+    animation: atro-pop-in 240ms var(--ease-out-expo);
+  }
+  .atro-pop[data-state="closed"] {
+    animation: atro-fade-out 90ms linear;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 39.999rem) {
+  .atro-sheet[data-state="open"] {
+    animation: atro-sheet-in 443ms var(--ease-spring);
+  }
+  .atro-sheet[data-state="closed"] {
+    animation: atro-sheet-out 240ms var(--ease-out-expo);
+  }
+}
+
+/* Reduced motion: every transition becomes a 120 ms crossfade and nothing moves (spec §4.4). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+  .atro-overlay[data-state="open"],
+  .atro-dialog[data-state="open"],
+  .atro-sheet[data-state="open"],
+  .atro-pop:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+    animation: atro-fade-in 120ms linear;
+  }
+  .atro-overlay[data-state="closed"],
+  .atro-dialog[data-state="closed"],
+  .atro-sheet[data-state="closed"],
+  .atro-pop[data-state="closed"] {
+    animation: atro-fade-out 120ms linear;
+  }
+}
+
+@keyframes atro-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes atro-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes atro-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes atro-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+@keyframes atro-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes atro-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes atro-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+```
+
+Sửa `apps/web/src/app/layout.tsx` để nạp CSS (Task 9 thay toàn bộ layout):
+
+```tsx
+import type { ReactNode } from 'react';
+import './globals.css';
+
+export const metadata = { title: 'Atropyle', description: 'Inheritance and wallet recovery on X Layer.' };
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+- [ ] **Step 4: Chạy test, Biome và build**
+
+```bash
+npm test -w apps/web -- contrast
+npx biome ci .
+npm run build -w apps/web
+```
+
+Expected: contrast PASS (10 test); Biome không lỗi (nếu formatter đổi cách xuống dòng trong CSS, chạy `npx biome format --write apps/web/src/app/globals.css` rồi chạy lại test); build tạo `out/_next/static/**/*.css` có `--atro-bg`.
+
+- [ ] **Step 5: Cập nhật spec §4.3 và ghi ruling 16**
+
+```bash
+SPEC=docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md
+sed -i -e 's/| `#E8B65A` | `#A86F12` |/| `#E8B65A` | `#86590E` |/' -e 's/| `#5CC8B0` | `#127A63` |/| `#5CC8B0` | `#106F5A` |/' -e 's/| `#F0A23B` | `#A35A00` |/| `#F0A23B` | `#945100` |/' "$SPEC"
+grep -n "86590E\|106F5A\|945100" "$SPEC"
+```
+
+Expected: ba dòng. Rồi thêm vào bảng §4.3, ngay sau dòng `danger`:
+
+```markdown
+| `on-thread` / `on-danger` | `#0B0D12` | `#FFFDF8` | Chữ trên nút tô `thread` hoặc `danger` |
+| `line` | `#2A303C` | `#DDD3C2` | Đường kẻ trang trí |
+| `line-strong` | `#737985` | `#80766A` | Viền điều khiển (≥ 3:1, WCAG 1.4.11) |
+```
+
+Và thêm hàng 16 vào bảng §16, sau hàng 15:
+
+```markdown
+| 16 | Làm đậm ba token light: `thread #86590E`, `alive #106F5A`, `grace #945100`; thêm `on-thread`, `on-danger`, `line`, `line-strong` | Giá trị ban đầu không đạt 4,5:1 trên `surface-3`; sau khi đổi, nhỏ nhất là 4,60:1 (light) và 5,50:1 (dark), test `contrast.test.ts` giữ ngưỡng | Vàng light hơi trầm hơn bản phác; đổi lại chỉ là sửa token, test chặn mọi giá trị không đạt AA |
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/web/postcss.config.mjs apps/web/src/app/globals.css apps/web/src/app/layout.tsx apps/web/test/unit/contrast.test.ts apps/web/package.json package-lock.json biome.json docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md
+git commit -m "feat(web): colour, type and motion tokens on Tailwind v4, with an AA contrast test" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 4: Font tự host (Fraunces, Inter, JetBrains Mono) qua `next/font/local`
+
+**Files:**
+- Create: `apps/web/src/fonts/ranges.ts`, `apps/web/src/fonts/index.ts`, `apps/web/src/fonts/files/` (9 file woff2), `apps/web/public/licenses/fonts/OFL-Fraunces.txt`, `OFL-Inter.txt`, `OFL-JetBrainsMono.txt`
+- Create: `apps/web/test/unit/fonts.test.ts`, `apps/web/test/build/fonts.test.ts`
+- Modify: `apps/web/src/app/layout.tsx`, `apps/web/package.json`, `package-lock.json`
+
+**Interfaces:**
+- Consumes: Task 3 (`--font-fraunces`, `--font-inter`, `--font-jetbrains` trong `@theme inline`), Task 2 (`test/build/paths.ts`).
+- Produces: `src/fonts/index.ts` export `fontVariables: string` (chuỗi class đặt lên `<html>`); `src/fonts/ranges.ts` export `SUBSETS = ['vietnamese', 'latin-ext', 'latin'] as const`, `type Subset`, `RANGES: Record<Subset, string>`, `FONT_FILES: readonly { file: string; pkg: string }[]`. Họ font trong CSS: `'Atropyle Fraunces'`, `'Atropyle Inter'`, `'Atropyle Mono'` (cộng mặt `… Fallback` có size-adjust).
+
+- [ ] **Step 1: Cài Fontsource (chỉ để lấy file) và chép woff2 cùng giấy phép**
+
+```bash
+npm install -E -D -w apps/web @fontsource-variable/fraunces@5.3.0 @fontsource-variable/inter@5.3.0 @fontsource-variable/jetbrains-mono@5.3.0
+npm run lockfile:check -- --fix
+npm run lockfile:check
+F=node_modules/@fontsource-variable
+mkdir -p apps/web/src/fonts/files apps/web/public/licenses/fonts
+cp $F/fraunces/files/fraunces-{vietnamese,latin-ext,latin}-full-normal.woff2 apps/web/src/fonts/files/
+cp $F/inter/files/inter-{vietnamese,latin-ext,latin}-wght-normal.woff2 apps/web/src/fonts/files/
+cp $F/jetbrains-mono/files/jetbrains-mono-{vietnamese,latin-ext,latin}-wght-normal.woff2 apps/web/src/fonts/files/
+cp $F/fraunces/LICENSE apps/web/public/licenses/fonts/OFL-Fraunces.txt
+cp $F/inter/LICENSE apps/web/public/licenses/fonts/OFL-Inter.txt
+cp $F/jetbrains-mono/LICENSE apps/web/public/licenses/fonts/OFL-JetBrainsMono.txt
+ls -la apps/web/src/fonts/files
+```
+
+Expected: 9 file. Kích thước (đọc từ tarball 5.3.0): Fraunces `full` (đủ 4 trục opsz, wght, SOFT, WONK) vietnamese 34 KB, latin-ext 105 KB, latin 121 KB; Inter `wght` 10/85/48 KB; JetBrains Mono `wght` 8/15/40 KB.
+
+- [ ] **Step 2: Viết test hỏng**
+
+`apps/web/src/fonts/ranges.ts`:
+
+```ts
+/** Unicode ranges of the Fontsource 5.3.0 subsets; identical for Fraunces, Inter and JetBrains Mono. */
+export const SUBSETS = ['vietnamese', 'latin-ext', 'latin'] as const;
+export type Subset = (typeof SUBSETS)[number];
+
+export const RANGES: Record<Subset, string> = {
+  vietnamese:
+    'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+  'latin-ext':
+    'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+  latin:
+    'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+};
+
+export const FONT_FILES: readonly { file: string; pkg: string }[] = [
+  ...SUBSETS.map((s) => ({ file: `fraunces-${s}-full-normal.woff2`, pkg: 'fraunces' })),
+  ...SUBSETS.map((s) => ({ file: `inter-${s}-wght-normal.woff2`, pkg: 'inter' })),
+  ...SUBSETS.map((s) => ({ file: `jetbrains-mono-${s}-wght-normal.woff2`, pkg: 'jetbrains-mono' })),
+];
+```
+
+`apps/web/test/unit/fonts.test.ts`:
+
+```ts
+// @vitest-environment node
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { FONT_FILES, RANGES, SUBSETS } from '../../src/fonts/ranges';
+
+const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+
+/** Each `localFont({ ... })` call of src/fonts/index.ts, read as text so that line breaks do not matter. */
+function calls(): { file: string; preload: boolean; range: string }[] {
+  const src = readFileSync(at('../../src/fonts/index.ts'), 'utf8');
+  return src
+    .split('localFont({')
+    .slice(1)
+    .map((chunk) => ({
+      file: /src:\s*'\.\/files\/([^']+)'/.exec(chunk)?.[1] ?? '',
+      preload: /preload:\s*true/.test(chunk),
+      range: /prop:\s*'unicode-range',\s*value:\s*'([^']+)'/.exec(chunk)?.[1] ?? '',
+    }));
+}
+
+describe('self-hosted fonts', () => {
+  it('ships the nine woff2 files byte for byte as Fontsource 5.3.0 publishes them', () => {
+    for (const { file, pkg } of FONT_FILES) {
+      const ours = at(`../../src/fonts/files/${file}`);
+      const theirs = at(`../../../../node_modules/@fontsource-variable/${pkg}/files/${file}`);
+      expect(existsSync(ours), file).toBe(true);
+      expect(sha(ours), file).toBe(sha(theirs));
+    }
+  });
+
+  it('ships the SIL Open Font License of each family', () => {
+    for (const name of ['Fraunces', 'Inter', 'JetBrainsMono']) {
+      const text = readFileSync(at(`../../public/licenses/fonts/OFL-${name}.txt`), 'utf8');
+      expect(text, name).toMatch(/^Copyright/);
+      expect(text, name).toContain('SIL Open Font License, Version 1.1');
+    }
+  });
+
+  it('writes the same literal unicode ranges into every next/font call as ranges.ts', () => {
+    const literals = calls().map((c) => c.range);
+    expect(literals).toHaveLength(9);
+    for (let i = 0; i < 9; i++) expect(literals[i], `call ${i}`).toBe(RANGES[SUBSETS[i % 3]]);
+  });
+
+  it('preloads only the Latin files of Fraunces and Inter', () => {
+    const preloaded = calls()
+      .filter((c) => c.preload)
+      .map((c) => c.file);
+    expect(preloaded).toEqual(['fraunces-latin-full-normal.woff2', 'inter-latin-wght-normal.woff2']);
+  });
+});
+```
+
+`apps/web/test/build/fonts.test.ts`:
+
+```ts
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { RANGES, SUBSETS } from '../../src/fonts/ranges';
+import { outOf } from './paths';
+
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((n) => {
+    const p = join(dir, n);
+    return statSync(p).isDirectory() ? walk(p) : [p];
+  });
+}
+
+/** `U+0000-00FF,U+0131` (any case, any spacing, `?` wildcards) as sorted [start, end] pairs. */
+function parseRanges(value: string): [number, number][] {
+  return value
+    .split(',')
+    .map((part) => part.trim().replace(/^u\+/i, ''))
+    .filter((p) => p !== '')
+    .map((p): [number, number] => {
+      if (p.includes('?'))
+        return [Number.parseInt(p.replace(/\?/g, '0'), 16), Number.parseInt(p.replace(/\?/g, 'f'), 16)];
+      const [a, b] = p.split('-');
+      return [Number.parseInt(a, 16), Number.parseInt(b ?? a, 16)];
+    })
+    .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+}
+
+interface Face {
+  family: string;
+  ranges: [number, number][] | null;
+  sizeAdjust: boolean;
+}
+
+function faces(out: string): Face[] {
+  const css = walk(join(out, '_next'))
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => readFileSync(f, 'utf8'))
+    .join('\n');
+  return [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => {
+    const body = m[1];
+    // The last font-family wins, as in CSS: next/font writes `declarations` before its own properties.
+    const families = [...body.matchAll(/font-family:\s*([^;]+)/g)].map((x) => x[1].replace(/['"]/g, '').trim());
+    const range = /unicode-range:\s*([^;]+)/.exec(body);
+    return {
+      family: families[families.length - 1] ?? '',
+      ranges: range ? parseRanges(range[1]) : null,
+      sizeAdjust: /size-adjust:/.test(body),
+    };
+  });
+}
+
+for (const target of ['vercel', 'deweb'] as const) {
+  describe(`${target} fonts`, () => {
+    const out = outOf(target);
+
+    for (const family of ['Atropyle Fraunces', 'Atropyle Inter', 'Atropyle Mono']) {
+      it(`${family} has one face per subset, each with its own unicode range`, () => {
+        const ours = faces(out).filter((f) => f.family === family);
+        expect(ours).toHaveLength(3);
+        const got = ours.map((f) => JSON.stringify(f.ranges)).sort();
+        const want = SUBSETS.map((s) => JSON.stringify(parseRanges(RANGES[s]))).sort();
+        expect(got).toEqual(want);
+      });
+
+      it(`${family} has a metric-adjusted fallback face, so the swap does not shift layout`, () => {
+        const fallback = faces(out).filter((f) => f.family === `${family} Fallback`);
+        expect(fallback).toHaveLength(1);
+        expect(fallback[0].sizeAdjust).toBe(true);
+      });
+    }
+
+    it('preloads exactly the Latin files of Fraunces and Inter on the home page', () => {
+      const html = readFileSync(join(out, 'index.html'), 'utf8');
+      const preloads = [...html.matchAll(/<link[^>]+rel="preload"[^>]+as="font"[^>]*>/g)].map((m) => m[0]);
+      expect(preloads).toHaveLength(2);
+      for (const p of preloads) expect(p).toMatch(/\.woff2"/);
+    });
+
+    it('never reaches a font CDN', () => {
+      const all = walk(out)
+        .filter((f) => /\.(html|css|js)$/.test(f))
+        .map((f) => readFileSync(f, 'utf8'))
+        .join('\n');
+      expect(all).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit|fonts\.bunny/);
+    });
+  });
+}
+```
+
+Run: `npm test -w apps/web -- fonts`
+Expected: FAIL ở test literal và preload (`src/fonts/index.ts` chưa có); hai test đầu đã PASS sau Step 1.
+
+- [ ] **Step 3: Viết `src/fonts/index.ts` và nạp vào layout**
+
+`apps/web/src/fonts/index.ts`:
+
+```ts
+import localFont from 'next/font/local';
+
+// Quyết định 8: three subsets per family share one family name, each with its own unicode-range, so a page loads
+// only the files it needs. next/font reads options statically, so every value is a literal; test/unit/fonts.test.ts
+// compares the ranges with src/fonts/ranges.ts. Only the Latin subsets preload and carry a metric-adjusted fallback.
+
+const frauncesVi = localFont({
+  src: './files/fraunces-vietnamese-full-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-vi',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+    },
+  ],
+});
+
+const frauncesExt = localFont({
+  src: './files/fraunces-latin-ext-full-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-ext',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+    },
+  ],
+});
+
+const fraunces = localFont({
+  src: './files/fraunces-latin-full-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: true,
+  adjustFontFallback: 'Times New Roman',
+  fallback: ['ui-serif', 'Georgia', 'serif'],
+  variable: '--font-fraunces',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+    },
+  ],
+});
+
+const interVi = localFont({
+  src: './files/inter-vietnamese-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-inter-vi',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Inter'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+    },
+  ],
+});
+
+const interExt = localFont({
+  src: './files/inter-latin-ext-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-inter-ext',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Inter'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+    },
+  ],
+});
+
+const inter = localFont({
+  src: './files/inter-latin-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
+  display: 'swap',
+  preload: true,
+  adjustFontFallback: 'Arial',
+  fallback: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+  variable: '--font-inter',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Inter'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+    },
+  ],
+});
+
+const monoVi = localFont({
+  src: './files/jetbrains-mono-vietnamese-wght-normal.woff2',
+  weight: '100 800',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-jetbrains-vi',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Mono'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+    },
+  ],
+});
+
+const monoExt = localFont({
+  src: './files/jetbrains-mono-latin-ext-wght-normal.woff2',
+  weight: '100 800',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-jetbrains-ext',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Mono'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+    },
+  ],
+});
+
+const mono = localFont({
+  src: './files/jetbrains-mono-latin-wght-normal.woff2',
+  weight: '100 800',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+  fallback: ['ui-monospace', 'Menlo', 'monospace'],
+  variable: '--font-jetbrains',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Mono'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+    },
+  ],
+});
+
+/** Every call's variable class goes on <html>, so each subset's @font-face ships and the three tokens resolve. */
+export const fontVariables = [frauncesVi, frauncesExt, fraunces, interVi, interExt, inter, monoVi, monoExt, mono]
+  .map((f) => f.variable)
+  .join(' ');
+```
+
+(Nếu Biome xuống dòng các `declarations` dài, chạy `npx biome format --write apps/web/src/fonts/index.ts`; test đọc từng lời gọi `localFont({` như văn bản, không phụ thuộc cách xuống dòng.)
+
+Sửa `apps/web/src/app/layout.tsx`:
+
+```tsx
+import type { ReactNode } from 'react';
+import { fontVariables } from '@/fonts';
+import './globals.css';
+
+export const metadata = { title: 'Atropyle', description: 'Inheritance and wallet recovery on X Layer.' };
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning className={fontVariables}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+- [ ] **Step 4: Chạy test đơn vị và test build**
+
+```bash
+npm test -w apps/web -- fonts
+npm run test:build -w apps/web
+```
+
+Expected: unit PASS (4); build PASS (mỗi target 8 test font + 2 test output).
+
+Nếu `test/build/fonts.test.ts` hỏng với Turbopack (ví dụ họ font là tên băm thay vì `Atropyle Fraunces`, hoặc thiếu mặt Fallback): đổi `BUNDLER_FLAGS` trong `apps/web/scripts/lib/run-next.ts` thành `['--webpack']`, chạy lại `npm run test:build -w apps/web` và `npm run worker:check -w apps/web`. Cả hai PASS thì sửa hàng 15 của spec §16 thành bản webpack (Task 2 Step 9), ghi lý do "Turbopack bỏ `font-family` tự đặt của `next/font/local`" cùng dòng lỗi của test. Hỏng cả với webpack thì dừng và báo BLOCKED kèm output.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/fonts apps/web/public/licenses/fonts apps/web/src/app/layout.tsx apps/web/test/unit/fonts.test.ts apps/web/test/build/fonts.test.ts apps/web/package.json package-lock.json
+git commit -m "feat(web): self-hosted Fraunces, Inter and JetBrains Mono with per-subset faces and OFL licences" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+(Nếu Step 4 đổi bundler, thêm `apps/web/scripts/lib/run-next.ts docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` vào `git add`.)
+
+---
+
+### Task 5: i18n, bộ nhớ, theme và các helper dùng chung
+
+Task này port nguyên văn i18n, store, format và toàn bộ file message của web cũ, chép tại chỗ bốn helper nhỏ của SDK (Quyết định 13), rồi viết mới `KVProvider`, `LangProvider` và `ThemeProvider`.
+
+**Files:**
+- Create (port): `apps/web/src/i18n/core.ts`, `apps/web/src/lib/format.ts`, `apps/web/src/messages/{labels,common,shell,tx,action-runner,editors,create,developers,guardian,heir,home,owner,sign,status,vault,verify}.messages.ts`, `apps/web/test/unit/{i18n,format}.test.ts`
+- Create (chép SDK): `apps/web/src/lib/untrusted.ts`, `apps/web/src/lib/duration.ts`, `apps/web/src/lib/docs.ts`, `apps/web/src/lib/address.ts`
+- Create (mới): `apps/web/src/lib/store.ts`, `apps/web/src/lib/kv.tsx`, `apps/web/src/lib/links.ts`, `apps/web/src/lib/cn.ts`, `apps/web/src/lib/use-mounted.ts`, `apps/web/src/i18n/provider.tsx`, `apps/web/src/theme/theme.ts`, `apps/web/src/theme/provider.tsx`, `apps/web/src/messages/ui.messages.ts`
+- Test: `apps/web/test/unit/{store,sdk-copies,links,theme,lang,address}.test.ts(x)`, `apps/web/test/helpers/render.tsx`
+
+**Interfaces:**
+- Consumes: không có (chỉ `import type` từ `@atropyle/sdk`).
+- Produces:
+  - `src/i18n/core.ts`: `type Lang = 'en' | 'vi'`; `interface Messages<K extends string> { en; vi }`; `type Params = Record<string, string | number | bigint>`; `defineMessages(en, vi)`; `format(template, params?)`; `translate(m, lang, key, params?)`; `placeholders(s)`; `detectLang(stored: string | null, languages: readonly string[]): Lang`.
+  - `src/i18n/provider.tsx`: `LangProvider({ children })`; `useLang(): { lang: Lang; setLang(l: Lang): void }`; `useT<K extends string>(m: Messages<K>): (key: K, params?: Params) => string`.
+  - `src/lib/store.ts`: `interface KV { get; set; remove }`; `memoryKV()`; `safeKV(storage: () => Storage | null | undefined)`; `readJson<T>(kv, key, revive)`; `writeJson(kv, key, value)`; `jsonStringify(value: unknown, space?: number): string`; `KEYS = { lang, crossCheck, theme, haptics, wallet, stats }`.
+  - `src/lib/kv.tsx`: `KVProvider({ kv?, children })`; `useKV(): KV`.
+  - `src/theme/theme.ts`: `type ThemeChoice = 'system' | 'light' | 'dark'`; `THEME_CHOICES`; `parseTheme(raw: string | null | undefined): ThemeChoice`; `readThemeAttr(): ThemeChoice`; `subscribeTheme(cb: () => void): () => void`; `applyTheme(choice: ThemeChoice, root?: HTMLElement): void`.
+  - `src/theme/provider.tsx`: `ThemeProvider({ children })`; `useTheme(): { choice: ThemeChoice; resolved: 'light' | 'dark'; setChoice(c: ThemeChoice): void }`.
+  - `src/lib/untrusted.ts`: `interface Untrusted`, `untrusted(raw: unknown, max?: number): Untrusted`. `src/lib/duration.ts`: `formatDuration(seconds: number | bigint): string`. `src/lib/docs.ts`: `DOCS_BASE_URL`, `errorDocsUrl(code: string): string`. `src/lib/address.ts`: `sameAddress(a, b)`, `isAddressText(s: string): boolean`, `addressGroups(address: string): string[]`, `compactAddress(address: string): string`.
+  - `src/lib/format.ts`: `formatAmount`, `formatBps`, `formatTimestamp`, `formatRemaining`, `coveragePercent`, `chainNow` (chữ ký như web cũ).
+  - `src/lib/links.ts`: `explorerAddress(base, address)`, `explorerTx(base, hash)`, `explorerName(base)`, `docsHome(docsPath)`, `REPO_URL`, `LICENSE_URL`, `XLAYER_URL`.
+  - `src/lib/cn.ts`: `type ClassValue = string | false | null | undefined`; `cn(...v: ClassValue[]): string`. `src/lib/use-mounted.ts`: `useMounted(): boolean` (false lúc prerender và hydrate, true sau đó).
+  - `src/messages/labels.messages.ts`: `messages`, `type LabelKey`, `STATE_KEY`, `ROLE_KEY`, `THREAD_STATE_KEY: Record<StateName | 'expired', LabelKey>`. `src/messages/ui.messages.ts`: `messages` (khoá ở Step 5). Mọi file `*.messages.ts` export `messages`.
+  - `test/helpers/render.tsx`: `renderWithProviders(ui, o?: { kv?: KV; lang?: Lang })` trả kết quả `render` cộng `kv`; `rerender(next)` vẫn bọc provider.
+
+- [ ] **Step 1: Port i18n, format và các file message (chép rồi sửa đường dẫn import)**
+
+```bash
+L=apps/web-legacy
+W=apps/web
+mkdir -p $W/src/i18n $W/src/lib $W/src/messages $W/test/helpers
+cp $L/src/lib/i18n.ts $W/src/i18n/core.ts
+cp $L/src/lib/format.ts $W/src/lib/format.ts
+sed -i "s#^import { formatDuration } from '@atropyle/sdk';#import { formatDuration } from './duration';#" $W/src/lib/format.ts
+for f in labels common shell action-runner editors; do cp $L/src/ui/$f.messages.ts $W/src/messages/$f.messages.ts; done
+cp $L/src/ui/tx-runner.messages.ts $W/src/messages/tx.messages.ts
+for f in create developers guardian heir home owner sign status vault verify; do cp $L/src/pages/$f.messages.ts $W/src/messages/$f.messages.ts; done
+sed -i "s#from '../lib/i18n';#from '@/i18n/core';#" $W/src/messages/*.messages.ts
+grep -L "from '@/i18n/core'" $W/src/messages/*.messages.ts
+cp $L/test/unit/i18n.test.ts $W/test/unit/i18n.test.ts
+sed -i "s#'../../src/lib/i18n'#'../../src/i18n/core'#" $W/test/unit/i18n.test.ts
+cp $L/test/unit/format.test.ts $W/test/unit/format.test.ts
+```
+
+Expected: `grep -L` không in gì (cả 16 file đã đổi import). `format.test.ts` vẫn import `formatDuration` từ `@atropyle/sdk` để so: test được phép import SDK, chỉ `src/` bị ranh giới nạp lười ràng buộc.
+
+Thêm trạng thái "Drill hết hạn" (spec §4.1) vào `apps/web/src/messages/labels.messages.ts`: trong object `en`, sau `stateReleasedRecover: 'Released to the recovery wallet',` thêm `stateExpired: 'Drill expired',`; trong object `vi`, sau `stateReleasedRecover: 'Đã giải phóng cho ví khôi phục',` thêm `stateExpired: 'Drill đã hết hạn',`. Cuối file thêm:
+
+```ts
+/** The states a Thread or StateBadge can show: the five vault states plus an expired Drill (spec §4.1). */
+export const THREAD_STATE_KEY: Record<StateName | 'expired', LabelKey> = { ...STATE_KEY, expired: 'stateExpired' };
+```
+
+- [ ] **Step 2: Viết test hỏng cho store, bản chép SDK, link và địa chỉ**
+
+`apps/web/test/unit/store.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { jsonStringify, KEYS, memoryKV, readJson, safeKV, writeJson } from '../../src/lib/store';
+
+describe('store', () => {
+  it('keeps values in memory', () => {
+    const kv = memoryKV();
+    kv.set('a', '1');
+    expect(kv.get('a')).toBe('1');
+    kv.remove('a');
+    expect(kv.get('a')).toBeNull();
+  });
+
+  it('falls back to memory when localStorage throws', () => {
+    const kv = safeKV(() => {
+      throw new Error('SecurityError');
+    });
+    kv.set('a', '1');
+    expect(kv.get('a')).toBe('1');
+  });
+
+  it('falls back to memory when there is no storage', () => {
+    const kv = safeKV(() => null);
+    kv.set('b', '2');
+    expect(kv.get('b')).toBe('2');
+  });
+
+  it('falls back to memory when every storage call throws (quota, blocked site data)', () => {
+    const broken = {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+      removeItem: () => {
+        throw new Error('blocked');
+      },
+    } as unknown as Storage;
+    const kv = safeKV(() => broken);
+    kv.set('c', '3');
+    expect(kv.get('c')).toBe('3');
+    kv.remove('c');
+    expect(kv.get('c')).toBeNull();
+  });
+
+  it('writes bigint values as strings and drops corrupt entries', () => {
+    const kv = memoryKV();
+    writeJson(kv, 'x', { n: 10n });
+    expect(kv.get('x')).toBe('{"n":"10"}');
+    expect(readJson(kv, 'x', (raw) => (raw as { n: string }).n)).toBe('10');
+    kv.set('bad', '{nope');
+    expect(readJson(kv, 'bad', () => 1)).toBeNull();
+    expect(kv.get('bad')).toBeNull();
+    kv.set('old', '{"v":0}');
+    expect(readJson(kv, 'old', () => null)).toBeNull();
+    expect(kv.get('old')).toBeNull();
+  });
+
+  it('serialises bytes as 0x hex and drops undefined members', () => {
+    expect(jsonStringify({ b: new Uint8Array([0, 15, 255]), u: undefined, a: [1n] })).toBe(
+      '{"b":"0x000fff","a":["1"]}',
+    );
+  });
+
+  it('namespaces every key', () => {
+    for (const key of Object.values(KEYS)) expect(key).toMatch(/^atropyle:[a-zA-Z]+$/);
+    expect(new Set(Object.values(KEYS)).size).toBe(Object.values(KEYS).length);
+  });
+});
+```
+
+`apps/web/test/unit/sdk-copies.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import * as sdk from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import { sameAddress } from '../../src/lib/address';
+import { DOCS_BASE_URL, errorDocsUrl } from '../../src/lib/docs';
+import { formatDuration } from '../../src/lib/duration';
+import { jsonStringify } from '../../src/lib/store';
+import { untrusted } from '../../src/lib/untrusted';
+
+const text = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+
+// Quyết định 13: the shell keeps small copies of SDK helpers so the home page never loads the SDK.
+describe('local copies of SDK helpers', () => {
+  it('untrusted.ts is a byte-for-byte copy of the SDK file', () => {
+    expect(text('../../src/lib/untrusted.ts')).toBe(text('../../../../packages/sdk/src/untrusted.ts'));
+  });
+
+  it('untrusted cleans hostile text exactly like the SDK', () => {
+    const inputs: unknown[] = ['USD\u{202E}C', 'a\u{200B}b', 'x'.repeat(100), '\u{E0041}tag', 'two\nlines', 42, null];
+    for (const s of inputs) expect(untrusted(s), String(s)).toEqual(sdk.untrusted(s));
+  });
+
+  it('formatDuration matches the SDK', () => {
+    const inputs: (number | bigint)[] = [
+      0,
+      1,
+      59,
+      60,
+      61,
+      3599,
+      3600,
+      86_399,
+      86_400,
+      90_061,
+      1_000_000,
+      -5,
+      10n ** 6n,
+    ];
+    for (const s of inputs) expect(formatDuration(s), String(s)).toBe(sdk.formatDuration(s));
+  });
+
+  it('the docs links match the SDK', () => {
+    expect(DOCS_BASE_URL).toBe(sdk.DOCS_BASE_URL);
+    expect(errorDocsUrl('NOT_VAULT')).toBe(sdk.errorDocsUrl('NOT_VAULT'));
+  });
+
+  it('sameAddress matches the SDK', () => {
+    const a = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+    const cases: [string | null, string | null][] = [
+      [a, a.toLowerCase()],
+      [a, null],
+      [null, null],
+      ['', ''],
+      [a, '0x0000000000000000000000000000000000000000'],
+    ];
+    for (const [x, y] of cases) expect(sameAddress(x, y)).toBe(sdk.sameAddress(x, y));
+  });
+
+  it('jsonStringify matches the SDK stringify', () => {
+    const v = { a: 1n, b: [2n, 'x', null], c: { d: 10n ** 30n, e: undefined }, f: true, g: new Uint8Array([1, 2]) };
+    expect(jsonStringify(v)).toBe(sdk.stringify(v));
+    expect(jsonStringify(v, 2)).toBe(sdk.stringify(v, 2));
+  });
+});
+```
+
+`apps/web/test/unit/links.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { DOCS_BASE_URL } from '../../src/lib/docs';
+import {
+  docsHome,
+  explorerAddress,
+  explorerName,
+  explorerTx,
+  LICENSE_URL,
+  REPO_URL,
+  XLAYER_URL,
+} from '../../src/lib/links';
+
+describe('links', () => {
+  it('builds explorer links', () => {
+    expect(explorerAddress('https://www.oklink.com/xlayer/', '0xAb')).toBe(
+      'https://www.oklink.com/xlayer/address/0xAb',
+    );
+    expect(explorerTx('https://www.oklink.com/xlayer', '0x12')).toBe('https://www.oklink.com/xlayer/tx/0x12');
+    expect(explorerName('https://www.oklink.com/xlayer')).toBe('OKLink');
+    expect(explorerName('http://127.0.0.1:1')).toBe('Explorer');
+    expect(explorerName('not a url')).toBe('Explorer');
+  });
+
+  it('opens docs on the same site when the site has them', () => {
+    expect(docsHome('/docs/')).toBe('/docs/');
+    expect(docsHome(null)).toBe(`${DOCS_BASE_URL}/`);
+  });
+
+  it('points the footer at https pages only', () => {
+    for (const url of [REPO_URL, LICENSE_URL, XLAYER_URL]) expect(new URL(url).protocol).toBe('https:');
+  });
+});
+```
+
+`apps/web/test/unit/address.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { addressGroups, compactAddress, isAddressText } from '../../src/lib/address';
+
+const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+describe('address text', () => {
+  it('recognises a 0x-prefixed 40-digit hex string only', () => {
+    expect(isAddressText(A)).toBe(true);
+    expect(isAddressText(A.toLowerCase())).toBe(true);
+    expect(isAddressText(A.slice(0, 41))).toBe(false);
+    expect(isAddressText(`${A}0`)).toBe(false);
+    expect(isAddressText(A.replace('0x', '0X'))).toBe(false);
+    expect(isAddressText(' '.repeat(42))).toBe(false);
+  });
+
+  it('splits the full address into ten groups of four after the prefix (spec §4.2)', () => {
+    const g = addressGroups(A);
+    expect(g).toEqual(['0x', '3C44', 'CdDd', 'B6a9', '00fa', '2b58', '5dd2', '99e0', '3d12', 'FA42', '93BC']);
+    expect(g.join('')).toBe(A);
+  });
+
+  it('keeps anything that is not an address as one piece', () => {
+    expect(addressGroups('vault.eth')).toEqual(['vault.eth']);
+  });
+
+  it('compacts only for the header account button: first and last two groups', () => {
+    expect(compactAddress(A)).toBe('0x3C44 CdDd … FA42 93BC');
+    expect(compactAddress('short')).toBe('short');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- store sdk-copies links address i18n format`
+Expected: FAIL (`Cannot find module '../../src/lib/store'` và tương tự). `i18n.test.ts` và `format.test.ts` hỏng vì `src/lib/duration.ts` chưa có.
+
+- [ ] **Step 3: Viết store, bản chép SDK, link, địa chỉ, `cn` và `useMounted`**
+
+```bash
+cp packages/sdk/src/untrusted.ts apps/web/src/lib/untrusted.ts
+```
+
+`apps/web/src/lib/duration.ts`:
+
+```ts
+/** Copy of formatDuration in packages/sdk/src/duration.ts (Quyết định 13; test/unit/sdk-copies.test.ts). */
+export function formatDuration(seconds: number | bigint): string {
+  let s = Number(seconds);
+  if (s <= 0) return '0s';
+  const parts: string[] = [];
+  for (const [u, n] of [
+    ['d', 86400],
+    ['h', 3600],
+    ['m', 60],
+    ['s', 1],
+  ] as const) {
+    const q = Math.floor(s / n);
+    if (q > 0) {
+      parts.push(`${q}${u}`);
+      s -= q * n;
+    }
+  }
+  return parts.slice(0, 2).join(' ');
+}
+```
+
+`apps/web/src/lib/docs.ts`:
+
+```ts
+/** Copy of packages/sdk/src/links.ts (Quyết định 13; test/unit/sdk-copies.test.ts keeps them equal). */
+export const DOCS_BASE_URL = 'https://duongnq2798.github.io/atropyle/docs';
+
+export function errorDocsUrl(code: string): string {
+  return `${DOCS_BASE_URL}/reference/errors.html#${code.toLowerCase()}`;
+}
+```
+
+`apps/web/src/lib/address.ts`:
+
+```ts
+/** Copy of sameAddress in packages/sdk/src/address.ts (Quyết định 13). */
+export function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+}
+
+/** Shape only: 0x and 40 hex digits. Checksums are the SDK's job (`toAddress`), loaded lazily. */
+export function isAddressText(s: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(s);
+}
+
+/** `0x` then ten groups of four, so two addresses can be compared group by group (spec §4.2). */
+export function addressGroups(address: string): string[] {
+  if (!isAddressText(address)) return [address];
+  const body = address.slice(2);
+  return ['0x', ...Array.from({ length: 10 }, (_, i) => body.slice(i * 4, i * 4 + 4))];
+}
+
+/**
+ * Only for the connected account in the header, where the full address is one click away. Every address the user
+ * must check (recipients, heirs, guardians, vaults) is shown in full with <Address>.
+ */
+export function compactAddress(address: string): string {
+  const g = addressGroups(address);
+  if (g.length === 1) return address;
+  return `0x${g[1]} ${g[2]} … ${g[9]} ${g[10]}`;
+}
+```
+
+`apps/web/src/lib/store.ts`:
+
+```ts
+export interface KV {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}
+
+export function memoryKV(): KV {
+  const m = new Map<string, string>();
+  return {
+    get: (k) => m.get(k) ?? null,
+    set: (k, v) => {
+      m.set(k, v);
+    },
+    remove: (k) => {
+      m.delete(k);
+    },
+  };
+}
+
+/** localStorage when it works; private windows, blocked storage and full quotas fall back to memory. */
+export function safeKV(storage: () => Storage | null | undefined): KV {
+  const mem = memoryKV();
+  const s = (): Storage | null => {
+    try {
+      return storage() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    get: (k) => {
+      try {
+        return s()?.getItem(k) ?? mem.get(k);
+      } catch {
+        return mem.get(k);
+      }
+    },
+    set: (k, v) => {
+      mem.set(k, v);
+      try {
+        s()?.setItem(k, v);
+      } catch {
+        // the memory copy above is enough
+      }
+    },
+    remove: (k) => {
+      mem.remove(k);
+      try {
+        s()?.removeItem(k);
+      } catch {
+        // nothing stored
+      }
+    },
+  };
+}
+
+const HEX = '0123456789abcdef';
+
+function toJson(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString(10);
+  if (value instanceof Uint8Array) {
+    let s = '0x';
+    for (const b of value) s += HEX[b >> 4] + HEX[b & 15];
+    return s;
+  }
+  if (Array.isArray(value)) return value.map(toJson);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v !== undefined) out[k] = toJson(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Same output as `stringify` of @atropyle/sdk (bigint → decimal string, bytes → 0x hex), without loading the SDK. */
+export function jsonStringify(value: unknown, space?: number): string {
+  return JSON.stringify(toJson(value), null, space);
+}
+
+export function readJson<T>(kv: KV, key: string, revive: (raw: unknown) => T | null): T | null {
+  const text = kv.get(key);
+  if (text === null) return null;
+  try {
+    const value = revive(JSON.parse(text));
+    if (value !== null) return value;
+  } catch {
+    // corrupt entry: removed below
+  }
+  kv.remove(key);
+  return null;
+}
+
+export function writeJson(kv: KV, key: string, value: unknown): void {
+  kv.set(key, jsonStringify(value));
+}
+
+export const KEYS = {
+  lang: 'atropyle:lang',
+  crossCheck: 'atropyle:crossCheck',
+  theme: 'atropyle:theme',
+  haptics: 'atropyle:haptics',
+  wallet: 'atropyle:wallet',
+  stats: 'atropyle:stats',
+} as const;
+```
+
+`apps/web/src/lib/links.ts`:
+
+```ts
+import { DOCS_BASE_URL } from './docs';
+
+const trim = (base: string) => base.replace(/\/+$/, '');
+
+export const REPO_URL = 'https://github.com/duongnq2798/atropyle';
+export const LICENSE_URL = `${REPO_URL}/blob/main/packages/sdk/LICENSE`;
+export const XLAYER_URL = 'https://web3.okx.com/xlayer';
+
+export function explorerAddress(base: string, address: string): string {
+  return `${trim(base)}/address/${address}`;
+}
+
+export function explorerTx(base: string, hash: string): string {
+  return `${trim(base)}/tx/${hash}`;
+}
+
+export function explorerName(base: string): string {
+  try {
+    return new URL(base).hostname.endsWith('oklink.com') ? 'OKLink' : 'Explorer';
+  } catch {
+    return 'Explorer';
+  }
+}
+
+export function docsHome(docsPath: string | null): string {
+  return docsPath ?? `${DOCS_BASE_URL}/`;
+}
+```
+
+`apps/web/src/lib/cn.ts`:
+
+```ts
+export type ClassValue = string | false | null | undefined;
+
+/** Joins the truthy class names. Tailwind classes are written so that no two in one call conflict. */
+export function cn(...v: ClassValue[]): string {
+  return v.filter(Boolean).join(' ');
+}
+```
+
+`apps/web/src/lib/use-mounted.ts`:
+
+```ts
+import { useSyncExternalStore } from 'react';
+
+const noop = () => () => {};
+
+/** False while prerendering and hydrating, true afterwards: for markup that must match the static HTML first. */
+export function useMounted(): boolean {
+  return useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  );
+}
+```
+
+Run: `npm test -w apps/web -- store sdk-copies links address i18n format`
+Expected: PASS. `i18n` chạy được 5 test trên 16 file message (test cuối duyệt mọi file).
+
+- [ ] **Step 4: Viết test hỏng cho `KVProvider`, `LangProvider` và `ThemeProvider`**
+
+`apps/web/test/helpers/render.tsx`:
+
+```tsx
+import { render } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import type { Lang } from '@/i18n/core';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import { KEYS, type KV, memoryKV } from '@/lib/store';
+
+/** Renders inside the storage and language providers, as every page is; `rerender` keeps them. */
+export function renderWithProviders(ui: ReactElement, o: { kv?: KV; lang?: Lang } = {}) {
+  const kv = o.kv ?? memoryKV();
+  if (o.lang) kv.set(KEYS.lang, o.lang);
+  const wrap = (node: ReactElement) => (
+    <KVProvider kv={kv}>
+      <LangProvider>{node}</LangProvider>
+    </KVProvider>
+  );
+  const r = render(wrap(ui));
+  return { ...r, kv, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
+```
+
+`apps/web/test/unit/lang.test.tsx`:
+
+```tsx
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { defineMessages } from '../../src/i18n/core';
+import { LangProvider, useLang, useT } from '../../src/i18n/provider';
+import { KVProvider } from '../../src/lib/kv';
+import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+
+const m = defineMessages({ hi: 'Hello {name}' }, { hi: 'Xin chào {name}' });
+
+function wrap(kv: KV) {
+  return ({ children }: { children: ReactNode }) => (
+    <KVProvider kv={kv}>
+      <LangProvider>{children}</LangProvider>
+    </KVProvider>
+  );
+}
+
+function Greeting() {
+  const t = useT(m);
+  return <p>{t('hi', { name: 'An' })}</p>;
+}
+
+/** happy-dom defines `languages` on the Navigator prototype; an own property shadows it until deleted. */
+function stubLanguages(list: string[]) {
+  Object.defineProperty(navigator, 'languages', { configurable: true, get: () => list });
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(navigator, 'languages');
+  document.documentElement.lang = 'en';
+});
+
+describe('LangProvider', () => {
+  it('renders English first, then the stored language, and updates <html lang>', async () => {
+    const kv = memoryKV();
+    kv.set(KEYS.lang, 'vi');
+    render(<Greeting />, { wrapper: wrap(kv) });
+    await waitFor(() => expect(screen.getByText('Xin chào An')).toBeTruthy());
+    expect(document.documentElement.lang).toBe('vi');
+  });
+
+  it('follows the browser language when nothing is stored', async () => {
+    stubLanguages(['vi-VN', 'en']);
+    render(<Greeting />, { wrapper: wrap(memoryKV()) });
+    await waitFor(() => expect(screen.getByText('Xin chào An')).toBeTruthy());
+  });
+
+  it('ignores a garbage stored language', async () => {
+    stubLanguages(['en-US']);
+    const kv = memoryKV();
+    kv.set(KEYS.lang, '<b>fr</b>');
+    const { result } = renderHook(() => useLang(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.lang).toBe('en'));
+  });
+
+  it('remembers a chosen language', async () => {
+    const kv = memoryKV();
+    const { result } = renderHook(() => useLang(), { wrapper: wrap(kv) });
+    act(() => result.current.setLang('vi'));
+    expect(result.current.lang).toBe('vi');
+    expect(kv.get(KEYS.lang)).toBe('vi');
+    await waitFor(() => expect(document.documentElement.lang).toBe('vi'));
+  });
+
+  it('throws a clear error outside the provider', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => renderHook(() => useLang())).toThrow(/LangProvider/);
+  });
+});
+```
+
+`apps/web/test/unit/theme.test.tsx`:
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { KVProvider } from '../../src/lib/kv';
+import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+import { ThemeProvider, useTheme } from '../../src/theme/provider';
+import { applyTheme, parseTheme, readThemeAttr } from '../../src/theme/theme';
+
+const root = document.documentElement;
+
+function wrap(kv: KV) {
+  return ({ children }: { children: ReactNode }) => (
+    <KVProvider kv={kv}>
+      <ThemeProvider>{children}</ThemeProvider>
+    </KVProvider>
+  );
+}
+
+function stubScheme(light: boolean) {
+  const listeners = new Set<() => void>();
+  const mql = {
+    matches: light,
+    addEventListener: (_: string, l: () => void) => listeners.add(l),
+    removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+  };
+  vi.spyOn(window, 'matchMedia').mockImplementation(() => mql as unknown as MediaQueryList);
+  return {
+    set(next: boolean) {
+      mql.matches = next;
+      for (const l of listeners) l();
+    },
+  };
+}
+
+beforeEach(() => root.removeAttribute('data-theme'));
+afterEach(() => {
+  vi.restoreAllMocks();
+  root.removeAttribute('data-theme');
+});
+
+describe('theme', () => {
+  it('parses only light and dark; anything else is system', () => {
+    expect(parseTheme('light')).toBe('light');
+    expect(parseTheme('dark')).toBe('dark');
+    for (const raw of ['system', '', null, undefined, 'Dark', ' light', '"><script>'])
+      expect(parseTheme(raw)).toBe('system');
+  });
+
+  it('sets data-theme only for an explicit choice', () => {
+    applyTheme('light');
+    expect(root.getAttribute('data-theme')).toBe('light');
+    applyTheme('system');
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    root.setAttribute('data-theme', 'purple');
+    expect(readThemeAttr()).toBe('system');
+  });
+
+  it('a stored garbage theme falls back to system', async () => {
+    stubScheme(false);
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'sepia"><img src=x>');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.choice).toBe('system'));
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(result.current.resolved).toBe('dark');
+  });
+
+  it('applies the stored theme, then remembers a new choice', async () => {
+    stubScheme(false);
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'light');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.choice).toBe('light'));
+    expect(root.getAttribute('data-theme')).toBe('light');
+    act(() => result.current.setChoice('dark'));
+    expect(result.current.choice).toBe('dark');
+    expect(root.getAttribute('data-theme')).toBe('dark');
+    expect(kv.get(KEYS.theme)).toBe('dark');
+    act(() => result.current.setChoice('system'));
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(kv.get(KEYS.theme)).toBe('system');
+  });
+
+  it('resolves system to the colour scheme of the device, live', async () => {
+    const scheme = stubScheme(true);
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(memoryKV()) });
+    await waitFor(() => expect(result.current.resolved).toBe('light'));
+    act(() => scheme.set(false));
+    expect(result.current.resolved).toBe('dark');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- lang theme`
+Expected: FAIL (`Cannot find module '../../src/i18n/provider'`).
+
+- [ ] **Step 5: Viết `kv.tsx`, `LangProvider`, theme và `ui.messages.ts`**
+
+`apps/web/src/lib/kv.tsx`:
+
+```tsx
+'use client';
+
+import { createContext, type ReactNode, use, useState } from 'react';
+import { type KV, safeKV } from './store';
+
+const KVContext = createContext<KV | null>(null);
+
+/** localStorage behind safeKV; while prerendering there is no window, so it is memory only. */
+export function KVProvider({ kv, children }: { kv?: KV; children: ReactNode }) {
+  const [value] = useState<KV>(() => kv ?? safeKV(() => window.localStorage));
+  return <KVContext value={value}>{children}</KVContext>;
+}
+
+export function useKV(): KV {
+  const kv = use(KVContext);
+  if (!kv) throw new Error('useKV must be used inside <KVProvider>');
+  return kv;
+}
+```
+
+`apps/web/src/i18n/provider.tsx`:
+
+```tsx
+'use client';
+
+import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useState } from 'react';
+import { useKV } from '@/lib/kv';
+import { KEYS } from '@/lib/store';
+import { detectLang, type Lang, type Messages, type Params, translate } from './core';
+
+interface LangValue {
+  lang: Lang;
+  setLang(l: Lang): void;
+}
+
+const LangContext = createContext<LangValue | null>(null);
+
+/**
+ * Quyết định 15: the static HTML is English. After mount the stored choice, or else the browser language, wins.
+ */
+export function LangProvider({ children }: { children: ReactNode }) {
+  const kv = useKV();
+  const [lang, setLangState] = useState<Lang>('en');
+
+  useEffect(() => {
+    setLangState(detectLang(kv.get(KEYS.lang), navigator.languages ?? []));
+  }, [kv]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const setLang = useCallback(
+    (l: Lang) => {
+      kv.set(KEYS.lang, l);
+      setLangState(l);
+    },
+    [kv],
+  );
+
+  const value = useMemo(() => ({ lang, setLang }), [lang, setLang]);
+  return <LangContext value={value}>{children}</LangContext>;
+}
+
+export function useLang(): LangValue {
+  const v = use(LangContext);
+  if (!v) throw new Error('useLang must be used inside <LangProvider>');
+  return v;
+}
+
+export function useT<K extends string>(m: Messages<K>): (key: K, params?: Params) => string {
+  const { lang } = useLang();
+  return useCallback((key: K, params?: Params) => translate(m, lang, key, params), [m, lang]);
+}
+```
+
+`apps/web/src/theme/theme.ts`:
+
+```ts
+export type ThemeChoice = 'system' | 'light' | 'dark';
+export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
+
+/** Anything but an exact `light` or `dark` is `system` (Review Focus 2: storage may hold garbage). */
+export function parseTheme(raw: string | null | undefined): ThemeChoice {
+  return raw === 'light' || raw === 'dark' ? raw : 'system';
+}
+
+const listeners = new Set<() => void>();
+
+/** The theme in force is the `data-theme` attribute of <html>; boot-script.tsx sets it before the first paint. */
+export function readThemeAttr(): ThemeChoice {
+  return parseTheme(document.documentElement.getAttribute('data-theme'));
+}
+
+export function subscribeTheme(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+/** `system` removes the attribute so the CSS media query decides (Quyết định 14). */
+export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
+  if (choice === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', choice);
+  for (const l of listeners) l();
+}
+```
+
+`apps/web/src/theme/provider.tsx`:
+
+```tsx
+'use client';
+
+import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useKV } from '@/lib/kv';
+import { KEYS } from '@/lib/store';
+import { applyTheme, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
+
+interface ThemeValue {
+  choice: ThemeChoice;
+  /** What the page shows now: an explicit choice, or the device's colour scheme under `system`. */
+  resolved: 'light' | 'dark';
+  setChoice(c: ThemeChoice): void;
+}
+
+const ThemeContext = createContext<ThemeValue | null>(null);
+const LIGHT = '(prefers-color-scheme: light)';
+
+function subscribeScheme(cb: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const mql = window.matchMedia(LIGHT);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+
+function prefersLight(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(LIGHT).matches;
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const kv = useKV();
+  const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => 'system' as const);
+  const light = useSyncExternalStore(subscribeScheme, prefersLight, () => false);
+
+  // The boot script already did this; doing it again keeps a page whose inline script was blocked correct.
+  useEffect(() => {
+    applyTheme(parseTheme(kv.get(KEYS.theme)));
+  }, [kv]);
+
+  const setChoice = useCallback(
+    (c: ThemeChoice) => {
+      kv.set(KEYS.theme, c);
+      applyTheme(c);
+    },
+    [kv],
+  );
+
+  const value = useMemo<ThemeValue>(
+    () => ({ choice, resolved: choice === 'system' ? (light ? 'light' : 'dark') : choice, setChoice }),
+    [choice, light, setChoice],
+  );
+  return <ThemeContext value={value}>{children}</ThemeContext>;
+}
+
+export function useTheme(): ThemeValue {
+  const v = use(ThemeContext);
+  if (!v) throw new Error('useTheme must be used inside <ThemeProvider>');
+  return v;
+}
+```
+
+`apps/web/src/messages/ui.messages.ts` (chuỗi của primitive, khung và motion; Task 6–9 dùng):
+
+```ts
+import { defineMessages } from '@/i18n/core';
+
+export const messages = defineMessages(
+  {
+    skip: 'Skip to content',
+    home: 'Atropyle home',
+    menu: 'Menu',
+    theme: 'Theme',
+    themeSystem: 'System',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    language: 'Language',
+    langEn: 'English',
+    langVi: 'Tiếng Việt',
+    holdHint: 'Hold to confirm, or press Enter',
+    holdKeep: 'Keep holding',
+    holdDone: 'Confirmed',
+    copyAddress: 'Copy address',
+    copyText: 'Copy {what}',
+    viewOn: 'View on {name}',
+    newTab: '(opens in a new tab)',
+    inTime: 'in {time}',
+    timeAgo: '{time} ago',
+    rawAmount: '{raw} base units',
+    qrOf: 'QR code for {what}',
+    threadOf: 'Vault thread: {state}',
+    untrustedTitle: 'Text from a token contract. Anyone can write anything there.',
+    hapticsOn: 'Vibrate on check-in',
+    footerSource: 'Source code',
+    footerXLayer: 'Built on X Layer',
+    footerLicense: 'MIT licence',
+    footerPrivacy: 'Privacy',
+    footerVersion: 'Version {version}',
+    onchainBadge: '100% on-chain',
+  },
+  {
+    skip: 'Tới nội dung chính',
+    home: 'Trang chủ Atropyle',
+    menu: 'Menu',
+    theme: 'Giao diện',
+    themeSystem: 'Theo hệ thống',
+    themeLight: 'Sáng',
+    themeDark: 'Tối',
+    language: 'Ngôn ngữ',
+    langEn: 'English',
+    langVi: 'Tiếng Việt',
+    holdHint: 'Nhấn giữ để xác nhận, hoặc bấm Enter',
+    holdKeep: 'Giữ thêm chút nữa',
+    holdDone: 'Đã xác nhận',
+    copyAddress: 'Sao chép địa chỉ',
+    copyText: 'Sao chép {what}',
+    viewOn: 'Xem trên {name}',
+    newTab: '(mở tab mới)',
+    inTime: 'sau {time}',
+    timeAgo: '{time} trước',
+    rawAmount: '{raw} đơn vị gốc',
+    qrOf: 'Mã QR của {what}',
+    threadOf: 'Sợi chỉ của vault: {state}',
+    untrustedTitle: 'Chữ lấy từ contract token. Ai cũng có thể ghi bất cứ gì vào đó.',
+    hapticsOn: 'Rung khi điểm danh',
+    footerSource: 'Mã nguồn',
+    footerXLayer: 'Chạy trên X Layer',
+    footerLicense: 'Giấy phép MIT',
+    footerPrivacy: 'Quyền riêng tư',
+    footerVersion: 'Phiên bản {version}',
+    onchainBadge: '100% on-chain',
+  },
+);
+```
+
+- [ ] **Step 6: Chạy test, typecheck và Biome**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+```
+
+Expected: PASS (lang 5, theme 5, store 7, sdk-copies 6, links 3, address 4, i18n 5, format 6, cộng test của Task 2–4).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/src/i18n apps/web/src/lib apps/web/src/theme/theme.ts apps/web/src/theme/provider.tsx apps/web/src/messages apps/web/test/helpers/render.tsx apps/web/test/unit/i18n.test.ts apps/web/test/unit/format.test.ts apps/web/test/unit/store.test.ts apps/web/test/unit/sdk-copies.test.ts apps/web/test/unit/links.test.ts apps/web/test/unit/address.test.ts apps/web/test/unit/lang.test.tsx apps/web/test/unit/theme.test.tsx
+git commit -m "feat(web): i18n, storage, theme and shared helpers for the Next app" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: Motion — token, provider, View Transitions, rung và `HoldButton`
+
+**Files:**
+- Create: `apps/web/src/motion/tokens.ts`, `apps/web/src/motion/features.ts`, `apps/web/src/motion/provider.tsx`, `apps/web/src/motion/view-transition.tsx`, `apps/web/src/motion/haptics.ts`, `apps/web/src/motion/use-hold.ts`, `apps/web/src/ui/hold-button.tsx`
+- Test: `apps/web/test/unit/motion-tokens.test.ts`, `apps/web/test/unit/motion.test.tsx`, `apps/web/test/unit/hold-button.test.tsx`
+- Modify: `apps/web/test/setup.ts`, `apps/web/package.json`, `package-lock.json`
+
+**Interfaces:**
+- Consumes: Task 3 (`--ease-spring` trong `globals.css`, lớp `bg-thread`, `bg-danger`, `border-line-strong`), Task 5 (`useKV`, `KEYS.haptics`, `useT`, `ui.messages`, `cn`).
+- Produces:
+  - `src/motion/tokens.ts`: `DURATION = { instant: 90, quick: 160, base: 240, slow: 420, story: 720 }`; `type DurationName`; `sec(ms: number): number`; `EASE_OUT_EXPO`, `EASE_IN_OUT_SINE` (bộ 4 số); `SPRING = { type: 'spring', stiffness: 380, damping: 32, mass: 1 }`; `SPRING_MS = 443`; `HOLD_MS = 600`; `REDUCED_MS = 120`; `springAt(t: number): number`; `springStops(samples?: number): number[]`.
+  - `src/motion/provider.tsx`: `MotionProvider({ children })` (`MotionConfig reducedMotion="user"` + `LazyMotion strict` nạp `domMax` lười); `usePrefersReducedMotion(): boolean` (false lúc prerender và hydrate).
+  - `src/motion/view-transition.tsx`: `THREAD_VT_NAME = 'atropyle-thread'`; `SharedThread({ children })` (bọc `<ViewTransition name>` của React 19.3); `withViewTransition(update: () => void): void` (crossfade toàn trang, bỏ qua khi trình duyệt không hỗ trợ hoặc reduced motion).
+  - `src/motion/haptics.ts`: `canVibrate(): boolean`; `useHaptics(): { supported: boolean; enabled: boolean; setEnabled(on: boolean): void; pulse(): void }` (12 ms, tắt được, lưu ở `KEYS.haptics`).
+  - `src/motion/use-hold.ts`: `type HoldPhase = 'idle' | 'holding' | 'done'`; `interface HoldOptions { duration?: number; disabled?: boolean; onConfirm(): void; onCancel?(progress: number): void }`; `useHold(o: HoldOptions): { phase: HoldPhase; bind: HoldBind }`.
+  - `src/ui/hold-button.tsx`: `interface HoldButtonProps` (thuộc tính `<button>` trừ `onClick`, cộng `onConfirm(): void`, `children: ReactNode`, `icon?: ReactNode`, `tone?: 'thread' | 'danger'`, `size?: 'md' | 'lg'`, `duration?: number`, `hint?: string`); `HoldButton(props)`.
+  - `test/setup.ts` đặt `MotionGlobalConfig.skipAnimations = true`.
+
+- [ ] **Step 1: Cài `motion`**
+
+```bash
+npm install -E -w apps/web motion@14.14.0
+npm run lockfile:check -- --fix
+npm run lockfile:check
+```
+
+Expected: `every dependency resolves.`
+
+Sửa `apps/web/test/setup.ts`:
+
+```ts
+import { cleanup } from '@testing-library/react';
+import { MotionGlobalConfig } from 'motion/react';
+import { afterEach } from 'vitest';
+
+// Animations finish instantly in unit tests; timing is tested through timers, never through frames.
+MotionGlobalConfig.skipAnimations = true;
+
+afterEach(() => {
+  cleanup();
+});
+```
+
+- [ ] **Step 2: Viết test hỏng cho token và spring**
+
+`apps/web/test/unit/motion-tokens.test.ts`:
+
+```ts
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { DURATION, HOLD_MS, SPRING, SPRING_MS, springAt, springStops } from '../../src/motion/tokens';
+
+const css = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
+
+describe('motion tokens (spec §4.4)', () => {
+  it('has the five durations, the spring and the 600 ms hold', () => {
+    expect(DURATION).toEqual({ instant: 90, quick: 160, base: 240, slow: 420, story: 720 });
+    expect(SPRING).toMatchObject({ stiffness: 380, damping: 32, mass: 1 });
+    expect(HOLD_MS).toBe(600);
+  });
+
+  it('springAt is the closed form of the spring: starts at rest, overshoots about 1 %, settles at 1', () => {
+    expect(springAt(0)).toBe(0);
+    const peak = Math.max(...Array.from({ length: 500 }, (_, i) => springAt(i / 1000)));
+    expect(peak).toBeGreaterThan(1.01);
+    expect(peak).toBeLessThan(1.012);
+    expect(Math.abs(springAt(SPRING_MS / 1000) - 1)).toBeLessThan(0.0015);
+    expect(Math.abs(springAt(2) - 1)).toBeLessThan(1e-9);
+  });
+
+  it('the CSS --ease-spring stops are the spring sampled 25 times over 443 ms (Quyết định 11)', () => {
+    const m = /--ease-spring:\s*linear\(([^)]*)\)/.exec(css);
+    expect(m).not.toBeNull();
+    const stops = (m?.[1] ?? '').split(',').map((s) => Number(s.trim()));
+    expect(stops).toEqual(springStops());
+    for (let i = 0; i < 24; i++) {
+      expect(Math.abs(stops[i] - springAt((i * SPRING_MS) / 1000 / 24)), `stop ${i}`).toBeLessThan(0.0006);
+    }
+    expect(stops[24]).toBe(1);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- motion-tokens`
+Expected: FAIL (`Cannot find module '../../src/motion/tokens'`).
+
+- [ ] **Step 3: Viết `tokens.ts`**
+
+`apps/web/src/motion/tokens.ts`:
+
+```ts
+/** Motion tokens (spec §4.4). Durations are milliseconds; motion takes seconds, hence `sec`. */
+export const DURATION = { instant: 90, quick: 160, base: 240, slow: 420, story: 720 } as const;
+export type DurationName = keyof typeof DURATION;
+
+export const sec = (ms: number): number => ms / 1000;
+
+/** `out-expo` for things that appear, `in-out-sine` for breathing (globals.css has the same curves). */
+export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+export const EASE_IN_OUT_SINE = [0.37, 0, 0.63, 1] as const;
+
+/** The default spring. globals.css `--ease-spring` is the same curve for CSS (Quyết định 11). */
+export const SPRING = { type: 'spring', stiffness: 380, damping: 32, mass: 1 } as const;
+/** Where the CSS approximation of SPRING ends: |x − 1| < 0.0015 from here on. */
+export const SPRING_MS = 443;
+/** The check-in ritual: hold 600 ms (spec §4.6). */
+export const HOLD_MS = 600;
+/** Under prefers-reduced-motion every transition becomes a crossfade of this length (spec §4.4). */
+export const REDUCED_MS = 120;
+
+/** Position of SPRING released from rest at 0 towards 1, `t` in seconds (underdamped closed form). */
+export function springAt(t: number): number {
+  const { stiffness: k, damping: c, mass: m } = SPRING;
+  const wn = Math.sqrt(k / m);
+  const zeta = c / (2 * Math.sqrt(k * m));
+  const wd = wn * Math.sqrt(1 - zeta * zeta);
+  return 1 - Math.exp(-zeta * wn * t) * (Math.cos(wd * t) + ((zeta * wn) / wd) * Math.sin(wd * t));
+}
+
+/** The stops of CSS `linear()`: `samples` points over SPRING_MS, four decimals, the last pinned to 1. */
+export function springStops(samples = 25): number[] {
+  return Array.from({ length: samples }, (_, i) =>
+    i === samples - 1 ? 1 : Math.round(springAt((i * SPRING_MS) / 1000 / (samples - 1)) * 1e4) / 1e4,
+  );
+}
+```
+
+Run: `npm test -w apps/web -- motion-tokens`
+Expected: PASS (3 test).
+
+- [ ] **Step 4: Viết test hỏng cho provider, View Transitions và rung**
+
+`apps/web/test/unit/motion.test.tsx`:
+
+```tsx
+import { act, render, renderHook, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { KVProvider } from '../../src/lib/kv';
+import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+import { useHaptics } from '../../src/motion/haptics';
+import { MotionProvider, usePrefersReducedMotion } from '../../src/motion/provider';
+import { withViewTransition } from '../../src/motion/view-transition';
+
+function stubReduced(reduce: boolean) {
+  const mql = { matches: reduce, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (q: string) => ({ ...mql, matches: q.includes('reduce') ? reduce : false }) as unknown as MediaQueryList,
+  );
+}
+
+type StartVT = (cb: () => void) => unknown;
+function stubViewTransitions(): Mock<StartVT> {
+  const start = vi.fn<StartVT>((cb) => {
+    cb();
+    return {};
+  });
+  Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
+  return start;
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(document, 'startViewTransition');
+  Reflect.deleteProperty(navigator, 'vibrate');
+});
+
+describe('MotionProvider', () => {
+  it('renders its children', () => {
+    render(
+      <MotionProvider>
+        <p>inside</p>
+      </MotionProvider>,
+    );
+    expect(screen.getByText('inside')).toBeTruthy();
+  });
+
+  it('reports the reduced motion preference after mount', () => {
+    stubReduced(true);
+    const { result } = renderHook(() => usePrefersReducedMotion());
+    expect(result.current).toBe(true);
+  });
+});
+
+describe('withViewTransition', () => {
+  it('runs the update directly when the browser has no View Transitions', () => {
+    const update = vi.fn();
+    withViewTransition(update);
+    expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('runs the update inside a view transition when motion is allowed', () => {
+    stubReduced(false);
+    const start = stubViewTransitions();
+    const update = vi.fn();
+    withViewTransition(update);
+    expect(start).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('skips the transition under reduced motion', () => {
+    stubReduced(true);
+    const start = stubViewTransitions();
+    const update = vi.fn();
+    withViewTransition(update);
+    expect(start).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledOnce();
+  });
+});
+
+describe('useHaptics', () => {
+  function wrap(kv: KV) {
+    return ({ children }: { children: ReactNode }) => <KVProvider kv={kv}>{children}</KVProvider>;
+  }
+
+  it('vibrates 12 ms when supported and enabled, and can be turned off', () => {
+    const vibrate = vi.fn(() => true);
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
+    const kv = memoryKV();
+    const { result } = renderHook(() => useHaptics(), { wrapper: wrap(kv) });
+    expect(result.current.supported).toBe(true);
+    act(() => result.current.pulse());
+    expect(vibrate).toHaveBeenCalledWith(12);
+    act(() => result.current.setEnabled(false));
+    expect(kv.get(KEYS.haptics)).toBe('0');
+    act(() => result.current.pulse());
+    expect(vibrate).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing on a device without vibration', () => {
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: undefined });
+    const { result } = renderHook(() => useHaptics(), { wrapper: wrap(memoryKV()) });
+    expect(result.current.supported).toBe(false);
+    expect(() => result.current.pulse()).not.toThrow();
+  });
+
+  it('remembers that vibration was turned off', () => {
+    const kv = memoryKV();
+    kv.set(KEYS.haptics, '0');
+    const { result } = renderHook(() => useHaptics(), { wrapper: wrap(kv) });
+    expect(result.current.enabled).toBe(false);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- motion.test`
+Expected: FAIL (`Cannot find module '../../src/motion/haptics'`).
+
+- [ ] **Step 5: Viết features, provider, View Transitions và rung**
+
+`apps/web/src/motion/features.ts`:
+
+```ts
+// Loaded with import() by MotionProvider, so the animation engine never sits in the first-load bundle.
+export { domMax as default } from 'motion/react';
+```
+
+`apps/web/src/motion/provider.tsx`:
+
+```tsx
+'use client';
+
+import { LazyMotion, MotionConfig } from 'motion/react';
+import { type ReactNode, useSyncExternalStore } from 'react';
+import { SPRING } from './tokens';
+
+const loadFeatures = () => import('./features').then((r) => r.default);
+
+/**
+ * `reducedMotion="user"`: motion drops transform and layout animations for users who ask for less motion, and
+ * keeps opacity. `strict` throws on a `motion.*` component, so every animated element is an `m.*` and the engine
+ * stays lazy.
+ */
+export function MotionProvider({ children }: { children: ReactNode }) {
+  return (
+    <MotionConfig reducedMotion="user" transition={SPRING}>
+      <LazyMotion features={loadFeatures} strict>
+        {children}
+      </LazyMotion>
+    </MotionConfig>
+  );
+}
+
+const REDUCE = '(prefers-reduced-motion: reduce)';
+
+function subscribe(cb: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const mql = window.matchMedia(REDUCE);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+
+function read(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(REDUCE).matches;
+}
+
+/** False while prerendering and hydrating (no mismatch), then the live preference. */
+export function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(subscribe, read, () => false);
+}
+```
+
+`apps/web/src/motion/view-transition.tsx`:
+
+```tsx
+'use client';
+
+import { type ReactNode, ViewTransition } from 'react';
+import { flushSync } from 'react-dom';
+
+/** One element per page carries this name; globals.css gives its group the spring (spec §4.1 "shared element"). */
+export const THREAD_VT_NAME = 'atropyle-thread';
+
+/** Wrap the page's main Thread: it morphs from one route to the next instead of cutting. */
+export function SharedThread({ children }: { children: ReactNode }) {
+  return <ViewTransition name={THREAD_VT_NAME}>{children}</ViewTransition>;
+}
+
+type StartViewTransition = (update: () => void) => unknown;
+
+/**
+ * A whole-page crossfade around a synchronous DOM update (the theme switch). Without the API, or when the user
+ * prefers reduced motion, the update simply runs.
+ */
+export function withViewTransition(update: () => void): void {
+  const start = (document as { startViewTransition?: StartViewTransition }).startViewTransition;
+  const reduce =
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (typeof start !== 'function' || reduce) {
+    update();
+    return;
+  }
+  start.call(document, () => flushSync(update));
+}
+```
+
+`apps/web/src/motion/haptics.ts`:
+
+```ts
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useKV } from '@/lib/kv';
+import { KEYS } from '@/lib/store';
+
+const PULSE_MS = 12;
+
+export function canVibrate(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+}
+
+/** A 12 ms pulse on check-in and after signing (spec §4.4), on devices that can, unless turned off. */
+export function useHaptics(): { supported: boolean; enabled: boolean; setEnabled(on: boolean): void; pulse(): void } {
+  const kv = useKV();
+  const [enabled, setEnabledState] = useState(true);
+  const [supported, setSupported] = useState(false);
+
+  useEffect(() => {
+    setEnabledState(kv.get(KEYS.haptics) !== '0');
+    setSupported(canVibrate());
+  }, [kv]);
+
+  const setEnabled = useCallback(
+    (on: boolean) => {
+      kv.set(KEYS.haptics, on ? '1' : '0');
+      setEnabledState(on);
+    },
+    [kv],
+  );
+
+  // Read at the moment of the pulse: the setting may have changed in another component (the settings menu).
+  const pulse = useCallback(() => {
+    if (kv.get(KEYS.haptics) !== '0' && canVibrate()) navigator.vibrate(PULSE_MS);
+  }, [kv]);
+
+  return useMemo(() => ({ supported, enabled, setEnabled, pulse }), [supported, enabled, setEnabled, pulse]);
+}
+```
+
+Run: `npm test -w apps/web -- motion.test`
+Expected: PASS (8 test).
+
+- [ ] **Step 6: Viết test hỏng cho `HoldButton`**
+
+`apps/web/test/unit/hold-button.test.tsx`:
+
+```tsx
+import { act, fireEvent, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HoldButton } from '../../src/ui/hold-button';
+import { renderWithProviders } from '../helpers/render';
+
+function setup(props: { disabled?: boolean } = {}) {
+  const onConfirm = vi.fn();
+  renderWithProviders(
+    <HoldButton onConfirm={onConfirm} disabled={props.disabled}>
+      Check in
+    </HoldButton>,
+  );
+  return { onConfirm, button: screen.getByRole('button', { name: 'Check in' }) };
+}
+
+const press = (el: HTMLElement) => fireEvent.pointerDown(el, { button: 0 });
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('HoldButton', () => {
+  it('confirms once after a 600 ms hold', () => {
+    const { onConfirm, button } = setup();
+    press(button);
+    expect(button.getAttribute('data-phase')).toBe('holding');
+    act(() => vi.advanceTimersByTime(599));
+    expect(onConfirm).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(button.getAttribute('data-phase')).toBe('done');
+    fireEvent.pointerUp(button);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(button.getAttribute('data-phase')).toBe('idle');
+  });
+
+  it('cancels when released early and says to keep holding', () => {
+    const { onConfirm, button } = setup();
+    press(button);
+    act(() => vi.advanceTimersByTime(300));
+    fireEvent.pointerUp(button);
+    expect(button.getAttribute('data-phase')).toBe('idle');
+    expect(screen.getByText('Keep holding')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(2000));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByText('Hold to confirm, or press Enter')).toBeTruthy();
+  });
+
+  it('cancels when the pointer leaves or the browser takes it over', () => {
+    const { onConfirm, button } = setup();
+    press(button);
+    act(() => vi.advanceTimersByTime(200));
+    fireEvent.pointerLeave(button);
+    press(button);
+    act(() => vi.advanceTimersByTime(200));
+    fireEvent.pointerCancel(button);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('ignores the right mouse button, a plain mouse click, and the long-press menu', () => {
+    const { onConfirm, button } = setup();
+    fireEvent.pointerDown(button, { button: 2 });
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.click(button, { detail: 1 });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(fireEvent.contextMenu(button)).toBe(false);
+  });
+
+  it('HoldButton keyboard and assistive activation', () => {
+    const { onConfirm, button } = setup();
+    // Enter confirms at once (spec §4.6) and only once, even when pressed again or auto-repeated.
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(button, { key: 'Enter', repeat: true });
+    fireEvent.keyDown(button, { key: 'Enter' });
+    fireEvent.click(button, { detail: 0 });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(2000));
+
+    // Space is a hold: released early it cancels, and the click the browser sends after it does not confirm.
+    fireEvent.keyDown(button, { key: ' ' });
+    act(() => vi.advanceTimersByTime(200));
+    fireEvent.keyUp(button, { key: ' ' });
+    fireEvent.click(button, { detail: 0 });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(2000));
+
+    // Held for 600 ms it confirms.
+    fireEvent.keyDown(button, { key: ' ' });
+    act(() => vi.advanceTimersByTime(600));
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+    fireEvent.keyUp(button, { key: ' ' });
+    act(() => vi.advanceTimersByTime(2000));
+
+    // A click with detail 0 comes from assistive technology (screen reader, switch access): it confirms.
+    fireEvent.click(button, { detail: 0 });
+    expect(onConfirm).toHaveBeenCalledTimes(3);
+  });
+
+  it('does nothing while disabled, and a hold in progress stops when it becomes disabled', () => {
+    const onConfirm = vi.fn();
+    const { rerender } = renderWithProviders(<HoldButton onConfirm={onConfirm}>Release</HoldButton>);
+    const button = screen.getByRole('button', { name: 'Release' });
+    press(button);
+    act(() => vi.advanceTimersByTime(300));
+    rerender(
+      <HoldButton onConfirm={onConfirm} disabled>
+        Release
+      </HoldButton>,
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.keyDown(button, { key: 'Enter' });
+    fireEvent.click(button, { detail: 0 });
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('describes how to use it', () => {
+    const { button } = setup();
+    const id = button.getAttribute('aria-describedby');
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id ?? '')?.textContent).toBe('Hold to confirm, or press Enter');
+  });
+});
+```
+
+
+Run: `npm test -w apps/web -- hold-button`
+Expected: FAIL (`Cannot find module '../../src/ui/hold-button'`).
+
+- [ ] **Step 7: Viết `useHold` và `HoldButton`**
+
+`apps/web/src/motion/use-hold.ts`:
+
+```ts
+'use client';
+
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { HOLD_MS } from './tokens';
+
+export type HoldPhase = 'idle' | 'holding' | 'done';
+
+export interface HoldOptions {
+  duration?: number;
+  disabled?: boolean;
+  onConfirm(): void;
+  /** Released early; `progress` is the share of the hold that was done (0–1). */
+  onCancel?(progress: number): void;
+}
+
+export interface HoldBind {
+  onPointerDown(e: PointerEvent<HTMLElement>): void;
+  onPointerUp(): void;
+  onPointerLeave(): void;
+  onPointerCancel(): void;
+  onKeyDown(e: KeyboardEvent<HTMLElement>): void;
+  onKeyUp(e: KeyboardEvent<HTMLElement>): void;
+  onClick(e: MouseEvent<HTMLElement>): void;
+  onContextMenu(e: MouseEvent<HTMLElement>): void;
+  onBlur(): void;
+}
+
+type Timer = { current: ReturnType<typeof setTimeout> | null };
+
+function stop(t: Timer): void {
+  if (t.current !== null) clearTimeout(t.current);
+  t.current = null;
+}
+
+/** After a confirmation the control rests this long before it accepts another. */
+const SETTLE_MS = 900;
+/** A click this soon after a key we handled is the browser's own activation of that key, not a new action. */
+const KEY_CLICK_MS = 250;
+
+/**
+ * Quyết định 20. Pointer: hold `duration` ms to confirm; release, leave or cancel before that and it is cancelled.
+ * Enter confirms at once. Space is a hold. A click with `detail === 0` comes from assistive technology and
+ * confirms; a mouse click (detail ≥ 1) does nothing. The timer, not the animation, decides.
+ */
+export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCancel }: HoldOptions): {
+  phase: HoldPhase;
+  bind: HoldBind;
+} {
+  const [phase, setPhase] = useState<HoldPhase>('idle');
+  const hold: Timer = useRef(null);
+  const settle: Timer = useRef(null);
+  const startedAt = useRef(0);
+  const settling = useRef(false);
+  const keyAt = useRef(-Infinity);
+  const latest = useRef({ onConfirm, onCancel });
+
+  useEffect(() => {
+    latest.current = { onConfirm, onCancel };
+  });
+
+  const confirm = useCallback(() => {
+    if (settling.current) return;
+    stop(hold);
+    settling.current = true;
+    setPhase('done');
+    latest.current.onConfirm();
+    stop(settle);
+    settle.current = setTimeout(() => {
+      settling.current = false;
+      setPhase('idle');
+    }, SETTLE_MS);
+  }, []);
+
+  const start = useCallback(() => {
+    if (disabled || settling.current || hold.current !== null) return;
+    startedAt.current = Date.now();
+    setPhase('holding');
+    hold.current = setTimeout(confirm, duration);
+  }, [disabled, duration, confirm]);
+
+  const cancel = useCallback(() => {
+    if (hold.current === null) return;
+    stop(hold);
+    setPhase('idle');
+    latest.current.onCancel?.(Math.min(1, (Date.now() - startedAt.current) / duration));
+  }, [duration]);
+
+  useEffect(() => {
+    if (disabled) cancel();
+  }, [disabled, cancel]);
+
+  useEffect(
+    () => () => {
+      stop(hold);
+      stop(settle);
+    },
+    [],
+  );
+
+  const bind = useMemo<HoldBind>(
+    () => ({
+      onPointerDown: (e) => {
+        if (e.button === 0) start();
+      },
+      onPointerUp: cancel,
+      onPointerLeave: cancel,
+      onPointerCancel: cancel,
+      onKeyDown: (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          keyAt.current = Date.now();
+          if (!e.repeat && !disabled) confirm();
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          keyAt.current = Date.now();
+          if (!e.repeat) start();
+        }
+      },
+      onKeyUp: (e) => {
+        if (e.key !== ' ') return;
+        e.preventDefault();
+        keyAt.current = Date.now();
+        cancel();
+      },
+      onClick: (e) => {
+        if (e.detail !== 0 || disabled || Date.now() - keyAt.current < KEY_CLICK_MS) return;
+        confirm();
+      },
+      onContextMenu: (e) => {
+        e.preventDefault();
+      },
+      onBlur: cancel,
+    }),
+    [start, cancel, confirm, disabled],
+  );
+
+  return { phase, bind };
+}
+```
+
+`apps/web/src/ui/hold-button.tsx`:
+
+```tsx
+'use client';
+
+import { m, useAnimate } from 'motion/react';
+import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useState } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as ui } from '@/messages/ui.messages';
+import { usePrefersReducedMotion } from '@/motion/provider';
+import { DURATION, EASE_OUT_EXPO, HOLD_MS, SPRING, sec } from '@/motion/tokens';
+import { useHold } from '@/motion/use-hold';
+
+export interface HoldButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type'> {
+  onConfirm(): void;
+  children: ReactNode;
+  icon?: ReactNode;
+  /** `danger` for actions that cannot be undone. */
+  tone?: 'thread' | 'danger';
+  size?: 'md' | 'lg';
+  duration?: number;
+  /** Replaces the default "Hold to confirm, or press Enter". */
+  hint?: string;
+}
+
+const SIZE = {
+  md: 'h-12 px-6 text-body gap-2',
+  lg: 'h-16 px-10 text-lead gap-3',
+} as const;
+
+const TONE = {
+  thread: { fill: 'bg-thread/15', line: 'bg-thread', knot: 'bg-thread', hover: 'hover:border-thread' },
+  danger: { fill: 'bg-danger/15', line: 'bg-danger', knot: 'bg-danger', hover: 'hover:border-danger' },
+} as const;
+
+/**
+ * The check-in ritual (spec §4.6): hold to tie a knot on the thread. A thread runs under the label and tightens
+ * while held; on release before the end it slackens and the button shakes once; on confirmation a knot snaps in.
+ * Under reduced motion the fill fades in place of growing, and nothing shakes.
+ */
+export function HoldButton({
+  onConfirm,
+  children,
+  icon,
+  tone = 'thread',
+  size = 'lg',
+  duration = HOLD_MS,
+  hint,
+  disabled,
+  className,
+  ...rest
+}: HoldButtonProps) {
+  const t = useT(ui);
+  const hintId = useId();
+  const calm = usePrefersReducedMotion();
+  const [scope, animate] = useAnimate<HTMLButtonElement>();
+  const [nudges, setNudges] = useState(0);
+  const [keep, setKeep] = useState(false);
+
+  const onCancel = useCallback(() => {
+    setNudges((n) => n + 1);
+    if (!calm && scope.current) {
+      animate(scope.current, { x: [0, -5, 5, -3, 3, 0] }, { duration: sec(DURATION.slow), ease: 'easeOut' });
+    }
+  }, [calm, animate, scope]);
+
+  const { phase, bind } = useHold({ duration, disabled, onConfirm, onCancel });
+
+  useEffect(() => {
+    if (nudges === 0) return;
+    setKeep(true);
+    const id = setTimeout(() => setKeep(false), 1400);
+    return () => clearTimeout(id);
+  }, [nudges]);
+
+  const on = phase !== 'idle';
+  const grow =
+    phase === 'holding'
+      ? { duration: sec(duration), ease: 'linear' as const }
+      : { duration: sec(DURATION.quick), ease: EASE_OUT_EXPO };
+  const fill = calm ? { opacity: on ? 1 : 0 } : { scaleX: on ? 1 : 0 };
+  const c = TONE[tone];
+
+  return (
+    <span className="inline-flex flex-col items-center gap-2">
+      <button
+        {...rest}
+        {...bind}
+        ref={scope}
+        type="button"
+        disabled={disabled}
+        aria-describedby={hintId}
+        data-phase={phase}
+        className={cn(
+          'relative isolate inline-flex select-none items-center justify-center overflow-hidden rounded-full',
+          'touch-manipulation border border-line-strong bg-surface-2 font-medium text-ink',
+          'transition-[border-color,background-color] duration-150 ease-out-expo',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          !disabled && c.hover,
+          SIZE[size],
+          className,
+        )}
+      >
+        <m.span
+          aria-hidden
+          className={cn('-z-10 absolute inset-0 origin-left', c.fill)}
+          initial={false}
+          animate={fill}
+          transition={grow}
+        />
+        {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
+        <span>{children}</span>
+        <span aria-hidden className="absolute inset-x-8 bottom-2.5 h-px bg-line" />
+        <m.span
+          aria-hidden
+          className={cn('absolute inset-x-8 bottom-2.5 h-0.5 origin-left rounded-full', c.line)}
+          initial={false}
+          animate={fill}
+          transition={grow}
+        />
+        <m.span
+          aria-hidden
+          className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
+          initial={false}
+          animate={phase === 'done' ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+          transition={phase === 'done' ? SPRING : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO }}
+        />
+      </button>
+      <span id={hintId} aria-live="polite" className="text-caption text-ink-muted">
+        {phase === 'done' ? t('holdDone') : keep ? t('holdKeep') : (hint ?? t('holdHint'))}
+      </span>
+    </span>
+  );
+}
+```
+
+Câu chữ dưới nút có ba trạng thái: gợi ý (mặc định), "Keep holding" khi nhả sớm (1,4 s), "Confirmed" lúc xác nhận. Test "describes how to use it" đọc trạng thái mặc định.
+
+- [ ] **Step 8: Chạy test**
+
+Run: `npm test -w apps/web -- hold-button motion`
+Expected: PASS (hold-button 7, motion 8, motion-tokens 3).
+
+- [ ] **Step 9: Kiểm toàn app và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+git add apps/web/src/motion apps/web/src/ui/hold-button.tsx apps/web/test/setup.ts apps/web/test/unit/motion-tokens.test.ts apps/web/test/unit/motion.test.tsx apps/web/test/unit/hold-button.test.tsx apps/web/package.json package-lock.json
+git commit -m "feat(web): motion tokens, lazy motion provider, view transitions, haptics and the HoldButton" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 7: Sợi chỉ (`Thread`), glyph trạng thái và `StateBadge`
+
+Nhân vật duy nhất của ngôn ngữ hình ảnh (spec §4.1). Hình học là hàm thuần có test; component chỉ vẽ. Không đo path bằng DOM (`getPointAtLength` không có lúc prerender): sợi chỉ là đường sóng `y = 60 + 9·sin(3π·x/600)` lấy mẫu rồi nối bằng Catmull-Rom, nên vị trí nút thắt và điểm "bây giờ" tính được chính xác.
+
+| Trạng thái | Hình (viewBox 600 × 120) | Màu | Chuyển động (chỉ khi `motion-safe`) |
+|---|---|---|---|
+| `active` | Sóng từ 0 tới 600. Phần đã qua là vệt mờ, phần còn lại sáng; điểm "bây giờ" ở đầu phần sáng | `thread` | Quầng sáng đập nhịp 2,4 s |
+| `grace` | Như `active` nhưng dừng ở x = 556 rồi sờn thành 3 sợi | `grace` | Cả sợi rung 0,6 px, 0,9 s |
+| `recovery` | Sóng tới x = 352 rồi rẽ lên ví mới ở (588, 22); đường cũ còn lại dạng chấm mờ | `recovery` | Không |
+| `releasedInherit` | Sóng tới cánh cổng ở x = 400, qua cổng tách thành N nhánh; độ dày nhánh tỉ lệ phần thừa kế | `release` | Không |
+| `releasedRecover` | Qua cổng, một nhánh lên ví khôi phục | `release` | Không |
+| `expired` | Sóng ngắn tới x = 352 rồi cuộn lại | `ink-muted` | Không |
+
+Đổi `remaining` (ví dụ sau check-in) làm phần sáng co giãn bằng spring; đổi trạng thái thì vẽ lại. Reduced motion: không spring, không nhịp, không rung, chỉ đổi màu (spec §4.4).
+
+**Files:**
+- Create: `apps/web/src/thread/geometry.ts`, `apps/web/src/thread/state.ts`, `apps/web/src/thread/glyphs.tsx`, `apps/web/src/thread/thread.tsx`, `apps/web/src/thread/state-badge.tsx`
+- Test: `apps/web/test/unit/thread-geometry.test.ts`, `apps/web/test/unit/thread.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 3 (lớp màu, `animate-thread-pulse`, `animate-thread-tremble`), Task 5 (`useT`, `labels.messages` với `THREAD_STATE_KEY`, `cn`), Task 6 (`usePrefersReducedMotion`, `SPRING`, `DURATION`, `EASE_OUT_EXPO`, `sec`, `SharedThread`).
+- Produces:
+  - `src/thread/geometry.ts`: `VIEW = { w: 600, h: 120, mid: 60, amp: 9 }`; `GATE_X = 400`; `FRAY_X = 556`; `BEND_X = 352`; `RECOVERY_END: Point = [588, 22]`; `MAIN_WIDTH = 3`; `type Point = readonly [number, number]`; `waveY(x: number): number`; `smoothPath(points: readonly Point[]): string`; `waveSegment(x0: number, x1: number, samples?: number): string`; `branchWidths(weights: readonly number[], main?: number): number[]`; `branchEnds(n: number): number[]`; `interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[] }`; `interface ThreadGeometry { track: string; lit: string; now: Point | null; knots: Point[]; gate: string | null; branches: { d: string; width: number }[]; dots: Point[]; fibers: string[]; curl: string | null; ghost: string | null }`; `threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry`.
+  - `src/thread/state.ts`: `type ThreadState = StateName | 'expired'`; `THREAD_STATES: readonly ThreadState[]`; `threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState`; `threadRemaining(s: Pick<VaultStatus, 'state' | 'expired' | 'lastAlive' | 'lateAt' | 'alarmAt' | 'windowEndsAt'>, now: bigint): number`; `THREAD_COLOR`, `BADGE_COLOR: Record<ThreadState, string>`; `STATE_GLYPH: Record<ThreadState, GlyphName>`.
+  - `src/thread/glyphs.tsx`: `type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot'`; `GLYPH_NAMES`; `StateGlyph({ name, size?, className? })` (SVG 24 × 24, nét 1,5, `aria-hidden="true"`).
+  - `src/thread/thread.tsx`: `interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; className?: string }`; `Thread(props)`. Không có `label` thì là hình trang trí (`aria-hidden`); có thì là `role="img"`. `shared` bọc `SharedThread` (chỉ một sợi mỗi trang).
+  - `src/thread/state-badge.tsx`: `interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }`; `StateBadge(props)`.
+
+- [ ] **Step 1: Viết test hỏng cho hình học và trạng thái**
+
+`apps/web/test/unit/thread-geometry.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import {
+  BEND_X,
+  branchEnds,
+  branchWidths,
+  FRAY_X,
+  GATE_X,
+  RECOVERY_END,
+  smoothPath,
+  threadGeometry,
+  VIEW,
+  waveSegment,
+  waveY,
+} from '../../src/thread/geometry';
+import { THREAD_STATES, threadRemaining, threadStateOf } from '../../src/thread/state';
+
+/** Only path commands and numbers; never NaN, undefined or Infinity. */
+const VALID = /^M[0-9.\- ]+(?:[CcSsVvHhAaLl][0-9.\- ]+)*$/;
+
+describe('wave', () => {
+  it('stays inside the band and crosses the middle at the gate', () => {
+    for (let x = 0; x <= VIEW.w; x += 7) {
+      expect(waveY(x)).toBeGreaterThanOrEqual(VIEW.mid - VIEW.amp);
+      expect(waveY(x)).toBeLessThanOrEqual(VIEW.mid + VIEW.amp);
+    }
+    expect(waveY(0)).toBeCloseTo(VIEW.mid, 9);
+    expect(waveY(GATE_X)).toBeCloseTo(VIEW.mid, 9);
+  });
+
+  it('turns n points into one move and n − 1 cubic segments through them', () => {
+    const d = smoothPath([
+      [0, 60],
+      [100, 50],
+      [200, 70],
+    ]);
+    expect(d.startsWith('M0 60 C')).toBe(true);
+    expect(d.match(/C/g)).toHaveLength(2);
+    expect(d.endsWith(' 200 70')).toBe(true);
+    expect(smoothPath([])).toBe('');
+  });
+
+  it('samples every segment with the same structure, so a segment can morph into another', () => {
+    const a = waveSegment(0, 600);
+    const b = waveSegment(300, 600);
+    expect(a.match(/C/g)).toHaveLength(16);
+    expect(b.match(/C/g)).toHaveLength(16);
+    expect(b.startsWith('M300 ')).toBe(true);
+  });
+});
+
+describe('branches', () => {
+  it('keeps the shares in proportion and a single heir as thick as the thread', () => {
+    expect(branchWidths([1])).toEqual([3]);
+    const [a, b] = branchWidths([7000, 3000]);
+    expect(a / b).toBeCloseTo(7 / 3, 1);
+    expect(branchWidths([1, 1, 1, 1])).toEqual([1.5, 1.5, 1.5, 1.5]);
+  });
+
+  it('never draws a branch thinner than 1 and survives zero, negative and NaN weights', () => {
+    expect(branchWidths([9999, 1])[1]).toBe(1);
+    expect(branchWidths([0, 0])).toEqual([1, 1]);
+    expect(branchWidths([Number.NaN, -5, 10])).toEqual([1, 1, 5.2]);
+  });
+
+  it('fans the branch ends out evenly inside the view', () => {
+    expect(branchEnds(1)).toEqual([60]);
+    expect(branchEnds(3)).toEqual([24, 60, 96]);
+    for (const y of branchEnds(12)) {
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(VIEW.h);
+    }
+  });
+});
+
+describe('threadGeometry', () => {
+  it('active: the lit part is what is left, starting at the "now" point', () => {
+    const g = threadGeometry('active', { remaining: 0.25 });
+    expect(g.now?.[0]).toBe(450);
+    expect(g.now?.[1]).toBeCloseTo(waveY(450), 2);
+    expect(g.lit.startsWith('M450 ')).toBe(true);
+    expect(g.track.startsWith('M0 60 ')).toBe(true);
+    expect(g.gate).toBeNull();
+  });
+
+  it('clamps remaining to 0–1 and hides "now" when nothing is left', () => {
+    expect(threadGeometry('active', { remaining: 7 }).now?.[0]).toBe(0);
+    expect(threadGeometry('active', { remaining: -1 }).now).toBeNull();
+    expect(threadGeometry('active', { remaining: Number.NaN }).now?.[0]).toBe(0);
+  });
+
+  it('ties knots on the wave, once each, in order', () => {
+    const g = threadGeometry('active', { remaining: 0.5, knots: [0.5, 0, 0.5, 2, -1] });
+    expect(g.knots.map(([x]) => x)).toEqual([0, 300, 600]);
+    for (const [x, y] of g.knots) expect(y).toBeCloseTo(waveY(x), 2);
+  });
+
+  it('grace: frays into three strands before the end', () => {
+    const g = threadGeometry('grace', { remaining: 0.5 });
+    expect(g.fibers).toHaveLength(3);
+    for (const f of g.fibers) expect(f.startsWith(`M${FRAY_X} `)).toBe(true);
+    expect(g.now?.[0]).toBe(FRAY_X / 2);
+  });
+
+  it('recovery: bends to the new wallet and keeps the old course as a ghost', () => {
+    const g = threadGeometry('recovery');
+    expect(g.lit.endsWith(`${RECOVERY_END[0]} ${RECOVERY_END[1]}`)).toBe(true);
+    expect(g.ghost?.startsWith(`M${BEND_X} `)).toBe(true);
+    expect(g.dots).toEqual([RECOVERY_END]);
+  });
+
+  it('releasedInherit: through the gate, one branch per heir', () => {
+    const g = threadGeometry('releasedInherit', { branches: [5000, 3000, 2000] });
+    expect(g.gate).not.toBeNull();
+    expect(g.branches).toHaveLength(3);
+    expect(g.dots).toHaveLength(3);
+    expect(g.branches[0].width).toBeGreaterThan(g.branches[2].width);
+    for (const b of g.branches) expect(b.d.startsWith(`M${GATE_X} 60 `)).toBe(true);
+  });
+
+  it('releasedRecover: through the gate to one wallet', () => {
+    const g = threadGeometry('releasedRecover');
+    expect(g.branches).toHaveLength(1);
+    expect(g.dots[0][1]).toBeLessThan(VIEW.mid);
+  });
+
+  it('expired: a short thread that curls up', () => {
+    const g = threadGeometry('expired');
+    expect(g.curl).not.toBeNull();
+    expect(g.now).toBeNull();
+    expect(g.track).toBe('');
+  });
+
+  it('produces only well-formed paths for every state', () => {
+    for (const s of THREAD_STATES) {
+      const g = threadGeometry(s, { remaining: 0.3, knots: [0.1], branches: [2, 1] });
+      const all = [g.track, g.lit, g.gate, g.curl, g.ghost, ...g.fibers, ...g.branches.map((b) => b.d)];
+      for (const d of all) if (d) expect(d, `${s}: ${d}`).toMatch(VALID);
+    }
+  });
+});
+
+describe('thread state', () => {
+  const base = { lastAlive: 1000n, lateAt: 2000n, alarmAt: null, windowEndsAt: null, expired: false } as const;
+
+  it('maps an expired Drill to its own state', () => {
+    expect(threadStateOf({ state: 'active', expired: false })).toBe('active');
+    expect(threadStateOf({ state: 'active', expired: true })).toBe('expired');
+  });
+
+  it('measures what is left until the owner is late', () => {
+    expect(threadRemaining({ ...base, state: 'active' }, 1000n)).toBe(1);
+    expect(threadRemaining({ ...base, state: 'active' }, 1750n)).toBe(0.25);
+    expect(threadRemaining({ ...base, state: 'active' }, 5000n)).toBe(0);
+  });
+
+  it('measures the alarm window while an alarm runs', () => {
+    const s = { ...base, state: 'grace' as const, alarmAt: 3000n, windowEndsAt: 4000n };
+    expect(threadRemaining(s, 3500n)).toBe(0.5);
+  });
+
+  it('has nothing left once released or expired, and survives an empty period', () => {
+    expect(threadRemaining({ ...base, state: 'releasedInherit' }, 1500n)).toBe(0);
+    expect(threadRemaining({ ...base, state: 'active', expired: true }, 1500n)).toBe(0);
+    expect(threadRemaining({ ...base, state: 'active', lateAt: 1000n }, 1000n)).toBe(0);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- thread-geometry`
+Expected: FAIL (`Cannot find module '../../src/thread/geometry'`).
+
+- [ ] **Step 2: Viết `geometry.ts`, `state.ts` và `glyphs.tsx`**
+
+`apps/web/src/thread/geometry.ts`:
+
+```ts
+import type { ThreadState } from './state';
+
+export type Point = readonly [number, number];
+
+/** The Thread draws in this box; the SVG scales it to its width. */
+export const VIEW = { w: 600, h: 120, mid: 60, amp: 9 } as const;
+/** One and a half waves across the box: the wave crosses the middle at x = 0, 200, 400, 600. */
+const CYCLES = 1.5;
+/** The gate the thread passes through on release; the wave is at the middle there. */
+export const GATE_X = 400;
+/** Where a thread in grace starts to fray. */
+export const FRAY_X = 556;
+/** Where a recovery bends away, and where an expired Drill curls up. */
+export const BEND_X = 352;
+export const RECOVERY_END: Point = [588, 22];
+export const MAIN_WIDTH = 3;
+const SAMPLES = 16;
+const BRANCH_END_X = 594;
+const BAND = { top: 24, bottom: 96 } as const;
+
+const r = (n: number): number => Math.round(n * 100) / 100;
+const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1);
+
+export function waveY(x: number): number {
+  return VIEW.mid + VIEW.amp * Math.sin((x / VIEW.w) * Math.PI * 2 * CYCLES);
+}
+
+/** Catmull-Rom through the points (tension 0.5), written as cubic Bézier segments. */
+export function smoothPath(points: readonly Point[]): string {
+  if (points.length === 0) return '';
+  let d = `M${r(points[0][0])} ${r(points[0][1])}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${r(c1x)} ${r(c1y)} ${r(c2x)} ${r(c2y)} ${r(p2[0])} ${r(p2[1])}`;
+  }
+  return d;
+}
+
+/** The wave from x0 to x1, always `samples` segments long so that two segments can morph into each other. */
+export function waveSegment(x0: number, x1: number, samples = SAMPLES): string {
+  const a = Math.min(x0, x1);
+  const b = Math.max(x0, x1);
+  const pts: Point[] = Array.from({ length: samples + 1 }, (_, i) => {
+    const x = a + ((b - a) * i) / samples;
+    return [x, waveY(x)];
+  });
+  return smoothPath(pts);
+}
+
+/**
+ * Stroke width per heir: proportional to the share, scaled by √n so that the branches together look about as
+ * heavy as the thread they come from; never under 1 so a small share stays visible.
+ */
+export function branchWidths(weights: readonly number[], main = MAIN_WIDTH): number[] {
+  const w = weights.map((x) => (Number.isFinite(x) && x > 0 ? x : 0));
+  const total = w.reduce((a, b) => a + b, 0);
+  if (total === 0) return w.map(() => 1);
+  const k = main * Math.sqrt(w.length);
+  return w.map((x) => Math.max(1, r((k * x) / total)));
+}
+
+/** Y of each branch end, spread evenly over the band. */
+export function branchEnds(n: number): number[] {
+  if (n <= 1) return [VIEW.mid];
+  return Array.from({ length: n }, (_, i) => r(BAND.top + ((BAND.bottom - BAND.top) * i) / (n - 1)));
+}
+
+export interface ThreadInput {
+  /** Share of the current period still left, 0–1. Read by `active` and `grace` only. */
+  remaining?: number;
+  /** Where check-ins tied knots, as fractions 0–1 of the drawn wave. */
+  knots?: readonly number[];
+  /** One weight per heir (for example the share in basis points). Read by `releasedInherit` only. */
+  branches?: readonly number[];
+}
+
+export interface ThreadGeometry {
+  /** The whole course, drawn faint, under the lit thread. Empty when the state has no course to show. */
+  track: string;
+  lit: string;
+  now: Point | null;
+  knots: Point[];
+  gate: string | null;
+  branches: { d: string; width: number }[];
+  dots: Point[];
+  fibers: string[];
+  curl: string | null;
+  ghost: string | null;
+}
+
+const GATE = `M${GATE_X - 12} 86V48a12 12 0 0 1 24 0V86`;
+
+function knotsOn(fractions: readonly number[] | undefined, end: number): Point[] {
+  const xs = [...new Set((fractions ?? []).map((f) => r(clamp01(f) * end)))].sort((a, b) => a - b);
+  return xs.map((x): Point => [x, r(waveY(x))]);
+}
+
+function branch(y: number): string {
+  return `M${GATE_X} ${VIEW.mid} C${GATE_X + 60} ${VIEW.mid} ${GATE_X + 106} ${y} ${BRANCH_END_X} ${y}`;
+}
+
+export function threadGeometry(state: ThreadState, input: ThreadInput = {}): ThreadGeometry {
+  const empty: ThreadGeometry = {
+    track: '',
+    lit: '',
+    now: null,
+    knots: [],
+    gate: null,
+    branches: [],
+    dots: [],
+    fibers: [],
+    curl: null,
+    ghost: null,
+  };
+
+  if (state === 'active' || state === 'grace') {
+    const end = state === 'grace' ? FRAY_X : VIEW.w;
+    const left = input.remaining === undefined ? 1 : Number.isNaN(input.remaining) ? 1 : clamp01(input.remaining);
+    const xNow = r(end * (1 - left));
+    const fy = r(waveY(FRAY_X));
+    return {
+      ...empty,
+      track: waveSegment(0, end),
+      lit: waveSegment(xNow, end),
+      now: left > 0 ? [xNow, r(waveY(xNow))] : null,
+      knots: knotsOn(input.knots, end),
+      fibers:
+        state === 'grace'
+          ? [
+              `M${FRAY_X} ${fy} c12 -1 24 -9 38 -14`,
+              `M${FRAY_X} ${fy} c14 0 26 2 40 1`,
+              `M${FRAY_X} ${fy} c10 2 20 10 32 16`,
+            ]
+          : [],
+    };
+  }
+
+  if (state === 'recovery') {
+    const by = r(waveY(BEND_X));
+    const [ex, ey] = RECOVERY_END;
+    return {
+      ...empty,
+      lit: `${waveSegment(0, BEND_X)} C${BEND_X + 90} ${by} ${ex - 70} ${ey} ${ex} ${ey}`,
+      knots: knotsOn(input.knots, BEND_X),
+      ghost: waveSegment(BEND_X, VIEW.w),
+      dots: [RECOVERY_END],
+    };
+  }
+
+  if (state === 'releasedInherit' || state === 'releasedRecover') {
+    const weights = state === 'releasedRecover' || !input.branches?.length ? [1] : input.branches;
+    const widths = branchWidths(weights);
+    const ys = state === 'releasedRecover' ? [24] : branchEnds(weights.length);
+    return {
+      ...empty,
+      lit: waveSegment(0, GATE_X),
+      knots: knotsOn(input.knots, GATE_X),
+      gate: GATE,
+      branches: ys.map((y, i) => ({ d: branch(y), width: widths[i] })),
+      dots: ys.map((y): Point => [BRANCH_END_X, y]),
+    };
+  }
+
+  // expired: a short thread that curls up.
+  const ey = r(waveY(BEND_X));
+  return {
+    ...empty,
+    lit: waveSegment(0, BEND_X),
+    knots: knotsOn(input.knots, BEND_X),
+    curl: `M${BEND_X} ${ey} c36 0 64 -12 64 6 s-22 26 -38 12 s2 -22 18 -14 s6 10 -4 12`,
+  };
+}
+```
+
+(Trong `active`/`grace`, `remaining` là `NaN` hoặc thiếu đều coi là còn nguyên: sợi chỉ không bao giờ "đứt" vì một số đọc hỏng.)
+
+`apps/web/src/thread/state.ts`:
+
+```ts
+import type { StateName, VaultStatus } from '@atropyle/sdk';
+import type { GlyphName } from './glyphs';
+
+/** The five vault states plus an expired Drill (spec §4.1). */
+export type ThreadState = StateName | 'expired';
+
+export const THREAD_STATES: readonly ThreadState[] = [
+  'active',
+  'grace',
+  'recovery',
+  'releasedInherit',
+  'releasedRecover',
+  'expired',
+];
+
+export function threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState {
+  return s.expired ? 'expired' : s.state;
+}
+
+function fraction(left: bigint, span: bigint): number {
+  if (span <= 0n || left <= 0n) return 0;
+  if (left >= span) return 1;
+  return Number((left * 10_000n) / span) / 10_000;
+}
+
+/**
+ * Share of the thread still lit, 0–1. While an alarm runs it is the response window; otherwise the time until the
+ * owner is late. Released and expired vaults have nothing left. `now` is chain time (chainNow of lib/format).
+ */
+export function threadRemaining(
+  s: Pick<VaultStatus, 'state' | 'expired' | 'lastAlive' | 'lateAt' | 'alarmAt' | 'windowEndsAt'>,
+  now: bigint,
+): number {
+  if (s.expired || s.state === 'releasedInherit' || s.state === 'releasedRecover') return 0;
+  if (s.alarmAt !== null && s.windowEndsAt !== null) return fraction(s.windowEndsAt - now, s.windowEndsAt - s.alarmAt);
+  return fraction(s.lateAt - now, s.lateAt - s.lastAlive);
+}
+
+/** The Thread is gold while alive (spec §4.1); the badge uses `alive` (spec §4.3). */
+export const THREAD_COLOR: Record<ThreadState, string> = {
+  active: 'text-thread',
+  grace: 'text-grace',
+  recovery: 'text-recovery',
+  releasedInherit: 'text-release',
+  releasedRecover: 'text-release',
+  expired: 'text-ink-muted',
+};
+
+export const BADGE_COLOR: Record<ThreadState, string> = {
+  active: 'border-alive/40 bg-alive/10 text-alive',
+  grace: 'border-grace/40 bg-grace/10 text-grace',
+  recovery: 'border-recovery/40 bg-recovery/10 text-recovery',
+  releasedInherit: 'border-release/40 bg-release/10 text-release',
+  releasedRecover: 'border-release/40 bg-release/10 text-release',
+  expired: 'border-line-strong bg-surface-2 text-ink-muted',
+};
+
+export const STATE_GLYPH: Record<ThreadState, GlyphName> = {
+  active: 'active',
+  grace: 'grace',
+  recovery: 'recovery',
+  releasedInherit: 'releasedInherit',
+  releasedRecover: 'releasedRecover',
+  expired: 'expired',
+};
+```
+
+`apps/web/src/thread/glyphs.tsx`:
+
+```tsx
+import { cn } from '@/lib/cn';
+
+export type GlyphName =
+  | 'active'
+  | 'grace'
+  | 'recovery'
+  | 'releasedInherit'
+  | 'releasedRecover'
+  | 'expired'
+  | 'drill'
+  | 'knot';
+
+export const GLYPH_NAMES: readonly GlyphName[] = [
+  'active',
+  'grace',
+  'recovery',
+  'releasedInherit',
+  'releasedRecover',
+  'expired',
+  'drill',
+  'knot',
+];
+
+const GATE = 'M9 19V9.5a3 3 0 0 1 6 0V19';
+
+/** Eight glyphs in the thread's own line (spec §4.5): 24 × 24, stroke 1.5, round ends, like Lucide. */
+const SHAPES: Record<GlyphName, { d: string[]; dots?: [number, number][]; dashed?: string }> = {
+  // A heartbeat travelling along the thread.
+  active: { d: ['M2 12h5l2-4.5 3 9 2-4.5h8'] },
+  // The thread runs, then frays into three strands.
+  grace: { d: ['M2 12h10', 'M12 12c2.5 0 4-2 7.5-3.5', 'M12 12c2.5 0 5 .5 8.5.5', 'M12 12c2 .5 3.5 2.5 6 4.5'] },
+  // The thread bends away to a new wallet.
+  recovery: { d: ['M2 16h7c4.5 0 6-7.5 10-7.5'], dots: [[20.5, 8.5]] },
+  // Through the gate, then three branches.
+  releasedInherit: { d: ['M2 15h7', GATE, 'M15 15c3 0 3.5-5 7-5', 'M15 15h7', 'M15 15c3 0 3.5 4 7 4'] },
+  // Through the gate, one branch to the recovery wallet.
+  releasedRecover: { d: ['M2 15h7', GATE, 'M15 15c3 0 3.5-6.5 5.5-6.5'], dots: [[21, 8.5]] },
+  // A short thread that curls up.
+  expired: { d: ['M2 12h9a4 4 0 1 1-4 4 2.5 2.5 0 0 1 2.5-2.5'] },
+  // A practice loop: the dashed part is the Drill.
+  drill: { d: ['M2 12h4', 'M18 12h4'], dashed: 'M6 12a6 5 0 1 0 12 0a6 5 0 1 0-12 0' },
+  // A knot tied on the thread: one check-in.
+  knot: { d: ['M2 12h6', 'M16 12h6', 'M8 12c0-3 2-4.5 4-4.5s4 1.5 4 4.5-2 4.5-4 4.5-4-1.5-4-4.5Z', 'M9.5 9l5 6'] },
+};
+
+export function StateGlyph({ name, size = 16, className }: { name: GlyphName; size?: number; className?: string }) {
+  const s = SHAPES[name];
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn('shrink-0', className)}
+      data-glyph={name}
+    >
+      {s.d.map((d) => (
+        <path key={d} d={d} />
+      ))}
+      {s.dashed ? <path d={s.dashed} strokeDasharray="2 2.6" /> : null}
+      {s.dots?.map(([cx, cy]) => (
+        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={1.6} fill="currentColor" stroke="none" />
+      ))}
+    </svg>
+  );
+}
+```
+
+Run: `npm test -w apps/web -- thread-geometry`
+Expected: PASS (19 test).
+
+- [ ] **Step 3: Viết test hỏng cho `Thread`, glyph và `StateBadge`**
+
+`apps/web/test/unit/thread.test.tsx`:
+
+```tsx
+import { screen, waitFor } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { GLYPH_NAMES, StateGlyph } from '../../src/thread/glyphs';
+import { THREAD_STATES } from '../../src/thread/state';
+import { StateBadge } from '../../src/thread/state-badge';
+import { Thread } from '../../src/thread/thread';
+import { renderWithProviders } from '../helpers/render';
+
+const parts = (c: HTMLElement, part: string) => c.querySelectorAll(`[data-part="${part}"]`);
+
+describe('Thread', () => {
+  it('is decorative unless it has a label', () => {
+    const { container } = renderWithProviders(<Thread state="active" />);
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('carries a label as an image when given one', () => {
+    renderWithProviders(<Thread state="grace" label="Vault thread: Grace period" />);
+    expect(screen.getByRole('img', { name: 'Vault thread: Grace period' })).toBeTruthy();
+  });
+
+  it('draws the lit part, the "now" point and the knots of an active vault', () => {
+    const { container } = renderWithProviders(<Thread state="active" remaining={0.5} knots={[0.1, 0.3]} />);
+    expect(container.querySelector('svg')?.getAttribute('data-state')).toBe('active');
+    expect(container.querySelector('svg')?.getAttribute('class')).toContain('text-thread');
+    expect(parts(container, 'lit')).toHaveLength(1);
+    expect(parts(container, 'now')).toHaveLength(1);
+    expect(parts(container, 'knot')).toHaveLength(2);
+    expect(parts(container, 'lit')[0].getAttribute('d')).toMatch(/^M300 /);
+  });
+
+  it('splits into one branch per heir, thicker for a larger share', () => {
+    const { container } = renderWithProviders(<Thread state="releasedInherit" branches={[5000, 3000, 2000]} />);
+    const b = parts(container, 'branch');
+    expect(b).toHaveLength(3);
+    expect(parts(container, 'gate')).toHaveLength(1);
+    expect(parts(container, 'dot')).toHaveLength(3);
+    const widths = [...b].map((p) => Number(p.getAttribute('stroke-width')));
+    expect(widths[0]).toBeGreaterThan(widths[2]);
+  });
+
+  it('curls an expired Drill up and shows no "now"', () => {
+    const { container } = renderWithProviders(<Thread state="expired" />);
+    expect(parts(container, 'curl')).toHaveLength(1);
+    expect(parts(container, 'now')).toHaveLength(0);
+    expect(container.querySelector('svg')?.getAttribute('class')).toContain('text-ink-muted');
+  });
+
+  it('moves only behind motion-safe: the pulse and the tremble never run under reduced motion', () => {
+    const { container } = renderWithProviders(
+      <>
+        <Thread state="active" />
+        <Thread state="grace" />
+      </>,
+    );
+    const classes = [...container.querySelectorAll('[class]')].flatMap((e) =>
+      (e.getAttribute('class') ?? '').split(/\s+/),
+    );
+    expect(classes).toContain('motion-safe:animate-thread-pulse');
+    expect(classes).toContain('motion-safe:animate-thread-tremble');
+    expect(classes.filter((c) => c.startsWith('animate-'))).toEqual([]);
+  });
+
+  it('renders every state', () => {
+    for (const s of THREAD_STATES) {
+      const { container, unmount } = renderWithProviders(<Thread state={s} remaining={0.4} branches={[1, 2]} />);
+      expect(container.querySelector(`svg[data-state="${s}"]`), s).not.toBeNull();
+      unmount();
+    }
+  });
+});
+
+describe('StateGlyph', () => {
+  it('draws eight distinct glyphs, hidden from assistive technology, in the current colour', () => {
+    const seen = new Set<string>();
+    for (const name of GLYPH_NAMES) {
+      const { container, unmount } = renderWithProviders(<StateGlyph name={name} />);
+      const svg = container.querySelector('svg');
+      expect(svg?.getAttribute('aria-hidden'), name).toBe('true');
+      expect(svg?.getAttribute('stroke'), name).toBe('currentColor');
+      expect(svg?.getAttribute('stroke-width'), name).toBe('1.5');
+      for (const p of container.querySelectorAll('path'))
+        expect(p.getAttribute('d'), name).toMatch(/^M[0-9.\- a-zA-Z]+$/);
+      seen.add(svg?.innerHTML ?? '');
+      unmount();
+    }
+    expect(seen.size).toBe(GLYPH_NAMES.length);
+  });
+});
+
+describe('StateBadge', () => {
+  it('names every state in words next to its glyph (colour is never the only signal)', () => {
+    const want = {
+      active: 'Active',
+      grace: 'Grace period',
+      recovery: 'Recovery pending',
+      releasedInherit: 'Released to heirs',
+      releasedRecover: 'Released to the recovery wallet',
+      expired: 'Drill expired',
+    } as const;
+    for (const s of THREAD_STATES) {
+      const { container, unmount } = renderWithProviders(<StateBadge state={s} />);
+      expect(screen.getByText(want[s])).toBeTruthy();
+      expect(container.querySelector(`[data-state="${s}"] svg[data-glyph]`), s).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('uses the alive colour for an active vault', () => {
+    const { container } = renderWithProviders(<StateBadge state="active" />);
+    expect(container.querySelector('[data-state="active"]')?.getAttribute('class')).toContain('text-alive');
+  });
+
+  it('speaks Vietnamese', async () => {
+    renderWithProviders(<StateBadge state="grace" />, { lang: 'vi' });
+    await waitFor(() => expect(screen.getByText('Thời gian ân hạn')).toBeTruthy());
+  });
+
+  it('marks a Drill and announces changes when live', () => {
+    const { container } = renderWithProviders(<StateBadge state="active" drill live />);
+    expect(screen.getByText('Drill')).toBeTruthy();
+    expect(container.querySelector('[data-state="active"]')?.getAttribute('aria-live')).toBe('polite');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- thread.test`
+Expected: FAIL (`Cannot find module '../../src/thread/state-badge'`).
+
+- [ ] **Step 4: Viết `Thread` và `StateBadge`**
+
+`apps/web/src/thread/thread.tsx`:
+
+```tsx
+'use client';
+
+import { m } from 'motion/react';
+import { useMemo } from 'react';
+import { cn } from '@/lib/cn';
+import { usePrefersReducedMotion } from '@/motion/provider';
+import { SPRING } from '@/motion/tokens';
+import { SharedThread } from '@/motion/view-transition';
+import { MAIN_WIDTH, type ThreadInput, threadGeometry, VIEW } from './geometry';
+import { THREAD_COLOR, type ThreadState } from './state';
+
+export interface ThreadProps extends ThreadInput {
+  state: ThreadState;
+  /** Makes the thread an image with this name; without it the thread is decoration next to a text label. */
+  label?: string;
+  /** Morph into the next page's thread (View Transitions). At most one shared thread per page. */
+  shared?: boolean;
+  className?: string;
+}
+
+/** The one character of the visual language (spec §4.1): a continuous line whose shape is the vault's state. */
+export function Thread({ state, remaining, knots, branches, label, shared = false, className }: ThreadProps) {
+  const calm = usePrefersReducedMotion();
+  const g = useMemo(() => threadGeometry(state, { remaining, knots, branches }), [state, remaining, knots, branches]);
+  const morph = calm ? { duration: 0 } : SPRING;
+
+  const svg = (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox={`0 0 ${VIEW.w} ${VIEW.h}`}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-state={state}
+      className={cn(
+        'block h-auto w-full overflow-visible transition-colors duration-300',
+        THREAD_COLOR[state],
+        className,
+      )}
+    >
+      {g.track ? <path d={g.track} className="stroke-line" strokeWidth={2} data-part="track" /> : null}
+      {g.ghost ? (
+        <path
+          d={g.ghost}
+          stroke="currentColor"
+          strokeOpacity={0.4}
+          strokeWidth={1.5}
+          strokeDasharray="1 7"
+          data-part="ghost"
+        />
+      ) : null}
+      {state === 'active' ? (
+        <path
+          d={g.lit}
+          stroke="currentColor"
+          strokeWidth={10}
+          className="opacity-25 motion-safe:animate-thread-pulse"
+          data-part="glow"
+        />
+      ) : null}
+      <g className={state === 'grace' ? 'motion-safe:animate-thread-tremble' : undefined}>
+        <m.path
+          initial={false}
+          animate={{ d: g.lit }}
+          transition={morph}
+          stroke="currentColor"
+          strokeWidth={MAIN_WIDTH}
+          data-part="lit"
+        />
+        {g.fibers.map((d) => (
+          <path key={d} d={d} stroke="currentColor" strokeWidth={1.25} strokeOpacity={0.75} data-part="fiber" />
+        ))}
+      </g>
+      {g.gate ? <path d={g.gate} className="stroke-ink-muted" strokeWidth={2} data-part="gate" /> : null}
+      {g.branches.map((b) => (
+        <path key={b.d} d={b.d} stroke="currentColor" strokeWidth={b.width} data-part="branch" />
+      ))}
+      {g.curl ? <path d={g.curl} stroke="currentColor" strokeWidth={MAIN_WIDTH} data-part="curl" /> : null}
+      {g.dots.map(([x, y]) => (
+        <circle key={`${x}-${y}`} cx={x} cy={y} r={4} fill="currentColor" data-part="dot" />
+      ))}
+      {g.knots.map(([x, y]) => (
+        <m.circle
+          key={`${x}-${y}`}
+          cx={x}
+          cy={y}
+          r={4.5}
+          className="fill-bg"
+          stroke="currentColor"
+          strokeWidth={2}
+          initial={calm ? false : { scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={SPRING}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+          data-part="knot"
+        />
+      ))}
+      {g.now ? (
+        <circle
+          cx={g.now[0]}
+          cy={g.now[1]}
+          r={5.5}
+          fill="currentColor"
+          className="drop-shadow-[0_0_6px_currentColor]"
+          data-part="now"
+        />
+      ) : null}
+    </svg>
+  );
+
+  const body = label ? (
+    <span role="img" aria-label={label} className="block">
+      {svg}
+    </span>
+  ) : (
+    svg
+  );
+  return shared ? <SharedThread>{body}</SharedThread> : body;
+}
+```
+
+`apps/web/src/thread/state-badge.tsx`:
+
+```tsx
+'use client';
+
+import { m } from 'motion/react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as labels, THREAD_STATE_KEY } from '@/messages/labels.messages';
+import { usePrefersReducedMotion } from '@/motion/provider';
+import { DURATION, EASE_OUT_EXPO, sec } from '@/motion/tokens';
+import { StateGlyph } from './glyphs';
+import { BADGE_COLOR, STATE_GLYPH, type ThreadState } from './state';
+
+export interface StateBadgeProps {
+  state: ThreadState;
+  /** Adds a "Drill" chip. */
+  drill?: boolean;
+  size?: 'sm' | 'md';
+  /** Announce state changes politely (the vault page, where the state can change while the user reads). */
+  live?: boolean;
+  className?: string;
+}
+
+/** The vault state in words, glyph and colour; the glyph and words alone are enough (spec §4.1). */
+export function StateBadge({ state, drill = false, size = 'md', live = false, className }: StateBadgeProps) {
+  const t = useT(labels);
+  const calm = usePrefersReducedMotion();
+  return (
+    <span
+      data-state={state}
+      aria-live={live ? 'polite' : undefined}
+      aria-atomic={live ? true : undefined}
+      className={cn(
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border font-medium',
+        size === 'sm' ? 'h-6 px-2 text-caption' : 'h-8 px-3 text-small',
+        BADGE_COLOR[state],
+        className,
+      )}
+    >
+      <m.span
+        key={state}
+        className="inline-flex items-center gap-1.5"
+        initial={calm ? { opacity: 0 } : { opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: sec(calm ? 120 : DURATION.base), ease: EASE_OUT_EXPO }}
+      >
+        <StateGlyph name={STATE_GLYPH[state]} size={size === 'sm' ? 14 : 16} />
+        <span>{t(THREAD_STATE_KEY[state])}</span>
+      </m.span>
+      {drill ? (
+        <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-surface-3 px-1.5 text-caption text-ink-muted">
+          <StateGlyph name="drill" size={12} />
+          {t('drill')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+```
+
+(Badge chỉ có hiệu ứng vào khi đổi trạng thái: `key={state}` làm React gắn phần tử mới; không có hiệu ứng ra, nên không bao giờ hai nhãn chồng nhau.)
+
+- [ ] **Step 5: Chạy test, typecheck, Biome và commit**
+
+```bash
+npm test -w apps/web -- thread
+npm run typecheck -w apps/web
+npx biome ci .
+git add apps/web/src/thread apps/web/test/unit/thread-geometry.test.ts apps/web/test/unit/thread.test.tsx
+git commit -m "feat(web): the Thread, its state glyphs and the StateBadge" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: PASS (thread-geometry 19, thread 12).
+
+---
+
+### Task 8: Bộ primitive, `Providers` và trang xem thử `/dev/`
+
+**Files:**
+- Create: `apps/web/src/ui/{visually-hidden,spinner,button,icon-button,tooltip,popover,dialog,copy-button,untrusted-text,external-link,address,amount,countdown,skeleton,empty-state,inline-error,banner,text-field,qr-code}.tsx`, `apps/web/src/ui/identicon.ts`, `apps/web/src/lib/use-now.ts`, `apps/web/src/shell/providers.tsx`
+- Create: `apps/web/src/app/dev/gallery.tsx`, `apps/web/src/app/dev/page.dev.tsx`
+- Test: `apps/web/test/unit/primitives.test.tsx`, `apps/web/test/unit/ssr.test.tsx`, `apps/web/test/unit/dev-gallery.test.tsx`
+- Modify: `apps/web/src/app/layout.tsx`, `apps/web/src/messages/ui.messages.ts` (khoá `copyFailed`), `apps/web/test/helpers/render.tsx`, `apps/web/package.json`, `package-lock.json`
+
+**Interfaces:**
+- Consumes: Task 3 (token, `atro-*`), Task 5 (`useT`, `KVProvider`, `ThemeProvider`, `LangProvider`, `addressGroups`, `isAddressText`, `formatAmount`, `formatRemaining`, `formatTimestamp`, `chainNow`, `explorerAddress`, `explorerName`, `untrusted`, `useMounted`, `cn`), Task 6 (`MotionProvider`, `HoldButton`, token), Task 7 (`Thread`, `StateBadge`, `StateGlyph`).
+- Produces (mọi file `'use client'`):
+  - `ui/visually-hidden.tsx`: `VisuallyHidden` (Radix `Root`).
+  - `ui/spinner.tsx`: `Spinner({ label?, size?, className? })`.
+  - `ui/button.tsx`: `type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'`; `type ButtonSize = 'sm' | 'md' | 'lg'`; `buttonClass(o?: { variant?; size?; className? }): string`; `interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> { variant?; size?; loading?: boolean; icon?: ReactNode; ref?: Ref<HTMLButtonElement> }`; `Button(props)`.
+  - `ui/icon-button.tsx`: `IconButton({ icon: LucideIcon, label: string, size?: 'sm' | 'md', tooltip?: boolean, ...button })`.
+  - `ui/tooltip.tsx`: `TooltipProvider({ children })`; `Tooltip({ content: ReactNode, children: ReactElement, side? })`.
+  - `ui/popover.tsx`: `Popover({ trigger: ReactElement, children, open?, onOpenChange?, align?, side?, label?, className? })`; `PopoverClose` (Radix `Close`).
+  - `ui/dialog.tsx`: `interface DialogProps { open?; onOpenChange?(open: boolean): void; trigger?: ReactElement; title: ReactNode; description?: ReactNode; children?: ReactNode; size?: 'sm' | 'md' | 'lg'; sheet?: boolean; className? }`; `Dialog(props)` (sheet dưới đáy màn hình hẹp, hộp giữa màn hình từ 40rem).
+  - `ui/copy-button.tsx`: `copyText(text: string): Promise<boolean>`; `CopyButton({ text, label, showText?, className? })`.
+  - `ui/untrusted-text.tsx`: `isUntrusted(v: unknown): v is Untrusted`; `UntrustedText({ value: unknown, max?: number, className? })` (render trong `<bdi>`).
+  - `ui/external-link.tsx`: `safeExternalHref(href: string): string | null`; `ExternalLink({ href, children, icon?, variant?: 'inline' | 'icon', className? })` (`icon`: nút tròn chỉ có mũi tên, `children` thành nhãn ẩn; deweb: chữ thường lúc prerender và hydrate, Quyết định 16).
+  - `ui/identicon.ts`: `interface IdenticonData { hue: number; cells: boolean[] }`; `identiconOf(address: string): IdenticonData`.
+  - `ui/address.tsx`: `Avatar({ address, size? })`; `Address({ address, explorer?, copy?, avatar?, size?, className? })` (luôn đủ 40 ký tự, theo cụm 4).
+  - `ui/amount.tsx`: `Amount({ raw: bigint, decimals: number | null, symbol?: Untrusted | string | null, maxFraction?, className? })`.
+  - `lib/use-now.ts`: `useNow(intervalMs?: number): number | null`. `ui/countdown.tsx`: `Countdown({ target: bigint, blockTimestamp: bigint, fetchedAtMs: number, className? })`.
+  - `ui/skeleton.tsx`: `Skeleton({ className? })`, `SkeletonText({ lines?, className? })`. `ui/empty-state.tsx`: `EmptyState({ title, body?, action?, icon?, className? })`. `ui/inline-error.tsx`: `InlineError({ id?, children, className? })`. `ui/banner.tsx`: `type BannerTone = 'info' | 'warn' | 'error' | 'success'`; `Banner({ tone?, title?, children, action?, onDismiss?, testId?, className? })`.
+  - `ui/text-field.tsx`: `interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> { label: ReactNode; hint?: ReactNode; error?: ReactNode; mono?: boolean; ref?: Ref<HTMLInputElement> }`; `TextField(props)`.
+  - `ui/qr-code.tsx`: `qrPath(data: readonly (readonly boolean[])[]): string`; `QrCode({ value, label, size?, className? })` (màu cố định `#0B0D12` trên `#FFFDF8` ở cả hai theme để máy quét đọc chắc).
+  - `shell/providers.tsx`: `Providers({ children, kv?: KV })` = KV → Lang → Theme → Motion → Tooltip. Task 10 thêm Query, Task 11 thêm Wallet.
+  - `test/helpers/render.tsx` bọc KV → Lang → Theme → Tooltip (không bọc `MotionProvider`: nó nạp feature bất đồng bộ; `m.*` vẫn render đúng trạng thái đầu).
+
+- [ ] **Step 1: Cài Radix, Lucide và uqr; thêm `Providers`**
+
+```bash
+npm install -E -w apps/web @radix-ui/react-dialog@1.3.1 @radix-ui/react-popover@1.3.1 @radix-ui/react-tooltip@1.4.1 @radix-ui/react-visually-hidden@1.2.13 lucide-react@1.73.0 uqr@0.1.3
+npm run lockfile:check -- --fix
+npm run lockfile:check
+```
+
+Expected: `every dependency resolves.`
+
+Thêm khoá vào `apps/web/src/messages/ui.messages.ts`: trong `en`, sau `copyText: 'Copy {what}',` thêm `copyFailed: 'Could not copy',`; trong `vi`, sau `copyText: 'Sao chép {what}',` thêm `copyFailed: 'Không sao chép được',`.
+
+`apps/web/src/ui/visually-hidden.tsx`:
+
+```tsx
+'use client';
+
+export { Root as VisuallyHidden } from '@radix-ui/react-visually-hidden';
+```
+
+`apps/web/src/ui/tooltip.tsx`:
+
+```tsx
+'use client';
+
+import * as T from '@radix-ui/react-tooltip';
+import type { ReactElement, ReactNode } from 'react';
+
+export function TooltipProvider({ children }: { children: ReactNode }) {
+  return (
+    <T.Provider delayDuration={350} skipDelayDuration={150}>
+      {children}
+    </T.Provider>
+  );
+}
+
+/** A label on hover and on keyboard focus. The trigger must be focusable (a button or a link). */
+export function Tooltip({
+  content,
+  children,
+  side = 'top',
+}: {
+  content: ReactNode;
+  children: ReactElement;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+}) {
+  return (
+    <T.Root>
+      <T.Trigger asChild>{children}</T.Trigger>
+      <T.Portal>
+        <T.Content
+          side={side}
+          sideOffset={6}
+          collisionPadding={8}
+          className="atro-pop z-50 max-w-xs rounded-lg border border-line bg-surface-3 px-2.5 py-1.5 text-caption text-ink shadow-lg"
+        >
+          {content}
+          <T.Arrow className="fill-surface-3" width={10} height={5} />
+        </T.Content>
+      </T.Portal>
+    </T.Root>
+  );
+}
+```
+
+`apps/web/src/shell/providers.tsx`:
+
+```tsx
+'use client';
+
+import type { ReactNode } from 'react';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import type { KV } from '@/lib/store';
+import { MotionProvider } from '@/motion/provider';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+
+/** Every page renders inside these, in this order (storage first: language and theme read it). */
+export function Providers({ children, kv }: { children: ReactNode; kv?: KV }) {
+  return (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <MotionProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </MotionProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+}
+```
+
+Sửa `apps/web/src/app/layout.tsx` (Task 9 thay bằng khung đầy đủ):
+
+```tsx
+import type { ReactNode } from 'react';
+import { fontVariables } from '@/fonts';
+import { Providers } from '@/shell/providers';
+import './globals.css';
+
+export const metadata = { title: 'Atropyle', description: 'Inheritance and wallet recovery on X Layer.' };
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning className={fontVariables}>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+Sửa `apps/web/test/helpers/render.tsx`:
+
+```tsx
+import { render } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import type { Lang } from '@/i18n/core';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import { KEYS, type KV, memoryKV } from '@/lib/store';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+
+/**
+ * The providers of every page except MotionProvider, which loads its features asynchronously; `m.*` elements still
+ * render their first state without it. `rerender` keeps the providers.
+ */
+export function renderWithProviders(ui: ReactElement, o: { kv?: KV; lang?: Lang } = {}) {
+  const kv = o.kv ?? memoryKV();
+  if (o.lang) kv.set(KEYS.lang, o.lang);
+  const wrap = (node: ReactElement) => (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <TooltipProvider>{node}</TooltipProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+  const r = render(wrap(ui));
+  return { ...r, kv, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
+```
+
+- [ ] **Step 2: Viết test hỏng cho các primitive**
+
+`apps/web/test/unit/primitives.test.tsx`:
+
+```tsx
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { encode } from 'uqr';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { untrusted } from '../../src/lib/untrusted';
+import { Address } from '../../src/ui/address';
+import { Amount } from '../../src/ui/amount';
+import { Banner } from '../../src/ui/banner';
+import { Button, buttonClass } from '../../src/ui/button';
+import { CopyButton } from '../../src/ui/copy-button';
+import { Countdown } from '../../src/ui/countdown';
+import { Dialog } from '../../src/ui/dialog';
+import { ExternalLink, safeExternalHref } from '../../src/ui/external-link';
+import { identiconOf } from '../../src/ui/identicon';
+import { QrCode, qrPath } from '../../src/ui/qr-code';
+import { Skeleton } from '../../src/ui/skeleton';
+import { TextField } from '../../src/ui/text-field';
+import { UntrustedText } from '../../src/ui/untrusted-text';
+import { renderWithProviders } from '../helpers/render';
+
+const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(navigator, 'clipboard');
+});
+
+describe('Button', () => {
+  it('is a plain button by default and busy while loading', () => {
+    const { rerender } = renderWithProviders(<Button>Save</Button>);
+    const b = screen.getByRole('button', { name: 'Save' });
+    expect(b.getAttribute('type')).toBe('button');
+    rerender(<Button loading>Save</Button>);
+    expect(b.getAttribute('aria-busy')).toBe('true');
+    expect((b as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('gives links the same look', () => {
+    expect(buttonClass({ variant: 'primary' })).toContain('bg-thread');
+    expect(buttonClass({ variant: 'danger', size: 'lg' })).toContain('text-on-danger');
+  });
+});
+
+describe('UntrustedText', () => {
+  it('renders markup as text and truncates', () => {
+    const evil = `<img src=x onerror="window.__pwned=1">${'A'.repeat(10_000)}`;
+    const { container } = renderWithProviders(<UntrustedText value={evil} />);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent?.startsWith('<img src=x onerror=')).toBe(true);
+    expect(Array.from(container.textContent ?? '').length).toBe(65);
+    expect((globalThis as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+
+  it('strips bidi and zero-width characters and isolates the direction', () => {
+    const { container } = renderWithProviders(<UntrustedText value={'USD\u{202E}evil\u{200B}'} />);
+    expect(container.textContent).toBe('USDevil');
+    expect(container.querySelector('bdi')).not.toBeNull();
+  });
+
+  it('accepts an Untrusted value from the SDK and re-cleans it', () => {
+    const { container } = renderWithProviders(
+      <UntrustedText value={{ ...untrusted('Tether'), value: 'Te\u{200B}ther' }} />,
+    );
+    expect(container.textContent).toBe('Tether');
+  });
+});
+
+describe('ExternalLink', () => {
+  it('accepts only http and https', () => {
+    expect(safeExternalHref('https://www.oklink.com/xlayer')).toBe('https://www.oklink.com/xlayer');
+    expect(safeExternalHref('javascript:alert(1)')).toBeNull();
+    expect(safeExternalHref('data:text/html,x')).toBeNull();
+    expect(safeExternalHref('/relative')).toBeNull();
+  });
+
+  it('opens a new tab without an opener once mounted', () => {
+    renderWithProviders(<ExternalLink href="https://web3.okx.com/xlayer">X Layer</ExternalLink>);
+    const a = screen.getByRole('link', { name: /X Layer/ });
+    expect(a.getAttribute('target')).toBe('_blank');
+    expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(a.textContent).toContain('(opens in a new tab)');
+  });
+
+  it('never becomes a link for a refused URL', () => {
+    const refused = 'javascript:alert(1)';
+    renderWithProviders(<ExternalLink href={refused}>bad</ExternalLink>);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('bad').getAttribute('data-external')).toBe('refused');
+  });
+});
+
+describe('CopyButton', () => {
+  it('copies and says so, then resets', async () => {
+    // Only the timers the button uses: React's async act needs real microtasks and setImmediate.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    renderWithProviders(<CopyButton text={A} label="Copy address" />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy address' }));
+    });
+    expect(writeText).toHaveBeenCalledWith(A);
+    expect(screen.getByText('Copied')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(2000));
+    expect(screen.queryByText('Copied')).toBeNull();
+  });
+
+  it('says when the clipboard refuses', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn(async () => Promise.reject(new Error('denied'))) },
+    });
+    renderWithProviders(<CopyButton text="x" label="Copy" />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    });
+    expect(screen.getByText('Could not copy')).toBeTruthy();
+  });
+});
+
+describe('Address', () => {
+  it('shows the whole address in groups of four, never shortened', () => {
+    const { container } = renderWithProviders(<Address address={A} />);
+    const text = container.querySelector('[translate="no"]')?.textContent;
+    expect(text).toBe(A);
+    expect(container.querySelector('[data-address]')?.getAttribute('data-address')).toBe(A);
+    expect(container.querySelectorAll('[translate="no"] > span')).toHaveLength(11);
+    expect(screen.getByRole('button', { name: 'Copy address' })).toBeTruthy();
+  });
+
+  it('links to the explorer', () => {
+    renderWithProviders(<Address address={A} explorer="https://www.oklink.com/xlayer" />);
+    const a = screen.getByRole('link', { name: /View on OKLink/ });
+    expect(a.getAttribute('href')).toBe(`https://www.oklink.com/xlayer/address/${A}`);
+  });
+
+  it('draws a mirrored identicon that ignores letter case', () => {
+    const id = identiconOf(A);
+    expect(identiconOf(A.toLowerCase())).toEqual(id);
+    expect(id.cells).toHaveLength(25);
+    for (let row = 0; row < 5; row++) {
+      expect(id.cells[row * 5]).toBe(id.cells[row * 5 + 4]);
+      expect(id.cells[row * 5 + 1]).toBe(id.cells[row * 5 + 3]);
+    }
+    expect(id.hue).toBeGreaterThanOrEqual(0);
+    expect(id.hue).toBeLessThan(360);
+    expect(identiconOf('0x0000000000000000000000000000000000000001')).not.toEqual(id);
+    expect(() => identiconOf('not hex')).not.toThrow();
+  });
+});
+
+describe('Amount', () => {
+  it('formats with the token symbol and keeps the raw value', () => {
+    renderWithProviders(<Amount raw={1_234_567_890n} decimals={6} symbol={untrusted('USDC')} />);
+    const b = screen.getByRole('button', { name: /1,234\.56789/ });
+    expect(b.textContent).toContain('USDC');
+    expect(b.getAttribute('data-raw')).toBe('1234567890');
+  });
+
+  it('says "base units" when the token has no decimals', () => {
+    renderWithProviders(<Amount raw={5n} decimals={null} symbol="NFT" />);
+    expect(screen.getByRole('button').textContent).toContain('base units');
+  });
+});
+
+describe('Countdown', () => {
+  it('counts down in chain time and turns into "ago"', () => {
+    vi.useFakeTimers();
+    const fetchedAtMs = Date.now();
+    renderWithProviders(<Countdown target={1090n} blockTimestamp={1000n} fetchedAtMs={fetchedAtMs} />);
+    const time = () => document.querySelector('time');
+    expect(time()?.textContent).toBe('in 1m 30s');
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(time()?.textContent).toBe('in 1m');
+    act(() => vi.advanceTimersByTime(100_000));
+    expect(time()?.textContent).toBe('40s ago');
+    expect(time()?.getAttribute('data-past')).toBe('true');
+  });
+
+  it('survives a timestamp no date can hold', () => {
+    renderWithProviders(<Countdown target={2n ** 200n} blockTimestamp={1n} fetchedAtMs={0} />);
+    expect(document.querySelector('time')?.getAttribute('datetime')).toBeNull();
+  });
+});
+
+describe('Banner', () => {
+  it('interrupts only for errors and can be dismissed', () => {
+    const onDismiss = vi.fn();
+    const { rerender } = renderWithProviders(<Banner tone="info">Note</Banner>);
+    expect(screen.queryByRole('alert')).toBeNull();
+    rerender(
+      <Banner tone="error" onDismiss={onDismiss}>
+        Broken
+      </Banner>,
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Broken');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Dialog', () => {
+  it('opens from its trigger with a title, and closes with Escape', async () => {
+    renderWithProviders(
+      <Dialog trigger={<Button>Open</Button>} title="Choose a wallet" description="Pick one.">
+        <p>Body</p>
+      </Dialog>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    expect(dialog.textContent).toContain('Body');
+    expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});
+
+describe('TextField', () => {
+  it('labels the input and links its hint and error', () => {
+    renderWithProviders(<TextField label="Vault address" hint="0x and 40 characters" error="Not an address" mono />);
+    const input = screen.getByLabelText('Vault address');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ');
+    expect(ids).toHaveLength(2);
+    expect(ids.map((id) => document.getElementById(id)?.textContent)).toEqual([
+      '0x and 40 characters',
+      'Not an address',
+    ]);
+  });
+});
+
+describe('QrCode', () => {
+  it('draws one square per dark module, labelled', () => {
+    expect(
+      qrPath([
+        [true, false],
+        [false, true],
+      ]),
+    ).toBe('M0 0h1v1h-1zM1 1h1v1h-1z');
+    const value = `https://atropyle.app/vault/#${A}`;
+    renderWithProviders(<QrCode value={value} label="this page" />);
+    const svg = screen.getByRole('img', { name: 'QR code for this page' });
+    const dark = encode(value, { ecc: 'M', border: 2 }).data.flat().filter(Boolean).length;
+    expect(svg.querySelector('path')?.getAttribute('d')?.match(/M/g)).toHaveLength(dark);
+  });
+});
+
+describe('Skeleton', () => {
+  it('is hidden from assistive technology and shimmers only with motion allowed', () => {
+    const { container } = renderWithProviders(<Skeleton className="h-4 w-24" />);
+    const root = container.firstElementChild;
+    expect(root?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.innerHTML).toContain('motion-safe:animate-shimmer');
+  });
+});
+```
+
+`apps/web/test/unit/ssr.test.tsx` (prerender, Quyết định 16):
+
+```tsx
+// @vitest-environment node
+import type { ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { LangProvider } from '../../src/i18n/provider';
+import { KVProvider } from '../../src/lib/kv';
+import { memoryKV } from '../../src/lib/store';
+import { Address } from '../../src/ui/address';
+import { ExternalLink } from '../../src/ui/external-link';
+import { TooltipProvider } from '../../src/ui/tooltip';
+
+const html = (node: ReactNode) =>
+  renderToString(
+    <KVProvider kv={memoryKV()}>
+      <LangProvider>
+        <TooltipProvider>{node}</TooltipProvider>
+      </LangProvider>
+    </KVProvider>,
+  );
+
+describe('prerendered HTML of the deweb build', () => {
+  it('has no external link in it, only text', () => {
+    const out = html(<ExternalLink href="https://github.com/duongnq2798/atropyle">Source code</ExternalLink>);
+    expect(out).toContain('Source code');
+    expect(out).not.toContain('<a');
+    expect(out).not.toContain('github.com');
+  });
+
+  it('does not link an address to the explorer before the page runs', () => {
+    const out = html(
+      <Address address="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" explorer="https://www.oklink.com/xlayer" />,
+    );
+    expect(out).not.toContain('oklink.com');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- primitives ssr`
+Expected: FAIL, không tìm thấy `../../src/ui/address` (trong `src/ui/` mới có `hold-button`, `visually-hidden` và `tooltip`).
+
+- [ ] **Step 3: Viết các primitive**
+
+`apps/web/src/ui/spinner.tsx`:
+
+```tsx
+'use client';
+
+import { cn } from '@/lib/cn';
+import { VisuallyHidden } from './visually-hidden';
+
+/** An arc that turns while motion is allowed; under reduced motion it stays still. */
+export function Spinner({ label, size = 16, className }: { label?: string; size?: number; className?: string }) {
+  return (
+    <span className={cn('inline-flex items-center', className)}>
+      <svg
+        aria-hidden="true"
+        focusable="false"
+        viewBox="0 0 24 24"
+        width={size}
+        height={size}
+        fill="none"
+        className="motion-safe:animate-spin"
+      >
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity={0.25} strokeWidth={2.5} />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" />
+      </svg>
+      {label ? <VisuallyHidden>{label}</VisuallyHidden> : null}
+    </span>
+  );
+}
+```
+
+`apps/web/src/ui/button.tsx`:
+
+```tsx
+'use client';
+
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
+import { cn } from '@/lib/cn';
+import { Spinner } from './spinner';
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+const BASE =
+  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium ' +
+  'transition-[background-color,border-color,color,translate,scale] duration-150 ease-out-expo ' +
+  'motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 ' +
+  'aria-disabled:pointer-events-none aria-disabled:opacity-50';
+
+const VARIANT: Record<ButtonVariant, string> = {
+  primary: 'bg-thread text-on-thread shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] hover:bg-thread/90',
+  secondary: 'border border-line-strong bg-surface-2 text-ink hover:border-thread hover:bg-surface-3',
+  ghost: 'text-ink-muted hover:bg-surface-2 hover:text-ink',
+  danger: 'bg-danger text-on-danger hover:bg-danger/90',
+};
+
+const SIZE: Record<ButtonSize, string> = {
+  sm: 'h-8 px-3 text-small',
+  md: 'h-10 px-4 text-small',
+  lg: 'h-12 px-6 text-body',
+};
+
+/** The button look, for links that act as buttons (`<Link className={buttonClass(...)}>`). */
+export function buttonClass(o: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}): string {
+  return cn(BASE, VARIANT[o.variant ?? 'secondary'], SIZE[o.size ?? 'md'], o.className);
+}
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Disables the button and shows a spinner in place of the icon. */
+  loading?: boolean;
+  icon?: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
+}
+
+export function Button({
+  variant,
+  size,
+  loading = false,
+  icon,
+  disabled,
+  children,
+  className,
+  type = 'button',
+  ...rest
+}: ButtonProps) {
+  return (
+    <button
+      {...rest}
+      type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={buttonClass({ variant, size, className })}
+    >
+      {loading ? (
+        <Spinner size={16} />
+      ) : icon ? (
+        <span className="inline-flex shrink-0 [&>svg]:size-4">{icon}</span>
+      ) : null}
+      {children}
+    </button>
+  );
+}
+```
+
+`apps/web/src/ui/icon-button.tsx`:
+
+```tsx
+'use client';
+
+import type { LucideIcon } from 'lucide-react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
+import { cn } from '@/lib/cn';
+import { Tooltip } from './tooltip';
+
+export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  icon: LucideIcon;
+  /** The accessible name, also shown as a tooltip. */
+  label: string;
+  size?: 'sm' | 'md';
+  tooltip?: boolean;
+  ref?: Ref<HTMLButtonElement>;
+}
+
+export function IconButton({
+  icon: Icon,
+  label,
+  size = 'md',
+  tooltip = true,
+  className,
+  type = 'button',
+  ...rest
+}: IconButtonProps) {
+  const button = (
+    <button
+      {...rest}
+      type={type}
+      aria-label={label}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors duration-150',
+        'hover:bg-surface-2 hover:text-ink disabled:opacity-50',
+        size === 'sm' ? 'size-8' : 'size-10',
+        className,
+      )}
+    >
+      <Icon aria-hidden="true" size={size === 'sm' ? 16 : 18} strokeWidth={1.5} />
+    </button>
+  );
+  return tooltip ? <Tooltip content={label}>{button}</Tooltip> : button;
+}
+```
+
+`apps/web/src/ui/popover.tsx`:
+
+```tsx
+'use client';
+
+import * as P from '@radix-ui/react-popover';
+import type { ReactElement, ReactNode } from 'react';
+import { cn } from '@/lib/cn';
+
+export const PopoverClose = P.Close;
+
+export function Popover({
+  trigger,
+  children,
+  open,
+  onOpenChange,
+  align = 'end',
+  side = 'bottom',
+  label,
+  className,
+}: {
+  trigger: ReactElement;
+  children: ReactNode;
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+  align?: 'start' | 'center' | 'end';
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <P.Root open={open} onOpenChange={onOpenChange}>
+      <P.Trigger asChild>{trigger}</P.Trigger>
+      <P.Portal>
+        <P.Content
+          align={align}
+          side={side}
+          sideOffset={8}
+          collisionPadding={12}
+          aria-label={label}
+          className={cn(
+            'atro-pop z-50 min-w-56 rounded-2xl border border-line bg-surface-1 p-2 text-ink outline-none',
+            'shadow-[0_24px_48px_-12px_rgb(0_0_0/0.45)]',
+            className,
+          )}
+        >
+          {children}
+        </P.Content>
+      </P.Portal>
+    </P.Root>
+  );
+}
+```
+
+`apps/web/src/ui/dialog.tsx`:
+
+```tsx
+'use client';
+
+import * as D from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as common } from '@/messages/common.messages';
+import { IconButton } from './icon-button';
+
+export interface DialogProps {
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+  trigger?: ReactElement;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  size?: 'sm' | 'md' | 'lg';
+  /** A sheet from the bottom edge on narrow screens (the default); a centred box from 40rem. */
+  sheet?: boolean;
+  className?: string;
+}
+
+const WIDTH = { sm: 'sm:max-w-sm', md: 'sm:max-w-md', lg: 'sm:max-w-xl' } as const;
+
+export function Dialog({
+  open,
+  onOpenChange,
+  trigger,
+  title,
+  description,
+  children,
+  size = 'md',
+  sheet = true,
+  className,
+}: DialogProps) {
+  const c = useT(common);
+  // Radix links the description itself; without one, an explicit undefined tells it there is none on purpose.
+  const describedBy = description ? {} : { 'aria-describedby': undefined };
+  return (
+    <D.Root open={open} onOpenChange={onOpenChange}>
+      {trigger ? <D.Trigger asChild>{trigger}</D.Trigger> : null}
+      <D.Portal>
+        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/70 backdrop-blur-[3px]" />
+        <D.Content
+          {...describedBy}
+          className={cn(
+            'fixed z-50 flex max-h-[min(90dvh,48rem)] w-full flex-col gap-5 overflow-y-auto border border-line',
+            'bg-surface-1 p-6 text-ink shadow-[0_32px_64px_-16px_rgb(0_0_0/0.55)] outline-none',
+            sheet
+              ? 'atro-dialog atro-sheet inset-x-0 bottom-0 rounded-t-3xl pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl'
+              : 'atro-dialog top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl',
+            WIDTH[size],
+            className,
+          )}
+        >
+          {sheet ? (
+            <div aria-hidden="true" className="-mt-2 mx-auto h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" />
+          ) : null}
+          <div className="flex flex-col gap-1.5 pr-10">
+            <D.Title className="font-display text-title">{title}</D.Title>
+            {description ? <D.Description className="text-small text-ink-muted">{description}</D.Description> : null}
+          </div>
+          {children}
+          <D.Close asChild>
+            <IconButton icon={X} label={c('close')} size="sm" tooltip={false} className="absolute top-4 right-4" />
+          </D.Close>
+        </D.Content>
+      </D.Portal>
+    </D.Root>
+  );
+}
+```
+
+`apps/web/src/ui/copy-button.tsx`:
+
+```tsx
+'use client';
+
+import { Check, Copy } from 'lucide-react';
+import { m } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as common } from '@/messages/common.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { SPRING } from '@/motion/tokens';
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type CopyState = 'idle' | 'copied' | 'failed';
+
+export function CopyButton({
+  text,
+  label,
+  showText = false,
+  className,
+}: {
+  text: string;
+  /** The accessible name, for example "Copy address". */
+  label: string;
+  showText?: boolean;
+  className?: string;
+}) {
+  const c = useT(common);
+  const t = useT(ui);
+  const [state, setState] = useState<CopyState>('idle');
+
+  useEffect(() => {
+    if (state === 'idle') return;
+    const id = setTimeout(() => setState('idle'), 1600);
+    return () => clearTimeout(id);
+  }, [state]);
+
+  const Icon = state === 'copied' ? Check : Copy;
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={showText ? undefined : label}
+        onClick={async () => setState((await copyText(text)) ? 'copied' : 'failed')}
+        className={cn(
+          'inline-flex shrink-0 items-center gap-1.5 rounded-full text-ink-muted transition-colors duration-150 hover:text-ink',
+          showText ? 'h-8 px-3 text-small hover:bg-surface-2' : 'size-8 justify-center hover:bg-surface-2',
+          state === 'copied' && 'text-alive hover:text-alive',
+          className,
+        )}
+      >
+        <m.span
+          key={state}
+          className="inline-flex"
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={SPRING}
+        >
+          <Icon aria-hidden="true" size={16} strokeWidth={1.5} />
+        </m.span>
+        {showText ? <span>{state === 'copied' ? c('copied') : label}</span> : null}
+      </button>
+      <span aria-live="polite" className="sr-only">
+        {state === 'copied' ? c('copied') : state === 'failed' ? t('copyFailed') : ''}
+      </span>
+    </>
+  );
+}
+```
+
+`apps/web/src/ui/untrusted-text.tsx`:
+
+```tsx
+'use client';
+
+import { cn } from '@/lib/cn';
+import { type Untrusted, untrusted } from '@/lib/untrusted';
+
+export function isUntrusted(v: unknown): v is Untrusted {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    (v as Untrusted).untrusted === true &&
+    typeof (v as Untrusted).value === 'string'
+  );
+}
+
+/**
+ * Text read from the chain (token names, symbols, revert reasons): cleaned again, truncated, isolated from the
+ * surrounding text direction with <bdi>, and only ever a text node. Never HTML, never a link.
+ */
+export function UntrustedText({ value, max = 64, className }: { value: unknown; max?: number; className?: string }) {
+  const u = untrusted(isUntrusted(value) ? value.value : value, max);
+  return (
+    <bdi data-untrusted="" className={cn('break-words', className)}>
+      {u.value}
+    </bdi>
+  );
+}
+```
+
+`apps/web/src/ui/external-link.tsx`:
+
+```tsx
+'use client';
+
+import { ArrowUpRight } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { IS_VERCEL } from '@/config/env';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { useMounted } from '@/lib/use-mounted';
+import { messages as ui } from '@/messages/ui.messages';
+import { VisuallyHidden } from './visually-hidden';
+
+export function safeExternalHref(href: string): string | null {
+  try {
+    const u = new URL(href);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const LOOK = {
+  inline:
+    'inline-flex items-center gap-1 underline decoration-line-strong decoration-1 underline-offset-4 ' +
+    'transition-colors duration-150 hover:decoration-thread',
+  icon:
+    'inline-grid size-8 shrink-0 place-items-center rounded-full text-ink-muted transition-colors duration-150 ' +
+    'hover:bg-surface-2 hover:text-ink',
+} as const;
+
+/**
+ * A link that leaves the site, in a new tab without an opener. `variant="icon"` is a round arrow button whose
+ * children are its hidden label. Quyết định 16: on DeWEB the gateway's static scan counts external `href`s in the
+ * prerendered HTML, so the deweb build prints text first and links after mount.
+ */
+export function ExternalLink({
+  href,
+  children,
+  icon = true,
+  variant = 'inline',
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  icon?: boolean;
+  variant?: 'inline' | 'icon';
+  className?: string;
+}) {
+  const t = useT(ui);
+  const mounted = useMounted();
+  const safe = safeExternalHref(href);
+  const cls = cn(LOOK[variant], className);
+  const body =
+    variant === 'icon' ? (
+      <>
+        <ArrowUpRight aria-hidden="true" size={16} strokeWidth={1.5} />
+        <VisuallyHidden>{children}</VisuallyHidden>
+      </>
+    ) : (
+      children
+    );
+  if (!safe || (!IS_VERCEL && !mounted)) {
+    return (
+      <span className={cls} data-external={safe ? 'pending' : 'refused'}>
+        {body}
+      </span>
+    );
+  }
+  return (
+    <a href={safe} target="_blank" rel="noopener noreferrer" className={cls}>
+      {body}
+      {variant === 'inline' && icon ? (
+        <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.5} className="shrink-0" />
+      ) : null}
+      <VisuallyHidden>{` ${t('newTab')}`}</VisuallyHidden>
+    </a>
+  );
+}
+```
+
+`apps/web/src/ui/identicon.ts`:
+
+```ts
+export interface IdenticonData {
+  /** OKLCH hue, 0–359. */
+  hue: number;
+  /** 5 × 5, row by row, mirrored left to right. */
+  cells: boolean[];
+}
+
+/** A face for an address, from its own hex digits (no hashing needed: an address already is one). */
+export function identiconOf(address: string): IdenticonData {
+  const hex = address
+    .toLowerCase()
+    .replace(/^0x/, '')
+    .replace(/[^0-9a-f]/g, '0')
+    .padEnd(40, '0');
+  const digit = (i: number) => Number.parseInt(hex[i % hex.length], 16);
+  const hue = Number.parseInt(hex.slice(0, 3), 16) % 360;
+  const cells: boolean[] = [];
+  for (let row = 0; row < 5; row++) {
+    const half = [0, 1, 2].map((col) => digit(3 + row * 3 + col) % 2 === 0);
+    cells.push(half[0], half[1], half[2], half[1], half[0]);
+  }
+  return { hue, cells };
+}
+```
+
+`apps/web/src/ui/address.tsx`:
+
+```tsx
+'use client';
+
+import { useMemo } from 'react';
+import { useT } from '@/i18n/provider';
+import { addressGroups, isAddressText } from '@/lib/address';
+import { cn } from '@/lib/cn';
+import { explorerAddress, explorerName } from '@/lib/links';
+import { messages as ui } from '@/messages/ui.messages';
+import { CopyButton } from './copy-button';
+import { ExternalLink } from './external-link';
+import { identiconOf } from './identicon';
+
+/** Lightness comes from --avatar-l (0.78 dark, 0.52 light), so the face reads in both themes. */
+export function Avatar({ address, size = 22 }: { address: string; size?: number }) {
+  const { hue, cells } = useMemo(() => identiconOf(address), [address]);
+  let d = '';
+  for (let i = 0; i < 25; i++) if (cells[i]) d += `M${i % 5} ${Math.floor(i / 5)}h1v1h-1z`;
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="-0.5 -0.5 6 6"
+      width={size}
+      height={size}
+      shapeRendering="crispEdges"
+      className="shrink-0 rounded-full"
+    >
+      <rect x={-0.5} y={-0.5} width={6} height={6} style={{ fill: `oklch(var(--avatar-l) 0.05 ${hue} / 0.35)` }} />
+      <path d={d} style={{ fill: `oklch(var(--avatar-l) 0.13 ${hue})` }} />
+    </svg>
+  );
+}
+
+/**
+ * An address in full, in groups of four (spec §4.2), so two addresses can be compared group by group. Never
+ * shortened: a shortened address is what address-poisoning attacks rely on.
+ */
+export function Address({
+  address,
+  explorer = null,
+  copy = true,
+  avatar = true,
+  size = 'md',
+  className,
+}: {
+  address: string;
+  explorer?: string | null;
+  copy?: boolean;
+  avatar?: boolean;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const t = useT(ui);
+  const parts = addressGroups(address).map((text, at) => ({ text, at }));
+  return (
+    <span
+      data-address={address}
+      className={cn('inline-flex min-w-0 max-w-full items-center gap-2 align-middle', className)}
+    >
+      {avatar ? <Avatar address={address} size={size === 'sm' ? 18 : 22} /> : null}
+      <span
+        translate="no"
+        className={cn('min-w-0 break-all font-mono tabular-nums', size === 'sm' ? 'text-small' : 'text-body')}
+      >
+        {parts.map((p) => (
+          <span
+            key={p.at}
+            className={p.at === 0 && parts.length > 1 ? 'text-ink-muted' : p.at > 1 ? 'ml-[0.45ch]' : undefined}
+          >
+            {p.text}
+          </span>
+        ))}
+      </span>
+      {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}
+      {explorer && isAddressText(address) ? (
+        <ExternalLink href={explorerAddress(explorer, address)} variant="icon">
+          {t('viewOn', { name: explorerName(explorer) })}
+        </ExternalLink>
+      ) : null}
+    </span>
+  );
+}
+```
+
+`apps/web/src/ui/amount.tsx`:
+
+```tsx
+'use client';
+
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { formatAmount } from '@/lib/format';
+import type { Untrusted } from '@/lib/untrusted';
+import { messages as common } from '@/messages/common.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { Tooltip } from './tooltip';
+import { UntrustedText } from './untrusted-text';
+
+/** Tabular figures, the unit, and the exact base-unit value on hover or focus (spec §6). */
+export function Amount({
+  raw,
+  decimals,
+  symbol = null,
+  maxFraction = 6,
+  className,
+}: {
+  raw: bigint;
+  decimals: number | null;
+  symbol?: Untrusted | string | null;
+  maxFraction?: number;
+  className?: string;
+}) {
+  const c = useT(common);
+  const t = useT(ui);
+  return (
+    <Tooltip content={<span className="font-mono">{t('rawAmount', { raw: raw.toString() })}</span>}>
+      <button
+        type="button"
+        data-raw={raw.toString()}
+        className={cn(
+          'inline-flex items-baseline gap-1 rounded-sm text-left tabular-nums decoration-dotted underline-offset-4 hover:underline',
+          className,
+        )}
+      >
+        <span className="font-mono">{formatAmount(raw, decimals, maxFraction)}</span>
+        <span className="text-ink-muted">
+          {decimals === null ? c('baseUnits') : symbol ? <UntrustedText value={symbol} max={16} /> : null}
+        </span>
+      </button>
+    </Tooltip>
+  );
+}
+```
+
+`apps/web/src/lib/use-now.ts`:
+
+```ts
+'use client';
+
+import { useEffect, useState } from 'react';
+
+/** The wall clock, ticking every `intervalMs`; null until mounted so prerendered markup never depends on it. */
+export function useNow(intervalMs = 1000): number | null {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+```
+
+`apps/web/src/ui/countdown.tsx`:
+
+```tsx
+'use client';
+
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { chainNow, formatRemaining, formatTimestamp } from '@/lib/format';
+import { useNow } from '@/lib/use-now';
+import { messages as ui } from '@/messages/ui.messages';
+
+const MAX_DATE_MS = 8.64e15;
+
+function dateOf(ts: bigint): { iso: string; text: string } | null {
+  const ms = Number(ts) * 1000;
+  if (!Number.isFinite(ms) || Math.abs(ms) > MAX_DATE_MS) return null;
+  return { iso: new Date(ms).toISOString(), text: formatTimestamp(ts) };
+}
+
+/** Time to (or since) a chain timestamp, in chain time: the block's time plus the wall clock since the read. */
+export function Countdown({
+  target,
+  blockTimestamp,
+  fetchedAtMs,
+  className,
+}: {
+  target: bigint;
+  blockTimestamp: bigint;
+  fetchedAtMs: number;
+  className?: string;
+}) {
+  const t = useT(ui);
+  const nowMs = useNow(1000) ?? fetchedAtMs;
+  const r = formatRemaining(target, chainNow(blockTimestamp, fetchedAtMs, nowMs));
+  const date = dateOf(target);
+  return (
+    <time
+      dateTime={date?.iso}
+      title={date?.text}
+      data-past={r.past}
+      className={cn('font-mono tabular-nums', r.past ? 'text-ink-muted' : 'text-ink', className)}
+    >
+      {r.past ? t('timeAgo', { time: r.text }) : t('inTime', { time: r.text })}
+    </time>
+  );
+}
+```
+
+`apps/web/src/ui/skeleton.tsx`:
+
+```tsx
+'use client';
+
+import { cn } from '@/lib/cn';
+
+/** A placeholder with the shape of the real content (size it with className). */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <span aria-hidden="true" className={cn('relative block overflow-hidden rounded-lg bg-surface-2', className)}>
+      <span className="absolute inset-0 hidden bg-linear-to-r from-transparent via-surface-3 to-transparent motion-safe:block motion-safe:animate-shimmer" />
+    </span>
+  );
+}
+
+const WIDTHS = ['w-full', 'w-11/12', 'w-2/3'] as const;
+
+export function SkeletonText({ lines = 3, className }: { lines?: number; className?: string }) {
+  const rows = Array.from({ length: lines }, (_, at) => ({ at, width: WIDTHS[at % WIDTHS.length] }));
+  return (
+    <span aria-hidden="true" className={cn('flex flex-col gap-2', className)}>
+      {rows.map((r) => (
+        <Skeleton key={r.at} className={cn('h-3.5', r.width)} />
+      ))}
+    </span>
+  );
+}
+```
+
+`apps/web/src/ui/empty-state.tsx`:
+
+```tsx
+'use client';
+
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/cn';
+import { StateGlyph } from '@/thread/glyphs';
+
+export function EmptyState({
+  title,
+  body,
+  action,
+  icon,
+  className,
+}: {
+  title: ReactNode;
+  body?: ReactNode;
+  action?: ReactNode;
+  icon?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col items-center gap-3 rounded-3xl border border-line border-dashed px-6 py-12 text-center',
+        className,
+      )}
+    >
+      <span className="grid size-12 place-items-center rounded-full bg-surface-2 text-thread">
+        {icon ?? <StateGlyph name="knot" size={24} />}
+      </span>
+      <p className="font-display text-title text-ink">{title}</p>
+      {body ? <p className="max-w-prose text-ink-muted text-small">{body}</p> : null}
+      {action ? <div className="mt-2">{action}</div> : null}
+    </div>
+  );
+}
+```
+
+`apps/web/src/ui/inline-error.tsx`:
+
+```tsx
+'use client';
+
+import { CircleExclamationPoint } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/cn';
+
+export function InlineError({ id, children, className }: { id?: string; children: ReactNode; className?: string }) {
+  return (
+    <p id={id} className={cn('flex items-start gap-1.5 text-danger text-small', className)}>
+      <CircleExclamationPoint aria-hidden="true" size={16} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+```
+
+`apps/web/src/ui/banner.tsx`:
+
+```tsx
+'use client';
+
+import { CircleCheck, CircleExclamationPoint, Info, type LucideIcon, TriangleExclamationPoint, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as common } from '@/messages/common.messages';
+import { IconButton } from './icon-button';
+
+export type BannerTone = 'info' | 'warn' | 'error' | 'success';
+
+const TONE: Record<BannerTone, { box: string; icon: string; Icon: LucideIcon }> = {
+  info: { box: 'border-line bg-surface-1', icon: 'text-recovery', Icon: Info },
+  warn: { box: 'border-grace/45 bg-grace/8', icon: 'text-grace', Icon: TriangleExclamationPoint },
+  error: { box: 'border-danger/45 bg-danger/8', icon: 'text-danger', Icon: CircleExclamationPoint },
+  success: { box: 'border-alive/45 bg-alive/8', icon: 'text-alive', Icon: CircleCheck },
+};
+
+/** Only errors interrupt a screen reader (role="alert"); the rest is read in order. */
+export function Banner({
+  tone = 'info',
+  title,
+  children,
+  action,
+  onDismiss,
+  testId,
+  className,
+}: {
+  tone?: BannerTone;
+  title?: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+  onDismiss?(): void;
+  testId?: string;
+  className?: string;
+}) {
+  const c = useT(common);
+  const { box, icon, Icon } = TONE[tone];
+  return (
+    <div
+      role={tone === 'error' ? 'alert' : undefined}
+      data-tone={tone}
+      data-testid={testId}
+      className={cn('flex items-start gap-3 rounded-2xl border p-4 text-ink text-small', box, className)}
+    >
+      <Icon aria-hidden="true" size={18} strokeWidth={1.5} className={cn('mt-0.5 shrink-0', icon)} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {title ? <p className="font-medium">{title}</p> : null}
+        <div className="text-ink-muted [&_strong]:text-ink">{children}</div>
+        {action ? <div className="pt-2">{action}</div> : null}
+      </div>
+      {onDismiss ? (
+        <IconButton icon={X} label={c('close')} size="sm" tooltip={false} onClick={onDismiss} className="-mt-1 -mr-1" />
+      ) : null}
+    </div>
+  );
+}
+```
+
+`apps/web/src/ui/text-field.tsx`:
+
+```tsx
+'use client';
+
+import { type InputHTMLAttributes, type ReactNode, type Ref, useId } from 'react';
+import { cn } from '@/lib/cn';
+import { InlineError } from './inline-error';
+
+export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> {
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  /** Monospace with tabular figures: addresses, amounts, hashes. */
+  mono?: boolean;
+  ref?: Ref<HTMLInputElement>;
+}
+
+export function TextField({ label, hint, error, mono = false, className, ...rest }: TextFieldProps) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <label htmlFor={id} className="font-medium text-ink text-small">
+        {label}
+      </label>
+      <input
+        {...rest}
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          'h-11 w-full rounded-xl border bg-surface-1 px-3.5 text-body text-ink placeholder:text-ink-muted',
+          'transition-colors duration-150 focus-visible:border-thread',
+          error ? 'border-danger' : 'border-line-strong hover:border-ink-muted',
+          mono && 'font-mono tabular-nums',
+        )}
+      />
+      {hint ? (
+        <p id={hintId} className="text-caption text-ink-muted">
+          {hint}
+        </p>
+      ) : null}
+      {error ? <InlineError id={errorId}>{error}</InlineError> : null}
+    </div>
+  );
+}
+```
+
+`apps/web/src/ui/qr-code.tsx`:
+
+```tsx
+'use client';
+
+import { useMemo } from 'react';
+import { encode } from 'uqr';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as ui } from '@/messages/ui.messages';
+
+/** One `h1v1` square per dark module, as a single path. */
+export function qrPath(data: readonly (readonly boolean[])[]): string {
+  let d = '';
+  for (let y = 0; y < data.length; y++) {
+    for (let x = 0; x < data[y].length; x++) if (data[y][x]) d += `M${x} ${y}h1v1h-1z`;
+  }
+  return d;
+}
+
+/**
+ * Dark modules on paper in both themes: scanners read dark-on-light best, and an inverted code fails on some
+ * phones. Quyết định 17: a path, not uqr's renderSVG, which returns an HTML string.
+ */
+export function QrCode({
+  value,
+  label,
+  size = 192,
+  className,
+}: {
+  value: string;
+  label: string;
+  size?: number;
+  className?: string;
+}) {
+  const t = useT(ui);
+  const data = useMemo(() => encode(value, { ecc: 'M', border: 2 }).data, [value]);
+  const n = data.length;
+  return (
+    <svg
+      role="img"
+      aria-label={t('qrOf', { what: label })}
+      viewBox={`0 0 ${n} ${n}`}
+      width={size}
+      height={size}
+      shapeRendering="crispEdges"
+      className={cn('rounded-xl', className)}
+    >
+      <rect width={n} height={n} fill="#FFFDF8" />
+      <path d={qrPath(data)} fill="#0B0D12" />
+    </svg>
+  );
+}
+```
+
+Run: `npm test -w apps/web -- primitives ssr`
+Expected: PASS (primitives 22, ssr 2).
+
+- [ ] **Step 4: Trang xem thử `/dev/` và test của nó**
+
+`apps/web/src/app/dev/gallery.tsx`:
+
+```tsx
+'use client';
+
+import { Copy, Settings } from 'lucide-react';
+import { type ReactNode, useId, useState } from 'react';
+import { untrusted } from '@/lib/untrusted';
+import { useMounted } from '@/lib/use-mounted';
+import { useTheme } from '@/theme/provider';
+import { GLYPH_NAMES, StateGlyph } from '@/thread/glyphs';
+import { THREAD_STATES } from '@/thread/state';
+import { StateBadge } from '@/thread/state-badge';
+import { Thread } from '@/thread/thread';
+import { Address } from '@/ui/address';
+import { Amount } from '@/ui/amount';
+import { Banner } from '@/ui/banner';
+import { Button } from '@/ui/button';
+import { CopyButton } from '@/ui/copy-button';
+import { Countdown } from '@/ui/countdown';
+import { Dialog } from '@/ui/dialog';
+import { EmptyState } from '@/ui/empty-state';
+import { ExternalLink } from '@/ui/external-link';
+import { HoldButton } from '@/ui/hold-button';
+import { IconButton } from '@/ui/icon-button';
+import { InlineError } from '@/ui/inline-error';
+import { Popover } from '@/ui/popover';
+import { QrCode } from '@/ui/qr-code';
+import { Skeleton, SkeletonText } from '@/ui/skeleton';
+import { Spinner } from '@/ui/spinner';
+import { TextField } from '@/ui/text-field';
+import { Tooltip } from '@/ui/tooltip';
+import { UntrustedText } from '@/ui/untrusted-text';
+
+const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+const COLORS = [
+  'bg',
+  'surface-1',
+  'surface-2',
+  'surface-3',
+  'ink',
+  'ink-muted',
+  'thread',
+  'on-thread',
+  'alive',
+  'grace',
+  'recovery',
+  'release',
+  'danger',
+  'on-danger',
+  'line',
+  'line-strong',
+] as const;
+// Written out in full: Tailwind only generates classes it finds whole in the source.
+const STEPS = [
+  { name: 'display', cls: 'font-display text-display' },
+  { name: 'h1', cls: 'font-display text-h1' },
+  { name: 'h2', cls: 'font-display text-h2' },
+  { name: 'title', cls: 'font-display text-title' },
+  { name: 'lead', cls: 'text-lead' },
+  { name: 'body', cls: 'text-body' },
+  { name: 'small', cls: 'text-small' },
+  { name: 'caption', cls: 'text-caption' },
+] as const;
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4 border-line border-t pt-8">
+      <h2 className="text-h2">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/** Every primitive in every state (spec §6), in both themes. Dev only: page.dev.tsx is not a production route. */
+export function Gallery() {
+  const { choice, setChoice } = useTheme();
+  const [remaining, setRemaining] = useState(0.6);
+  const [confirmed, setConfirmed] = useState(0);
+  const sliderId = useId();
+  // The clock is read after mount, so the dev server's HTML and the first client render agree.
+  const mounted = useMounted();
+  const [fetchedAtMs] = useState(() => Date.now());
+  const block = BigInt(Math.floor(fetchedAtMs / 1000));
+
+  return (
+    <main className="mx-auto flex max-w-5xl flex-col gap-12 px-6 py-16">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-h1">Atropyle primitives</h1>
+        <div className="flex gap-2">
+          {(['system', 'light', 'dark'] as const).map((c) => (
+            <Button key={c} size="sm" variant={choice === c ? 'primary' : 'secondary'} onClick={() => setChoice(c)}>
+              {c}
+            </Button>
+          ))}
+        </div>
+      </header>
+
+      <Section title="Colour">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {COLORS.map((c) => (
+            <div key={c} className="flex items-center gap-3 rounded-xl border border-line p-3">
+              <span className="size-8 rounded-lg border border-line" style={{ background: `var(--atro-${c})` }} />
+              <code className="font-mono text-small">{c}</code>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Type">
+        {STEPS.map((s) => (
+          <p key={s.name} className={s.cls}>
+            {s.name}: Sợi chỉ không đứt, ặ ỗ ữ Ặ Ỗ Ữ
+          </p>
+        ))}
+        <p className="font-mono text-body">0x3C44 CdDd B6a9 — 1,234.567890</p>
+      </Section>
+
+      <Section title="Buttons">
+        <div className="flex flex-wrap items-center gap-3">
+          {(['primary', 'secondary', 'ghost', 'danger'] as const).map((v) => (
+            <Button key={v} variant={v}>
+              {v}
+            </Button>
+          ))}
+          <Button loading>Loading</Button>
+          <Button disabled>Disabled</Button>
+          <Button size="sm">Small</Button>
+          <Button size="lg" variant="primary">
+            Large
+          </Button>
+          <IconButton icon={Settings} label="Settings" />
+          <CopyButton text={A} label="Copy address" showText />
+        </div>
+      </Section>
+
+      <Section title="Hold to confirm">
+        <div className="flex flex-wrap items-start gap-8">
+          <HoldButton onConfirm={() => setConfirmed((n) => n + 1)}>Check in</HoldButton>
+          <HoldButton tone="danger" size="md" onConfirm={() => setConfirmed((n) => n + 1)}>
+            Release now
+          </HoldButton>
+          <HoldButton disabled onConfirm={() => {}}>
+            Disabled
+          </HoldButton>
+        </div>
+        <p className="text-ink-muted text-small">Confirmed {confirmed} times.</p>
+      </Section>
+
+      <Section title="Thread">
+        <label htmlFor={sliderId} className="text-small">
+          Remaining: {Math.round(remaining * 100)}%
+        </label>
+        <input
+          id={sliderId}
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={remaining}
+          onChange={(e) => setRemaining(Number(e.target.value))}
+          className="w-64 accent-thread"
+        />
+        <div className="grid gap-6 sm:grid-cols-2">
+          {THREAD_STATES.map((s) => (
+            <figure key={s} className="flex flex-col gap-2 rounded-2xl border border-line p-4">
+              <Thread state={s} remaining={remaining} knots={[0.12, 0.3, 0.41]} branches={[5000, 3000, 2000]} />
+              <figcaption>
+                <StateBadge state={s} size="sm" drill={s === 'expired'} />
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-4 text-ink">
+          {GLYPH_NAMES.map((g) => (
+            <span key={g} className="flex items-center gap-2 text-small">
+              <StateGlyph name={g} size={24} /> {g}
+            </span>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Data">
+        <Address address={A} explorer="https://www.oklink.com/xlayer" />
+        <Address address={A} size="sm" copy={false} />
+        <p className="flex flex-wrap gap-6">
+          <Amount raw={1_234_567_890n} decimals={6} symbol={untrusted('USDC')} />
+          <Amount raw={1n} decimals={18} symbol="ETH" />
+          <Amount raw={3n} decimals={null} />
+        </p>
+        {mounted ? (
+          <p className="flex gap-6">
+            <Countdown target={block + 3725n} blockTimestamp={block} fetchedAtMs={fetchedAtMs} />
+            <Countdown target={block - 90n} blockTimestamp={block} fetchedAtMs={fetchedAtMs} />
+          </p>
+        ) : null}
+        <p>
+          Token name: <UntrustedText value={'Tether\u{202E}USD <b>bold</b> \u{200B}free money, visit evil.example'} />
+        </p>
+        <ExternalLink href="https://web3.okx.com/xlayer">X Layer</ExternalLink>
+        <QrCode value={`https://atropyle.app/vault/#${A}`} label="this vault" size={160} />
+      </Section>
+
+      <Section title="Feedback">
+        {(['info', 'warn', 'error', 'success'] as const).map((tone) => (
+          <Banner key={tone} tone={tone} title={`A ${tone} banner`} onDismiss={() => {}}>
+            Banners explain what happened and what to do next.
+          </Banner>
+        ))}
+        <InlineError>That is not a valid address.</InlineError>
+        <EmptyState
+          title="No vaults yet"
+          body="Vaults you own, guard or inherit appear here."
+          action={<Button variant="primary">Create a vault</Button>}
+        />
+        <div className="flex items-center gap-6">
+          <Spinner label="Loading" size={20} />
+          <Skeleton className="h-10 w-48 rounded-full" />
+          <SkeletonText lines={3} className="w-64" />
+        </div>
+      </Section>
+
+      <Section title="Forms and overlays">
+        <TextField label="Vault address" placeholder="0x…" hint="0x and 40 characters" mono />
+        <TextField label="Amount" defaultValue="abc" error="Enter a number" />
+        <div className="flex flex-wrap gap-3">
+          <Dialog
+            trigger={<Button>Open dialog</Button>}
+            title="Choose a wallet"
+            description="A sheet on phones, a dialog on wider screens."
+          >
+            <p className="text-small">Dialog body.</p>
+          </Dialog>
+          <Popover trigger={<Button>Open popover</Button>} label="Example popover">
+            <p className="p-2 text-small">Popover content.</p>
+          </Popover>
+          <Tooltip content="A tooltip">
+            <Button icon={<Copy aria-hidden="true" strokeWidth={1.5} />}>Hover or focus me</Button>
+          </Tooltip>
+        </div>
+      </Section>
+    </main>
+  );
+}
+```
+
+`apps/web/src/app/dev/page.dev.tsx`:
+
+```tsx
+import { Gallery } from './gallery';
+
+// Quyết định 21: `.dev.tsx` is a page extension only under `next dev`, so this never reaches a build.
+export default function DevPage() {
+  return <Gallery />;
+}
+```
+
+`apps/web/test/unit/dev-gallery.test.tsx`:
+
+```tsx
+import { screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { Gallery } from '../../src/app/dev/gallery';
+import { renderWithProviders } from '../helpers/render';
+
+describe('/dev/ gallery', () => {
+  it('shows every group of primitives', () => {
+    renderWithProviders(<Gallery />);
+    for (const name of [
+      'Colour',
+      'Type',
+      'Buttons',
+      'Hold to confirm',
+      'Thread',
+      'Data',
+      'Feedback',
+      'Forms and overlays',
+    ]) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
+    }
+  });
+});
+```
+
+(Ô màu dùng `style={{ background: 'var(--atro-…)' }}` vì tên token đến từ một mảng; Tailwind chỉ sinh lớp cho tên viết đủ trong mã nguồn. Trang này chỉ có lúc dev.)
+
+- [ ] **Step 5: Chạy toàn bộ, build và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+npm run test:build -w apps/web
+git add apps/web/src/ui apps/web/src/lib/use-now.ts apps/web/src/shell/providers.tsx apps/web/src/app/dev apps/web/src/app/layout.tsx apps/web/src/messages/ui.messages.ts apps/web/test/helpers/render.tsx apps/web/test/unit/primitives.test.tsx apps/web/test/unit/ssr.test.tsx apps/web/test/unit/dev-gallery.test.tsx apps/web/package.json package-lock.json
+git commit -m "feat(web): primitives, app providers and the /dev/ gallery" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS; `test:build` vẫn PASS (`out/dev` không tồn tại).
+
+---
+
+### Task 9: Khung trang, script boot, chuyển hướng link cũ và trang chủ tạm
+
+Khung (`Frame`) bọc mọi trang: link "Tới nội dung chính", header dính trên cùng (wordmark, điều hướng, menu cài đặt; trên màn hình hẹp là một sheet), footer (nhãn beta, link nguồn, giấy phép, phiên bản). Script boot là script inline duy nhất (Quyết định 14): nó chuyển link cũ ở `/` sang đường dẫn mới (spec §3) rồi đặt theme đã lưu, trước lần vẽ đầu.
+
+**Files:**
+- Create: `apps/web/src/theme/boot.ts`, `apps/web/src/theme/boot-script.tsx`, `apps/web/src/routes.ts`, `apps/web/src/lib/hash.ts`
+- Create: `apps/web/src/shell/{frame,header,nav-list,settings-menu,mobile-menu,footer,skip-link,lang-switch,theme-switch,haptics-switch,wordmark}.tsx`, `apps/web/src/home/hero.tsx`, `apps/web/src/app/not-found.tsx`
+- Modify: `apps/web/src/app/layout.tsx`, `apps/web/src/app/page.tsx`, `apps/web/src/messages/shell.messages.ts`, `apps/web/src/messages/home.messages.ts`
+- Test: `apps/web/test/unit/boot.test.ts`, `apps/web/test/unit/routes.test.ts`, `apps/web/test/unit/hash.test.tsx`, `apps/web/test/unit/shell.test.tsx`, `apps/web/test/unit/no-html-sinks.test.ts`, `apps/web/test/build/shell.test.ts`
+
+**Interfaces:**
+- Consumes: Task 2 (`ENV`, `IS_VERCEL`, `test/build/paths.ts`), Task 4 (`fontVariables`), Task 5 (`useT`, `useLang`, `useTheme`, `KEYS`, `REPO_URL`, `LICENSE_URL`, `XLAYER_URL`, `cn`, `useMounted`), Task 6 (`withViewTransition`, `useHaptics`), Task 7 (`Thread`), Task 8 (`Providers`, `Dialog`, `Popover`, `IconButton`, `buttonClass`, `ExternalLink`, `UntrustedText`).
+- Produces:
+  - `src/theme/boot.ts`: `legacyTarget(pathname: string, hash: string): string | null`; `boot(themeKey: string, legacy: typeof legacyTarget): void`; `BOOT_SCRIPT: string`.
+  - `src/theme/boot-script.tsx`: `BootScript()` (đặt trong `<head>` của layout).
+  - `src/routes.ts`: `ROUTES` (`home`, `create`, `vault`, `verify`, `sign`, `proof`, `me`, `join`, `alertsConfirm`, `alertsUnsubscribe`, `status`, `developers`, `privacy`, mỗi giá trị kết thúc bằng `/`); `type RouteName = keyof typeof ROUTES`; `type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers'`; `NAV: readonly { route: RouteName; key: NavKey }[]`; `createHref(mode?: 'drill' | 'real'): string`; `vaultHref(vault: string): string`; `verifyHref(vault: string): string`; `joinHref(vault: string, role: 'guardian' | 'heir'): string`; `signHref(encodedPayload: string): string`; `toSdkSignLink(hash: string): string`; `isCurrent(pathname: string, href: string): boolean`; re-export `legacyTarget`.
+  - `src/lib/hash.ts`: `useLocationHash(): string` (gồm cả `#`, chuỗi rỗng lúc prerender); `replaceHash(hash: string): void` (không thêm mục lịch sử, báo cho mọi `useLocationHash`).
+  - `src/shell/frame.tsx`: `Frame({ children })`. `src/shell/header.tsx`: `Header()`. `src/shell/nav-list.tsx`: `NavList({ layout: 'bar' | 'sheet', onNavigate?(): void })`. `src/shell/settings-menu.tsx`: `SettingsMenu()`. `src/shell/mobile-menu.tsx`: `MobileMenu()`. `src/shell/footer.tsx`: `Footer()`. `src/shell/skip-link.tsx`: `SkipLink({ targetId })`. `src/shell/lang-switch.tsx`: `LangSwitch()`. `src/shell/theme-switch.tsx`: `ThemeSwitch()`. `src/shell/haptics-switch.tsx`: `HapticsSwitch()`. `src/shell/wordmark.tsx`: `Wordmark({ className? })`.
+  - `src/home/hero.tsx`: `HomeHero()` (Plan 7B thay bằng trang chủ sáu cảnh).
+
+- [ ] **Step 1: Viết test hỏng cho script boot và đường dẫn**
+
+`apps/web/test/unit/boot.test.ts`:
+
+```ts
+// @vitest-environment node
+import { runInNewContext } from 'node:vm';
+import { describe, expect, it, vi } from 'vitest';
+import { BOOT_SCRIPT, legacyTarget } from '../../src/theme/boot';
+
+/** 4 kB of every character base64url uses: the shape of a long signing payload. */
+const PAYLOAD = Array.from({ length: 4096 }, (_, i) => 'ABYZabyz0189-_'[i % 14]).join('');
+
+function page(o: { pathname?: string; hash?: string; stored?: string | null; storageThrows?: boolean } = {}) {
+  const replace = vi.fn();
+  const setAttribute = vi.fn();
+  const ctx: Record<string, unknown> = {
+    location: { pathname: o.pathname ?? '/', hash: o.hash ?? '', replace },
+    document: { documentElement: { setAttribute } },
+  };
+  Object.defineProperty(ctx, 'localStorage', {
+    get() {
+      if (o.storageThrows) throw new Error('SecurityError: storage is disabled');
+      return { getItem: (k: string) => (k === 'atropyle:theme' ? (o.stored ?? null) : null) };
+    },
+  });
+  runInNewContext(BOOT_SCRIPT, ctx);
+  return { replace, setAttribute };
+}
+
+describe('legacyTarget', () => {
+  it('legacyTarget keeps the payload byte for byte', () => {
+    expect(legacyTarget('/', `#/sign?p=${PAYLOAD}`)).toBe(`/sign/#p=${PAYLOAD}`);
+    expect(legacyTarget('/index.html', `#/sign?p=${PAYLOAD}`)).toBe(`/sign/#p=${PAYLOAD}`);
+    // Two p parameters move as they are, so the sign page still refuses the link.
+    expect(legacyTarget('/', '#/sign?p=a&p=b')).toBe('/sign/#p=a&p=b');
+  });
+
+  it('maps every page of the old app', () => {
+    const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+    const cases: [string, string][] = [
+      [`#/v/${A}`, `/vault/#${A}`],
+      [`#/v/${A}/`, `/vault/#${A}`],
+      [`#/v/${A}/verify`, `/verify/#${A}`],
+      ['#/proof', '/proof/'],
+      ['#/status', '/status/'],
+      ['#/developers', '/developers/'],
+      ['#/create', '/create/'],
+      ['#/create?drill=1', '/create/#drill'],
+      ['#/sign', '/sign/'],
+    ];
+    for (const [hash, want] of cases) expect(legacyTarget('/', hash), hash).toBe(want);
+  });
+
+  it('legacyTarget leaves unknown hashes alone', () => {
+    for (const hash of [
+      '',
+      '#',
+      '#/',
+      '#/nope',
+      '#/v',
+      '#/v/a/edit',
+      '#/v/a/b/c',
+      '#p=abc',
+      '#drill',
+      '#/sign/extra?p=a',
+    ]) {
+      expect(legacyTarget('/', hash), hash).toBeNull();
+    }
+    expect(legacyTarget('/vault/', '#/sign?p=a')).toBeNull();
+    expect(legacyTarget('/sign/', '#/sign?p=a')).toBeNull();
+  });
+});
+
+describe('boot script', () => {
+  it('redirects a legacy link before it touches the theme', () => {
+    const { replace, setAttribute } = page({ hash: '#/v/0xabc/verify', stored: 'dark' });
+    expect(replace).toHaveBeenCalledWith('/verify/#0xabc');
+    expect(setAttribute).not.toHaveBeenCalled();
+  });
+
+  it('applies a stored light or dark theme and leaves the rest to the system', () => {
+    expect(page({ stored: 'light' }).setAttribute).toHaveBeenCalledWith('data-theme', 'light');
+    expect(page({ stored: 'dark' }).setAttribute).toHaveBeenCalledWith('data-theme', 'dark');
+    for (const stored of ['system', 'blue', '', null]) expect(page({ stored }).setAttribute).not.toHaveBeenCalled();
+  });
+
+  it('boot survives a localStorage that throws', () => {
+    expect(() => page({ storageThrows: true })).not.toThrow();
+    expect(page({ storageThrows: true, hash: '#/proof' }).replace).toHaveBeenCalledWith('/proof/');
+  });
+});
+```
+
+`apps/web/test/unit/routes.test.ts`:
+
+```ts
+// @vitest-environment node
+import { parseSignLink, type SignPayload, signLink } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import {
+  createHref,
+  isCurrent,
+  joinHref,
+  legacyTarget,
+  NAV,
+  ROUTES,
+  signHref,
+  toSdkSignLink,
+  vaultHref,
+  verifyHref,
+} from '../../src/routes';
+
+const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+const B = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+
+describe('routes', () => {
+  it('puts every parameter after the #, so it never reaches a server', () => {
+    expect(createHref()).toBe('/create/#drill');
+    expect(createHref('real')).toBe('/create/#real');
+    expect(vaultHref(A)).toBe(`/vault/#${A}`);
+    expect(verifyHref(A)).toBe(`/verify/#${A}`);
+    expect(joinHref(A, 'heir')).toBe(`/join/#${A}.heir`);
+    expect(signHref('AQID')).toBe('/sign/#p=AQID');
+    for (const path of Object.values(ROUTES)) expect(path.endsWith('/'), path).toBe(true);
+  });
+
+  it('marks the current page whatever the trailing slash', () => {
+    expect(isCurrent('/create/', ROUTES.create)).toBe(true);
+    expect(isCurrent('/create', ROUTES.create)).toBe(true);
+    expect(isCurrent('/create/', createHref('real'))).toBe(true);
+    expect(isCurrent('/', ROUTES.home)).toBe(true);
+    expect(isCurrent('/proof/', ROUTES.create)).toBe(false);
+    expect(isCurrent('/', ROUTES.create)).toBe(false);
+  });
+
+  it('navigates only to known routes', () => {
+    const known = new Set<string>(Object.keys(ROUTES));
+    for (const item of NAV) expect(known.has(item.route), item.route).toBe(true);
+  });
+
+  it('an SDK sign link survives the redirect and decodes to the same request', () => {
+    const payload: SignPayload = {
+      chainId: 196,
+      from: A,
+      steps: [{ to: B, data: `0x5c19a95c${'00'.repeat(32)}`, value: 1n }],
+    };
+    const old = new URL(signLink(payload, 'https://atropyle.example/'));
+    const moved = new URL(legacyTarget(old.pathname, old.hash) ?? '', old);
+    expect(moved.pathname).toBe('/sign/');
+    expect(toSdkSignLink(moved.hash)).toBe(old.hash);
+    expect(parseSignLink(toSdkSignLink(moved.hash))).toEqual(payload);
+  });
+
+  it('keeps two p parameters, so the SDK refuses the link', () => {
+    expect(toSdkSignLink('#p=a&p=b')).toBe('#/sign?p=a&p=b');
+    expect(() => parseSignLink(toSdkSignLink('#p=a&p=b'))).toThrow(/more than one p/);
+    expect(toSdkSignLink('')).toBe('#/sign?');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- boot routes`
+Expected: FAIL, không tìm thấy `../../src/theme/boot` và `../../src/routes`.
+
+- [ ] **Step 2: Viết `boot.ts`, `boot-script.tsx` và `routes.ts`**
+
+`apps/web/src/theme/boot.ts`:
+
+```ts
+import { KEYS } from '@/lib/store';
+
+/**
+ * The old app kept its route in the hash (`#/sign?p=…`, `#/v/<a>/verify`); the SDK, the CLI and the MCP server
+ * still print such links. Only the home page redirects, and only the shapes the old app had (spec §3).
+ *
+ * Self-contained on purpose: its source text runs as the inline boot script, so it uses no import, no outer
+ * variable and nothing a compiler would rewrite into a helper call.
+ */
+export function legacyTarget(pathname: string, hash: string): string | null {
+  if (pathname !== '/' && pathname !== '/index.html') return null;
+  const m = /^#\/([^?]*)(?:\?(.*))?$/.exec(hash);
+  if (m === null) return null;
+  const parts = m[1].split('/').filter((p) => p !== '');
+  const query = m[2] === undefined ? '' : m[2];
+  const first = parts[0];
+  if (parts.length === 1) {
+    if (first === 'sign') return query === '' ? '/sign/' : `/sign/#${query}`;
+    if (first === 'create') return /(^|&)drill=1(&|$)/.test(query) ? '/create/#drill' : '/create/';
+    if (first === 'proof' || first === 'status' || first === 'developers') return `/${first}/`;
+  }
+  if (first === 'v' && parts.length === 2) return `/vault/#${parts[1]}`;
+  if (first === 'v' && parts.length === 3 && parts[2] === 'verify') return `/verify/#${parts[1]}`;
+  return null;
+}
+
+/** Runs before the first paint. Self-contained like legacyTarget, which it receives as an argument. */
+export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void {
+  try {
+    const target = legacy(location.pathname, location.hash);
+    if (target !== null) {
+      location.replace(target);
+      return;
+    }
+  } catch {
+    // A failed redirect leaves the visitor on the home page, which works on its own.
+  }
+  try {
+    const stored = localStorage.getItem(themeKey);
+    if (stored === 'light' || stored === 'dark') document.documentElement.setAttribute('data-theme', stored);
+  } catch {
+    // Storage is blocked (private window, sandboxed frame): the system theme applies.
+  }
+}
+
+/** The page's only inline script (Quyết định 14). The CSP hashes it after the build (Task 15). */
+export const BOOT_SCRIPT = `(${boot.toString()})(${JSON.stringify(KEYS.theme)},${legacyTarget.toString()});`;
+```
+
+`apps/web/src/theme/boot-script.tsx`:
+
+```tsx
+import { BOOT_SCRIPT } from './boot';
+
+/** In <head>: redirects legacy links and applies the stored theme before anything paints. */
+export function BootScript() {
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: a constant built from two functions of this file's sibling; no input reaches it.
+  return <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />;
+}
+```
+
+`apps/web/src/routes.ts`:
+
+```ts
+export { legacyTarget } from './theme/boot';
+
+/** Every page of the app (spec §3). Parameters always go after the #, which no server ever receives. */
+export const ROUTES = {
+  home: '/',
+  create: '/create/',
+  vault: '/vault/',
+  verify: '/verify/',
+  sign: '/sign/',
+  proof: '/proof/',
+  me: '/me/',
+  join: '/join/',
+  alertsConfirm: '/alerts/confirm/',
+  alertsUnsubscribe: '/alerts/unsubscribe/',
+  status: '/status/',
+  developers: '/developers/',
+  privacy: '/privacy/',
+} as const;
+
+export type RouteName = keyof typeof ROUTES;
+export type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers';
+
+export const NAV: readonly { route: RouteName; key: NavKey }[] = [
+  { route: 'create', key: 'navCreate' },
+  { route: 'me', key: 'navMe' },
+  { route: 'proof', key: 'navProof' },
+  { route: 'developers', key: 'navDevelopers' },
+];
+
+export function createHref(mode: 'drill' | 'real' = 'drill'): string {
+  return `${ROUTES.create}#${mode}`;
+}
+
+export function vaultHref(vault: string): string {
+  return `${ROUTES.vault}#${vault}`;
+}
+
+export function verifyHref(vault: string): string {
+  return `${ROUTES.verify}#${vault}`;
+}
+
+export function joinHref(vault: string, role: 'guardian' | 'heir'): string {
+  return `${ROUTES.join}#${vault}.${role}`;
+}
+
+export function signHref(encodedPayload: string): string {
+  return `${ROUTES.sign}#p=${encodedPayload}`;
+}
+
+/** `/sign/#p=X` → the `#/sign?p=X` form that `parseSignLink` of the SDK reads, byte for byte. */
+export function toSdkSignLink(hash: string): string {
+  return `#/sign?${hash.startsWith('#') ? hash.slice(1) : hash}`;
+}
+
+const bare = (path: string) => (path.length > 1 ? path.replace(/\/+$/, '') : path);
+
+export function isCurrent(pathname: string, href: string): boolean {
+  return bare(pathname) === bare(href.split('#')[0]);
+}
+```
+
+Run: `npm test -w apps/web -- boot routes`
+Expected: PASS (boot 6, routes 5).
+
+- [ ] **Step 3: `useLocationHash` và `replaceHash`**
+
+`apps/web/test/unit/hash.test.tsx`:
+
+```tsx
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { replaceHash, useLocationHash } from '../../src/lib/hash';
+
+afterEach(() => window.history.replaceState(null, '', '/'));
+
+describe('useLocationHash', () => {
+  it('follows the fragment', () => {
+    window.history.replaceState(null, '', '/vault/#0xabc');
+    const { result } = renderHook(() => useLocationHash());
+    expect(result.current).toBe('#0xabc');
+    act(() => {
+      window.history.replaceState(null, '', '/vault/#0xdef');
+      window.dispatchEvent(new Event('hashchange'));
+    });
+    expect(result.current).toBe('#0xdef');
+  });
+
+  it('replaceHash changes the fragment in place and tells every reader', () => {
+    window.history.replaceState(null, '', '/create/#drill');
+    const entries = window.history.length;
+    const { result } = renderHook(() => useLocationHash());
+    act(() => replaceHash('#real'));
+    expect(window.location.hash).toBe('#real');
+    expect(result.current).toBe('#real');
+    expect(window.history.length).toBe(entries);
+  });
+});
+```
+
+`apps/web/src/lib/hash.ts`:
+
+```ts
+'use client';
+
+import { useSyncExternalStore } from 'react';
+
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener('hashchange', onChange);
+  return () => window.removeEventListener('hashchange', onChange);
+}
+
+/** `location.hash`, with its `#`; empty while prerendering. Pages parse it themselves. */
+export function useLocationHash(): string {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.location.hash,
+    () => '',
+  );
+}
+
+/** Changes the fragment without a history entry (the /create/ mode switch) and notifies useLocationHash. */
+export function replaceHash(hash: string): void {
+  const next = hash.startsWith('#') ? hash : `#${hash}`;
+  window.history.replaceState(window.history.state, '', next);
+  window.dispatchEvent(new Event('hashchange'));
+}
+```
+
+Run: `npm test -w apps/web -- hash.test`
+Expected: PASS (2 test).
+
+- [ ] **Step 4: Thêm chuỗi của khung và trang chủ tạm**
+
+Thay toàn bộ `apps/web/src/messages/shell.messages.ts` (giữ mọi khoá cũ, thêm `navMe`, `navLabel`, `footerNav`, `settings`, `betaBadge`, `notFoundHint`):
+
+```ts
+import { defineMessages } from '@/i18n/core';
+
+export const messages = defineMessages(
+  {
+    navCreate: 'Create',
+    navMe: 'My vaults',
+    navProof: 'Proof',
+    navStatus: 'Status',
+    navDevelopers: 'Developers',
+    navLabel: 'Main',
+    footerNav: 'Site',
+    settings: 'Settings',
+    connect: 'Connect wallet',
+    connecting: 'Connecting…',
+    disconnect: 'Disconnect',
+    noWallet: 'No wallet found. Install OKX Wallet, or open this page in the OKX App browser.',
+    chooseWallet: 'Choose a wallet',
+    wrongNetwork: 'Your wallet is on chain {actual}. Atropyle runs on {expected} (chain {id}).',
+    switchNetwork: 'Switch to {expected}',
+    deploymentMissing: 'Atropyle is not available on this network yet.',
+    notFoundTitle: 'Page not found',
+    notFoundBody: 'There is no page at this link:',
+    notFoundHint: 'Check the link for a typo, or start again from the home page.',
+    goHome: 'Go to the home page',
+    badAddressTitle: 'Not a valid address',
+    badAddressBody: 'This link does not contain a valid vault address:',
+    betaBadge: 'Beta — unaudited',
+    footer: 'Atropyle is beta software and has not been audited. Practise with a Drill or small amounts first.',
+  },
+  {
+    navCreate: 'Tạo vault',
+    navMe: 'Vault của tôi',
+    navProof: 'Chứng minh',
+    navStatus: 'Trạng thái',
+    navDevelopers: 'Nhà phát triển',
+    navLabel: 'Điều hướng chính',
+    footerNav: 'Liên kết',
+    settings: 'Cài đặt',
+    connect: 'Kết nối ví',
+    connecting: 'Đang kết nối…',
+    disconnect: 'Ngắt kết nối',
+    noWallet: 'Không tìm thấy ví. Hãy cài OKX Wallet, hoặc mở trang này trong trình duyệt của OKX App.',
+    chooseWallet: 'Chọn ví',
+    wrongNetwork: 'Ví của bạn đang ở chain {actual}. Atropyle chạy trên {expected} (chain {id}).',
+    switchNetwork: 'Chuyển sang {expected}',
+    deploymentMissing: 'Atropyle chưa có trên mạng này.',
+    notFoundTitle: 'Không tìm thấy trang',
+    notFoundBody: 'Không có trang nào ở link này:',
+    notFoundHint: 'Hãy kiểm tra link có gõ sai không, hoặc bắt đầu lại từ trang chủ.',
+    goHome: 'Về trang chủ',
+    badAddressTitle: 'Địa chỉ không hợp lệ',
+    badAddressBody: 'Link này không chứa địa chỉ vault hợp lệ:',
+    betaBadge: 'Beta — chưa kiểm toán',
+    footer: 'Atropyle là phần mềm beta, chưa được kiểm toán. Hãy tập bằng Drill hoặc số tiền nhỏ trước.',
+  },
+);
+```
+
+Trong `apps/web/src/messages/home.messages.ts`: ở object `en`, ngay sau dòng `title: 'Atropyle',` thêm:
+
+```ts
+    heroEyebrow: 'Inheritance and wallet recovery on X Layer',
+    heroTitle: 'What happens to your crypto when you can no longer sign?',
+    heroLead:
+      'Atropyle is a vault on X Layer. Check in now and then. If you stop, your guardians confirm and your heirs receive what you left them. A circuit decides every step, and anyone can prove it.',
+    heroDrill: 'Try a 7-day Drill, free',
+    heroProof: 'See the proof',
+```
+
+và ở object `vi`, ngay sau dòng `title: 'Atropyle',` thêm:
+
+```ts
+    heroEyebrow: 'Thừa kế và khôi phục ví trên X Layer',
+    heroTitle: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
+    heroLead:
+      'Atropyle là một vault trên X Layer. Thỉnh thoảng bạn điểm danh. Nếu bạn ngừng, người giám hộ xác nhận và người thừa kế nhận phần bạn để lại. Một circuit quyết định mọi bước, và ai cũng kiểm chứng được.',
+    heroDrill: 'Thử Drill 7 ngày, miễn phí',
+    heroProof: 'Xem bằng chứng',
+```
+
+- [ ] **Step 5: Viết test hỏng cho khung**
+
+`apps/web/test/unit/shell.test.tsx`:
+
+```tsx
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import NotFound from '../../src/app/not-found';
+import { HomeHero } from '../../src/home/hero';
+import { REPO_URL } from '../../src/lib/links';
+import { KEYS } from '../../src/lib/store';
+import { Footer } from '../../src/shell/footer';
+import { Frame } from '../../src/shell/frame';
+import { LangSwitch } from '../../src/shell/lang-switch';
+import { MobileMenu } from '../../src/shell/mobile-menu';
+import { ThemeSwitch } from '../../src/shell/theme-switch';
+import { renderWithProviders } from '../helpers/render';
+
+vi.mock('next/navigation', () => ({ usePathname: () => '/create/' }));
+
+describe('Frame', () => {
+  it('skips to the main content without touching the hash', () => {
+    window.history.replaceState(null, '', '/vault/#0xabc');
+    renderWithProviders(
+      <Frame>
+        <p>Body</p>
+      </Frame>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to content' }));
+    expect(document.activeElement?.tagName).toBe('MAIN');
+    expect(window.location.hash).toBe('#0xabc');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('marks the current page in the navigation', () => {
+    renderWithProviders(
+      <Frame>
+        <p>Body</p>
+      </Frame>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const create = nav.querySelector('a[href="/create/"]');
+    expect(create?.getAttribute('aria-current')).toBe('page');
+    expect(nav.querySelector('a[href="/proof/"]')?.getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Atropyle home' }).getAttribute('href')).toBe('/');
+  });
+});
+
+describe('settings', () => {
+  it('switches language with native radios and remembers it', async () => {
+    const { kv } = renderWithProviders(<LangSwitch />);
+    expect(screen.getByRole('group', { name: 'Language' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng Việt' }));
+    await waitFor(() => expect(document.documentElement.lang).toBe('vi'));
+    expect(kv.get(KEYS.lang)).toBe('vi');
+    expect((screen.getByRole('radio', { name: 'Tiếng Việt' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('switches theme and returns to the system theme', () => {
+    const { kv } = renderWithProviders(<ThemeSwitch />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(kv.get(KEYS.theme)).toBe('dark');
+    fireEvent.click(screen.getByRole('radio', { name: 'System' }));
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('opens the navigation as a sheet on narrow screens', async () => {
+    renderWithProviders(<MobileMenu />);
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Menu' });
+    expect(sheet.querySelector('a[href="/create/"]')?.getAttribute('aria-current')).toBe('page');
+    expect(sheet.querySelector('input[type="radio"]')).not.toBeNull();
+  });
+});
+
+describe('Footer', () => {
+  it('links out in a new tab and says which version and build this is', () => {
+    renderWithProviders(<Footer />);
+    const source = screen.getByRole('link', { name: /Source code/ });
+    expect(source.getAttribute('href')).toBe(REPO_URL);
+    expect(source.getAttribute('target')).toBe('_blank');
+    expect(screen.getByText('Version 0.0.0-test')).toBeTruthy();
+    expect(screen.getByText('Beta — unaudited')).toBeTruthy();
+    expect(screen.getByText('100% on-chain')).toBeTruthy();
+  });
+});
+
+describe('pages', () => {
+  it('the 404 page shows the missing path as text', () => {
+    window.history.replaceState(null, '', '/nope/<img src=x>');
+    const { container } = renderWithProviders(<NotFound />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Page not found' })).toBeTruthy();
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('/nope/');
+    expect(screen.getByRole('link', { name: 'Go to the home page' }).getAttribute('href')).toBe('/');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('the home page asks its question and offers a Drill', () => {
+    renderWithProviders(<HomeHero />);
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'What happens to your crypto when you can no longer sign?' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Try a 7-day Drill, free' }).getAttribute('href')).toBe('/create/#drill');
+    expect(screen.getByRole('link', { name: 'See the proof' }).getAttribute('href')).toBe('/proof/');
+  });
+});
+```
+
+`apps/web/test/unit/no-html-sinks.test.ts`:
+
+```ts
+// @vitest-environment node
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, it } from 'vitest';
+
+const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
+const SINKS =
+  /dangerouslySetInnerHTML|\.innerHTML\s*=|\.outerHTML\s*=|insertAdjacentHTML|document\.write|\beval\s*\(|new Function\s*\(|\brenderSVG\s*\(/;
+/** The one inline script (Quyết định 14); its content is a constant. */
+const ALLOWED = new Set(['theme/boot-script.tsx']);
+
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(join(dir, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [join(dir, e.name)] : [],
+  );
+}
+
+it('no file writes HTML from a string, except the boot script', () => {
+  const offenders = files(SRC)
+    .map((f) => relative(SRC, f).replaceAll('\\', '/'))
+    .filter((f) => !ALLOWED.has(f) && SINKS.test(readFileSync(join(SRC, f), 'utf8')));
+  expect(offenders).toEqual([]);
+});
+```
+
+Run: `npm test -w apps/web -- shell no-html-sinks`
+Expected: FAIL, không tìm thấy `../../src/app/not-found` và các module `src/shell/*`.
+
+- [ ] **Step 6: Viết các thành phần của khung**
+
+`apps/web/src/shell/wordmark.tsx`:
+
+```tsx
+import { cn } from '@/lib/cn';
+
+/** A thread that ties one knot, then the name. */
+export function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn('inline-flex items-center gap-2 font-display text-ink text-title tracking-tight', className)}>
+      <svg
+        aria-hidden="true"
+        focusable="false"
+        viewBox="0 0 32 32"
+        width={28}
+        height={28}
+        fill="none"
+        className="text-thread"
+      >
+        <path
+          d="M2 20c6 0 7.5-8 13-8 4 0 5 4 2.5 6s-5.5-.5-3.5-3.5S21 12 23.5 15s3.5 5 6.5 5"
+          stroke="currentColor"
+          strokeWidth={2.25}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>Atropyle</span>
+    </span>
+  );
+}
+```
+
+`apps/web/src/shell/skip-link.tsx`:
+
+```tsx
+'use client';
+
+import { useT } from '@/i18n/provider';
+import { messages as ui } from '@/messages/ui.messages';
+
+/**
+ * A button, not `<a href="#main">`: the hash carries page parameters (the vault address, the signing payload), and
+ * a fragment link would overwrite them.
+ */
+export function SkipLink({ targetId }: { targetId: string }) {
+  const t = useT(ui);
+  return (
+    <button
+      type="button"
+      onClick={() => document.getElementById(targetId)?.focus()}
+      className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-full focus:bg-thread focus:px-4 focus:py-2 focus:font-medium focus:text-on-thread focus:text-small"
+    >
+      {t('skip')}
+    </button>
+  );
+}
+```
+
+`apps/web/src/shell/lang-switch.tsx`:
+
+```tsx
+'use client';
+
+import { useId } from 'react';
+import type { Lang } from '@/i18n/core';
+import { useLang, useT } from '@/i18n/provider';
+import { messages as ui } from '@/messages/ui.messages';
+
+const OPTIONS: readonly { value: Lang; label: 'langEn' | 'langVi' }[] = [
+  { value: 'en', label: 'langEn' },
+  { value: 'vi', label: 'langVi' },
+];
+
+/** Native radios in a fieldset (spec §6): arrow keys move between them and screen readers announce a group. */
+export function LangSwitch() {
+  const { lang, setLang } = useLang();
+  const t = useT(ui);
+  const name = useId();
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-caption text-ink-muted">{t('language')}</legend>
+      <div className="grid grid-cols-2 gap-1 rounded-full border border-line bg-surface-2 p-1">
+        {OPTIONS.map((o) => (
+          <label
+            key={o.value}
+            lang={o.value}
+            className="cursor-pointer rounded-full px-3 py-1.5 text-center text-ink-muted text-small transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={o.value}
+              checked={lang === o.value}
+              onChange={() => setLang(o.value)}
+              className="sr-only"
+            />
+            {t(o.label)}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+```
+
+`apps/web/src/shell/theme-switch.tsx`:
+
+```tsx
+'use client';
+
+import { type LucideIcon, Monitor, Moon, Sun } from 'lucide-react';
+import { useId } from 'react';
+import { useT } from '@/i18n/provider';
+import { messages as ui } from '@/messages/ui.messages';
+import { withViewTransition } from '@/motion/view-transition';
+import { useTheme } from '@/theme/provider';
+import type { ThemeChoice } from '@/theme/theme';
+
+const OPTIONS: readonly { value: ThemeChoice; label: 'themeSystem' | 'themeLight' | 'themeDark'; Icon: LucideIcon }[] =
+  [
+    { value: 'system', label: 'themeSystem', Icon: Monitor },
+    { value: 'light', label: 'themeLight', Icon: Sun },
+    { value: 'dark', label: 'themeDark', Icon: Moon },
+  ];
+
+/** The new theme crossfades in through a View Transition where the browser has one (reduced motion: instant). */
+export function ThemeSwitch() {
+  const { choice, setChoice } = useTheme();
+  const t = useT(ui);
+  const name = useId();
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-caption text-ink-muted">{t('theme')}</legend>
+      <div className="grid grid-cols-3 gap-1 rounded-full border border-line bg-surface-2 p-1">
+        {OPTIONS.map(({ value, label, Icon }) => (
+          <label
+            key={value}
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-ink-muted text-small transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={value}
+              checked={choice === value}
+              onChange={() => withViewTransition(() => setChoice(value))}
+              className="sr-only"
+            />
+            <Icon aria-hidden="true" size={15} strokeWidth={1.5} />
+            {t(label)}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+```
+
+`apps/web/src/shell/haptics-switch.tsx`:
+
+```tsx
+'use client';
+
+import { useT } from '@/i18n/provider';
+import { messages as ui } from '@/messages/ui.messages';
+import { useHaptics } from '@/motion/haptics';
+
+/** Shown only on devices that can vibrate (spec §4.4: it can be turned off). */
+export function HapticsSwitch() {
+  const { supported, enabled, setEnabled } = useHaptics();
+  const t = useT(ui);
+  if (!supported) return null;
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 text-ink text-small">
+      {t('hapticsOn')}
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(e) => setEnabled(e.currentTarget.checked)}
+        className="size-5 accent-thread"
+      />
+    </label>
+  );
+}
+```
+
+`apps/web/src/shell/nav-list.tsx`:
+
+```tsx
+'use client';
+
+import { ChevronRight } from 'lucide-react';
+import { m } from 'motion/react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as shell } from '@/messages/shell.messages';
+import { SPRING } from '@/motion/tokens';
+import { isCurrent, NAV, ROUTES } from '@/routes';
+
+/**
+ * The main navigation. `bar`: one row in the header, a thread under the current page that slides to the next one.
+ * `sheet`: large rows in the mobile menu. Quyết định 22: no prefetch until every target route exists.
+ */
+export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNavigate?(): void }) {
+  const t = useT(shell);
+  const pathname = usePathname() ?? '/';
+  return (
+    <ul className={layout === 'bar' ? 'flex items-center gap-1' : 'flex flex-col'}>
+      {NAV.map((item) => {
+        const href = ROUTES[item.route];
+        const current = isCurrent(pathname, href);
+        return (
+          <li key={item.route}>
+            <Link
+              href={href}
+              prefetch={false}
+              onClick={onNavigate}
+              aria-current={current ? 'page' : undefined}
+              className={cn(
+                'transition-colors duration-150',
+                layout === 'bar'
+                  ? 'relative block rounded-full px-3 py-2 text-small'
+                  : 'flex h-12 items-center justify-between rounded-xl px-3 font-display text-title hover:bg-surface-2',
+                current ? 'text-ink' : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              {t(item.key)}
+              {layout === 'bar' && current ? (
+                <m.span
+                  layoutId="nav-thread"
+                  transition={SPRING}
+                  aria-hidden="true"
+                  className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-thread"
+                />
+              ) : null}
+              {layout === 'sheet' ? (
+                <ChevronRight aria-hidden="true" size={18} strokeWidth={1.5} className="text-ink-muted" />
+              ) : null}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+```
+
+`apps/web/src/shell/settings-menu.tsx`:
+
+```tsx
+'use client';
+
+import { Settings } from 'lucide-react';
+import { useT } from '@/i18n/provider';
+import { messages as shell } from '@/messages/shell.messages';
+import { IconButton } from '@/ui/icon-button';
+import { Popover } from '@/ui/popover';
+import { HapticsSwitch } from './haptics-switch';
+import { LangSwitch } from './lang-switch';
+import { ThemeSwitch } from './theme-switch';
+
+export function SettingsMenu() {
+  const t = useT(shell);
+  return (
+    <Popover
+      label={t('settings')}
+      trigger={<IconButton icon={Settings} label={t('settings')} tooltip={false} />}
+      className="flex w-72 flex-col gap-5 p-4"
+    >
+      <LangSwitch />
+      <ThemeSwitch />
+      <HapticsSwitch />
+    </Popover>
+  );
+}
+```
+
+`apps/web/src/shell/mobile-menu.tsx`:
+
+```tsx
+'use client';
+
+import { Menu } from 'lucide-react';
+import { useState } from 'react';
+import { useT } from '@/i18n/provider';
+import { messages as shell } from '@/messages/shell.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { Dialog } from '@/ui/dialog';
+import { IconButton } from '@/ui/icon-button';
+import { HapticsSwitch } from './haptics-switch';
+import { LangSwitch } from './lang-switch';
+import { NavList } from './nav-list';
+import { ThemeSwitch } from './theme-switch';
+
+/** Below 48rem the navigation and the settings live in one bottom sheet. */
+export function MobileMenu() {
+  const t = useT(shell);
+  const u = useT(ui);
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
+      title={u('menu')}
+      trigger={<IconButton icon={Menu} label={u('menu')} tooltip={false} />}
+    >
+      <nav aria-label={t('navLabel')}>
+        <NavList layout="sheet" onNavigate={() => setOpen(false)} />
+      </nav>
+      <div className="flex flex-col gap-5 border-line border-t pt-5">
+        <LangSwitch />
+        <ThemeSwitch />
+        <HapticsSwitch />
+      </div>
+    </Dialog>
+  );
+}
+```
+
+`apps/web/src/shell/header.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { useT } from '@/i18n/provider';
+import { messages as shell } from '@/messages/shell.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { ROUTES } from '@/routes';
+import { MobileMenu } from './mobile-menu';
+import { NavList } from './nav-list';
+import { SettingsMenu } from './settings-menu';
+import { Wordmark } from './wordmark';
+
+export function Header() {
+  const t = useT(shell);
+  const u = useT(ui);
+  return (
+    <header className="sticky top-0 z-40 border-line/70 border-b bg-bg/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
+        <Link href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
+          <Wordmark />
+        </Link>
+        <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
+          <NavList layout="bar" />
+        </nav>
+        <div className="ml-auto flex items-center gap-1">
+          <div className="hidden md:block">
+            <SettingsMenu />
+          </div>
+          <div className="md:hidden">
+            <MobileMenu />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+`apps/web/src/shell/footer.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { ENV, IS_VERCEL } from '@/config/env';
+import { useT } from '@/i18n/provider';
+import { LICENSE_URL, REPO_URL, XLAYER_URL } from '@/lib/links';
+import { messages as shell } from '@/messages/shell.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { ROUTES } from '@/routes';
+import { ExternalLink } from '@/ui/external-link';
+import { Wordmark } from './wordmark';
+
+const LINK = 'text-ink-muted transition-colors duration-150 hover:text-ink';
+
+export function Footer() {
+  const t = useT(shell);
+  const u = useT(ui);
+  return (
+    <footer className="border-line border-t">
+      <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6">
+        <div className="flex flex-col gap-8 md:flex-row md:justify-between">
+          <div className="flex max-w-md flex-col items-start gap-3">
+            <Wordmark />
+            <p className="text-ink-muted text-small">{t('footer')}</p>
+            <span className="rounded-full border border-grace/45 px-2.5 py-0.5 font-medium text-caption text-grace">
+              {t('betaBadge')}
+            </span>
+          </div>
+          <nav aria-label={t('footerNav')}>
+            <ul className="grid grid-cols-2 gap-x-10 gap-y-3 text-small">
+              <li>
+                <Link href={ROUTES.status} prefetch={false} className={LINK}>
+                  {t('navStatus')}
+                </Link>
+              </li>
+              <li>
+                <ExternalLink href={REPO_URL} className={LINK}>
+                  {u('footerSource')}
+                </ExternalLink>
+              </li>
+              <li>
+                <Link href={ROUTES.privacy} prefetch={false} className={LINK}>
+                  {u('footerPrivacy')}
+                </Link>
+              </li>
+              <li>
+                <ExternalLink href={XLAYER_URL} className={LINK}>
+                  {u('footerXLayer')}
+                </ExternalLink>
+              </li>
+              <li>
+                <Link href={ROUTES.developers} prefetch={false} className={LINK}>
+                  {t('navDevelopers')}
+                </Link>
+              </li>
+              <li>
+                <ExternalLink href={LICENSE_URL} className={LINK}>
+                  {u('footerLicense')}
+                </ExternalLink>
+              </li>
+            </ul>
+          </nav>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 border-line border-t pt-6 text-caption text-ink-muted">
+          <span className="font-mono">{u('footerVersion', { version: ENV.version })}</span>
+          {IS_VERCEL ? null : (
+            <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-ink">{u('onchainBadge')}</span>
+          )}
+        </div>
+      </div>
+    </footer>
+  );
+}
+```
+
+`apps/web/src/shell/frame.tsx`:
+
+```tsx
+'use client';
+
+import { type ReactNode, useId } from 'react';
+import { Footer } from './footer';
+import { Header } from './header';
+import { SkipLink } from './skip-link';
+
+export function Frame({ children }: { children: ReactNode }) {
+  const mainId = useId();
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <SkipLink targetId={mainId} />
+      <Header />
+      <main id={mainId} tabIndex={-1} className="flex flex-1 flex-col outline-none">
+        {children}
+      </main>
+      <Footer />
+    </div>
+  );
+}
+```
+
+`apps/web/src/home/hero.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { useT } from '@/i18n/provider';
+import { messages as home } from '@/messages/home.messages';
+import { createHref, ROUTES } from '@/routes';
+import { Thread } from '@/thread/thread';
+import { buttonClass } from '@/ui/button';
+
+/** The first scene of the home page (spec §5.1). Plan 7B adds the other five. */
+export function HomeHero() {
+  const t = useT(home);
+  return (
+    <section className="relative isolate flex flex-col gap-12 overflow-hidden pt-16 pb-20 md:pt-28">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 sm:px-6">
+        <p className="font-medium text-caption text-thread uppercase tracking-[0.16em]">{t('heroEyebrow')}</p>
+        <h1 className="max-w-4xl text-balance font-display text-display">{t('heroTitle')}</h1>
+        <p className="max-w-2xl text-pretty text-ink-muted text-lead">{t('heroLead')}</p>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Link href={createHref('drill')} prefetch={false} className={buttonClass({ variant: 'primary', size: 'lg' })}>
+            {t('heroDrill')}
+          </Link>
+          <Link href={ROUTES.proof} prefetch={false} className={buttonClass({ variant: 'secondary', size: 'lg' })}>
+            {t('heroProof')}
+          </Link>
+        </div>
+      </div>
+      <Thread state="active" remaining={0.72} knots={[0.16, 0.34, 0.52]} shared className="w-full" />
+    </section>
+  );
+}
+```
+
+`apps/web/src/app/not-found.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { useT } from '@/i18n/provider';
+import { useMounted } from '@/lib/use-mounted';
+import { messages as shell } from '@/messages/shell.messages';
+import { Thread } from '@/thread/thread';
+import { buttonClass } from '@/ui/button';
+import { UntrustedText } from '@/ui/untrusted-text';
+
+/** 404.html. The missing path comes from the address bar, so it is shown only as cleaned, truncated text. */
+export default function NotFound() {
+  const t = useT(shell);
+  const mounted = useMounted();
+  return (
+    <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-4 py-24 text-center">
+      <Thread state="expired" className="w-full max-w-md" />
+      <h1 className="font-display text-h1">{t('notFoundTitle')}</h1>
+      {mounted ? (
+        <p className="flex max-w-full flex-col gap-1 text-ink-muted">
+          {t('notFoundBody')}
+          <code className="font-mono text-ink text-small">
+            <UntrustedText value={window.location.pathname} max={96} />
+          </code>
+        </p>
+      ) : null}
+      <p className="text-ink-muted">{t('notFoundHint')}</p>
+      <Link href="/" prefetch={false} className={buttonClass({ variant: 'primary', size: 'lg' })}>
+        {t('goHome')}
+      </Link>
+    </section>
+  );
+}
+```
+
+Thay `apps/web/src/app/page.tsx`:
+
+```tsx
+import { HomeHero } from '@/home/hero';
+
+export default function HomePage() {
+  return <HomeHero />;
+}
+```
+
+Thay `apps/web/src/app/layout.tsx`:
+
+```tsx
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import { fontVariables } from '@/fonts';
+import { Frame } from '@/shell/frame';
+import { Providers } from '@/shell/providers';
+import { BootScript } from '@/theme/boot-script';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: { default: 'Atropyle: inheritance and wallet recovery on X Layer', template: '%s · Atropyle' },
+  description:
+    'A vault for crypto inheritance and wallet recovery on X Layer. A circuit decides every step, and anyone can prove it.',
+  applicationName: 'Atropyle',
+  // iOS would otherwise turn long numbers (amounts, block numbers) into phone links.
+  formatDetection: { telephone: false, address: false, email: false },
+};
+
+export const viewport: Viewport = {
+  colorScheme: 'dark light',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0b0d12' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f1e7' },
+  ],
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning className={fontVariables}>
+      <head>
+        <BootScript />
+      </head>
+      <body>
+        <Providers>
+          <Frame>{children}</Frame>
+        </Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+(`suppressHydrationWarning` chỉ có hiệu lực cho thuộc tính của chính `<html>`: script boot đặt `data-theme`, `LangProvider` đổi `lang`.)
+
+Run: `npm test -w apps/web -- shell no-html-sinks hash boot routes`
+Expected: PASS (shell 8, no-html-sinks 1, hash 2, boot 6, routes 5).
+
+- [ ] **Step 7: Test build cho khung**
+
+`apps/web/test/build/shell.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { outOf } from './paths';
+
+for (const target of ['vercel', 'deweb'] as const) {
+  describe(`${target} shell`, () => {
+    const read = (file: string) => readFileSync(join(outOf(target), file), 'utf8');
+
+    it('runs the boot script in the head, before anything paints', () => {
+      const html = read('index.html');
+      const head = html.slice(0, html.indexOf('</head>'));
+      expect(head).toContain('"atropyle:theme"');
+      expect(head).toContain('location.replace');
+      expect(html).toMatch(/<html lang="en"/);
+    });
+
+    it('prerenders the 404 page and the home page text', () => {
+      expect(read('404.html')).toContain('Page not found');
+      expect(read('index.html')).toContain('What happens to your crypto when you can no longer sign?');
+    });
+  });
+}
+```
+
+Run: `npm run test:build -w apps/web`
+Expected: PASS (thêm 4 test). Nếu `head` không chứa `"atropyle:theme"`: mở `out/index.html`, tìm script boot; bundler đã đổi cách in hằng chuỗi thì so bằng `atropyle:theme` không kèm nháy.
+
+- [ ] **Step 8: Chạy toàn bộ và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+git add apps/web/src/theme/boot.ts apps/web/src/theme/boot-script.tsx apps/web/src/routes.ts apps/web/src/lib/hash.ts apps/web/src/shell apps/web/src/home apps/web/src/app/not-found.tsx apps/web/src/app/page.tsx apps/web/src/app/layout.tsx apps/web/src/messages/shell.messages.ts apps/web/src/messages/home.messages.ts apps/web/test/unit/boot.test.ts apps/web/test/unit/routes.test.ts apps/web/test/unit/hash.test.tsx apps/web/test/unit/shell.test.tsx apps/web/test/unit/no-html-sinks.test.ts apps/web/test/build/shell.test.ts
+git commit -m "feat(web): app shell, boot script with legacy link redirect, and the first home scene" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 10: Dữ liệu chain: SDK nạp lười, TanStack Query và các hook đọc
+
+Mọi lần đọc chain đi qua `@atropyle/sdk` và viem, nhưng hai gói này không được vào bundle đầu của `/` (Quyết định 13). Vì vậy mọi mã chạm SDK nằm trong `src/chain/impl/` và chỉ được nạp bằng `import()` qua `loadChainImpl()`; các hook ở ngoài chỉ `import type`. TanStack Query giữ cache, retry và refetch (Quyết định 18).
+
+**Files:**
+- Create (port): `apps/web/src/chain/impl/rpc.ts`, `apps/web/src/chain/impl/sdk.ts`, `apps/web/src/chain/impl/stats-view.ts`, `apps/web/test/unit/{rpc,sdk,stats-view}.test.ts`, `apps/web/test/unit/fixtures.ts`
+- Create (mới): `apps/web/src/chain/impl/{vault,stats,index}.ts`, `apps/web/src/chain/{types,load,query-client,keys,hooks,use-stats,time}.ts`, `apps/web/src/chain/provider.tsx`
+- Modify: `apps/web/src/shell/providers.tsx`, `apps/web/test/helpers/render.tsx`, `apps/web/package.json`, `package-lock.json`
+- Test: `apps/web/test/unit/lazy-boundary.test.ts`, `apps/web/test/unit/query-client.test.ts`, `apps/web/test/unit/chain-hooks.test.tsx`, `apps/web/test/unit/chain-impl.test.ts`, `apps/web/test/unit/chain-time.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 2 (`ENV`, `chainIdOf`, `type Target`), Task 5 (`KV`, `KEYS`, `readJson`, `writeJson`, `useKV`, `chainNow`), Task 8 (`useNow`, `Providers`, `renderWithProviders`).
+- Produces:
+  - `src/chain/impl/index.ts` (chỉ nạp qua `loadChainImpl`): `loadDeployment(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): Deployment`; `createSdk(d: Deployment, target: Target, crossCheck: boolean): Sdk`; `rpcPlan(...)`; `loadVault(sdk: Sdk, vault: Address, nowMs?: () => number): Promise<LoadedVault>`; `rolesIn(snap: VaultSnapshot, account: string | null): Role[]`; `vaultsOf(sdk: Sdk, account: Address): Promise<VaultRef[]>`; `cachedStats(sdk: Sdk, kv: KV): CachedStats | null`; `countStats(sdk: Sdk, kv: KV, onProgress?: (done: number, total: number) => void): Promise<CachedStats>`.
+  - `src/chain/types.ts` (chỉ kiểu): `Sdk { atro: AtropyleClient; deployment: Deployment; rpc: RpcPlan }`, `RpcPlan`, `LoadedVault { snap: VaultSnapshot; timeline: Timeline; registered: boolean; fetchedAtMs: number }`, `CachedStats`, `StatsSnapshot`.
+  - `src/chain/load.ts`: `type ChainImpl`; `loadChainImpl(): Promise<ChainImpl>` (một chunk, nạp một lần, nạp lại được sau lỗi mạng); `peekChainImpl(): ChainImpl | null`.
+  - `src/chain/query-client.ts`: `PERMANENT_CODES: ReadonlySet<string>`; `errorCode(e: unknown): string | null`; `shouldRetry(failureCount: number, error: unknown): boolean`; `makeQueryClient(): QueryClient`.
+  - `src/chain/keys.ts`: `chainKeys.{all(chainId), sdk(chainId, crossCheck), vault(chainId, vault), vaultsOf(chainId, account), stats(chainId, source: 'api' | 'chain'), me(chainId, account), health(chainId)}`, mỗi khoá là `readonly (string | number)[]`.
+  - `src/chain/provider.tsx`: `ChainProvider({ children, client?: QueryClient })`; `useChainSettings(): { crossCheck: boolean; setCrossCheck(on: boolean): void }`.
+  - `src/chain/hooks.ts`: `CHAIN_ID: number`; `sdkQuery(crossCheck: boolean)` (`queryOptions` của SDK, cho `fetchQuery`); `useSdk(): UseQueryResult<Sdk>`; `useVault(vault: Address | null): UseQueryResult<LoadedVault>`; `useVaultsOf(account: Address | null): UseQueryResult<VaultRef[]>`; `useInvalidateVault(): (vault: string) => Promise<void>`.
+  - `src/chain/use-stats.ts`: `interface StatsSummary { source: 'api' | 'chain'; block: bigint; vaults: number; drills: number; checkIns: number; savedAtMs: number | null }`; `interface StatsState { summary: StatsSummary | null; progress: { done: number; total: number } | null; busy: boolean; error: unknown; refresh(): void }`; `summaryOfCache(c: CachedStats): StatsSummary`; `useChainStats(): StatsState`; `useStats(): StatsState` (Task 14 thêm đường API).
+  - `src/chain/time.ts`: `useChainNow(read: { blockTimestamp: bigint; fetchedAtMs: number } | null, intervalMs?: number): bigint | null`.
+  - `test/helpers/render.tsx`: `testQueryClient(): QueryClient`; `TestProviders({ kv, queryClient, children })`; `makeWrapper(o?: { kv?: KV; lang?: Lang; queryClient?: QueryClient }): { wrapper; kv; queryClient }`; `renderWithProviders(ui, o?)` trả thêm `queryClient`.
+
+- [ ] **Step 1: Cài TanStack Query, port `rpc`, `sdk`, `stats-view` và test của chúng**
+
+```bash
+npm install -E -w apps/web @tanstack/react-query@5.107.1
+npm run lockfile:check -- --fix
+npm run lockfile:check
+L=apps/web-legacy
+W=apps/web
+mkdir -p $W/src/chain/impl
+cp $L/src/lib/rpc.ts $W/src/chain/impl/rpc.ts
+sed -i "s#from '../env';#from '@/config/env';#; s#target === 'pages'#target === 'vercel'#; s#(always empty on Pages)#(always empty on Vercel)#" $W/src/chain/impl/rpc.ts
+cp $L/src/lib/sdk.ts $W/src/chain/impl/sdk.ts
+sed -i "s#from '../env';#from '@/config/env';#; s#VITE_DEPLOYMENT is not valid JSON.#NEXT_PUBLIC_DEPLOYMENT is not valid JSON.#" $W/src/chain/impl/sdk.ts
+cp $L/src/lib/stats-view.ts $W/src/chain/impl/stats-view.ts
+sed -i "s#from './store';#from '@/lib/store';#" $W/src/chain/impl/stats-view.ts
+cp $L/test/unit/fixtures.ts $W/test/unit/fixtures.ts
+cp $L/test/unit/rpc.test.ts $W/test/unit/rpc.test.ts
+sed -i "s#'../../src/lib/rpc'#'../../src/chain/impl/rpc'#; s#'pages'#'vercel'#; s#on GitHub Pages#on Vercel#" $W/test/unit/rpc.test.ts
+cp $L/test/unit/sdk.test.ts $W/test/unit/sdk.test.ts
+sed -i "s#'../../src/lib/sdk'#'../../src/chain/impl/sdk'#" $W/test/unit/sdk.test.ts
+cp $L/test/unit/stats-view.test.ts $W/test/unit/stats-view.test.ts
+sed -i "s#'../../src/lib/stats-view'#'../../src/chain/impl/stats-view'#" $W/test/unit/stats-view.test.ts
+grep -n "pages\|VITE_\|'\.\./env'\|'\./store'" $W/src/chain/impl/*.ts $W/test/unit/rpc.test.ts
+```
+
+Expected: `every dependency resolves.`; lệnh `grep` cuối không in gì.
+
+Run: `npm test -w apps/web -- rpc sdk stats-view`
+Expected: PASS (rpc 4, sdk 3, stats-view 5).
+
+- [ ] **Step 2: Viết test hỏng cho phần mới của `impl`, cho query client và cho ranh giới nạp lười**
+
+`apps/web/test/unit/chain-impl.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from 'vitest';
+import type { Sdk } from '../../src/chain/impl/sdk';
+import { loadVault, rolesIn } from '../../src/chain/impl/vault';
+import { fixtureDeployment, fixtureSnapshot, fixtureTimeline, PEOPLE } from './fixtures';
+
+vi.mock('@atropyle/sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@atropyle/sdk')>()),
+  timelineOf: () => fixtureTimeline(),
+}));
+
+describe('chain impl', () => {
+  it('loads a vault at one block: snapshot, registration and timeline', async () => {
+    const snap = fixtureSnapshot();
+    const registered = vi.fn(async () => true);
+    const engineFor = vi.fn(async () => ({}));
+    const sdk = {
+      atro: { vault: () => ({ snapshot: async () => snap, registered }), engineFor },
+      deployment: fixtureDeployment(),
+    } as unknown as Sdk;
+    const loaded = await loadVault(sdk, PEOPLE.vault, () => 42);
+    expect(registered).toHaveBeenCalledWith({ blockNumber: snap.status.blockNumber });
+    expect(engineFor).toHaveBeenCalledWith(snap.binding.cpu, snap.binding.policyId);
+    expect(loaded).toEqual({ snap, timeline: fixtureTimeline(), registered: true, fetchedAtMs: 42 });
+  });
+
+  it('finds the roles of an account and none for a stranger or garbage', () => {
+    const snap = fixtureSnapshot();
+    expect(rolesIn(snap, PEOPLE.owner)).toContain('owner');
+    expect(rolesIn(snap, PEOPLE.heirB)).toEqual(expect.arrayContaining(['heir', 'guardian']));
+    expect(rolesIn(snap, PEOPLE.stranger)).toEqual([]);
+    expect(rolesIn(snap, null)).toEqual([]);
+    expect(rolesIn(snap, 'not an address')).toEqual([]);
+  });
+});
+```
+
+`apps/web/test/unit/query-client.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { chainKeys } from '../../src/chain/keys';
+import { errorCode, PERMANENT_CODES, shouldRetry } from '../../src/chain/query-client';
+
+const fail = (code: string) => Object.assign(new Error(code), { code });
+
+describe('query client', () => {
+  it('retries a passing failure twice and a permanent one never', () => {
+    expect(shouldRetry(0, fail('RPC_UNAVAILABLE'))).toBe(true);
+    expect(shouldRetry(1, new TypeError('Failed to fetch'))).toBe(true);
+    expect(shouldRetry(2, fail('RPC_UNAVAILABLE'))).toBe(false);
+    for (const code of PERMANENT_CODES) expect(shouldRetry(0, fail(code)), code).toBe(false);
+    expect(errorCode('text')).toBeNull();
+    expect(errorCode({ code: 7 })).toBeNull();
+  });
+
+  it('builds keys from plain strings and numbers only, addresses lowercased', () => {
+    const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+    const keys = [
+      chainKeys.all(196),
+      chainKeys.sdk(196, true),
+      chainKeys.vault(196, A),
+      chainKeys.vaultsOf(196, A),
+      chainKeys.stats(196, 'chain'),
+      chainKeys.me(196, A),
+      chainKeys.health(196),
+    ];
+    for (const k of keys) {
+      expect(JSON.parse(JSON.stringify(k))).toEqual(k);
+      for (const part of k) expect(['string', 'number']).toContain(typeof part);
+    }
+    expect(chainKeys.vault(196, A)).toEqual(['atropyle', 196, 'vault', A.toLowerCase()]);
+    expect(chainKeys.sdk(196, false)).toEqual(['atropyle', 196, 'sdk', 'own']);
+  });
+});
+```
+
+`apps/web/test/unit/lazy-boundary.test.ts`:
+
+```ts
+// @vitest-environment node
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
+/** Modules that may reach a page's first bundle only as types (Quyết định 13). */
+const GUARDED = /^(?:@atropyle\/sdk|viem)(?:\/|$)|(?:^|\/)impl(?:\/|$)/;
+const STATEMENT = /^\s*(?:import|export)\b([^;]*?)\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gm;
+
+const exempt = (rel: string) => /(^|\/)impl\//.test(rel) || rel.startsWith('workers/') || /^app\/[^/]+\//.test(rel);
+
+/** Every runtime import of a guarded module in `source`. */
+function runtimeImports(source: string): string[] {
+  const out: string[] = [];
+  for (const m of source.matchAll(STATEMENT)) {
+    const spec = m[2] ?? m[3];
+    const typeOnly = m[2] !== undefined && /^\s*type\s/.test(m[1]);
+    if (GUARDED.test(spec) && !typeOnly) out.push(spec);
+  }
+  return out;
+}
+
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(join(dir, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [join(dir, e.name)] : [],
+  );
+}
+
+describe('lazy boundary', () => {
+  it('catches value imports and lets type imports through', () => {
+    expect(runtimeImports("import { getAddress } from 'viem';")).toEqual(['viem']);
+    expect(runtimeImports("import {\n  type A,\n  b,\n} from '@atropyle/sdk';")).toEqual(['@atropyle/sdk']);
+    expect(runtimeImports("export { loadVault } from './impl/vault';")).toEqual(['./impl/vault']);
+    expect(runtimeImports("import '@atropyle/sdk/verify';")).toEqual(['@atropyle/sdk/verify']);
+    expect(runtimeImports("import type { Address } from 'viem';")).toEqual([]);
+    expect(runtimeImports("export type { Sdk } from './impl/sdk';")).toEqual([]);
+    expect(runtimeImports("const impl = await import('./impl');")).toEqual([]);
+  });
+
+  it('no file outside impl/, workers/ and route folders imports the SDK, viem or impl at runtime', () => {
+    const all = files(SRC).map((f) => relative(SRC, f).replaceAll('\\', '/'));
+    const checked = all.filter((f) => !exempt(f));
+    const offenders = checked.flatMap((f) =>
+      runtimeImports(readFileSync(join(SRC, f), 'utf8')).map((spec) => `${f}: ${spec}`),
+    );
+    expect(offenders).toEqual([]);
+    expect(checked).toContain('chain/hooks.ts');
+    expect(checked.length).toBeGreaterThan(40);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- chain-impl query-client lazy-boundary`
+Expected: FAIL, không tìm thấy `../../src/chain/impl/vault`, `../../src/chain/keys`, `../../src/chain/query-client`; `lazy-boundary` hỏng ở `toContain('chain/hooks.ts')`.
+
+- [ ] **Step 3: Viết `impl/vault.ts`, `impl/stats.ts`, `impl/index.ts` và phần ngoài `impl`**
+
+`apps/web/src/chain/impl/vault.ts`:
+
+```ts
+import { type Role, rolesOf, type Timeline, timelineOf, type VaultRef, type VaultSnapshot } from '@atropyle/sdk';
+import type { Address } from 'viem';
+import type { Sdk } from './sdk';
+
+export interface LoadedVault {
+  snap: VaultSnapshot;
+  timeline: Timeline;
+  /** The deployment's factory created this vault, at the snapshot's block. Its own `factory()` proves nothing. */
+  registered: boolean;
+  fetchedAtMs: number;
+}
+
+/** One snapshot, then the registration check and the engine at that snapshot's block. */
+export async function loadVault(sdk: Sdk, vault: Address, nowMs: () => number = Date.now): Promise<LoadedVault> {
+  const handle = sdk.atro.vault(vault);
+  const snap = await handle.snapshot();
+  const [registered, engine] = await Promise.all([
+    handle.registered({ blockNumber: snap.status.blockNumber }),
+    sdk.atro.engineFor(snap.binding.cpu, snap.binding.policyId),
+  ]);
+  return { snap, timeline: timelineOf(engine, snap), registered, fetchedAtMs: nowMs() };
+}
+
+export function rolesIn(snap: VaultSnapshot, account: string | null): Role[] {
+  if (!account) return [];
+  try {
+    return rolesOf(snap, account);
+  } catch {
+    return [];
+  }
+}
+
+export function vaultsOf(sdk: Sdk, account: Address): Promise<VaultRef[]> {
+  return sdk.atro.vaultsOf(account);
+}
+```
+
+`apps/web/src/chain/impl/stats.ts`:
+
+```ts
+import type { KV } from '@/lib/store';
+import type { Sdk } from './sdk';
+import { type CachedStats, loadStats, saveStats } from './stats-view';
+
+export function cachedStats(sdk: Sdk, kv: KV): CachedStats | null {
+  return loadStats(kv, sdk.deployment.chainId, sdk.deployment.factory);
+}
+
+/** Counts from the chain, resuming from this device's last count (the factory's logs only grow). */
+export async function countStats(
+  sdk: Sdk,
+  kv: KV,
+  onProgress?: (done: number, total: number) => void,
+): Promise<CachedStats> {
+  const s = await sdk.atro.stats({ resume: cachedStats(sdk, kv)?.cursor, onProgress });
+  return saveStats(kv, sdk.deployment.chainId, sdk.deployment.factory, s, Date.now());
+}
+```
+
+`apps/web/src/chain/impl/index.ts`:
+
+```ts
+export { rpcPlan } from './rpc';
+export { createSdk, loadDeployment } from './sdk';
+export { cachedStats, countStats } from './stats';
+export { loadVault, rolesIn, vaultsOf } from './vault';
+```
+
+`apps/web/src/chain/types.ts`:
+
+```ts
+export type { RpcPlan } from './impl/rpc';
+export type { Sdk } from './impl/sdk';
+export type { CachedStats, StatsSnapshot } from './impl/stats-view';
+export type { LoadedVault } from './impl/vault';
+```
+
+`apps/web/src/chain/load.ts`:
+
+```ts
+import type * as Impl from './impl';
+
+export type ChainImpl = typeof Impl;
+
+let pending: Promise<ChainImpl> | null = null;
+let loaded: ChainImpl | null = null;
+
+/**
+ * The SDK and viem arrive in their own chunk, after the page is interactive (Quyết định 13). One request per page
+ * load; a failed request (offline) is forgotten so the next call tries again.
+ */
+export function loadChainImpl(): Promise<ChainImpl> {
+  pending ??= import('./impl').then(
+    (impl) => {
+      loaded = impl;
+      return impl;
+    },
+    (e: unknown) => {
+      pending = null;
+      throw e;
+    },
+  );
+  return pending;
+}
+
+/** The impl if it has loaded, else null. Data from any chain query means it has, so pure helpers can run in render. */
+export function peekChainImpl(): ChainImpl | null {
+  return loaded;
+}
+```
+
+`apps/web/src/chain/query-client.ts`:
+
+```ts
+import { QueryClient } from '@tanstack/react-query';
+
+/** Errors that the same request will meet again (Quyết định 18): retrying only delays the message. */
+export const PERMANENT_CODES: ReadonlySet<string> = new Set([
+  'NOT_VAULT',
+  'INVALID_ADDRESS',
+  'DEPLOYMENT_INVALID',
+  'DEPLOYMENT_MISSING',
+  'LINK_INVALID',
+  'PLAN_INVALID',
+  'INVALID_OPTIONS',
+  'USER_REJECTED',
+  'WRONG_CHAIN',
+  'WRONG_ACCOUNT',
+  'POLICY_MISMATCH',
+  'DRILL_EXPIRED',
+]);
+
+/** The `code` of an AtropyleError, read structurally so this file stays free of the SDK. */
+export function errorCode(e: unknown): string | null {
+  const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
+  return typeof code === 'string' ? code : null;
+}
+
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  return failureCount < 2 && !PERMANENT_CODES.has(errorCode(error) ?? '');
+}
+
+export function makeQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: shouldRetry, staleTime: 15_000, refetchOnWindowFocus: true },
+      mutations: { retry: false },
+    },
+  });
+}
+```
+
+`apps/web/src/chain/keys.ts`:
+
+```ts
+/** Query keys: strings and numbers only, addresses lowercased, so equal requests share one cache entry. */
+export const chainKeys = {
+  all: (chainId: number) => ['atropyle', chainId] as const,
+  sdk: (chainId: number, crossCheck: boolean) => ['atropyle', chainId, 'sdk', crossCheck ? 'cross' : 'own'] as const,
+  vault: (chainId: number, vault: string) => ['atropyle', chainId, 'vault', vault.toLowerCase()] as const,
+  vaultsOf: (chainId: number, account: string) => ['atropyle', chainId, 'vaultsOf', account.toLowerCase()] as const,
+  stats: (chainId: number, source: 'api' | 'chain') => ['atropyle', chainId, 'stats', source] as const,
+  me: (chainId: number, account: string) => ['atropyle', chainId, 'me', account.toLowerCase()] as const,
+  health: (chainId: number) => ['atropyle', chainId, 'health'] as const,
+};
+```
+
+`apps/web/src/chain/provider.tsx`:
+
+```tsx
+'use client';
+
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useState } from 'react';
+import { useKV } from '@/lib/kv';
+import { KEYS } from '@/lib/store';
+import { makeQueryClient } from './query-client';
+
+interface ChainSettings {
+  /** Verify reads from a second RPC operator too (off-chain on DeWEB, so off unless the user turns it on). */
+  crossCheck: boolean;
+  setCrossCheck(on: boolean): void;
+}
+
+const SettingsContext = createContext<ChainSettings | null>(null);
+
+export function ChainProvider({ children, client }: { children: ReactNode; client?: QueryClient }) {
+  const [queryClient] = useState(() => client ?? makeQueryClient());
+  const kv = useKV();
+  const [crossCheck, setCross] = useState(false);
+
+  useEffect(() => {
+    setCross(kv.get(KEYS.crossCheck) === '1');
+  }, [kv]);
+
+  const setCrossCheck = useCallback(
+    (on: boolean) => {
+      kv.set(KEYS.crossCheck, on ? '1' : '0');
+      setCross(on);
+    },
+    [kv],
+  );
+
+  const settings = useMemo(() => ({ crossCheck, setCrossCheck }), [crossCheck, setCrossCheck]);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SettingsContext value={settings}>{children}</SettingsContext>
+    </QueryClientProvider>
+  );
+}
+
+export function useChainSettings(): ChainSettings {
+  const v = use(SettingsContext);
+  if (!v) throw new Error('useChainSettings must be used inside <ChainProvider>');
+  return v;
+}
+```
+
+`apps/web/src/chain/hooks.ts`:
+
+```ts
+'use client';
+
+import type { VaultRef } from '@atropyle/sdk';
+import { queryOptions, skipToken, type UseQueryResult, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import type { Address } from 'viem';
+import { chainIdOf, ENV } from '@/config/env';
+import { chainKeys } from './keys';
+import { loadChainImpl } from './load';
+import { useChainSettings } from './provider';
+import type { LoadedVault, Sdk } from './types';
+
+export const CHAIN_ID: number = chainIdOf(ENV);
+
+/**
+ * The query behind useSdk. Code that needs the SDK only on demand (the wallet, when it switches chain) calls
+ * `queryClient.fetchQuery(sdkQuery(crossCheck))`, so a page that never connects never loads the SDK chunk.
+ */
+export function sdkQuery(crossCheck: boolean) {
+  return queryOptions({
+    queryKey: chainKeys.sdk(CHAIN_ID, crossCheck),
+    queryFn: async (): Promise<Sdk> => {
+      const impl = await loadChainImpl();
+      return impl.createSdk(impl.loadDeployment(ENV), ENV.target, crossCheck);
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    refetchOnWindowFocus: false,
+    structuralSharing: false,
+  });
+}
+
+/** The SDK client of this build's deployment, created once per cross-check setting. */
+export function useSdk(): UseQueryResult<Sdk> {
+  const { crossCheck } = useChainSettings();
+  return useQuery(sdkQuery(crossCheck));
+}
+
+/**
+ * One vault, refreshed every 30 s and when the tab comes back. No placeholder: while another address loads, `data`
+ * is undefined, so a page never shows the previous vault under the new address (Quyết định 18).
+ */
+export function useVault(vault: Address | null): UseQueryResult<LoadedVault> {
+  const sdk = useSdk().data;
+  return useQuery({
+    queryKey: chainKeys.vault(CHAIN_ID, vault ?? ''),
+    queryFn:
+      sdk && vault
+        ? async () => {
+            const impl = await loadChainImpl();
+            return impl.loadVault(sdk, vault);
+          }
+        : skipToken,
+    refetchInterval: 30_000,
+    structuralSharing: false,
+  });
+}
+
+/** Vaults where `account` has a role, from the factory index, newest first. */
+export function useVaultsOf(account: Address | null): UseQueryResult<VaultRef[]> {
+  const sdk = useSdk().data;
+  return useQuery({
+    queryKey: chainKeys.vaultsOf(CHAIN_ID, account ?? ''),
+    queryFn:
+      sdk && account
+        ? async () => {
+            const impl = await loadChainImpl();
+            return impl.vaultsOf(sdk, account);
+          }
+        : skipToken,
+    refetchInterval: 60_000,
+    structuralSharing: false,
+  });
+}
+
+/** After a transaction confirms: read the vault again now instead of at the next interval. */
+export function useInvalidateVault(): (vault: string) => Promise<void> {
+  const client = useQueryClient();
+  return useCallback(
+    (vault: string) => client.invalidateQueries({ queryKey: chainKeys.vault(CHAIN_ID, vault) }),
+    [client],
+  );
+}
+```
+
+`apps/web/src/chain/time.ts`:
+
+```ts
+'use client';
+
+import { chainNow } from '@/lib/format';
+import { useNow } from '@/lib/use-now';
+
+/** Chain time, ticking: the last read's block time plus the wall clock since the read. Null until mounted. */
+export function useChainNow(
+  read: { blockTimestamp: bigint; fetchedAtMs: number } | null,
+  intervalMs = 1000,
+): bigint | null {
+  const now = useNow(intervalMs);
+  if (!read || now === null) return null;
+  return chainNow(read.blockTimestamp, read.fetchedAtMs, now);
+}
+```
+
+`apps/web/src/chain/use-stats.ts`:
+
+```ts
+'use client';
+
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useKV } from '@/lib/kv';
+import { useSdk } from './hooks';
+import { loadChainImpl } from './load';
+import type { CachedStats, Sdk } from './types';
+
+export interface StatsSummary {
+  source: 'api' | 'chain';
+  block: bigint;
+  vaults: number;
+  drills: number;
+  checkIns: number;
+  /** When this device counted (chain); null when the backend's own time is not a device time. */
+  savedAtMs: number | null;
+}
+
+export interface StatsState {
+  summary: StatsSummary | null;
+  progress: { done: number; total: number } | null;
+  busy: boolean;
+  error: unknown;
+  /** Counts from the chain, resuming from the last count on this device. */
+  refresh(): void;
+}
+
+export function summaryOfCache(c: CachedStats): StatsSummary {
+  return {
+    source: 'chain',
+    block: c.stats.toBlock,
+    vaults: c.stats.vaults.total,
+    drills: c.stats.vaults.drill,
+    checkIns: c.stats.checkIns,
+    savedAtMs: c.savedAtMs,
+  };
+}
+
+/**
+ * The count on this device shows at once; reading the chain waits for a button (the factory's logs take many
+ * requests on public RPC, 100 blocks per request on X Layer).
+ */
+export function useChainStats(): StatsState {
+  const kv = useKV();
+  const sdk = useSdk().data;
+  const [cached, setCached] = useState<CachedStats | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    if (!sdk) return;
+    let live = true;
+    loadChainImpl().then(
+      (impl) => {
+        if (live) setCached(impl.cachedStats(sdk, kv));
+      },
+      () => {
+        // The SDK query reports a chunk that failed to load; there is nothing cached to show then.
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [sdk, kv]);
+
+  const count = useMutation({
+    mutationFn: async (s: Sdk) => {
+      const impl = await loadChainImpl();
+      return impl.countStats(s, kv, (done, total) => setProgress({ done, total }));
+    },
+    onSuccess: (c) => setCached(c),
+    onSettled: () => setProgress(null),
+  });
+
+  return {
+    summary: cached ? summaryOfCache(cached) : null,
+    progress,
+    busy: count.isPending,
+    error: count.error,
+    refresh: () => {
+      if (sdk) count.mutate(sdk);
+    },
+  };
+}
+
+export function useStats(): StatsState {
+  return useChainStats();
+}
+```
+
+Thay `apps/web/src/shell/providers.tsx`:
+
+```tsx
+'use client';
+
+import type { ReactNode } from 'react';
+import { ChainProvider } from '@/chain/provider';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import type { KV } from '@/lib/store';
+import { MotionProvider } from '@/motion/provider';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+
+/** Every page renders inside these, in this order (storage first: language, theme and chain settings read it). */
+export function Providers({ children, kv }: { children: ReactNode; kv?: KV }) {
+  return (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <ChainProvider>
+            <MotionProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </MotionProvider>
+          </ChainProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+}
+```
+
+Thay `apps/web/test/helpers/render.tsx` (`render` của Testing Library tự bọc lại `wrapper` khi `rerender`):
+
+```tsx
+import { QueryClient } from '@tanstack/react-query';
+import { render } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
+import { ChainProvider } from '@/chain/provider';
+import type { Lang } from '@/i18n/core';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import { KEYS, type KV, memoryKV } from '@/lib/store';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+
+export interface ProviderOptions {
+  kv?: KV;
+  lang?: Lang;
+  queryClient?: QueryClient;
+}
+
+/** No retries and no background refetch, so a test sees exactly the requests it makes. */
+export function testQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false }, mutations: { retry: false } },
+  });
+}
+
+/**
+ * The providers of every page except MotionProvider, which loads its features asynchronously; `m.*` elements still
+ * render their first state without it.
+ */
+export function TestProviders({
+  kv,
+  queryClient,
+  children,
+}: {
+  kv: KV;
+  queryClient: QueryClient;
+  children: ReactNode;
+}) {
+  return (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <ChainProvider client={queryClient}>
+            <TooltipProvider>{children}</TooltipProvider>
+          </ChainProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+}
+
+/** For `render` and `renderHook`: `{ wrapper }` plus the storage and the query client the test can inspect. */
+export function makeWrapper(o: ProviderOptions = {}) {
+  const kv = o.kv ?? memoryKV();
+  if (o.lang) kv.set(KEYS.lang, o.lang);
+  const queryClient = o.queryClient ?? testQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <TestProviders kv={kv} queryClient={queryClient}>
+      {children}
+    </TestProviders>
+  );
+  return { wrapper, kv, queryClient };
+}
+
+export function renderWithProviders(ui: ReactElement, o: ProviderOptions = {}) {
+  const { wrapper, kv, queryClient } = makeWrapper(o);
+  return { ...render(ui, { wrapper }), kv, queryClient };
+}
+```
+
+Run: `npm test -w apps/web -- chain-impl query-client lazy-boundary`
+Expected: PASS (chain-impl 2, query-client 2, lazy-boundary 2).
+
+- [ ] **Step 4: Test các hook (impl giả qua `vi.mock`)**
+
+`apps/web/test/unit/chain-hooks.test.tsx`:
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { Address } from 'viem';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useSdk, useVault } from '../../src/chain/hooks';
+import { toCache } from '../../src/chain/impl/stats-view';
+import { useChainSettings } from '../../src/chain/provider';
+import type { LoadedVault } from '../../src/chain/types';
+import { useStats } from '../../src/chain/use-stats';
+import { KEYS } from '../../src/lib/store';
+import { makeWrapper } from '../helpers/render';
+import { fixtureDeployment, fixtureStats, PEOPLE } from './fixtures';
+
+const impl = vi.hoisted(() => ({
+  loadDeployment: vi.fn(),
+  createSdk: vi.fn(),
+  loadVault: vi.fn(),
+  vaultsOf: vi.fn(),
+  cachedStats: vi.fn(),
+  countStats: vi.fn(),
+}));
+vi.mock('../../src/chain/load', () => ({ loadChainImpl: async () => impl }));
+
+const A = PEOPLE.vault as Address;
+const B = PEOPLE.stranger as Address;
+const loaded = (vault: string) =>
+  ({ snap: { status: { vault } }, timeline: null, registered: true, fetchedAtMs: 0 }) as unknown as LoadedVault;
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  impl.loadDeployment.mockImplementation(() => fixtureDeployment());
+  impl.createSdk.mockImplementation((deployment: unknown, target: string, crossCheck: boolean) => ({
+    deployment,
+    target,
+    crossCheck,
+  }));
+  impl.loadVault.mockImplementation(async (_sdk: unknown, vault: string) => loaded(vault));
+  impl.cachedStats.mockReturnValue(null);
+});
+
+describe('useSdk', () => {
+  it('builds one SDK per cross-check setting and remembers the setting', async () => {
+    const { wrapper, kv } = makeWrapper();
+    const { result } = renderHook(() => ({ sdk: useSdk(), settings: useChainSettings() }), { wrapper });
+    await waitFor(() => expect(result.current.sdk.data).toMatchObject({ target: 'deweb', crossCheck: false }));
+    act(() => result.current.settings.setCrossCheck(true));
+    await waitFor(() => expect(result.current.sdk.data).toMatchObject({ crossCheck: true }));
+    expect(kv.get(KEYS.crossCheck)).toBe('1');
+  });
+
+  it('reports a broken deployment as an error, not a crash', async () => {
+    impl.loadDeployment.mockImplementation(() => {
+      throw Object.assign(new Error('NEXT_PUBLIC_DEPLOYMENT is not valid JSON.'), { code: 'DEPLOYMENT_INVALID' });
+    });
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useSdk(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toMatchObject({ code: 'DEPLOYMENT_INVALID' });
+  });
+});
+
+describe('useVault', () => {
+  it('waits for an address', async () => {
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ sdk: useSdk(), vault: useVault(null) }), { wrapper });
+    await waitFor(() => expect(result.current.sdk.isSuccess).toBe(true));
+    expect(result.current.vault.fetchStatus).toBe('idle');
+    expect(impl.loadVault).not.toHaveBeenCalled();
+  });
+
+  it('never shows the previous vault while the next one loads', async () => {
+    let release: (() => void) | undefined;
+    impl.loadVault.mockImplementation(async (_sdk: unknown, vault: string) => {
+      if (vault === B) await new Promise<void>((r) => (release = r));
+      return loaded(vault);
+    });
+    const { wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(({ v }: { v: Address }) => useVault(v), {
+      wrapper,
+      initialProps: { v: A },
+    });
+    await waitFor(() => expect(result.current.data?.snap.status.vault).toBe(A));
+    rerender({ v: B });
+    expect(result.current.data).toBeUndefined();
+    await waitFor(() => expect(release).toBeTypeOf('function'));
+    act(() => release?.());
+    await waitFor(() => expect(result.current.data?.snap.status.vault).toBe(B));
+  });
+});
+
+describe('useStats on the chain', () => {
+  it('shows this device count at once and counts again on demand', async () => {
+    impl.cachedStats.mockReturnValue(toCache(fixtureStats(), 5));
+    impl.countStats.mockImplementation(
+      async (_s: unknown, _kv: unknown, onProgress: (d: number, t: number) => void) => {
+        onProgress(1, 4);
+        return toCache({ ...fixtureStats(), checkIns: 9, toBlock: 2_100n }, 6);
+      },
+    );
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    await waitFor(() => expect(result.current.summary).toMatchObject({ source: 'chain', vaults: 3, checkIns: 5 }));
+    expect(result.current.summary?.block).toBe(2_000n);
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.summary).toMatchObject({ checkIns: 9, block: 2_100n, savedAtMs: 6 }));
+    expect(result.current.progress).toBeNull();
+    expect(result.current.busy).toBe(false);
+  });
+
+  it('keeps the old count and reports the error when counting fails', async () => {
+    impl.cachedStats.mockReturnValue(toCache(fixtureStats(), 5));
+    impl.countStats.mockRejectedValue(Object.assign(new Error('timeout'), { code: 'RPC_UNAVAILABLE' }));
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    await waitFor(() => expect(result.current.summary).not.toBeNull());
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.error).toMatchObject({ code: 'RPC_UNAVAILABLE' }));
+    expect(result.current.summary?.checkIns).toBe(5);
+  });
+});
+```
+
+`apps/web/test/unit/chain-time.test.tsx`:
+
+```tsx
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useChainNow } from '../../src/chain/time';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('useChainNow', () => {
+  it('ticks from the last read and is null without one', () => {
+    vi.useFakeTimers();
+    const read = { blockTimestamp: 1_000n, fetchedAtMs: Date.now() };
+    const { result, rerender } = renderHook(({ r }) => useChainNow(r), {
+      initialProps: { r: read as typeof read | null },
+    });
+    expect(result.current).toBe(1_000n);
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(result.current).toBe(1_005n);
+    rerender({ r: null });
+    expect(result.current).toBeNull();
+  });
+});
+```
+
+Run: `npm test -w apps/web -- chain-hooks chain-time`
+Expected: PASS (chain-hooks 6, chain-time 1).
+
+- [ ] **Step 5: Chạy toàn bộ, kiểm bundle của `/` và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+npm run test:build -w apps/web
+git add apps/web/src/chain apps/web/src/shell/providers.tsx apps/web/test/helpers/render.tsx apps/web/test/unit/fixtures.ts apps/web/test/unit/rpc.test.ts apps/web/test/unit/sdk.test.ts apps/web/test/unit/stats-view.test.ts apps/web/test/unit/chain-impl.test.ts apps/web/test/unit/query-client.test.ts apps/web/test/unit/lazy-boundary.test.ts apps/web/test/unit/chain-hooks.test.tsx apps/web/test/unit/chain-time.test.tsx apps/web/package.json package-lock.json
+git commit -m "feat(web): chain reads through a lazily loaded SDK, with TanStack Query" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS. Trang `/` chưa gọi hook chain nào, nên bundle đầu của nó không đổi; Task 15 đo bằng `size-limit`.
+
+---
+
+### Task 11: Ví: lớp ví port nguyên văn, `WalletProvider`, `ConnectSheet` và nút ví trên header
+
+Lớp ví tự viết của web cũ được giữ (Quyết định 17) và chuyển vào `src/wallet/impl/`, nạp lười như chain (Quyết định 13). Phần mới là phiên ví của cả site: nhớ ví giữa các lần ghé, kết nối lại không hỏi, nghe sự kiện của ví, và giao diện chọn ví (Quyết định 27).
+
+**Files:**
+- Create (port): `apps/web/src/wallet/impl/wallet.ts`, `apps/web/src/wallet/impl/send-calls.ts`, `apps/web/test/unit/wallet.test.ts`, `apps/web/test/unit/send-calls.test.ts`
+- Create (mới): `apps/web/src/wallet/impl/{session,index}.ts`, `apps/web/src/wallet/{types,load,remember,network,use-vault-roles}.ts`, `apps/web/src/wallet/{provider,connect-sheet,wallet-button,wallet-menu,network-banner}.tsx`, `apps/web/src/messages/wallet.messages.ts`, `apps/web/src/app/dev/wallet-gallery.tsx`, `apps/web/test/helpers/wallet.ts`
+- Modify: `apps/web/src/ui/dialog.tsx` (thêm `onCloseAutoFocus`), `apps/web/src/messages/shell.messages.ts` (bỏ 7 khoá ví), `apps/web/src/shell/{providers,header,frame}.tsx`, `apps/web/src/app/dev/gallery.tsx`, `apps/web/test/helpers/render.tsx`, `apps/web/test/unit/dev-gallery.test.tsx`
+- Test: `apps/web/test/unit/wallet-session.test.ts`, `apps/web/test/unit/wallet-provider.test.tsx`, `apps/web/test/unit/wallet-ui.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 5 (`KV`, `KEYS`, `readJson`, `writeJson`, `useKV`, `useT`, `compactAddress`, `cn`), Task 6 (`SPRING`), Task 8 (`Button`, `Dialog`, `Popover`, `PopoverClose`, `Banner`, `InlineError`, `Skeleton`, `Spinner`, `CopyButton`, `QrCode`, `EmptyState`, `Address`, `Avatar`, `UntrustedText`), Task 9 (`Header`, `Frame`), Task 10 (`CHAIN_ID`, `sdkQuery`, `useChainSettings`, `peekChainImpl`, `errorCode`, `type LoadedVault`, `type Sdk`, `makeWrapper`).
+- Produces:
+  - `src/wallet/impl/index.ts` (chỉ nạp qua `loadWalletImpl`): từ `wallet.ts` `discoverWallets(win, waitMs?)`, `providerErrorCodes(e)`, `call<T>(p, method, params?)`, `requestAccount(p)`, `readChainId(p)`, `ensureChain(p, chain)`, `walletClientFor(p, account, chain)`; từ `send-calls.ts` `UNSUPPORTED_CODES`, `CallsUnsupported`, `isUnsupported(e)`, `supportsSendCalls(p, account, chainId)`, `normalizeStatus(raw)`, `sendCalls(p, params, o?)`; từ `session.ts` `parseAccountsEvent(arg): Address | null`, `parseChainEvent(arg): number | null`, `isTransientDisconnect(arg): boolean`, `interface WalletEvents { account(a: Address): void; chain(id: number): void; gone(): void }`, `watchWallet(p: Eip1193, h: WalletEvents): () => void`, `findRemembered(list, r): WalletOption | null`, `silentAccount(p): Promise<Address | null>`, `type RestoreResult`, `restoreWallet(win, r): Promise<RestoreResult>`, `connectWallet(option): Promise<ConnectedWallet>`, `notConnected(): AtropyleError`.
+  - `src/wallet/types.ts` (chỉ kiểu): `Eip1193`, `WalletOption`, `WalletWindow`, `CallsResult`, `CallsStatus`, `SendCallsOptions`, `type WalletStatus = 'idle' | 'restoring' | 'connecting' | 'connected'`, `interface ConnectedWallet { option: WalletOption; account: Address; chainId: number }`, `interface RememberedWallet { rdns: string | null; source: WalletOption['source']; name: string }`.
+  - `src/wallet/load.ts`: `type WalletImpl`; `loadWalletImpl(): Promise<WalletImpl>`.
+  - `src/wallet/remember.ts`: `reviveRemembered(raw: unknown): RememberedWallet | null`; `readRemembered(kv: KV): RememberedWallet | null`; `remember(kv: KV, option: WalletOption): void`; `forget(kv: KV): void`.
+  - `src/wallet/network.ts`: `networkName(chainId: number): string`.
+  - `src/wallet/provider.tsx`: `interface WalletValue { status; wallet: ConnectedWallet | null; expectedChainId: number; wrongChain: boolean; wallets: WalletOption[] | null; discovering: boolean; discover(): Promise<WalletOption[]>; connect(option): Promise<ConnectedWallet>; disconnect(): void; switchChain(): Promise<void>; walletClient(): Promise<WalletClient>; sheetOpen: boolean; openSheet(): void; setSheetOpen(open: boolean): void; sheetOpener: RefObject<HTMLElement | null> }`; `WalletContext`; `WalletProvider({ children, win?: WalletWindow })`; `useWallet(): WalletValue`.
+  - `src/wallet/connect-sheet.tsx`: `QR_MAX_CHARS = 512`; `type PickerError = 'rejected' | 'requestPending' | 'connectFailed' | 'searchFailed'`; `connectErrorKey(e: unknown): Exclude<PickerError, 'searchFailed'>`; `isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean`; `interface WalletPickerProps`; `WalletPicker(props)`; `ConnectSheet()`.
+  - `src/wallet/wallet-button.tsx`: `WalletButton()`. `src/wallet/wallet-menu.tsx`: `WalletMenu()`. `src/wallet/network-banner.tsx`: `SwitchNetworkButton({ className? })`, `NetworkBanner()`. `src/wallet/use-vault-roles.ts`: `useVaultRoles(loaded: LoadedVault | undefined): readonly Role[] | null`.
+  - `src/ui/dialog.tsx`: `DialogProps` thêm `onCloseAutoFocus?(event: Event): void`.
+  - `test/helpers/wallet.ts`: `interface FakeWalletState`, `interface FakeWallet`, `fakeWallet(o?)`, `interface Announced`, `walletWindow(announced?, globals?)`. `test/helpers/render.tsx`: `ProviderOptions` thêm `win?: WalletWindow`.
+
+- [ ] **Step 1: Port lớp ví và test của nó**
+
+```bash
+L=apps/web-legacy
+W=apps/web
+mkdir -p $W/src/wallet/impl
+cp $L/src/lib/wallet.ts $W/src/wallet/impl/wallet.ts
+cp $L/src/lib/send-calls.ts $W/src/wallet/impl/send-calls.ts
+cp $L/test/unit/wallet.test.ts $W/test/unit/wallet.test.ts
+sed -i "s#'../../src/lib/wallet'#'../../src/wallet/impl/wallet'#" $W/test/unit/wallet.test.ts
+cp $L/test/unit/send-calls.test.ts $W/test/unit/send-calls.test.ts
+sed -i "s#'../../src/lib/send-calls'#'../../src/wallet/impl/send-calls'#; s#'../../src/lib/wallet'#'../../src/wallet/impl/wallet'#" $W/test/unit/send-calls.test.ts
+grep -n "src/lib/" $W/test/unit/wallet.test.ts $W/test/unit/send-calls.test.ts
+```
+
+Expected: lệnh `grep` cuối không in gì (`send-calls.ts` import `./wallet`, cùng thư mục, không cần sửa).
+
+Run: `npm test -w apps/web -- wallet.test send-calls`
+Expected: PASS (wallet 10, send-calls 10).
+
+- [ ] **Step 2: Viết test hỏng cho phiên ví (sự kiện, ví đã nhớ, kết nối lại)**
+
+`apps/web/test/helpers/wallet.ts`:
+
+```ts
+import type { Eip1193, WalletWindow } from '@/wallet/types';
+
+type Listener = (...args: unknown[]) => void;
+
+export interface FakeWalletState {
+  accounts: string[];
+  chainId: number;
+  /** Whether the wallet already shares its accounts with this site: what `eth_accounts` answers. */
+  shared: boolean;
+  /** The user declines the next connection request. */
+  reject: boolean;
+}
+
+export interface FakeWallet {
+  provider: Eip1193;
+  state: FakeWalletState;
+  /** Every method the page called, in order. */
+  calls: string[];
+  emit(event: string, ...args: unknown[]): void;
+  listenerCount(event: string): number;
+}
+
+/** An EIP-1193 wallet in memory: accounts, one chain, a prompt the test can decline, and events. */
+export function fakeWallet(o: Partial<FakeWalletState> = {}): FakeWallet {
+  const state: FakeWalletState = { accounts: [], chainId: 196, shared: false, reject: false, ...o };
+  const calls: string[] = [];
+  const listeners = new Map<string, Set<Listener>>();
+  const emit = (event: string, ...args: unknown[]) => {
+    for (const listener of listeners.get(event) ?? []) listener(...args);
+  };
+  const provider: Eip1193 = {
+    async request({ method, params }) {
+      calls.push(method);
+      switch (method) {
+        case 'eth_accounts':
+          return state.shared ? state.accounts : [];
+        case 'eth_requestAccounts':
+          if (state.reject) throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
+          state.shared = true;
+          return state.accounts;
+        case 'eth_chainId':
+          return `0x${state.chainId.toString(16)}`;
+        case 'wallet_switchEthereumChain': {
+          const [{ chainId }] = params as [{ chainId: string }];
+          state.chainId = Number(BigInt(chainId));
+          emit('chainChanged', chainId);
+          return null;
+        }
+        default:
+          throw Object.assign(new Error(`unexpected ${method}`), { code: 4200 });
+      }
+    },
+    on(event, listener) {
+      const set = listeners.get(event) ?? new Set<Listener>();
+      set.add(listener);
+      listeners.set(event, set);
+    },
+    removeListener(event, listener) {
+      listeners.get(event)?.delete(listener);
+    },
+  };
+  return { provider, state, calls, emit, listenerCount: (event) => listeners.get(event)?.size ?? 0 };
+}
+
+export interface Announced {
+  info: { uuid: string; name: string; rdns: string; icon: string };
+  provider: Eip1193;
+}
+
+/** A window where the given wallets answer EIP-6963 discovery, plus injected globals such as `okxwallet`. */
+export function walletWindow(
+  announced: Announced[] = [],
+  globals: { okxwallet?: unknown; ethereum?: unknown } = {},
+): WalletWindow {
+  const win = new EventTarget();
+  win.addEventListener('eip6963:requestProvider', () => {
+    for (const detail of announced) win.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail }));
+  });
+  return Object.assign(win, globals);
+}
+```
+
+`apps/web/test/unit/wallet-session.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { KEYS, memoryKV } from '../../src/lib/store';
+import {
+  findRemembered,
+  isTransientDisconnect,
+  parseAccountsEvent,
+  parseChainEvent,
+  restoreWallet,
+  watchWallet,
+} from '../../src/wallet/impl/session';
+import { readRemembered, reviveRemembered } from '../../src/wallet/remember';
+import type { RememberedWallet, WalletOption } from '../../src/wallet/types';
+import { fakeWallet, walletWindow } from '../helpers/wallet';
+import { PEOPLE } from './fixtures';
+
+const OKX: RememberedWallet = { rdns: 'com.okex.wallet', source: 'eip6963', name: 'OKX Wallet' };
+
+function option(over: Partial<WalletOption>): WalletOption {
+  return {
+    id: 'id',
+    name: 'Wallet',
+    icon: null,
+    rdns: null,
+    provider: fakeWallet().provider,
+    source: 'eip6963',
+    ...over,
+  };
+}
+
+describe('wallet events', () => {
+  it('reads accounts and chains, and refuses garbage', () => {
+    expect(parseAccountsEvent([PEOPLE.owner.toLowerCase()])).toBe(PEOPLE.owner);
+    for (const bad of [[], [42], 'x', null, undefined, ['0x123'], {}]) expect(parseAccountsEvent(bad)).toBeNull();
+
+    expect(parseChainEvent('0xc4')).toBe(196);
+    expect(parseChainEvent('196')).toBe(196);
+    expect(parseChainEvent(196)).toBe(196);
+    for (const bad of ['', 'garbage', '0x', '-1', 0, 1.5, null, {}, '0x1fffffffffffff0']) {
+      expect(parseChainEvent(bad)).toBeNull();
+    }
+
+    expect(isTransientDisconnect({ code: 1013 })).toBe(true);
+    expect(isTransientDisconnect({ code: 4900 })).toBe(false);
+    expect(isTransientDisconnect(undefined)).toBe(false);
+  });
+
+  it('watchWallet forwards what it understands and stops listening', () => {
+    const fake = fakeWallet();
+    const seen: string[] = [];
+    const stop = watchWallet(fake.provider, {
+      account: (a) => seen.push(`account ${a}`),
+      chain: (id) => seen.push(`chain ${id}`),
+      gone: () => seen.push('gone'),
+    });
+    fake.emit('accountsChanged', [PEOPLE.heirA.toLowerCase()]);
+    fake.emit('chainChanged', 'not a chain');
+    fake.emit('chainChanged', '0x1');
+    fake.emit('disconnect', { code: 1013 });
+    fake.emit('disconnect', { code: 4900 });
+    fake.emit('accountsChanged', []);
+    expect(seen).toEqual([`account ${PEOPLE.heirA}`, 'chain 1', 'gone', 'gone']);
+
+    stop();
+    for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) expect(fake.listenerCount(event)).toBe(0);
+  });
+});
+
+describe('remembered wallet', () => {
+  it('keeps only a well-formed entry, and drops a corrupt one from storage', () => {
+    expect(reviveRemembered(OKX)).toEqual(OKX);
+    expect(reviveRemembered({ rdns: null, source: 'okxwallet', name: 'OKX Wallet' })).not.toBeNull();
+    for (const bad of [
+      null,
+      'x',
+      {},
+      { rdns: 5, source: 'eip6963', name: 'A' },
+      { rdns: null, source: 'walletconnect', name: 'A' },
+      { rdns: null, source: 'ethereum', name: 'x'.repeat(41) },
+    ]) {
+      expect(reviveRemembered(bad)).toBeNull();
+    }
+    const kv = memoryKV();
+    kv.set(KEYS.wallet, '{"rdns":');
+    expect(readRemembered(kv)).toBeNull();
+    expect(kv.get(KEYS.wallet)).toBeNull();
+  });
+
+  it('finds the same wallet by rdns, because EIP-6963 uuids change on every page load', () => {
+    const okx = option({ id: 'new-uuid', name: 'OKX Wallet', rdns: 'com.okex.wallet' });
+    const other = option({ id: 'other', name: 'Other', rdns: 'org.example' });
+    const injected = option({ id: 'okxwallet', name: 'OKX Wallet', source: 'okxwallet' });
+    expect(findRemembered([other, okx], OKX)).toBe(okx);
+    expect(findRemembered([other], OKX)).toBeNull();
+    expect(findRemembered([other, injected], { rdns: null, source: 'okxwallet', name: 'OKX Wallet' })).toBe(injected);
+  });
+
+  it('reconnects without a prompt, and tells a missing wallet from a locked one', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner], shared: true });
+    const info = { uuid: 'uuid-9', name: 'OKX Wallet', rdns: 'com.okex.wallet', icon: '' };
+    const win = walletWindow([{ info, provider: fake.provider }]);
+    expect(await restoreWallet(win, OKX)).toMatchObject({
+      kind: 'connected',
+      wallet: { account: PEOPLE.owner, chainId: 196 },
+    });
+    fake.state.shared = false;
+    expect(await restoreWallet(win, OKX)).toEqual({ kind: 'locked' });
+    expect(await restoreWallet(walletWindow(), OKX)).toEqual({ kind: 'gone' });
+    expect(fake.calls).not.toContain('eth_requestAccounts');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- wallet-session`
+Expected: FAIL, không tìm thấy `../../src/wallet/impl/session` và `../../src/wallet/remember`.
+
+- [ ] **Step 3: Viết `session.ts`, `types.ts`, `load.ts`, `remember.ts`, `network.ts`**
+
+`apps/web/src/wallet/types.ts`:
+
+```ts
+import type { Address } from 'viem';
+import type { WalletOption } from './impl/wallet';
+
+export type { CallsResult, CallsStatus, SendCallsOptions } from './impl/send-calls';
+export type { Eip1193, WalletOption, WalletWindow } from './impl/wallet';
+
+export type WalletStatus = 'idle' | 'restoring' | 'connecting' | 'connected';
+
+export interface ConnectedWallet {
+  option: WalletOption;
+  account: Address;
+  chainId: number;
+}
+
+/** What `KEYS.wallet` keeps: enough to find the same wallet on the next visit. Never an account, never a key. */
+export interface RememberedWallet {
+  rdns: string | null;
+  source: WalletOption['source'];
+  name: string;
+}
+```
+
+`apps/web/src/wallet/impl/session.ts`:
+
+```ts
+import { AtropyleError } from '@atropyle/sdk';
+import { type Address, getAddress } from 'viem';
+import type { ConnectedWallet, RememberedWallet } from '../types';
+import {
+  call,
+  discoverWallets,
+  type Eip1193,
+  readChainId,
+  requestAccount,
+  type WalletOption,
+  type WalletWindow,
+} from './wallet';
+
+const MAX_CHAIN_ID = BigInt(Number.MAX_SAFE_INTEGER);
+
+/** The first account of an `accountsChanged` payload or an `eth_accounts` answer, checksummed; null for anything else. */
+export function parseAccountsEvent(arg: unknown): Address | null {
+  if (!Array.isArray(arg) || typeof arg[0] !== 'string') return null;
+  try {
+    return getAddress(arg[0]);
+  } catch {
+    return null;
+  }
+}
+
+/** A `chainChanged` payload (hex or decimal) as a chain id; null for anything else, so the last known chain stays. */
+export function parseChainEvent(arg: unknown): number | null {
+  if (typeof arg !== 'string' && typeof arg !== 'number') return null;
+  try {
+    const id = BigInt(arg);
+    return id > 0n && id <= MAX_CHAIN_ID ? Number(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * EIP-1193 `disconnect` means the wallet lost every chain. MetaMask also sends it, with code 1013, while it moves
+ * between networks and then reconnects by itself; that one is not a disconnection.
+ */
+export function isTransientDisconnect(arg: unknown): boolean {
+  return typeof arg === 'object' && arg !== null && (arg as { code?: unknown }).code === 1013;
+}
+
+export interface WalletEvents {
+  account(account: Address): void;
+  chain(chainId: number): void;
+  /** No usable account any more: the user locked the wallet, removed this site, or sent garbage. */
+  gone(): void;
+}
+
+/** Listens to one wallet; the returned function stops listening. A wallet without `on` sends no events. */
+export function watchWallet(p: Eip1193, h: WalletEvents): () => void {
+  if (!p.on) return () => undefined;
+  const onAccounts = (...args: unknown[]) => {
+    const account = parseAccountsEvent(args[0]);
+    if (account) h.account(account);
+    else h.gone();
+  };
+  const onChain = (...args: unknown[]) => {
+    const id = parseChainEvent(args[0]);
+    if (id !== null) h.chain(id);
+  };
+  const onDisconnect = (...args: unknown[]) => {
+    if (!isTransientDisconnect(args[0])) h.gone();
+  };
+  p.on('accountsChanged', onAccounts);
+  p.on('chainChanged', onChain);
+  p.on('disconnect', onDisconnect);
+  return () => {
+    p.removeListener?.('accountsChanged', onAccounts);
+    p.removeListener?.('chainChanged', onChain);
+    p.removeListener?.('disconnect', onDisconnect);
+  };
+}
+
+/**
+ * The wallet found now that is the remembered one: by rdns, since EIP-6963 uuids change on every page load; a
+ * wallet without rdns (an injected global) by how it was found and its fixed name.
+ */
+export function findRemembered(list: readonly WalletOption[], r: RememberedWallet): WalletOption | null {
+  return list.find((w) => (r.rdns ? w.rdns === r.rdns : w.source === r.source && w.name === r.name)) ?? null;
+}
+
+/** The account the wallet already shares with this site, without a prompt; null when it shares none. */
+export async function silentAccount(p: Eip1193): Promise<Address | null> {
+  try {
+    return parseAccountsEvent(await call<unknown>(p, 'eth_accounts'));
+  } catch {
+    return null;
+  }
+}
+
+export type RestoreResult = { kind: 'connected'; wallet: ConnectedWallet } | { kind: 'gone' } | { kind: 'locked' };
+
+/** Reconnects a remembered wallet. Never `eth_requestAccounts` here: a page load must not open a wallet prompt. */
+export async function restoreWallet(win: WalletWindow, r: RememberedWallet): Promise<RestoreResult> {
+  const option = findRemembered(await discoverWallets(win), r);
+  if (!option) return { kind: 'gone' };
+  const account = await silentAccount(option.provider);
+  if (!account) return { kind: 'locked' };
+  try {
+    return { kind: 'connected', wallet: { option, account, chainId: await readChainId(option.provider) } };
+  } catch {
+    return { kind: 'locked' };
+  }
+}
+
+/** Asks the wallet for an account (its prompt) and reads its chain. */
+export async function connectWallet(option: WalletOption): Promise<ConnectedWallet> {
+  const account = await requestAccount(option.provider);
+  return { option, account, chainId: await readChainId(option.provider) };
+}
+
+export function notConnected(): AtropyleError {
+  return new AtropyleError('WRONG_ACCOUNT', { message: 'Connect a wallet first.' });
+}
+```
+
+`apps/web/src/wallet/impl/index.ts`:
+
+```ts
+export {
+  CallsUnsupported,
+  isUnsupported,
+  normalizeStatus,
+  sendCalls,
+  supportsSendCalls,
+  UNSUPPORTED_CODES,
+} from './send-calls';
+export {
+  connectWallet,
+  findRemembered,
+  isTransientDisconnect,
+  notConnected,
+  parseAccountsEvent,
+  parseChainEvent,
+  restoreWallet,
+  silentAccount,
+  watchWallet,
+} from './session';
+export {
+  call,
+  discoverWallets,
+  ensureChain,
+  providerErrorCodes,
+  readChainId,
+  requestAccount,
+  walletClientFor,
+} from './wallet';
+```
+
+`apps/web/src/wallet/load.ts`:
+
+```ts
+import type * as Impl from './impl';
+
+export type WalletImpl = typeof Impl;
+
+let pending: Promise<WalletImpl> | null = null;
+
+/**
+ * The wallet code (viem and the SDK's error type) loads on first use: a click on Connect, or a wallet remembered from
+ * an earlier visit. A failed load (offline) is forgotten so the next call tries again.
+ */
+export function loadWalletImpl(): Promise<WalletImpl> {
+  pending ??= import('./impl').catch((e: unknown) => {
+    pending = null;
+    throw e;
+  });
+  return pending;
+}
+```
+
+`apps/web/src/wallet/remember.ts`:
+
+```ts
+import { KEYS, type KV, readJson, writeJson } from '@/lib/store';
+import type { RememberedWallet, WalletOption } from './types';
+
+const SOURCES: ReadonlySet<string> = new Set(['eip6963', 'okxwallet', 'ethereum']);
+
+/** A stored entry, or null when it is not exactly what `remember` writes (storage is user-editable). */
+export function reviveRemembered(raw: unknown): RememberedWallet | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { rdns, source, name } = raw as Record<string, unknown>;
+  if (typeof source !== 'string' || !SOURCES.has(source)) return null;
+  if (typeof name !== 'string' || name.length > 40) return null;
+  if (rdns === null) return { rdns: null, source: source as RememberedWallet['source'], name };
+  if (typeof rdns !== 'string' || rdns.length === 0 || rdns.length > 100) return null;
+  return { rdns, source: source as RememberedWallet['source'], name };
+}
+
+/** The remembered wallet; a corrupt entry is removed (readJson). */
+export function readRemembered(kv: KV): RememberedWallet | null {
+  return readJson(kv, KEYS.wallet, reviveRemembered);
+}
+
+export function remember(kv: KV, option: WalletOption): void {
+  const entry: RememberedWallet = { rdns: option.rdns, source: option.source, name: option.name };
+  writeJson(kv, KEYS.wallet, entry);
+}
+
+export function forget(kv: KV): void {
+  kv.remove(KEYS.wallet);
+}
+```
+
+`apps/web/src/wallet/network.ts`:
+
+```ts
+const NAMES: Readonly<Record<number, string>> = {
+  1: 'Ethereum',
+  10: 'OP Mainnet',
+  56: 'BNB Smart Chain',
+  137: 'Polygon',
+  196: 'X Layer',
+  8453: 'Base',
+  31337: 'Anvil',
+  42161: 'Arbitrum One',
+};
+
+/** The name a person knows a chain by; any other chain is shown by its number. */
+export function networkName(chainId: number): string {
+  return NAMES[chainId] ?? `chain ${chainId}`;
+}
+```
+
+Run: `npm test -w apps/web -- wallet-session`
+Expected: PASS (5 test).
+
+- [ ] **Step 4: Test hỏng cho `WalletProvider`, rồi viết nó và nối vào `Providers`**
+
+`apps/web/test/unit/wallet-provider.test.tsx`:
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+import { useWallet } from '../../src/wallet/provider';
+import type { WalletWindow } from '../../src/wallet/types';
+import { makeWrapper } from '../helpers/render';
+import { type FakeWallet, fakeWallet, walletWindow } from '../helpers/wallet';
+import { PEOPLE } from './fixtures';
+
+// The SDK the wallet needs for switchChain and walletClient: only its chain, built from the fixture deployment.
+vi.mock('../../src/chain/load', async () => {
+  const { chainOf } = await import('@atropyle/sdk');
+  const { fixtureDeployment } = await import('./fixtures');
+  const impl = {
+    loadDeployment: () => fixtureDeployment(),
+    createSdk: (deployment: ReturnType<typeof fixtureDeployment>) => ({
+      atro: { chain: chainOf(deployment) },
+      deployment,
+    }),
+  };
+  return { loadChainImpl: async () => impl, peekChainImpl: () => impl };
+});
+
+const OKX = { uuid: 'uuid-1', name: 'OKX Wallet', rdns: 'com.okex.wallet', icon: '' };
+const REMEMBERED = JSON.stringify({ rdns: 'com.okex.wallet', source: 'eip6963', name: 'OKX Wallet' });
+// Discovery listens for EIP-6963 answers for 250 ms.
+const SLOW = { timeout: 2000 };
+
+function setup(o: { kv?: KV; win?: WalletWindow } = {}) {
+  const { wrapper, kv } = makeWrapper(o);
+  return { ...renderHook(() => useWallet(), { wrapper }), kv };
+}
+
+async function connected(fake: FakeWallet, kv: KV = memoryKV()) {
+  const h = setup({ kv, win: walletWindow([{ info: OKX, provider: fake.provider }]) });
+  const list = await act(() => h.result.current.discover());
+  await act(() => h.result.current.connect(list[0]));
+  return h;
+}
+
+describe('WalletProvider', () => {
+  it('connects, remembers the wallet by rdns and reconnects silently on the next visit', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner.toLowerCase()] });
+    const kv = memoryKV();
+    const first = await connected(fake, kv);
+    expect(first.result.current.status).toBe('connected');
+    expect(first.result.current.wallet).toMatchObject({ account: PEOPLE.owner, chainId: 196 });
+    expect(kv.get(KEYS.wallet)).toBe(REMEMBERED);
+    first.unmount();
+
+    // The next page load: EIP-6963 hands out a new uuid, the rdns stays.
+    const win = walletWindow([{ info: { ...OKX, uuid: 'uuid-2' }, provider: fake.provider }]);
+    const next = setup({ kv, win });
+    expect(next.result.current.status).toBe('restoring');
+    await waitFor(() => expect(next.result.current.status).toBe('connected'), SLOW);
+    expect(next.result.current.wallet?.account).toBe(PEOPLE.owner);
+    expect(fake.calls.filter((m) => m === 'eth_requestAccounts')).toHaveLength(1);
+  });
+
+  it('restore ignores a remembered wallet that is gone', async () => {
+    const kv = memoryKV();
+    kv.set(KEYS.wallet, JSON.stringify({ rdns: 'io.metamask', source: 'eip6963', name: 'MetaMask' }));
+    const gone = setup({ kv, win: walletWindow() });
+    await waitFor(() => expect(gone.result.current.status).toBe('idle'), SLOW);
+    expect(gone.result.current.wallet).toBeNull();
+    expect(kv.get(KEYS.wallet)).toBeNull();
+    gone.unmount();
+
+    kv.set(KEYS.wallet, '{"rdns":');
+    const garbage = setup({ kv, win: walletWindow() });
+    expect(garbage.result.current.status).toBe('idle');
+    expect(kv.get(KEYS.wallet)).toBeNull();
+  });
+
+  it('restore never prompts: a locked wallet stays disconnected and remembered', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner], shared: false });
+    const kv = memoryKV();
+    kv.set(KEYS.wallet, REMEMBERED);
+    const h = setup({ kv, win: walletWindow([{ info: OKX, provider: fake.provider }]) });
+    await waitFor(() => expect(h.result.current.status).toBe('idle'), SLOW);
+    expect(fake.calls).toEqual(['eth_accounts']);
+    expect(kv.get(KEYS.wallet)).toBe(REMEMBERED);
+  });
+
+  it('wallet events update the account and chain and drop garbage', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner] });
+    const h = await connected(fake);
+    await waitFor(() => expect(fake.listenerCount('accountsChanged')).toBe(1));
+
+    act(() => fake.emit('accountsChanged', [PEOPLE.heirA.toLowerCase()]));
+    expect(h.result.current.wallet?.account).toBe(PEOPLE.heirA);
+
+    act(() => fake.emit('chainChanged', '0x1'));
+    expect(h.result.current.wallet?.chainId).toBe(1);
+    expect(h.result.current.wrongChain).toBe(true);
+
+    act(() => fake.emit('chainChanged', 'not a chain'));
+    expect(h.result.current.wallet?.chainId).toBe(1);
+
+    act(() => fake.emit('disconnect', { code: 1013, message: 'Disconnected from chain. Attempting to connect.' }));
+    expect(h.result.current.status).toBe('connected');
+
+    act(() => fake.emit('accountsChanged', [42]));
+    expect(h.result.current.wallet).toBeNull();
+    expect(h.result.current.status).toBe('idle');
+    expect(fake.listenerCount('accountsChanged')).toBe(0);
+  });
+
+  it('switches the wallet to the chain of this build', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner], chainId: 1 });
+    const h = await connected(fake);
+    expect(h.result.current.wrongChain).toBe(true);
+    await act(() => h.result.current.switchChain());
+    expect(h.result.current.wallet?.chainId).toBe(196);
+    expect(h.result.current.wrongChain).toBe(false);
+    expect(fake.calls).toContain('wallet_switchEthereumChain');
+  });
+
+  it('hands out a wallet client only while connected, and forgets the wallet on disconnect', async () => {
+    const kv = memoryKV();
+    const h = await connected(fakeWallet({ accounts: [PEOPLE.owner] }), kv);
+    const client = await act(() => h.result.current.walletClient());
+    expect(client.account?.address).toBe(PEOPLE.owner);
+
+    act(() => h.result.current.disconnect());
+    expect(h.result.current.status).toBe('idle');
+    expect(kv.get(KEYS.wallet)).toBeNull();
+    await expect(h.result.current.walletClient()).rejects.toMatchObject({ code: 'WRONG_ACCOUNT' });
+  });
+
+  it('a declined request leaves the wallet disconnected and gives the error to the caller', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner], reject: true });
+    const kv = memoryKV();
+    const h = setup({ kv, win: walletWindow([{ info: OKX, provider: fake.provider }]) });
+    const list = await act(() => h.result.current.discover());
+    await expect(act(() => h.result.current.connect(list[0]))).rejects.toMatchObject({ code: 'USER_REJECTED' });
+    expect(h.result.current.status).toBe('idle');
+    expect(kv.get(KEYS.wallet)).toBeNull();
+  });
+});
+```
+
+Run: `npm test -w apps/web -- wallet-provider`
+Expected: FAIL, không tìm thấy `../../src/wallet/provider`.
+
+`apps/web/src/wallet/provider.tsx`:
+
+```tsx
+'use client';
+
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  createContext,
+  type ReactNode,
+  type RefObject,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { WalletClient } from 'viem';
+import { CHAIN_ID, sdkQuery } from '@/chain/hooks';
+import { useChainSettings } from '@/chain/provider';
+import { useKV } from '@/lib/kv';
+import { loadWalletImpl } from './load';
+import { forget, readRemembered, remember } from './remember';
+import type { ConnectedWallet, WalletOption, WalletStatus, WalletWindow } from './types';
+
+export interface WalletValue {
+  status: WalletStatus;
+  wallet: ConnectedWallet | null;
+  /** The chain of this build's deployment. */
+  expectedChainId: number;
+  /** Connected, but on another chain than expectedChainId. */
+  wrongChain: boolean;
+  /** The wallets the last discover() found; null before the first one. */
+  wallets: WalletOption[] | null;
+  discovering: boolean;
+  discover(): Promise<WalletOption[]>;
+  /** Opens the wallet's prompt. Rejects with USER_REJECTED when the user declines. */
+  connect(option: WalletOption): Promise<ConnectedWallet>;
+  /** Forgets the wallet on this site; the wallet itself keeps its permission. */
+  disconnect(): void;
+  switchChain(): Promise<void>;
+  /** A viem client that signs through the connected wallet on this build's chain. */
+  walletClient(): Promise<WalletClient>;
+  sheetOpen: boolean;
+  openSheet(): void;
+  setSheetOpen(open: boolean): void;
+  /** The element that opened the sheet, so focus returns to it. */
+  sheetOpener: RefObject<HTMLElement | null>;
+}
+
+export const WalletContext = createContext<WalletValue | null>(null);
+
+type Pending = 'restoring' | 'connecting' | null;
+
+/**
+ * The connected wallet of the whole site (Quyết định 27). Nothing here loads viem or the SDK until it is needed: a
+ * click on Connect, or a wallet remembered from an earlier visit.
+ */
+export function WalletProvider({ children, win }: { children: ReactNode; win?: WalletWindow }) {
+  const kv = useKV();
+  const queryClient = useQueryClient();
+  const { crossCheck } = useChainSettings();
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const [pending, setPending] = useState<Pending>(null);
+  const [wallets, setWallets] = useState<WalletOption[] | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetOpener = useRef<HTMLElement | null>(null);
+  // Each connect, disconnect, restore and loss takes the next number; a slower one that meets a newer number drops
+  // its result, so a late restore never overwrites a wallet the user has just chosen.
+  const epoch = useRef(0);
+  const windowOf = useCallback((): WalletWindow => win ?? window, [win]);
+
+  // A remembered wallet reconnects after mount, without a prompt (Review Focus 2).
+  useEffect(() => {
+    const remembered = readRemembered(kv);
+    if (!remembered) return;
+    const mine = ++epoch.current;
+    setPending('restoring');
+    loadWalletImpl()
+      .then((impl) => impl.restoreWallet(windowOf(), remembered))
+      .then(
+        (r) => {
+          if (epoch.current !== mine) return;
+          if (r.kind === 'gone') forget(kv);
+          if (r.kind === 'connected') setWallet(r.wallet);
+          setPending(null);
+        },
+        () => {
+          if (epoch.current === mine) setPending(null);
+        },
+      );
+  }, [kv, windowOf]);
+
+  // Wallet events (Review Focus 3): a new account or chain updates the state; anything unusable drops the wallet.
+  const provider = wallet?.option.provider ?? null;
+  useEffect(() => {
+    if (!provider) return;
+    let live = true;
+    let stop: (() => void) | null = null;
+    loadWalletImpl().then(
+      (impl) => {
+        if (!live) return;
+        stop = impl.watchWallet(provider, {
+          account: (account) => setWallet((w) => (w ? { ...w, account } : w)),
+          chain: (chainId) => setWallet((w) => (w ? { ...w, chainId } : w)),
+          gone: () => {
+            epoch.current++;
+            setPending(null);
+            setWallet(null);
+          },
+        });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, [provider]);
+
+  const discover = useCallback(async (): Promise<WalletOption[]> => {
+    setDiscovering(true);
+    try {
+      const list = await (await loadWalletImpl()).discoverWallets(windowOf());
+      setWallets(list);
+      return list;
+    } finally {
+      setDiscovering(false);
+    }
+  }, [windowOf]);
+
+  const connect = useCallback(
+    async (option: WalletOption): Promise<ConnectedWallet> => {
+      const mine = ++epoch.current;
+      setPending('connecting');
+      try {
+        const next = await (await loadWalletImpl()).connectWallet(option);
+        if (epoch.current === mine) {
+          setWallet(next);
+          remember(kv, option);
+          setSheetOpen(false);
+        }
+        return next;
+      } finally {
+        if (epoch.current === mine) setPending(null);
+      }
+    },
+    [kv],
+  );
+
+  const disconnect = useCallback(() => {
+    epoch.current++;
+    forget(kv);
+    setPending(null);
+    setWallet(null);
+  }, [kv]);
+
+  // The SDK only on demand: a visitor who never connects never loads it here.
+  const sdkNow = useCallback(() => queryClient.fetchQuery(sdkQuery(crossCheck)), [queryClient, crossCheck]);
+
+  const switchChain = useCallback(async () => {
+    const [impl, sdk] = await Promise.all([loadWalletImpl(), sdkNow()]);
+    if (!wallet) throw impl.notConnected();
+    const chain = sdk.atro.chain;
+    await impl.ensureChain(wallet.option.provider, chain);
+    setWallet((w) => (w && w.option === wallet.option ? { ...w, chainId: chain.id } : w));
+  }, [wallet, sdkNow]);
+
+  const walletClient = useCallback(async (): Promise<WalletClient> => {
+    const [impl, sdk] = await Promise.all([loadWalletImpl(), sdkNow()]);
+    if (!wallet) throw impl.notConnected();
+    return impl.walletClientFor(wallet.option.provider, wallet.account, sdk.atro.chain);
+  }, [wallet, sdkNow]);
+
+  const openSheet = useCallback(() => {
+    sheetOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSheetOpen(true);
+  }, []);
+
+  const value = useMemo<WalletValue>(
+    () => ({
+      status: pending ?? (wallet ? 'connected' : 'idle'),
+      wallet,
+      expectedChainId: CHAIN_ID,
+      wrongChain: wallet !== null && wallet.chainId !== CHAIN_ID,
+      wallets,
+      discovering,
+      discover,
+      connect,
+      disconnect,
+      switchChain,
+      walletClient,
+      sheetOpen,
+      openSheet,
+      setSheetOpen,
+      sheetOpener,
+    }),
+    [
+      pending,
+      wallet,
+      wallets,
+      discovering,
+      discover,
+      connect,
+      disconnect,
+      switchChain,
+      walletClient,
+      sheetOpen,
+      openSheet,
+    ],
+  );
+  return <WalletContext value={value}>{children}</WalletContext>;
+}
+
+export function useWallet(): WalletValue {
+  const v = use(WalletContext);
+  if (!v) throw new Error('useWallet must be used inside <WalletProvider>');
+  return v;
+}
+```
+
+Thay `apps/web/src/shell/providers.tsx`:
+
+```tsx
+'use client';
+
+import type { ReactNode } from 'react';
+import { ChainProvider } from '@/chain/provider';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import type { KV } from '@/lib/store';
+import { MotionProvider } from '@/motion/provider';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+import { WalletProvider } from '@/wallet/provider';
+
+/** Every page renders inside these, in this order (storage first: language, theme, chain and wallet read it). */
+export function Providers({ children, kv }: { children: ReactNode; kv?: KV }) {
+  return (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <ChainProvider>
+            <WalletProvider>
+              <MotionProvider>
+                <TooltipProvider>{children}</TooltipProvider>
+              </MotionProvider>
+            </WalletProvider>
+          </ChainProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+}
+```
+
+Thay `apps/web/test/helpers/render.tsx`:
+
+```tsx
+import { QueryClient } from '@tanstack/react-query';
+import { render } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
+import { ChainProvider } from '@/chain/provider';
+import type { Lang } from '@/i18n/core';
+import { LangProvider } from '@/i18n/provider';
+import { KVProvider } from '@/lib/kv';
+import { KEYS, type KV, memoryKV } from '@/lib/store';
+import { ThemeProvider } from '@/theme/provider';
+import { TooltipProvider } from '@/ui/tooltip';
+import { WalletProvider } from '@/wallet/provider';
+import type { WalletWindow } from '@/wallet/types';
+
+export interface ProviderOptions {
+  kv?: KV;
+  lang?: Lang;
+  queryClient?: QueryClient;
+  /** Where wallet discovery looks; the test window by default. */
+  win?: WalletWindow;
+}
+
+/** No retries and no background refetch, so a test sees exactly the requests it makes. */
+export function testQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false }, mutations: { retry: false } },
+  });
+}
+
+/**
+ * The providers of every page except MotionProvider, which loads its features asynchronously; `m.*` elements still
+ * render their first state without it.
+ */
+export function TestProviders({
+  kv,
+  queryClient,
+  win,
+  children,
+}: {
+  kv: KV;
+  queryClient: QueryClient;
+  win?: WalletWindow;
+  children: ReactNode;
+}) {
+  return (
+    <KVProvider kv={kv}>
+      <LangProvider>
+        <ThemeProvider>
+          <ChainProvider client={queryClient}>
+            <WalletProvider win={win}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </WalletProvider>
+          </ChainProvider>
+        </ThemeProvider>
+      </LangProvider>
+    </KVProvider>
+  );
+}
+
+/** For `render` and `renderHook`: `{ wrapper }` plus the storage and the query client the test can inspect. */
+export function makeWrapper(o: ProviderOptions = {}) {
+  const kv = o.kv ?? memoryKV();
+  if (o.lang) kv.set(KEYS.lang, o.lang);
+  const queryClient = o.queryClient ?? testQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <TestProviders kv={kv} queryClient={queryClient} win={o.win}>
+      {children}
+    </TestProviders>
+  );
+  return { wrapper, kv, queryClient };
+}
+
+export function renderWithProviders(ui: ReactElement, o: ProviderOptions = {}) {
+  const { wrapper, kv, queryClient } = makeWrapper(o);
+  return { ...render(ui, { wrapper }), kv, queryClient };
+}
+```
+
+Run: `npm test -w apps/web -- wallet-provider wallet-session chain-hooks shell`
+Expected: PASS (wallet-provider 7, wallet-session 5, chain-hooks 6, shell 8).
+
+- [ ] **Step 5: Chuỗi của ví và `onCloseAutoFocus` cho `Dialog`**
+
+`apps/web/src/messages/wallet.messages.ts`:
+
+```ts
+import { defineMessages } from '@/i18n/core';
+
+export const messages = defineMessages(
+  {
+    connect: 'Connect wallet',
+    connectShort: 'Connect',
+    connecting: 'Connecting…',
+    restoring: 'Reconnecting your wallet…',
+    chooseWallet: 'Choose a wallet',
+    chooseWalletHint: 'Atropyle never asks for a seed phrase. Your wallet shows every step before you sign it.',
+    searching: 'Looking for wallets in this browser…',
+    searchFailed: 'Could not look for wallets. Check your connection and try again.',
+    searchAgain: 'Look again',
+    recommended: 'Recommended on X Layer',
+    noWalletTitle: 'No wallet in this browser',
+    noWalletBody: 'Install the OKX Wallet extension, or open this page in the browser inside the OKX App.',
+    noWalletPhone: 'Scan it with your phone, then open the link in the OKX App browser.',
+    qrTooLong: 'This link is too long for a QR code. Copy it and send it to your phone.',
+    pageLink: 'this page',
+    copyLink: 'Copy link',
+    rejected: 'You declined in your wallet. Nothing was shared.',
+    requestPending: 'Your wallet already has a request open. Finish it there, then try again.',
+    connectFailed: 'The wallet did not connect. Try again, or choose another wallet.',
+    walletMenu: 'Wallet',
+    accountButton: 'Wallet {account}',
+    accountButtonWrong: 'Wallet {account}, wrong network',
+    connectedWith: 'Connected with',
+    network: 'Network',
+    wrongNetworkTitle: 'Wrong network',
+    wrongNetwork:
+      'Your wallet is on {actual}. Atropyle runs on {expected} (chain {id}). Nothing can be signed until you switch.',
+    switchNetwork: 'Switch to {expected}',
+    switchRejected: 'You declined the switch. Switch to {expected} when you are ready.',
+    switchFailed: 'The wallet did not switch. Choose {expected} in your wallet, then come back.',
+    disconnect: 'Disconnect',
+    disconnectHint: 'This site forgets the wallet. To remove its access, use the connected sites list in your wallet.',
+  },
+  {
+    connect: 'Kết nối ví',
+    connectShort: 'Kết nối',
+    connecting: 'Đang kết nối…',
+    restoring: 'Đang kết nối lại ví…',
+    chooseWallet: 'Chọn ví',
+    chooseWalletHint: 'Atropyle không bao giờ hỏi cụm từ khôi phục. Ví của bạn hiện từng bước trước khi bạn ký.',
+    searching: 'Đang tìm ví trong trình duyệt này…',
+    searchFailed: 'Không tìm được ví. Hãy kiểm tra kết nối mạng rồi thử lại.',
+    searchAgain: 'Tìm lại',
+    recommended: 'Khuyên dùng trên X Layer',
+    noWalletTitle: 'Trình duyệt này chưa có ví',
+    noWalletBody: 'Hãy cài tiện ích OKX Wallet, hoặc mở trang này trong trình duyệt của OKX App.',
+    noWalletPhone: 'Quét bằng điện thoại, rồi mở link trong trình duyệt của OKX App.',
+    qrTooLong: 'Link này quá dài để làm mã QR. Hãy sao chép rồi gửi sang điện thoại.',
+    pageLink: 'trang này',
+    copyLink: 'Sao chép link',
+    rejected: 'Bạn đã từ chối trong ví. Không có gì được chia sẻ.',
+    requestPending: 'Ví của bạn đang có một yêu cầu chưa xong. Hãy xử lý nó trong ví rồi thử lại.',
+    connectFailed: 'Ví chưa kết nối được. Hãy thử lại hoặc chọn ví khác.',
+    walletMenu: 'Ví',
+    accountButton: 'Ví {account}',
+    accountButtonWrong: 'Ví {account}, sai mạng',
+    connectedWith: 'Đã kết nối bằng',
+    network: 'Mạng',
+    wrongNetworkTitle: 'Sai mạng',
+    wrongNetwork:
+      'Ví của bạn đang ở {actual}. Atropyle chạy trên {expected} (chain {id}). Chưa ký được gì cho tới khi bạn chuyển mạng.',
+    switchNetwork: 'Chuyển sang {expected}',
+    switchRejected: 'Bạn đã từ chối chuyển mạng. Hãy chuyển sang {expected} khi sẵn sàng.',
+    switchFailed: 'Ví chưa chuyển mạng. Hãy chọn {expected} trong ví rồi quay lại.',
+    disconnect: 'Ngắt kết nối',
+    disconnectHint: 'Trang này sẽ quên ví. Để thu hồi quyền truy cập, hãy dùng danh sách trang đã kết nối trong ví.',
+  },
+);
+```
+
+Bỏ 7 khoá ví cũ khỏi `shell.messages.ts` (giờ nằm trong `wallet.messages.ts`; mỗi khoá là một dòng ở cả `en` và `vi`):
+
+```bash
+sed -i -E "/^    (connect|connecting|disconnect|noWallet|chooseWallet|wrongNetwork|switchNetwork): /d" apps/web/src/messages/shell.messages.ts
+grep -c "connect\|noWallet\|wrongNetwork\|switchNetwork\|chooseWallet" apps/web/src/messages/shell.messages.ts
+```
+
+Expected: `0`.
+
+Thay `apps/web/src/ui/dialog.tsx` (thêm `onCloseAutoFocus`: dialog không có `trigger` thì Radix không biết trả focus về đâu, đọc `onCloseAutoFocus` của `DialogContentModal` trong `@radix-ui/react-dialog` 1.3.1: nó gọi `context.triggerRef.current?.focus()`):
+
+```tsx
+'use client';
+
+import * as D from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
+import type { ReactElement, ReactNode } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as common } from '@/messages/common.messages';
+import { IconButton } from './icon-button';
+
+export interface DialogProps {
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+  trigger?: ReactElement;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  size?: 'sm' | 'md' | 'lg';
+  /** A sheet from the bottom edge on narrow screens (the default); a centred box from 40rem. */
+  sheet?: boolean;
+  /** Where focus goes on close. Needed when there is no `trigger`; call `preventDefault()` after moving focus. */
+  onCloseAutoFocus?(event: Event): void;
+  className?: string;
+}
+
+const WIDTH = { sm: 'sm:max-w-sm', md: 'sm:max-w-md', lg: 'sm:max-w-xl' } as const;
+
+export function Dialog({
+  open,
+  onOpenChange,
+  trigger,
+  title,
+  description,
+  children,
+  size = 'md',
+  sheet = true,
+  onCloseAutoFocus,
+  className,
+}: DialogProps) {
+  const c = useT(common);
+  // Radix links the description itself; without one, an explicit undefined tells it there is none on purpose.
+  const describedBy = description ? {} : { 'aria-describedby': undefined };
+  return (
+    <D.Root open={open} onOpenChange={onOpenChange}>
+      {trigger ? <D.Trigger asChild>{trigger}</D.Trigger> : null}
+      <D.Portal>
+        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/70 backdrop-blur-[3px]" />
+        <D.Content
+          {...describedBy}
+          onCloseAutoFocus={onCloseAutoFocus}
+          className={cn(
+            'fixed z-50 flex max-h-[min(90dvh,48rem)] w-full flex-col gap-5 overflow-y-auto border border-line',
+            'bg-surface-1 p-6 text-ink shadow-[0_32px_64px_-16px_rgb(0_0_0/0.55)] outline-none',
+            sheet
+              ? 'atro-dialog atro-sheet inset-x-0 bottom-0 rounded-t-3xl pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl'
+              : 'atro-dialog top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl',
+            WIDTH[size],
+            className,
+          )}
+        >
+          {sheet ? (
+            <div aria-hidden="true" className="-mt-2 mx-auto h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" />
+          ) : null}
+          <div className="flex flex-col gap-1.5 pr-10">
+            <D.Title className="font-display text-title">{title}</D.Title>
+            {description ? <D.Description className="text-small text-ink-muted">{description}</D.Description> : null}
+          </div>
+          {children}
+          <D.Close asChild>
+            <IconButton icon={X} label={c('close')} size="sm" tooltip={false} className="absolute top-4 right-4" />
+          </D.Close>
+        </D.Content>
+      </D.Portal>
+    </D.Root>
+  );
+}
+```
+
+Run: `npm test -w apps/web -- primitives i18n`
+Expected: PASS (Dialog cũ không đổi hành vi; test i18n kiểm `wallet.messages.ts` có cùng khoá và cùng placeholder ở hai ngôn ngữ).
+
+- [ ] **Step 6: Test hỏng cho giao diện ví**
+
+`apps/web/test/unit/wallet-ui.test.tsx`:
+
+```tsx
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import type { LoadedVault } from '../../src/chain/types';
+import { ConnectSheet } from '../../src/wallet/connect-sheet';
+import { NetworkBanner } from '../../src/wallet/network-banner';
+import { WalletContext, type WalletValue } from '../../src/wallet/provider';
+import type { ConnectedWallet, WalletOption } from '../../src/wallet/types';
+import { useVaultRoles } from '../../src/wallet/use-vault-roles';
+import { WalletButton } from '../../src/wallet/wallet-button';
+import { renderWithProviders } from '../helpers/render';
+import { fakeWallet } from '../helpers/wallet';
+import { fixtureSnapshot, PEOPLE } from './fixtures';
+
+// useVaultRoles reads the real rolesIn through peekChainImpl.
+vi.mock('../../src/chain/load', async () => {
+  const impl = await import('../../src/chain/impl');
+  return { loadChainImpl: async () => impl, peekChainImpl: () => impl };
+});
+
+function option(over: Partial<WalletOption> = {}): WalletOption {
+  return {
+    id: 'okx',
+    name: 'OKX Wallet',
+    icon: null,
+    rdns: 'com.okex.wallet',
+    provider: fakeWallet().provider,
+    source: 'eip6963',
+    ...over,
+  };
+}
+
+function walletValue(over: Partial<WalletValue> = {}): WalletValue {
+  return {
+    status: 'idle',
+    wallet: null,
+    expectedChainId: 196,
+    wrongChain: false,
+    wallets: null,
+    discovering: false,
+    discover: vi.fn(async () => []),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    switchChain: vi.fn(async () => undefined),
+    walletClient: vi.fn(),
+    sheetOpen: false,
+    openSheet: vi.fn(),
+    setSheetOpen: vi.fn(),
+    sheetOpener: { current: null },
+    ...over,
+  };
+}
+
+const on = (chainId: number, account: string = PEOPLE.owner): ConnectedWallet => ({
+  option: option(),
+  account: account as ConnectedWallet['account'],
+  chainId,
+});
+
+function withWallet(ui: ReactElement, value: WalletValue) {
+  const r = renderWithProviders(<WalletContext value={value}>{ui}</WalletContext>);
+  return {
+    ...r,
+    update: (next: WalletValue) => r.rerender(<WalletContext value={next}>{ui}</WalletContext>),
+  };
+}
+
+const fail = (code: string | number) => Object.assign(new Error(String(code)), { code });
+
+describe('ConnectSheet', () => {
+  it('looks for wallets when it opens, then lists them with OKX recommended', () => {
+    const discover = vi.fn(async () => []);
+    const r = withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, discovering: true, discover }));
+    expect(screen.getByRole('dialog', { name: 'Choose a wallet' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Looking for wallets');
+
+    const other = option({ id: 'other', name: 'Other wallet', rdns: 'org.example.wallet' });
+    r.update(walletValue({ sheetOpen: true, wallets: [option(), other], discover }));
+    expect(screen.getByRole('button', { name: /OKX Wallet/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Other wallet/ })).toBeTruthy();
+    expect(screen.getAllByText('Recommended on X Layer')).toHaveLength(1);
+    expect(discover).toHaveBeenCalledTimes(1);
+  });
+
+  it('connects the wallet chosen and says why a connection failed', async () => {
+    const okx = option();
+    const connect = vi
+      .fn()
+      .mockRejectedValueOnce(fail('USER_REJECTED'))
+      .mockRejectedValueOnce(fail(-32002))
+      .mockRejectedValueOnce(new Error('boom'));
+    withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [okx], connect }));
+    const row = screen.getByRole('button', { name: /OKX Wallet/ });
+
+    fireEvent.click(row);
+    expect(await screen.findByText('You declined in your wallet. Nothing was shared.')).toBeTruthy();
+    fireEvent.click(row);
+    expect(await screen.findByText(/already has a request open/)).toBeTruthy();
+    fireEvent.click(row);
+    expect(await screen.findByText(/did not connect/)).toBeTruthy();
+    expect(connect).toHaveBeenCalledWith(okx);
+  });
+
+  it('treats a wallet name as untrusted text and recommends by rdns only', () => {
+    const evil = option({ id: 'evil', name: '<img src=x onerror=alert(1)> OKX', rdns: 'evil.example' });
+    withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [evil] }));
+    const name = screen.getByRole('dialog').querySelector('bdi[data-untrusted]');
+    expect(name?.textContent).toBe('<img src=x onerror=alert(1)> OKX');
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+    expect(screen.queryByText('Recommended on X Layer')).toBeNull();
+  });
+
+  it('without a wallet, offers the page link and a QR code, never an app link', async () => {
+    withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [] }));
+    expect(screen.getByText('No wallet in this browser')).toBeTruthy();
+    expect(await screen.findByRole('img', { name: 'QR code for this page' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeTruthy();
+    expect(screen.getByRole('dialog').querySelector('a')).toBeNull();
+  });
+
+  it('offers a link too long for a QR code for copying only', async () => {
+    window.history.replaceState(null, '', `/sign/#p=${'a'.repeat(700)}`);
+    try {
+      withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [] }));
+      expect(await screen.findByText(/too long for a QR code/)).toBeTruthy();
+      expect(screen.queryByRole('img', { name: 'QR code for this page' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Copy link' })).toBeTruthy();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+});
+
+describe('WalletButton', () => {
+  it('offers Connect, holds the place while it reconnects, then shows the account', () => {
+    const openSheet = vi.fn();
+    const r = withWallet(<WalletButton />, walletValue({ openSheet }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect wallet' }));
+    expect(openSheet).toHaveBeenCalledTimes(1);
+
+    r.update(walletValue({ status: 'restoring' }));
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Reconnecting your wallet');
+
+    r.update(walletValue({ status: 'connected', wallet: on(196) }));
+    expect(screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8' })).toBeTruthy();
+
+    r.update(walletValue({ status: 'connected', wallet: on(1), wrongChain: true }));
+    expect(screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8, wrong network' })).toBeTruthy();
+  });
+
+  it('the wallet menu shows the full address, the network and Disconnect', async () => {
+    const disconnect = vi.fn();
+    withWallet(<WalletButton />, walletValue({ status: 'connected', wallet: on(196), disconnect }));
+    fireEvent.click(screen.getByRole('button', { name: /^Wallet 0x7099/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Wallet' });
+    expect(menu.querySelector(`[data-address="${PEOPLE.owner}"]`)).toBeTruthy();
+    expect(menu.textContent).toContain('X Layer');
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NetworkBanner', () => {
+  it('appears only on the wrong chain and switches when asked', async () => {
+    const switchChain = vi.fn().mockRejectedValueOnce(fail('USER_REJECTED')).mockResolvedValueOnce(undefined);
+    const r = withWallet(<NetworkBanner />, walletValue({ status: 'connected', wallet: on(196) }));
+    expect(screen.queryByTestId('network-banner')).toBeNull();
+
+    r.update(walletValue({ status: 'connected', wallet: on(1), wrongChain: true, switchChain }));
+    expect(screen.getByTestId('network-banner').textContent).toContain(
+      'Your wallet is on Ethereum. Atropyle runs on X Layer (chain 196).',
+    );
+    const button = screen.getByRole('button', { name: 'Switch to X Layer' });
+    fireEvent.click(button);
+    expect(await screen.findByText('You declined the switch. Switch to X Layer when you are ready.')).toBeTruthy();
+    fireEvent.click(button);
+    await waitFor(() => expect(switchChain).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText(/You declined the switch/)).toBeNull());
+  });
+});
+
+function Roles({ loaded }: { loaded: LoadedVault | undefined }) {
+  return <output>{JSON.stringify(useVaultRoles(loaded))}</output>;
+}
+
+describe('useVaultRoles', () => {
+  it('gives the connected account its roles, none without a wallet, and null before the vault loads', () => {
+    const loaded = {
+      snap: fixtureSnapshot(),
+      timeline: null,
+      registered: true,
+      fetchedAtMs: 0,
+    } as unknown as LoadedVault;
+    const read = () => JSON.parse(screen.getByRole('status').textContent ?? '');
+    const r = renderWithProviders(
+      <WalletContext value={walletValue({ status: 'connected', wallet: on(196) })}>
+        <Roles loaded={loaded} />
+      </WalletContext>,
+    );
+    expect(read()).toEqual(['owner']);
+    r.rerender(
+      <WalletContext value={walletValue({ status: 'connected', wallet: on(196, PEOPLE.heirB) })}>
+        <Roles loaded={loaded} />
+      </WalletContext>,
+    );
+    expect(read()).toEqual(['heir', 'guardian']);
+    r.rerender(
+      <WalletContext value={walletValue()}>
+        <Roles loaded={loaded} />
+      </WalletContext>,
+    );
+    expect(read()).toEqual([]);
+    r.rerender(
+      <WalletContext value={walletValue()}>
+        <Roles loaded={undefined} />
+      </WalletContext>,
+    );
+    expect(read()).toBeNull();
+  });
+});
+```
+
+(`<output>` có vai trò ARIA `status`, nên test đọc nó bằng `getByRole('status')`.)
+
+Run: `npm test -w apps/web -- wallet-ui`
+Expected: FAIL, không tìm thấy `../../src/wallet/connect-sheet`.
+
+- [ ] **Step 7: Viết `ConnectSheet`, `WalletButton`, `WalletMenu`, `NetworkBanner`, `useVaultRoles`; gắn vào header và khung**
+
+`apps/web/src/wallet/connect-sheet.tsx`:
+
+```tsx
+'use client';
+
+import { ChevronRight, RefreshCw, Wallet, WalletMinimal } from 'lucide-react';
+import { m } from 'motion/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { errorCode } from '@/chain/query-client';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as walletText } from '@/messages/wallet.messages';
+import { SPRING } from '@/motion/tokens';
+import { Button } from '@/ui/button';
+import { CopyButton } from '@/ui/copy-button';
+import { Dialog } from '@/ui/dialog';
+import { InlineError } from '@/ui/inline-error';
+import { Skeleton } from '@/ui/skeleton';
+import { Spinner } from '@/ui/spinner';
+import { UntrustedText } from '@/ui/untrusted-text';
+import { useWallet } from './provider';
+import type { WalletOption } from './types';
+
+// The QR encoder loads only when the no-wallet help shows, so it stays out of every page's first bundle.
+const QrCode = lazy(() => import('@/ui/qr-code').then((mod) => ({ default: mod.QrCode })));
+
+/** Longer links (a sign link with its payload) make a QR code too dense for a phone camera; uqr throws past ~2.3 kB. */
+export const QR_MAX_CHARS = 512;
+
+export type PickerError = 'rejected' | 'requestPending' | 'connectFailed' | 'searchFailed';
+
+/** The message for a failed connection: declined (4001, USER_REJECTED here), a prompt already open (-32002), or other. */
+export function connectErrorKey(e: unknown): Exclude<PickerError, 'searchFailed'> {
+  if (errorCode(e) === 'USER_REJECTED') return 'rejected';
+  const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
+  return code === -32002 ? 'requestPending' : 'connectFailed';
+}
+
+/** OKX Wallet, known by its EIP-6963 rdns or the OKX App's injected global. Never by name: any wallet can pick a name. */
+export function isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean {
+  return w.rdns === 'com.okex.wallet' || w.source === 'okxwallet';
+}
+
+export interface WalletPickerProps {
+  /** null until the first search ends. */
+  wallets: readonly WalletOption[] | null;
+  searching: boolean;
+  /** The wallet whose prompt is open. */
+  connectingId: string | null;
+  error: PickerError | null;
+  /** The page to open on a phone; empty until known. */
+  pageUrl: string;
+  onPick(option: WalletOption): void;
+  onSearch(): void;
+}
+
+function WalletIcon({ option }: { option: WalletOption }) {
+  if (option.icon) {
+    // A data: image from the wallet (wallet.ts keeps only data:image/ up to 100 kB); next/image cannot serve it here.
+    // biome-ignore lint/performance/noImgElement: a data: URL from the wallet, in a static export
+    return <img src={option.icon} alt="" width={36} height={36} className="size-9 shrink-0 rounded-xl" />;
+  }
+  return (
+    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-ink-muted">
+      <Wallet aria-hidden="true" size={18} strokeWidth={1.5} />
+    </span>
+  );
+}
+
+function NoWallet({ pageUrl, searching, onSearch }: Pick<WalletPickerProps, 'pageUrl' | 'searching' | 'onSearch'>) {
+  const t = useT(walletText);
+  const fits = pageUrl.length > 0 && pageUrl.length <= QR_MAX_CHARS;
+  return (
+    <div className="flex flex-col items-center gap-3 py-2 text-center">
+      <span className="grid size-12 place-items-center rounded-full bg-surface-2 text-thread">
+        <WalletMinimal aria-hidden="true" size={22} strokeWidth={1.5} />
+      </span>
+      <p className="font-display text-ink text-title">{t('noWalletTitle')}</p>
+      <p className="max-w-prose text-ink-muted text-small">{t('noWalletBody')}</p>
+      {pageUrl ? (
+        <div className="mt-1 flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl border border-line bg-surface-2/60 p-4">
+          {fits ? (
+            <Suspense
+              fallback={
+                <span className="block overflow-hidden rounded-xl">
+                  <Skeleton className="size-[168px]" />
+                </span>
+              }
+            >
+              <QrCode value={pageUrl} label={t('pageLink')} size={168} />
+            </Suspense>
+          ) : null}
+          <p className="text-caption text-ink-muted">{fits ? t('noWalletPhone') : t('qrTooLong')}</p>
+          <CopyButton text={pageUrl} label={t('copyLink')} showText />
+        </div>
+      ) : null}
+      <Button
+        variant="secondary"
+        size="sm"
+        loading={searching}
+        onClick={onSearch}
+        icon={<RefreshCw aria-hidden="true" strokeWidth={1.5} />}
+      >
+        {t('searchAgain')}
+      </Button>
+    </div>
+  );
+}
+
+/** The body of the sheet in each of its states; pure, so the /dev/ gallery shows them all. */
+export function WalletPicker({
+  wallets,
+  searching,
+  connectingId,
+  error,
+  pageUrl,
+  onPick,
+  onSearch,
+}: WalletPickerProps) {
+  const t = useT(walletText);
+  if (wallets === null && error === 'searchFailed' && !searching) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <InlineError>{t('searchFailed')}</InlineError>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onSearch}
+          icon={<RefreshCw aria-hidden="true" strokeWidth={1.5} />}
+        >
+          {t('searchAgain')}
+        </Button>
+      </div>
+    );
+  }
+  if (wallets === null) {
+    return (
+      <div role="status" className="flex flex-col gap-2">
+        <span className="sr-only">{t('searching')}</span>
+        <span className="block overflow-hidden rounded-2xl">
+          <Skeleton className="h-[62px]" />
+        </span>
+        <span className="block overflow-hidden rounded-2xl">
+          <Skeleton className="h-[62px]" />
+        </span>
+      </div>
+    );
+  }
+  if (wallets.length === 0) return <NoWallet pageUrl={pageUrl} searching={searching} onSearch={onSearch} />;
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-2">
+        {wallets.map((w, at) => {
+          const busy = connectingId === w.id;
+          return (
+            <m.li
+              key={w.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...SPRING, delay: at * 0.04 }}
+            >
+              <button
+                type="button"
+                onClick={() => onPick(w)}
+                disabled={connectingId !== null}
+                aria-busy={busy || undefined}
+                className={cn(
+                  'group flex w-full items-center gap-3 rounded-2xl border bg-surface-1 p-3 text-left',
+                  'transition-[border-color,background-color,opacity,transform] duration-150',
+                  busy ? 'border-thread/60' : 'border-line',
+                  connectingId === null
+                    ? 'hover:border-line-strong hover:bg-surface-2 active:scale-[0.99]'
+                    : !busy && 'cursor-not-allowed opacity-60',
+                )}
+              >
+                <WalletIcon option={w} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <UntrustedText value={w.name} max={40} className="truncate font-medium text-ink" />
+                  {isRecommended(w) ? <span className="text-caption text-thread">{t('recommended')}</span> : null}
+                </span>
+                {busy ? (
+                  <Spinner label={t('connecting')} />
+                ) : (
+                  <ChevronRight
+                    aria-hidden="true"
+                    size={18}
+                    strokeWidth={1.5}
+                    className="shrink-0 text-ink-muted transition-transform duration-150 group-hover:translate-x-0.5"
+                  />
+                )}
+              </button>
+            </m.li>
+          );
+        })}
+      </ul>
+      <div aria-live="polite">{error ? <InlineError>{t(error)}</InlineError> : null}</div>
+    </div>
+  );
+}
+
+/** The one wallet sheet of the site, opened by `openSheet()` from anywhere (Quyết định 17: no OKX app link). */
+export function ConnectSheet() {
+  const t = useT(walletText);
+  const w = useWallet();
+  const { sheetOpen, discover } = w;
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [error, setError] = useState<PickerError | null>(null);
+  const [pageUrl, setPageUrl] = useState('');
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+    setError(null);
+    setPageUrl(window.location.href);
+    discover().catch(() => setError('searchFailed'));
+  }, [sheetOpen, discover]);
+
+  const pick = async (option: WalletOption) => {
+    setError(null);
+    setConnectingId(option.id);
+    try {
+      await w.connect(option);
+    } catch (e) {
+      setError(connectErrorKey(e));
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const search = () => {
+    setError(null);
+    discover().catch(() => setError('searchFailed'));
+  };
+
+  return (
+    <Dialog
+      open={sheetOpen}
+      onOpenChange={w.setSheetOpen}
+      title={t('chooseWallet')}
+      description={t('chooseWalletHint')}
+      size="sm"
+      onCloseAutoFocus={(event) => {
+        // Back to what opened the sheet; after a connection that button is gone, so to the wallet button instead.
+        const opener = w.sheetOpener.current;
+        const back = opener?.isConnected ? opener : document.querySelector<HTMLElement>('[data-wallet-button]');
+        if (back) {
+          event.preventDefault();
+          back.focus();
+        }
+      }}
+    >
+      <WalletPicker
+        wallets={w.wallets}
+        searching={w.discovering}
+        connectingId={connectingId}
+        error={error}
+        pageUrl={pageUrl}
+        onPick={pick}
+        onSearch={search}
+      />
+    </Dialog>
+  );
+}
+```
+
+`apps/web/src/wallet/wallet-button.tsx`:
+
+```tsx
+'use client';
+
+import { Wallet } from 'lucide-react';
+import { useT } from '@/i18n/provider';
+import { messages as walletText } from '@/messages/wallet.messages';
+import { Button } from '@/ui/button';
+import { Skeleton } from '@/ui/skeleton';
+import { useWallet } from './provider';
+import { WalletMenu } from './wallet-menu';
+
+/** Connect, a placeholder while a remembered wallet reconnects, or the account with its menu. */
+export function WalletButton() {
+  const t = useT(walletText);
+  const { status, wallet, openSheet } = useWallet();
+  if (wallet) return <WalletMenu />;
+  if (status === 'restoring') {
+    return (
+      <span role="status" className="inline-flex overflow-hidden rounded-full">
+        <Skeleton className="h-8 w-24 sm:w-44" />
+        <span className="sr-only">{t('restoring')}</span>
+      </span>
+    );
+  }
+  const connecting = status === 'connecting';
+  return (
+    <Button
+      size="sm"
+      variant="primary"
+      data-wallet-button=""
+      aria-label={connecting ? undefined : t('connect')}
+      loading={connecting}
+      onClick={openSheet}
+      icon={<Wallet aria-hidden="true" strokeWidth={1.5} />}
+    >
+      {connecting ? (
+        t('connecting')
+      ) : (
+        <>
+          <span className="sm:hidden">{t('connectShort')}</span>
+          <span className="hidden sm:inline">{t('connect')}</span>
+        </>
+      )}
+    </Button>
+  );
+}
+```
+
+`apps/web/src/wallet/wallet-menu.tsx`:
+
+```tsx
+'use client';
+
+import { LogOut } from 'lucide-react';
+import { ENV, explorerUrlOf } from '@/config/env';
+import { useT } from '@/i18n/provider';
+import { compactAddress } from '@/lib/address';
+import { cn } from '@/lib/cn';
+import { messages as walletText } from '@/messages/wallet.messages';
+import { Address, Avatar } from '@/ui/address';
+import { Button } from '@/ui/button';
+import { Popover, PopoverClose } from '@/ui/popover';
+import { UntrustedText } from '@/ui/untrusted-text';
+import { networkName } from './network';
+import { SwitchNetworkButton } from './network-banner';
+import { useWallet } from './provider';
+
+const EXPLORER = explorerUrlOf(ENV);
+
+/**
+ * The connected account: a short form on the button (the full address is one click away, Task 5 `compactAddress`),
+ * the full address, the network and Disconnect in the menu.
+ */
+export function WalletMenu() {
+  const t = useT(walletText);
+  const { wallet, wrongChain, disconnect } = useWallet();
+  if (!wallet) return null;
+  const short = compactAddress(wallet.account);
+  return (
+    <Popover
+      label={t('walletMenu')}
+      className="w-80 max-w-[calc(100vw-1.5rem)]"
+      trigger={
+        <button
+          type="button"
+          data-wallet-button=""
+          aria-label={t(wrongChain ? 'accountButtonWrong' : 'accountButton', { account: short })}
+          className="relative inline-flex h-8 items-center gap-2 rounded-full border border-line bg-surface-1 pr-1.5 pl-1.5 text-small transition-colors duration-150 hover:bg-surface-2 sm:pr-3"
+        >
+          <Avatar address={wallet.account} size={24} />
+          <span translate="no" className="hidden font-mono tabular-nums sm:inline">
+            {short}
+          </span>
+          {wrongChain ? (
+            <span
+              aria-hidden="true"
+              className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-grace ring-2 ring-bg"
+            />
+          ) : null}
+        </button>
+      }
+    >
+      <div className="flex flex-col gap-4 p-1">
+        <div className="flex flex-col gap-2">
+          <p className="text-caption text-ink-muted">
+            {t('connectedWith')} <UntrustedText value={wallet.option.name} max={40} className="text-ink" />
+          </p>
+          <Address address={wallet.account} explorer={EXPLORER} size="sm" />
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2 text-small">
+          <span className="text-ink-muted">{t('network')}</span>
+          <span className={cn('inline-flex items-center gap-1.5', wrongChain ? 'text-grace' : 'text-ink')}>
+            <span aria-hidden="true" className={cn('size-2 rounded-full', wrongChain ? 'bg-grace' : 'bg-alive')} />
+            {networkName(wallet.chainId)}
+            <span className="font-mono text-ink-muted">· {wallet.chainId}</span>
+          </span>
+        </div>
+        {wrongChain ? <SwitchNetworkButton /> : null}
+        <div className="flex flex-col items-start gap-1.5 border-line border-t pt-3">
+          <PopoverClose asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={disconnect}
+              icon={<LogOut aria-hidden="true" strokeWidth={1.5} />}
+            >
+              {t('disconnect')}
+            </Button>
+          </PopoverClose>
+          <p className="px-1 text-caption text-ink-muted">{t('disconnectHint')}</p>
+        </div>
+      </div>
+    </Popover>
+  );
+}
+```
+
+`apps/web/src/wallet/network-banner.tsx`:
+
+```tsx
+'use client';
+
+import { useId, useState } from 'react';
+import { errorCode } from '@/chain/query-client';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as walletText } from '@/messages/wallet.messages';
+import { Banner } from '@/ui/banner';
+import { Button } from '@/ui/button';
+import { InlineError } from '@/ui/inline-error';
+import { networkName } from './network';
+import { useWallet } from './provider';
+
+/** Asks the wallet to move to this build's chain (adding it first if the wallet does not know it). */
+export function SwitchNetworkButton({ className }: { className?: string }) {
+  const t = useT(walletText);
+  const { switchChain, expectedChainId } = useWallet();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<'switchRejected' | 'switchFailed' | null>(null);
+  const errorId = useId();
+  const expected = networkName(expectedChainId);
+  return (
+    <div className={cn('flex flex-col items-start gap-2', className)}>
+      <Button
+        size="sm"
+        variant="primary"
+        loading={busy}
+        aria-describedby={error ? errorId : undefined}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await switchChain();
+          } catch (e) {
+            setError(errorCode(e) === 'USER_REJECTED' ? 'switchRejected' : 'switchFailed');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {t('switchNetwork', { expected })}
+      </Button>
+      {error ? <InlineError id={errorId}>{t(error, { expected })}</InlineError> : null}
+    </div>
+  );
+}
+
+/**
+ * Under the header while the wallet is on another chain (Review Focus 3). The live region is always there, so a
+ * screen reader hears the banner when a wallet event brings it.
+ */
+export function NetworkBanner() {
+  const t = useT(walletText);
+  const { wallet, wrongChain, expectedChainId } = useWallet();
+  const show = wallet !== null && wrongChain;
+  return (
+    <div aria-live="polite" className={show ? 'mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6' : undefined}>
+      {show ? (
+        <Banner tone="warn" testId="network-banner" title={t('wrongNetworkTitle')} action={<SwitchNetworkButton />}>
+          {t('wrongNetwork', {
+            actual: networkName(wallet.chainId),
+            expected: networkName(expectedChainId),
+            id: expectedChainId,
+          })}
+        </Banner>
+      ) : null}
+    </div>
+  );
+}
+```
+
+`apps/web/src/wallet/use-vault-roles.ts`:
+
+```ts
+'use client';
+
+import type { Role } from '@atropyle/sdk';
+import { useMemo } from 'react';
+import { peekChainImpl } from '@/chain/load';
+import type { LoadedVault } from '@/chain/types';
+import { useWallet } from './provider';
+
+/**
+ * The connected account's roles in a loaded vault: null until the vault has loaded, [] without a wallet. Computed in
+ * render (a vault in the cache means the chain impl has loaded), so a wallet event changes the roles in the same frame.
+ */
+export function useVaultRoles(loaded: LoadedVault | undefined): readonly Role[] | null {
+  const { wallet } = useWallet();
+  const account = wallet?.account ?? null;
+  return useMemo(() => {
+    const impl = peekChainImpl();
+    return loaded && impl ? impl.rolesIn(loaded.snap, account) : null;
+  }, [loaded, account]);
+}
+```
+
+Thay `apps/web/src/shell/header.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { useT } from '@/i18n/provider';
+import { messages as shell } from '@/messages/shell.messages';
+import { messages as ui } from '@/messages/ui.messages';
+import { ROUTES } from '@/routes';
+import { WalletButton } from '@/wallet/wallet-button';
+import { MobileMenu } from './mobile-menu';
+import { NavList } from './nav-list';
+import { SettingsMenu } from './settings-menu';
+import { Wordmark } from './wordmark';
+
+export function Header() {
+  const t = useT(shell);
+  const u = useT(ui);
+  return (
+    <header className="sticky top-0 z-40 border-line/70 border-b bg-bg/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
+        <Link href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
+          <Wordmark />
+        </Link>
+        <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
+          <NavList layout="bar" />
+        </nav>
+        <div className="ml-auto flex items-center gap-2">
+          <WalletButton />
+          <div className="hidden md:block">
+            <SettingsMenu />
+          </div>
+          <div className="md:hidden">
+            <MobileMenu />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+Thay `apps/web/src/shell/frame.tsx`:
+
+```tsx
+'use client';
+
+import { type ReactNode, useId } from 'react';
+import { ConnectSheet } from '@/wallet/connect-sheet';
+import { NetworkBanner } from '@/wallet/network-banner';
+import { Footer } from './footer';
+import { Header } from './header';
+import { SkipLink } from './skip-link';
+
+export function Frame({ children }: { children: ReactNode }) {
+  const mainId = useId();
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <SkipLink targetId={mainId} />
+      <Header />
+      <NetworkBanner />
+      <main id={mainId} tabIndex={-1} className="flex flex-1 flex-col outline-none">
+        {children}
+      </main>
+      <Footer />
+      <ConnectSheet />
+    </div>
+  );
+}
+```
+
+Run: `npm test -w apps/web -- wallet-ui shell`
+Expected: PASS (wallet-ui 9, shell 8).
+
+- [ ] **Step 8: Thêm mục ví vào `/dev/`**
+
+`apps/web/src/app/dev/wallet-gallery.tsx`:
+
+```tsx
+'use client';
+
+import type { ReactNode } from 'react';
+import { WalletPicker, type WalletPickerProps } from '@/wallet/connect-sheet';
+import { NetworkBanner } from '@/wallet/network-banner';
+import { WalletContext, type WalletValue } from '@/wallet/provider';
+import type { ConnectedWallet, Eip1193, WalletOption } from '@/wallet/types';
+import { WalletButton } from '@/wallet/wallet-button';
+
+const PROVIDER: Eip1193 = { request: async () => null };
+const OKX: WalletOption = {
+  id: 'okx',
+  name: 'OKX Wallet',
+  icon: null,
+  rdns: 'com.okex.wallet',
+  provider: PROVIDER,
+  source: 'eip6963',
+};
+const OPTIONS: WalletOption[] = [
+  OKX,
+  {
+    id: 'other',
+    name: 'Another wallet',
+    icon: null,
+    rdns: 'org.example.wallet',
+    provider: PROVIDER,
+    source: 'eip6963',
+  },
+  {
+    id: 'long',
+    name: 'A wallet whose name is far too long to fit',
+    icon: null,
+    rdns: 'org.example.long',
+    provider: PROVIDER,
+    source: 'eip6963',
+  },
+];
+const ON_X_LAYER: ConnectedWallet = {
+  option: OKX,
+  account: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+  chainId: 196,
+};
+const noop = () => undefined;
+
+function fake(over: Partial<WalletValue>): WalletValue {
+  return {
+    status: 'idle',
+    wallet: null,
+    expectedChainId: 196,
+    wrongChain: false,
+    wallets: null,
+    discovering: false,
+    discover: async () => [],
+    connect: async () => ON_X_LAYER,
+    disconnect: noop,
+    switchChain: async () => undefined,
+    walletClient: () => Promise.reject(new Error('The gallery has no wallet.')),
+    sheetOpen: false,
+    openSheet: noop,
+    setSheetOpen: noop,
+    sheetOpener: { current: null },
+    ...over,
+  };
+}
+
+const WRONG_CHAIN = fake({ status: 'connected', wallet: { ...ON_X_LAYER, chainId: 1 }, wrongChain: true });
+const BUTTONS: { label: string; value: WalletValue }[] = [
+  { label: 'idle', value: fake({}) },
+  { label: 'restoring', value: fake({ status: 'restoring' }) },
+  { label: 'connecting', value: fake({ status: 'connecting' }) },
+  { label: 'connected', value: fake({ status: 'connected', wallet: ON_X_LAYER }) },
+  { label: 'wrong network', value: WRONG_CHAIN },
+];
+
+const PICKER: Omit<WalletPickerProps, 'onPick' | 'onSearch'> = {
+  wallets: OPTIONS,
+  searching: false,
+  connectingId: null,
+  error: null,
+  pageUrl: '',
+};
+const PICKERS: { label: string; props: Omit<WalletPickerProps, 'onPick' | 'onSearch'> }[] = [
+  { label: 'searching', props: { ...PICKER, wallets: null, searching: true } },
+  { label: 'wallets', props: PICKER },
+  { label: 'connecting', props: { ...PICKER, connectingId: 'okx' } },
+  { label: 'declined', props: { ...PICKER, wallets: [OKX], error: 'rejected' } },
+  { label: 'no wallet', props: { ...PICKER, wallets: [], pageUrl: 'http://localhost:3000/sign/#p=example' } },
+  { label: 'search failed', props: { ...PICKER, wallets: null, error: 'searchFailed' } },
+];
+
+function Labelled({ label, boxed = false, children }: { label: string; boxed?: boolean; children: ReactNode }) {
+  return (
+    <div
+      className={boxed ? 'flex flex-col gap-3 rounded-3xl border border-line p-4' : 'flex flex-col items-start gap-2'}
+    >
+      <span className="text-caption text-ink-muted">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** The wallet button, the network banner and the sheet body in every state, without a wallet. */
+export function WalletGallery() {
+  return (
+    <section className="flex flex-col gap-4 border-line border-t pt-8">
+      <h2 className="text-h2">Wallet</h2>
+      <div className="flex flex-wrap items-end gap-6">
+        {BUTTONS.map((b) => (
+          <Labelled key={b.label} label={b.label}>
+            <WalletContext value={b.value}>
+              <WalletButton />
+            </WalletContext>
+          </Labelled>
+        ))}
+      </div>
+      <WalletContext value={WRONG_CHAIN}>
+        <NetworkBanner />
+      </WalletContext>
+      <div className="grid gap-4 md:grid-cols-2">
+        {PICKERS.map((p) => (
+          <Labelled key={p.label} label={p.label} boxed>
+            <WalletPicker {...p.props} onPick={noop} onSearch={noop} />
+          </Labelled>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+Trong `apps/web/src/app/dev/gallery.tsx`: thêm `import { WalletGallery } from './wallet-gallery';` ngay sau dòng `import { UntrustedText } from '@/ui/untrusted-text';`, và thêm `      <WalletGallery />` ngay trước dòng `    </main>`.
+
+Thay `apps/web/test/unit/dev-gallery.test.tsx`:
+
+```tsx
+import { screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { Gallery } from '../../src/app/dev/gallery';
+import { renderWithProviders } from '../helpers/render';
+
+describe('/dev/ gallery', () => {
+  it('shows every group of primitives', () => {
+    renderWithProviders(<Gallery />);
+    for (const name of [
+      'Colour',
+      'Type',
+      'Buttons',
+      'Hold to confirm',
+      'Thread',
+      'Data',
+      'Feedback',
+      'Forms and overlays',
+      'Wallet',
+    ]) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
+    }
+  });
+});
+```
+
+Run: `npm test -w apps/web -- dev-gallery`
+Expected: PASS (1 test).
+
+Kiểm bằng mắt: `npm run dev -w apps/web`, mở `http://localhost:3000/dev/`, xem mục Wallet ở cả hai theme và ở 360 px; mở `/`, bấm Connect wallet: trên trình duyệt không có ví, sheet hiện hướng dẫn, nút sao chép link và mã QR.
+
+- [ ] **Step 9: Chạy toàn bộ, kiểm bundle và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+npm run test:build -w apps/web
+git add apps/web/src/wallet apps/web/src/messages/wallet.messages.ts apps/web/src/messages/shell.messages.ts apps/web/src/ui/dialog.tsx apps/web/src/shell/providers.tsx apps/web/src/shell/header.tsx apps/web/src/shell/frame.tsx apps/web/src/app/dev/gallery.tsx apps/web/src/app/dev/wallet-gallery.tsx apps/web/test/helpers/render.tsx apps/web/test/helpers/wallet.ts apps/web/test/unit/wallet.test.ts apps/web/test/unit/send-calls.test.ts apps/web/test/unit/wallet-session.test.ts apps/web/test/unit/wallet-provider.test.tsx apps/web/test/unit/wallet-ui.test.tsx apps/web/test/unit/dev-gallery.test.tsx
+git commit -m "feat(web): wallet session, connect sheet and wallet button" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS; `lazy-boundary` vẫn PASS (mọi file ngoài `wallet/impl/` chỉ `import type` từ viem, SDK và `impl`). `test:build` vẫn PASS: HTML prerender của `/` có nút "Connect wallet" và không có `href` ra ngoài.
+
+---
+
+### Task 12: Chứng minh trong worker: port `verify-client`, worker thật và hook `useProof`, `useVaultVerify`
+
+Phép liệt kê 2^26 tổ hợp chạy trong `src/workers/verify.worker.ts`, không gọi mạng (Plan 4, quyết định 8 của web cũ). Client của worker và phần đọc quorum được port nguyên văn vào `src/verify/impl/`; hook ở ngoài giữ kết quả cho cả phiên bằng TanStack Query, và tiến độ nằm trong một store nhỏ để trang mount lại giữa chừng vẫn thấy tiến độ.
+
+**Files:**
+- Create (port): `apps/web/src/workers/verify.worker.ts`, `apps/web/src/verify/impl/verify-client.ts`, `apps/web/src/verify/verify-view.ts`, `apps/web/test/unit/{verify-client,verify-cache,verify-view}.test.ts`
+- Create (mới): `apps/web/src/verify/impl/index.ts`, `apps/web/src/verify/{types,load,hooks}.ts`
+- Modify: `apps/web/src/app/e2e/worker/page.e2e.tsx` (thêm hàng `worker-verify`), `apps/web/scripts/worker-check.ts` (chờ cả hai hàng)
+- Test: `apps/web/test/unit/verify-hooks.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 2 (`buildApp`, `OUT_DIR`, `startStaticServer`, trang `e2e/worker`), Task 10 (`CHAIN_ID`, `useSdk`, `chainKeys`, `useChainSettings`, `type Sdk`, `makeWrapper`).
+- Produces:
+  - `src/verify/impl/index.ts` (chỉ nạp qua `loadVerifyImpl`): `type WorkerIn`, `type WorkerOut`, `interface WorkerLike`, `type WorkerFactory`, `createVerifyWorker`, `errorFromJson(j)`, `evaluateInWorker(bundle, o?)`, `quorumClient(sdk)`, `proofKey(sdk)`, `runProof(sdk: Sdk, o?: { onProgress?; blocks?; worker? }): Promise<PolicyVerification>` (một lần mỗi phiên, người gọi sau nhập chuyến đang chạy), `runVaultVerify(sdk, vault, { policy, onProgress?, worker? }): Promise<VaultVerification>`.
+  - `src/verify/types.ts` (chỉ kiểu): `PolicyVerification`, `PolicyBundle`, `VaultVerification`, `interface ProofProgress { done: number; total: number }`.
+  - `src/verify/load.ts`: `type VerifyImpl`; `loadVerifyImpl(): Promise<VerifyImpl>`.
+  - `src/verify/verify-view.ts` (thuần, chỉ kiểu từ SDK): `type RowState`, `type RowId`, `interface VerifyRow`, `vaultVerifyRows(v)`, `PROPERTY_ORDER`, `interface ProofSummary`, `proofSummary(r)`.
+  - `src/verify/hooks.ts`: `type RunStatus = 'idle' | 'running' | 'done' | 'error'`; `verifyKeys.{proof(crossCheck), vault(vault, policy, crossCheck)}`; `interface ProofState { status; progress: ProofProgress | null; result: PolicyVerification | undefined; error: unknown; run(): void }`; `useProof(): ProofState`; `interface VaultVerifyState { status; progress; result: VaultVerification | undefined; error: unknown; retry(): void }`; `useVaultVerify(vault: Address | null, policy: boolean): VaultVerifyState`.
+
+- [ ] **Step 1: Port worker, client, phần trình bày và test của chúng**
+
+```bash
+L=apps/web-legacy
+W=apps/web
+mkdir -p $W/src/verify/impl
+cp $L/src/workers/verify.worker.ts $W/src/workers/verify.worker.ts
+sed -i "s#'../lib/verify-client'#'../verify/impl/verify-client'#" $W/src/workers/verify.worker.ts
+cp $L/src/lib/verify-client.ts $W/src/verify/impl/verify-client.ts
+sed -i "s#import type { Sdk } from './sdk';#import type { Sdk } from '@/chain/types';#; s#'../workers/verify.worker.ts'#'../../workers/verify.worker.ts'#" $W/src/verify/impl/verify-client.ts
+cp $L/src/lib/verify-view.ts $W/src/verify/verify-view.ts
+cp $L/test/unit/verify-client.test.ts $W/test/unit/verify-client.test.ts
+sed -i "s#'../../src/lib/verify-client'#'../../src/verify/impl/verify-client'#" $W/test/unit/verify-client.test.ts
+cp $L/test/unit/verify-cache.test.ts $W/test/unit/verify-cache.test.ts
+sed -i "s#'../../src/lib/verify-client'#'../../src/verify/impl/verify-client'#; s#'../../src/lib/sdk'#'../../src/chain/types'#" $W/test/unit/verify-cache.test.ts
+cp $L/test/unit/verify-view.test.ts $W/test/unit/verify-view.test.ts
+sed -i "s#'../../src/lib/verify-view'#'../../src/verify/verify-view'#" $W/test/unit/verify-view.test.ts
+grep -n "src/lib/\|'./sdk'\|'../workers/" $W/src/workers/verify.worker.ts $W/src/verify/impl/verify-client.ts $W/test/unit/verify-*.test.ts
+```
+
+Expected: lệnh `grep` cuối không in gì.
+
+Run: `npm test -w apps/web -- verify-client verify-cache verify-view`
+Expected: PASS (verify-client 6, verify-cache 7, verify-view 6).
+
+- [ ] **Step 2: Viết test hỏng cho các hook**
+
+`apps/web/test/unit/verify-hooks.test.tsx`:
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { Address } from 'viem';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useProof, useVaultVerify } from '../../src/verify/hooks';
+import type { PolicyVerification } from '../../src/verify/types';
+import { makeWrapper } from '../helpers/render';
+import { PEOPLE } from './fixtures';
+
+const impl = vi.hoisted(() => ({ runProof: vi.fn(), runVaultVerify: vi.fn() }));
+vi.mock('../../src/verify/load', () => ({ loadVerifyImpl: async () => impl }));
+vi.mock('../../src/chain/load', async () => {
+  const { fixtureDeployment } = await import('./fixtures');
+  const chain = {
+    loadDeployment: () => fixtureDeployment(),
+    createSdk: (deployment: unknown) => ({ deployment, atro: {}, rpc: { read: [], verify: [] } }),
+  };
+  return { loadChainImpl: async () => chain, peekChainImpl: () => chain };
+});
+
+type Progress = (done: number, total: number) => void;
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
+
+describe('useProof', () => {
+  it('runs only when asked, shows progress and keeps the result for the session', async () => {
+    let finish: (r: PolicyVerification) => void = () => undefined;
+    impl.runProof.mockImplementation(
+      (_sdk: unknown, o: { onProgress?: Progress }) =>
+        new Promise<PolicyVerification>((resolve) => {
+          o.onProgress?.(1, 4);
+          finish = resolve;
+        }),
+    );
+    const { wrapper } = makeWrapper();
+    const first = renderHook(() => useProof(), { wrapper });
+    expect(first.result.current.status).toBe('idle');
+    expect(impl.runProof).not.toHaveBeenCalled();
+
+    act(() => first.result.current.run());
+    expect(first.result.current.status).toBe('running');
+    await waitFor(() => expect(first.result.current.progress).toEqual({ done: 1, total: 4 }));
+
+    const result = { ok: true } as unknown as PolicyVerification;
+    act(() => finish(result));
+    await waitFor(() => expect(first.result.current.status).toBe('done'));
+    expect(first.result.current.result).toBe(result);
+    expect(first.result.current.progress).toBeNull();
+    first.unmount();
+
+    // Another page of the same session: the proof is not run again.
+    const again = renderHook(() => useProof(), { wrapper });
+    expect(again.result.current.status).toBe('done');
+    expect(again.result.current.result).toBe(result);
+    expect(impl.runProof).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed proof and runs it again on request', async () => {
+    impl.runProof
+      .mockRejectedValueOnce(Object.assign(new Error('every RPC failed'), { code: 'RPC_UNAVAILABLE' }))
+      .mockResolvedValueOnce({ ok: true });
+    const { wrapper } = makeWrapper();
+    const h = renderHook(() => useProof(), { wrapper });
+    act(() => h.result.current.run());
+    await waitFor(() => expect(h.result.current.status).toBe('error'));
+    expect(h.result.current.error).toMatchObject({ code: 'RPC_UNAVAILABLE' });
+
+    act(() => h.result.current.run());
+    await waitFor(() => expect(h.result.current.status).toBe('done'));
+    expect(impl.runProof).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('useVaultVerify', () => {
+  it('checks the vault at once, and the policy only when asked', async () => {
+    impl.runVaultVerify.mockImplementation(async (_sdk: unknown, vault: string, o: { policy: boolean }) => ({
+      vault,
+      policy: o.policy,
+    }));
+    const { wrapper } = makeWrapper();
+    const h = renderHook(({ policy }) => useVaultVerify(PEOPLE.vault as Address, policy), {
+      wrapper,
+      initialProps: { policy: false },
+    });
+    expect(h.result.current.status).toBe('running');
+    await waitFor(() => expect(h.result.current.status).toBe('done'));
+    expect(h.result.current.result).toMatchObject({ vault: PEOPLE.vault, policy: false });
+
+    h.rerender({ policy: true });
+    await waitFor(() => expect(h.result.current.result).toMatchObject({ policy: true }));
+    expect(impl.runVaultVerify).toHaveBeenCalledTimes(2);
+
+    const none = renderHook(() => useVaultVerify(null, false), { wrapper });
+    expect(none.result.current.status).toBe('idle');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- verify-hooks`
+Expected: FAIL, không tìm thấy `../../src/verify/hooks`.
+
+- [ ] **Step 3: Viết `types.ts`, `load.ts`, `impl/index.ts` và `hooks.ts`**
+
+`apps/web/src/verify/types.ts`:
+
+```ts
+export type { PolicyVerification } from '@atropyle/sdk';
+export type { PolicyBundle, VaultVerification } from '@atropyle/sdk/verify';
+
+/** Combinations enumerated so far, out of 2^26. */
+export interface ProofProgress {
+  done: number;
+  total: number;
+}
+```
+
+`apps/web/src/verify/impl/index.ts`:
+
+```ts
+export {
+  createVerifyWorker,
+  errorFromJson,
+  evaluateInWorker,
+  proofKey,
+  quorumClient,
+  runProof,
+  runVaultVerify,
+  type WorkerFactory,
+  type WorkerIn,
+  type WorkerLike,
+  type WorkerOut,
+} from './verify-client';
+```
+
+`apps/web/src/verify/load.ts`:
+
+```ts
+import type * as Impl from './impl';
+
+export type VerifyImpl = typeof Impl;
+
+let pending: Promise<VerifyImpl> | null = null;
+
+/** The proof code (quorum reads, the worker client) loads when a page first asks for a proof. */
+export function loadVerifyImpl(): Promise<VerifyImpl> {
+  pending ??= import('./impl').catch((e: unknown) => {
+    pending = null;
+    throw e;
+  });
+  return pending;
+}
+```
+
+`apps/web/src/verify/hooks.ts`:
+
+```ts
+'use client';
+
+import { skipToken, useQuery } from '@tanstack/react-query';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import type { Address } from 'viem';
+import { CHAIN_ID, useSdk } from '@/chain/hooks';
+import { chainKeys } from '@/chain/keys';
+import { useChainSettings } from '@/chain/provider';
+import { loadVerifyImpl } from './load';
+import type { PolicyVerification, ProofProgress, VaultVerification } from './types';
+
+export type RunStatus = 'idle' | 'running' | 'done' | 'error';
+
+export const verifyKeys = {
+  proof: (crossCheck: boolean) => [...chainKeys.all(CHAIN_ID), 'proof', crossCheck ? 'cross' : 'own'] as const,
+  vault: (vault: string, policy: boolean, crossCheck: boolean) =>
+    [
+      ...chainKeys.vault(CHAIN_ID, vault),
+      'verify',
+      policy ? 'policy' : 'integrity',
+      crossCheck ? 'cross' : 'own',
+    ] as const,
+};
+
+// The proof's progress, by query, outside React state: a page that mounts while the proof runs (the user went from
+// /proof/ to a vault and back) still sees the count, although the run was started by the page it left.
+const progressById = new Map<string, ProofProgress>();
+const listeners = new Set<() => void>();
+
+function publish(id: string, p: ProofProgress | null): void {
+  if (p) progressById.set(id, p);
+  else progressById.delete(id);
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function useProgress(id: string): ProofProgress | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => progressById.get(id) ?? null,
+    () => null,
+  );
+}
+
+const SESSION = {
+  staleTime: Number.POSITIVE_INFINITY,
+  retry: false,
+  refetchOnWindowFocus: false,
+  structuralSharing: false,
+} as const;
+
+export interface ProofState {
+  status: RunStatus;
+  progress: ProofProgress | null;
+  result: PolicyVerification | undefined;
+  error: unknown;
+  /** Starts the proof, or runs it again after an error. A finished proof is kept for the whole session. */
+  run(): void;
+}
+
+/** The policy proof of this build's deployment (2^26 combinations, in the worker), only when the user asks. */
+export function useProof(): ProofState {
+  const sdkQuery = useSdk();
+  const sdk = sdkQuery.data;
+  const { crossCheck } = useChainSettings();
+  const [started, setStarted] = useState(false);
+  const queryKey = verifyKeys.proof(crossCheck);
+  const id = JSON.stringify(queryKey);
+  const q = useQuery({
+    queryKey,
+    queryFn:
+      started && sdk
+        ? async () => {
+            try {
+              const impl = await loadVerifyImpl();
+              return await impl.runProof(sdk, { onProgress: (done, total) => publish(id, { done, total }) });
+            } finally {
+              publish(id, null);
+            }
+          }
+        : skipToken,
+    gcTime: Number.POSITIVE_INFINITY,
+    ...SESSION,
+  });
+  const progress = useProgress(id);
+  const { isError, refetch } = q;
+  const run = useCallback(() => {
+    if (!started) setStarted(true);
+    else if (isError) void refetch();
+  }, [started, isError, refetch]);
+
+  const sdkError = started && sdkQuery.isError;
+  // A retry after an error is 'running' again, not still 'error'.
+  const status: RunStatus =
+    q.data !== undefined
+      ? 'done'
+      : q.fetchStatus === 'fetching'
+        ? 'running'
+        : q.isError || sdkError
+          ? 'error'
+          : started
+            ? 'running'
+            : 'idle';
+  return { status, progress, result: q.data, error: q.error ?? (sdkError ? sdkQuery.error : null), run };
+}
+
+export interface VaultVerifyState {
+  status: RunStatus;
+  /** The policy proof's progress, while `policy` is on and the proof runs. */
+  progress: ProofProgress | null;
+  result: VaultVerification | undefined;
+  error: unknown;
+  retry(): void;
+}
+
+/**
+ * The integrity checks of one vault through a quorum of RPCs, at once; with `policy`, the policy proof as well
+ * (the same run as useProof, joined if it is already going). A transaction on the vault invalidates the result
+ * (useInvalidateVault clears every key under the vault's).
+ */
+export function useVaultVerify(vault: Address | null, policy: boolean): VaultVerifyState {
+  const sdkQuery = useSdk();
+  const sdk = sdkQuery.data;
+  const { crossCheck } = useChainSettings();
+  const proofId = JSON.stringify(verifyKeys.proof(crossCheck));
+  const q = useQuery({
+    queryKey: verifyKeys.vault(vault ?? '', policy, crossCheck),
+    queryFn:
+      vault && sdk
+        ? async () => {
+            try {
+              const impl = await loadVerifyImpl();
+              return await impl.runVaultVerify(sdk, vault, {
+                policy,
+                onProgress: (done, total) => publish(proofId, { done, total }),
+              });
+            } finally {
+              if (policy) publish(proofId, null);
+            }
+          }
+        : skipToken,
+    ...SESSION,
+  });
+  const progress = useProgress(proofId);
+  const { refetch } = q;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
+  const sdkError = vault !== null && sdkQuery.isError;
+  const status: RunStatus =
+    q.data !== undefined
+      ? 'done'
+      : q.fetchStatus === 'fetching'
+        ? 'running'
+        : q.isError || sdkError
+          ? 'error'
+          : vault
+            ? 'running'
+            : 'idle';
+  return {
+    status,
+    progress: policy && status === 'running' ? progress : null,
+    result: q.data,
+    error: q.error ?? (sdkError ? sdkQuery.error : null),
+    retry,
+  };
+}
+```
+
+Run: `npm test -w apps/web -- verify-hooks lazy-boundary`
+Expected: PASS (verify-hooks 3, lazy-boundary 2).
+
+- [ ] **Step 4: Trang worker của build e2e kiểm thêm worker thật**
+
+Thay `apps/web/src/app/e2e/worker/page.e2e.tsx`:
+
+```tsx
+'use client';
+
+import type { PolicyBundle } from '@atropyle/sdk/verify';
+import { useEffect, useState } from 'react';
+import type { SmokeResult } from '../../../workers/smoke.worker';
+
+type Check = SmokeResult | { state: 'running'; detail: string };
+
+/** A bundle without the policy netlist: the SDK refuses it with POLICY_UNAVAILABLE, before any enumeration. */
+const EMPTY = {
+  cpu: '0x0000000000000000000000000000000000000000',
+  policyId: 0n,
+  netlists: [],
+} as unknown as PolicyBundle;
+
+function runSmoke(): Promise<SmokeResult> {
+  return new Promise((resolve) => {
+    const w = new Worker(new URL('../../../workers/smoke.worker.ts', import.meta.url), { type: 'module' });
+    const done = (r: SmokeResult) => {
+      w.terminate();
+      resolve(r);
+    };
+    w.onmessage = (e: MessageEvent<SmokeResult>) => done(e.data);
+    w.onerror = (e) => done({ state: 'error', detail: e.message || 'the worker failed to load' });
+    w.postMessage('run');
+  });
+}
+
+/** The production worker through the production client (Task 12): its chunk loads and its errors come back typed. */
+async function runVerifyWorker(): Promise<SmokeResult> {
+  const { evaluateInWorker } = await import('../../../verify/impl/verify-client');
+  try {
+    await evaluateInWorker(EMPTY);
+    return { state: 'error', detail: 'a bundle without a policy was accepted' };
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    return code === 'POLICY_UNAVAILABLE'
+      ? { state: 'ok', detail: `verify.worker refused the bundle with ${code}` }
+      : { state: 'error', detail: `unexpected error: ${String(e)}` };
+  }
+}
+
+function useCheck(run: () => Promise<SmokeResult>): Check {
+  const [check, setCheck] = useState<Check>({ state: 'running', detail: '' });
+  useEffect(() => {
+    let live = true;
+    run().then((r) => {
+      if (live) setCheck(r);
+    });
+    return () => {
+      live = false;
+    };
+  }, [run]);
+  return check;
+}
+
+/** Only in builds with ATROPYLE_E2E=1 (next.config.mjs pageExtensions). Read by scripts/worker-check.ts and e2e. */
+export default function WorkerSmokePage() {
+  const smoke = useCheck(runSmoke);
+  const verify = useCheck(runVerifyWorker);
+  return (
+    <main>
+      <h1>Worker smoke test</h1>
+      <p data-testid="worker-smoke" data-state={smoke.state}>
+        {smoke.detail}
+      </p>
+      <p data-testid="worker-verify" data-state={verify.state}>
+        {verify.detail}
+      </p>
+    </main>
+  );
+}
+```
+
+Thay `apps/web/scripts/worker-check.ts` (chờ cả hai hàng):
+
+```ts
+import { chromium } from '@playwright/test';
+import { buildApp, OUT_DIR } from './lib/run-next';
+import { startStaticServer } from './lib/static-server';
+
+// The strictest policy the site will run under for workers and connections. Inline scripts stay allowed here
+// because a header cannot carry the per-page hashes; the meta CSP of Task 15 adds those on top.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+].join('; ');
+
+/** The smoke worker of Task 2, then the production verify worker of Task 12. */
+const ROWS = ['worker-smoke', 'worker-verify'] as const;
+
+const built = await buildApp({ env: { ...process.env, ATROPYLE_E2E: '1', NEXT_PUBLIC_TARGET: 'deweb' } });
+if (built.code !== 0) process.exit(built.code);
+
+const server = await startStaticServer(OUT_DIR, 0, { 'content-security-policy': CSP });
+const browser = await chromium.launch();
+let ok = false;
+try {
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${server.url}/e2e/worker/`);
+  const states: string[] = [];
+  for (const id of ROWS) {
+    await page.waitForSelector(`[data-testid="${id}"]:not([data-state="running"])`, { timeout: 90_000 });
+    const row = page.getByTestId(id);
+    const state = (await row.getAttribute('data-state')) ?? 'missing';
+    states.push(state);
+    console.log(`${id}: ${state} — ${await row.textContent()}`);
+  }
+  for (const e of errors) console.error(`console: ${e}`);
+  ok = states.every((s) => s === 'ok') && !errors.some((e) => /Content Security Policy/i.test(e));
+} finally {
+  await browser.close();
+  await server.close();
+}
+console.log(ok ? 'worker-check: PASS' : 'worker-check: FAIL');
+process.exit(ok ? 0 : 1);
+```
+
+Run: `npm run worker:check -w apps/web`
+Expected: in `worker-smoke: ok — lazy-chunk-loaded; the SDK refused the bundle with POLICY_UNAVAILABLE`, `worker-verify: ok — verify.worker refused the bundle with POLICY_UNAVAILABLE`, rồi `worker-check: PASS`. Nếu `worker-verify` là `error` với lỗi nạp chunk: đường dẫn `new URL('../../workers/verify.worker.ts', import.meta.url)` trong `verify-client.ts` sai thư mục; sửa lệnh `sed` ở Step 1, không đổi trang.
+
+- [ ] **Step 5: Chạy toàn bộ và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+npm run test:build -w apps/web
+git add apps/web/src/workers/verify.worker.ts apps/web/src/verify apps/web/src/app/e2e/worker/page.e2e.tsx apps/web/scripts/worker-check.ts apps/web/test/unit/verify-client.test.ts apps/web/test/unit/verify-cache.test.ts apps/web/test/unit/verify-view.test.ts apps/web/test/unit/verify-hooks.test.tsx
+git commit -m "feat(web): policy proof in a worker, with session-wide proof and vault verify hooks" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS; `test:build` xác nhận `out/e2e/` không có trong build production.
+
+---
+
+### Task 13: Engine giao dịch: `useTxRunner`, `TxCard`, `TxProgress` và `ErrorBox`
+
+Hành vi gửi của web cũ được giữ nguyên: ký lần lượt từng bước, "Tiếp tục từ bước N" sau khi gián đoạn mà không ký lại bước đã xác nhận, link ký trên máy khác chỉ chở các bước còn lại, hỏi trước khi đóng tab khi ví đã nhận một phần. Khác web cũ ở ba chỗ (Quyết định 29):
+- `useTxRunner` là hook trả một object `TxRunner`; trang giữ object đó và đưa cho `TxCard`. Trang đọc thẳng `runner.committed`, `runner.result` thay cho callback `onProgress` của web cũ; `/dev/` vẽ `TxCard` ở mọi trạng thái bằng runner giả, không cần ví.
+- Link ký trên máy khác là `/sign/#p=…` của chính site (`toSignHref`), không còn `#/sign?p=…` qua chuyển hướng. Không có link khi đang gửi hoặc khi mọi bước đã xong (web cũ vẫn cho chép link chở các bước đã xác nhận).
+- `ErrorBox` không import SDK: bộ giải mã lỗi nằm trong chunk `tx/impl`, nạp cùng thẻ giao dịch.
+
+**Files:**
+- Create (port): `apps/web/src/tx/tx-view.ts`, `apps/web/src/tx/impl/errors-view.ts`, `apps/web/src/tx/use-leave-guard.ts`, `apps/web/test/unit/{tx-view,errors-view}.test.ts`
+- Create (mới): `apps/web/src/tx/impl/{decode,describe,index}.ts`, `apps/web/src/tx/{load,sign-href,use-error-view,use-tx-runner}.ts`, `apps/web/src/tx/{error-box,tx-progress,tx-card}.tsx`, `apps/web/src/app/dev/tx-gallery.tsx`
+- Modify: `apps/web/src/messages/tx.messages.ts` (thay toàn bộ), `apps/web/src/app/dev/gallery.tsx`, `apps/web/test/helpers/wallet.ts` (thêm `walletValue`), `apps/web/test/unit/dev-gallery.test.tsx`
+- Test: `apps/web/test/unit/tx-impl.test.ts`, `apps/web/test/unit/error-box.test.tsx`, `apps/web/test/unit/tx-card.test.tsx`, `apps/web/test/unit/tx-runner.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 5 (`useT`, `cn`, `formatAmount`, `explorerTx`, `sameAddress`, `defineMessages`, `common.messages`), Task 6 (`HoldButton`, `SPRING`, `useHaptics`), Task 8 (`Address`, `Banner`, `Button`, `CopyButton`, `ExternalLink`, `SkeletonText`, `Spinner`, `UntrustedText`), Task 9 (`ROUTES`, `toSdkSignLink`), Task 10 (`CHAIN_ID`, `useSdk`, `renderWithProviders`, `test/unit/fixtures.ts`), Task 11 (`useWallet`, `WalletContext`, `type WalletValue`, `networkName`, `fakeWallet`, `wallet.messages`).
+- Produces:
+  - `src/tx/tx-view.ts` (thuần, chỉ kiểu từ SDK): `type StepPhase`, `interface StepRow`, `interface TxView`, `simState`, `warningKey`, `uniqueWarnings`, `txView(plan)`, `applyStep(v, e)`, `failStep(v, index, error)`.
+  - `src/tx/impl/index.ts` (chỉ nạp qua `loadTxImpl`): `errorView`, `isErrorJson`, `localDocs`, `interface ErrorView`; `interface ErrorDescription extends ErrorView { reason: string | null }`, `describeError(e: unknown, docsPath: string | null): ErrorDescription`; `interface SendFailure { error: AtropyleErrorJson; index: number | null; completed: number }`, `decodeSendFailure(e: unknown): SendFailure`.
+  - `src/tx/load.ts`: `type TxImpl`; `loadTxImpl(): Promise<TxImpl>`; `peekTxImpl(): TxImpl | null`.
+  - `src/tx/sign-href.ts`: `toSignHref(sdkLink: string, origin: string): string | null`.
+  - `src/tx/use-leave-guard.ts`: `useLeaveGuard(active: boolean): void`.
+  - `src/tx/use-error-view.ts`: `type ErrorDescription`; `interface ErrorViewState { view: ErrorDescription | null; unavailable: boolean }`; `useErrorView(error: unknown): ErrorViewState`.
+  - `src/tx/error-box.tsx`: `ErrorBox({ error: unknown, onRetry?(): void, testId? = 'error', className? })` (`data-testid`, `data-code`).
+  - `src/tx/tx-progress.tsx`: `TxProgress({ rows: readonly StepRow[], testId?, className? })`.
+  - `src/tx/use-tx-runner.ts`: `type TxBlocker = 'blocked' | 'connect' | 'wrongAccount' | 'loading'`; `interface TxRunner { plan; view; busy; error: unknown; result: SendResult | null; offset; confirmed; committed; blocker: TxBlocker | null; switchFirst; handoffLink: string | null; explorer: string | null; send(): void; connect(): void; reload(): void }`; `interface TxRunnerOptions { plan: TxPlan; onDone?(result: SendResult): void }`; `useTxRunner(o): TxRunner`.
+  - `src/tx/tx-card.tsx`: `interface TxCardProps { runner; label: string; title?: ReactNode; confirm?: 'click' | 'hold'; tone?: 'thread' | 'danger'; testId? = 'tx'; className? }`; `TxCard(props)`. Test id: `${testId}`, `${testId}-progress`, `${testId}-step-${i}` (`data-phase`), `${testId}-send`, `${testId}-connect`, `${testId}-wrong-account`, `${testId}-done`, `${testId}-copy-link`, `warning-${code}`, `error`.
+  - `test/helpers/wallet.ts`: `TEST_ACCOUNT`; `walletValue(over?: Partial<WalletValue>): WalletValue` (mặc định đã kết nối `TEST_ACCOUNT` trên chain 196).
+
+- [ ] **Step 1: Port `tx-view`, `errors-view`, `use-leave-guard` và test của chúng**
+
+```bash
+L=apps/web-legacy
+W=apps/web
+mkdir -p $W/src/tx/impl
+cp $L/src/lib/tx-view.ts $W/src/tx/tx-view.ts
+cp $L/src/lib/errors-view.ts $W/src/tx/impl/errors-view.ts
+sed -i "s#^interface ErrorView {#export interface ErrorView {#" $W/src/tx/impl/errors-view.ts
+cp $L/src/ui/use-leave-guard.ts $W/src/tx/use-leave-guard.ts
+sed -i "s#from 'preact/hooks';#from 'react';#" $W/src/tx/use-leave-guard.ts
+cp $L/test/unit/tx-view.test.ts $W/test/unit/tx-view.test.ts
+sed -i "s#'../../src/lib/tx-view'#'../../src/tx/tx-view'#" $W/test/unit/tx-view.test.ts
+cp $L/test/unit/errors-view.test.ts $W/test/unit/errors-view.test.ts
+sed -i "s#'../../src/lib/errors-view'#'../../src/tx/impl/errors-view'#" $W/test/unit/errors-view.test.ts
+grep -n "src/lib/\|preact" $W/src/tx/tx-view.ts $W/src/tx/impl/errors-view.ts $W/src/tx/use-leave-guard.ts $W/test/unit/tx-view.test.ts $W/test/unit/errors-view.test.ts
+grep -c "^export interface ErrorView" $W/src/tx/impl/errors-view.ts
+```
+
+Expected: lệnh `grep -n` không in gì; `grep -c` in `1`. `tx-view.ts` chỉ `import type` từ SDK và viem nên nằm ngoài `impl/`; `errors-view.ts` dùng `decodeError`, `ERROR_INFO` lúc chạy nên nằm trong `impl/`.
+
+Run: `npm test -w apps/web -- tx-view errors-view lazy-boundary`
+Expected: PASS (tx-view 5, errors-view 5, lazy-boundary 2).
+
+- [ ] **Step 2: Viết test hỏng cho bộ giải mã và link ký**
+
+`apps/web/test/unit/tx-impl.test.ts`:
+
+```ts
+import { AtropyleError, parseSignLink, type SignPayload, signLink, untrusted } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import { toSdkSignLink } from '../../src/routes';
+import { decodeSendFailure, describeError } from '../../src/tx/impl';
+import { toSignHref } from '../../src/tx/sign-href';
+
+const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const B = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+describe('decodeSendFailure', () => {
+  it('reads which step failed and how many were confirmed before it', () => {
+    const f = decodeSendFailure(new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } }));
+    expect(f).toMatchObject({ index: 1, completed: 1, error: { code: 'USER_REJECTED' } });
+  });
+
+  it('treats a missing or nonsense count as unknown, never as progress', () => {
+    expect(decodeSendFailure(new Error('socket hang up'))).toMatchObject({ index: null, completed: 0 });
+    for (const details of [
+      { index: -1, completed: -2 },
+      { index: 1.5, completed: Number.NaN },
+      { index: '1', completed: '2' },
+    ]) {
+      expect(decodeSendFailure(new AtropyleError('UNKNOWN', { details }))).toMatchObject({ index: null, completed: 0 });
+    }
+  });
+});
+
+describe('describeError', () => {
+  it('keeps the revert reason apart from the message, and the docs link comes from the code', () => {
+    const d = describeError(
+      new AtropyleError('UNKNOWN', {
+        message: 'The call reverted with a reason this SDK does not recognize.',
+        details: { reason: untrusted('ERC20: transfer amount exceeds balance') },
+      }),
+      null,
+    );
+    expect(d.reason).toBe('ERC20: transfer amount exceeds balance');
+    expect(d.message).not.toContain('ERC20');
+    expect(describeError(new AtropyleError('NOT_OWNER'), '/docs/').docsUrl).toBe(
+      '/docs/reference/errors.html#not_owner',
+    );
+    // A reason that is not an Untrusted value from the SDK is not shown at all.
+    const raw = { code: 'NOT_OWNER', message: 'm', hint: 'h', details: { reason: 'raw text' } };
+    expect(describeError(raw, null).reason).toBeNull();
+  });
+});
+
+describe('toSignHref', () => {
+  it('turns an SDK signing link into the sign page of this site, byte for byte', () => {
+    const payload: SignPayload = {
+      chainId: 196,
+      from: A,
+      steps: [{ to: B, data: `0x5c19a95c${'00'.repeat(32)}`, value: 1n }],
+    };
+    const sdkLink = signLink(payload, 'https://atropyle.example/');
+    const href = toSignHref(sdkLink, 'https://atropyle.example');
+    expect(href).toMatch(/^https:\/\/atropyle\.example\/sign\/#p=/);
+    const hash = new URL(href ?? '').hash;
+    expect(toSdkSignLink(hash)).toBe(new URL(sdkLink).hash);
+    expect(parseSignLink(toSdkSignLink(hash))).toEqual(payload);
+  });
+
+  it('refuses anything that is not a signing link', () => {
+    expect(toSignHref('https://atropyle.example/#/v/0xabc/verify', 'https://atropyle.example')).toBeNull();
+    expect(toSignHref('https://atropyle.example/', 'https://atropyle.example')).toBeNull();
+  });
+});
+```
+
+Run: `npm test -w apps/web -- tx-impl`
+Expected: FAIL, không tìm thấy `../../src/tx/impl` (chưa có `index.ts`) và `../../src/tx/sign-href`.
+
+- [ ] **Step 3: Viết bộ giải mã, `load.ts` và `sign-href.ts`**
+
+`apps/web/src/tx/impl/decode.ts`:
+
+```ts
+import { type AtropyleErrorJson, decodeError } from '@atropyle/sdk';
+
+export interface SendFailure {
+  error: AtropyleErrorJson;
+  /** The step of the sent plan that failed, when the SDK says which. */
+  index: number | null;
+  /** Steps of that send confirmed on chain before it failed; a retry starts after them. */
+  completed: number;
+}
+
+function count(v: unknown): number | null {
+  return typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
+}
+
+/** `sendPlan` puts `index` and `completed` in the details of every failure; anything else counts as nothing done. */
+export function decodeSendFailure(e: unknown): SendFailure {
+  const err = decodeError(e);
+  return { error: err.toJSON(), index: count(err.details?.index), completed: count(err.details?.completed) ?? 0 };
+}
+```
+
+`apps/web/src/tx/impl/describe.ts`:
+
+```ts
+import { decodeError } from '@atropyle/sdk';
+import { type ErrorView, errorView, isErrorJson } from './errors-view';
+
+/** What ErrorBox shows. `reason`: the cleaned revert text of an unknown revert, which the SDK keeps out of `message`. */
+export interface ErrorDescription extends ErrorView {
+  reason: string | null;
+}
+
+function reasonOf(details: Record<string, unknown> | undefined): string | null {
+  const r = details?.reason;
+  if (typeof r !== 'object' || r === null) return null;
+  const u = r as { untrusted?: unknown; value?: unknown };
+  return u.untrusted === true && typeof u.value === 'string' && u.value !== '' ? u.value : null;
+}
+
+export function describeError(e: unknown, docsPath: string | null): ErrorDescription {
+  const json = isErrorJson(e) ? e : decodeError(e).toJSON();
+  return { ...errorView(json, docsPath), reason: reasonOf(json.details) };
+}
+```
+
+`apps/web/src/tx/impl/index.ts`:
+
+```ts
+export { decodeSendFailure, type SendFailure } from './decode';
+export { describeError, type ErrorDescription } from './describe';
+export { type ErrorView, errorView, isErrorJson, localDocs } from './errors-view';
+```
+
+`apps/web/src/tx/load.ts`:
+
+```ts
+import type * as Impl from './impl';
+
+export type TxImpl = typeof Impl;
+
+let pending: Promise<TxImpl> | null = null;
+let loaded: TxImpl | null = null;
+
+/**
+ * The error decoder of the SDK, in a chunk of its own (Quyết định 13). A card that can send loads it on mount, so a
+ * failure is described at once; a failed request (offline) is forgotten so the next call tries again.
+ */
+export function loadTxImpl(): Promise<TxImpl> {
+  pending ??= import('./impl').then(
+    (impl) => {
+      loaded = impl;
+      return impl;
+    },
+    (e: unknown) => {
+      pending = null;
+      throw e;
+    },
+  );
+  return pending;
+}
+
+/** The decoder if it has loaded, else null: lets ErrorBox describe an error in the same render. */
+export function peekTxImpl(): TxImpl | null {
+  return loaded;
+}
+```
+
+`apps/web/src/tx/sign-href.ts`:
+
+```ts
+import { ROUTES } from '@/routes';
+
+const SDK_SIGN = '#/sign?';
+
+/**
+ * The SDK writes `<base>#/sign?p=X`, the form the CLI and agents print. This site's own page is `/sign/#p=X`: the
+ * part after `?` is kept byte for byte, so `toSdkSignLink` on the sign page gives back exactly what the SDK made.
+ */
+export function toSignHref(sdkLink: string, origin: string): string | null {
+  const at = sdkLink.indexOf(SDK_SIGN);
+  return at < 0 ? null : `${origin}${ROUTES.sign}#${sdkLink.slice(at + SDK_SIGN.length)}`;
+}
+```
+
+Run: `npm test -w apps/web -- tx-impl lazy-boundary`
+Expected: PASS (tx-impl 5, lazy-boundary 2).
+
+- [ ] **Step 4: Viết test hỏng cho `ErrorBox`, `TxCard` và `useTxRunner`**
+
+Trong `apps/web/test/helpers/wallet.ts`, thay dòng `import type { Eip1193, WalletWindow } from '@/wallet/types';` bằng:
+
+```ts
+import type { WalletClient } from 'viem';
+import type { WalletValue } from '@/wallet/provider';
+import type { ConnectedWallet, Eip1193, WalletOption, WalletWindow } from '@/wallet/types';
+```
+
+rồi thêm vào cuối `apps/web/test/helpers/wallet.ts`:
+
+```ts
+/** The account `walletValue` connects by default (anvil account 1). */
+export const TEST_ACCOUNT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
+
+/** A wallet context for components under test: connected as TEST_ACCOUNT on chain 196 unless `over` says otherwise. */
+export function walletValue(over: Partial<WalletValue> = {}): WalletValue {
+  const option: WalletOption = {
+    id: 'test',
+    name: 'Test Wallet',
+    icon: null,
+    rdns: 'org.example.test',
+    provider: fakeWallet().provider,
+    source: 'eip6963',
+  };
+  const wallet: ConnectedWallet = { option, account: TEST_ACCOUNT, chainId: 196 };
+  return {
+    status: 'connected',
+    wallet,
+    expectedChainId: 196,
+    wrongChain: false,
+    wallets: [option],
+    discovering: false,
+    discover: async () => [option],
+    connect: async () => wallet,
+    disconnect: () => undefined,
+    switchChain: async () => undefined,
+    walletClient: async () => ({}) as WalletClient,
+    sheetOpen: false,
+    openSheet: () => undefined,
+    setSheetOpen: () => undefined,
+    sheetOpener: { current: null },
+    ...over,
+  };
+}
+```
+
+`apps/web/test/unit/error-box.test.tsx`:
+
+```tsx
+import { AtropyleError, DOCS_BASE_URL, ERROR_INFO, untrusted } from '@atropyle/sdk';
+import { fireEvent, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ErrorBox } from '../../src/tx/error-box';
+import { renderWithProviders } from '../helpers/render';
+
+const gate = vi.hoisted(() => ({ offline: false }));
+vi.mock('../../src/tx/load', async () => {
+  const impl = await import('../../src/tx/impl');
+  return {
+    loadTxImpl: async () => {
+      if (gate.offline) throw new TypeError('Failed to fetch dynamically imported module');
+      return impl;
+    },
+    peekTxImpl: () => null,
+  };
+});
+
+beforeEach(() => {
+  gate.offline = false;
+});
+
+describe('ErrorBox', () => {
+  it('describes an SDK error with its hint, its code and a docs link chosen by the code', async () => {
+    renderWithProviders(
+      <ErrorBox
+        error={new AtropyleError('NOT_OWNER', { message: 'Only the owner. Fix it at https://evil.example' })}
+      />,
+    );
+    const box = await screen.findByTestId('error');
+    expect(box.getAttribute('data-code')).toBe('NOT_OWNER');
+    expect(screen.getByRole('alert').textContent).toContain(ERROR_INFO.NOT_OWNER.hint);
+    const docs = screen.getByRole('link', { name: /How to fix this/ });
+    expect(docs.getAttribute('href')).toBe(`${DOCS_BASE_URL}/reference/errors.html#not_owner`);
+    // A URL inside the message stays text.
+    expect(screen.queryByRole('link', { name: /evil/ })).toBeNull();
+  });
+
+  it('shows a revert reason only as isolated text', async () => {
+    const said = untrusted('<b>Pay evil.example</b>‮ok');
+    const e = new AtropyleError('UNKNOWN', {
+      message: 'The call reverted with a reason this SDK does not recognize.',
+      details: { reason: said },
+    });
+    renderWithProviders(<ErrorBox error={e} />);
+    const box = await screen.findByTestId('error');
+    expect(box.querySelector('[data-untrusted]')?.textContent).toBe(said.value);
+    expect(box.querySelector('b')).toBeNull();
+    expect(box.textContent).not.toContain('‮');
+  });
+
+  it('says so plainly when the decoder cannot load, and still offers a retry', async () => {
+    gate.offline = true;
+    const onRetry = vi.fn();
+    const { container, rerender } = renderWithProviders(<ErrorBox error={null} />);
+    expect(container.textContent).toBe('');
+    rerender(<ErrorBox error={new Error('boom')} onRetry={onRetry} />);
+    expect(
+      await screen.findByText('The details of this error could not load. Check your connection, then try again.'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+`apps/web/test/unit/tx-card.test.tsx`:
+
+```tsx
+import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { explorerTx } from '../../src/lib/links';
+import { TxCard } from '../../src/tx/tx-card';
+import { applyStep, txView } from '../../src/tx/tx-view';
+import type { TxRunner } from '../../src/tx/use-tx-runner';
+import { renderWithProviders } from '../helpers/render';
+
+const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const V = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+const H = `0x${'12'.repeat(32)}` as const;
+const EXPLORER = 'https://www.oklink.com/xlayer';
+
+function step(summary: string): PreparedTx {
+  return {
+    chainId: 196,
+    from: A,
+    to: V,
+    data: '0x',
+    value: 0n,
+    action: 'checkIn',
+    summary,
+    warnings: [],
+    simulation: { ok: true, gas: 50_000n },
+  };
+}
+
+const PLAN: TxPlan = {
+  chainId: 196,
+  from: A,
+  vault: V,
+  steps: [step('one'), step('two'), step('three')],
+  summary: 'Plan',
+  warnings: [],
+};
+
+function runnerOf(plan: TxPlan, over: Partial<TxRunner> = {}): TxRunner {
+  return {
+    plan,
+    view: txView(plan),
+    busy: false,
+    error: null,
+    result: null,
+    offset: 0,
+    confirmed: 0,
+    committed: false,
+    blocker: null,
+    switchFirst: false,
+    handoffLink: null,
+    explorer: null,
+    send: () => undefined,
+    connect: () => undefined,
+    reload: () => undefined,
+    ...over,
+  };
+}
+
+const sendButton = () => screen.getByTestId('tx-send') as HTMLButtonElement;
+
+describe('TxCard', () => {
+  it('asks for a wallet first, and opens the wallet sheet', () => {
+    const connect = vi.fn();
+    renderWithProviders(<TxCard runner={runnerOf(PLAN, { blocker: 'connect', connect })} label="Send" />);
+    expect(screen.queryByTestId('tx-send')).toBeNull();
+    expect(screen.getByText('Connect a wallet to sign.')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('tx-connect'));
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the account that must sign when another one is connected', () => {
+    renderWithProviders(<TxCard runner={runnerOf(PLAN, { blocker: 'wrongAccount' })} label="Send" />);
+    const banner = screen.getByTestId('tx-wrong-account');
+    expect(banner.querySelector(`[data-address="${A}"]`)).not.toBeNull();
+    expect(screen.queryByTestId('tx-send')).toBeNull();
+  });
+
+  it('a step that would fail blocks the plan and says why', async () => {
+    const blocked: TxPlan = {
+      ...PLAN,
+      steps: [
+        step('one'),
+        { ...step('two'), simulation: { ok: false, error: new AtropyleError('NOT_OWNER').toJSON() } },
+      ],
+    };
+    renderWithProviders(<TxCard runner={runnerOf(blocked, { blocker: 'blocked' })} label="Send" />);
+    expect(screen.getByTestId('tx-step-1').getAttribute('data-phase')).toBe('blocked');
+    expect(sendButton().disabled).toBe(true);
+    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('NOT_OWNER'));
+  });
+
+  it('hold to confirm: Enter sends at once, a plain mouse click does not', () => {
+    const send = vi.fn();
+    const single: TxPlan = { ...PLAN, steps: [step('check in')] };
+    renderWithProviders(<TxCard runner={runnerOf(single, { send })} label="Check in" confirm="hold" />);
+    fireEvent.click(sendButton(), { detail: 1 });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.keyDown(sendButton(), { key: 'Enter' });
+    expect(send).toHaveBeenCalledTimes(1);
+    // One step needs no progress bar.
+    expect(screen.queryByTestId('tx-progress')).toBeNull();
+  });
+
+  it('shows each step in plain words, its status, its transaction and its technical details', () => {
+    const view = applyStep(applyStep(txView(PLAN), { index: 0, phase: 'confirmed', hash: H }), {
+      index: 1,
+      phase: 'signing',
+    });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(PLAN, { view, busy: true, confirmed: 1, committed: true, explorer: EXPLORER })}
+        label="Send"
+      />,
+    );
+    const first = within(screen.getByTestId('tx-step-0'));
+    expect(first.getByText('one')).toBeTruthy();
+    expect(first.getByText('Confirmed')).toBeTruthy();
+    expect(first.getByRole('link', { name: /View transaction/ }).getAttribute('href')).toBe(explorerTx(EXPLORER, H));
+    expect(within(screen.getByTestId('tx-step-1')).getByText('Confirm in your wallet')).toBeTruthy();
+    expect(screen.getAllByText('Technical details')).toHaveLength(3);
+    expect(screen.getByTestId('tx-progress').getAttribute('value')).toBe('1');
+    expect(screen.getByText('Step 2 of 3: Confirm in your wallet')).toBeTruthy();
+    expect(sendButton().disabled).toBe(true);
+    expect(sendButton().textContent).toBe('Sending…');
+  });
+
+  it('shows warnings from the chain as text only', () => {
+    const warned: TxPlan = {
+      ...PLAN,
+      warnings: [{ code: 'TOKEN_NOT_HELD', message: '<img src=x onerror=alert(1)> Claim at evil.example‮' }],
+    };
+    renderWithProviders(<TxCard runner={runnerOf(warned)} label="Send" />);
+    const banner = screen.getByTestId('warning-TOKEN_NOT_HELD');
+    expect(banner.querySelector('[data-untrusted]')?.textContent).toBe(
+      '<img src=x onerror=alert(1)> Claim at evil.example',
+    );
+    expect(banner.querySelector('img')).toBeNull();
+    expect(within(banner).queryByRole('link')).toBeNull();
+  });
+});
+```
+
+`apps/web/test/unit/tx-runner.test.tsx` (7 hành vi của `TxRunner` cũ, cộng gửi một lần, đổi chain, plan mới):
+
+```tsx
+import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import type { WalletClient } from 'viem';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TxCard } from '../../src/tx/tx-card';
+import { type TxRunner, useTxRunner } from '../../src/tx/use-tx-runner';
+import { WalletContext, type WalletValue } from '../../src/wallet/provider';
+import { renderWithProviders } from '../helpers/render';
+import { walletValue } from '../helpers/wallet';
+
+const fake = vi.hoisted(() => ({ send: vi.fn(), link: vi.fn() }));
+vi.mock('../../src/chain/load', async () => {
+  const { fixtureDeployment } = await import('./fixtures');
+  const chain = {
+    loadDeployment: () => fixtureDeployment(),
+    createSdk: () => ({
+      deployment: { explorerUrl: null },
+      atro: { chain: { id: 196 }, send: fake.send, handoff: { link: fake.link } },
+      rpc: { read: [], verify: [] },
+    }),
+  };
+  return { loadChainImpl: async () => chain, peekChainImpl: () => chain };
+});
+
+const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const V = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC' as const;
+const H = `0x${'12'.repeat(32)}` as const;
+
+function step(summary: string): PreparedTx {
+  return {
+    chainId: 196,
+    from: A,
+    to: V,
+    data: '0x',
+    value: 0n,
+    action: 'checkIn',
+    summary,
+    warnings: [],
+    simulation: { ok: true, gas: 50_000n },
+  };
+}
+
+const plan: TxPlan = {
+  chainId: 196,
+  from: A,
+  vault: V,
+  steps: [step('one'), step('two'), step('three')],
+  summary: 'Plan',
+  warnings: [],
+};
+
+type OnStep = (e: unknown) => void;
+type Options = { onStep?: OnStep };
+interface Seen {
+  confirmed: number;
+  committed: boolean;
+}
+
+function Harness({ plan, onRunner }: { plan: TxPlan; onRunner(r: TxRunner): void }) {
+  const runner = useTxRunner({ plan });
+  onRunner(runner);
+  return <TxCard runner={runner} label="Send" />;
+}
+
+function setup(o: { wallet?: Partial<WalletValue> } = {}) {
+  const reported: Seen[] = [];
+  let latest: TxRunner | null = null;
+  const value = walletValue(o.wallet);
+  const onRunner = (r: TxRunner) => {
+    latest = r;
+    const last = reported.at(-1);
+    if (!last || last.confirmed !== r.confirmed || last.committed !== r.committed) {
+      reported.push({ confirmed: r.confirmed, committed: r.committed });
+    }
+  };
+  const ui = (p: TxPlan) => (
+    <WalletContext value={value}>
+      <Harness plan={p} onRunner={onRunner} />
+    </WalletContext>
+  );
+  const utils = renderWithProviders(ui(plan));
+  const runner = (): TxRunner => {
+    if (!latest) throw new Error('not rendered');
+    return latest;
+  };
+  return { ...utils, reported, runner, show: (p: TxPlan) => utils.rerender(ui(p)) };
+}
+
+const sendButton = () => screen.getByTestId('tx-send') as HTMLButtonElement;
+const phase = (i: number) => screen.getByTestId(`tx-step-${i}`).getAttribute('data-phase');
+
+/** The SDK chunk loads after the first render; until then the button waits. */
+async function ready() {
+  await waitFor(() => expect(sendButton().disabled).toBe(false));
+}
+
+function leaving(): boolean {
+  const e = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(e);
+  return e.defaultPrevented;
+}
+
+/** First call: step 0 confirmed, then the wallet declines step 1. Later calls: every step confirmed. */
+function failOnceAtStep1() {
+  let attempt = 0;
+  return async (p: TxPlan, _w: unknown, o: Options) => {
+    attempt++;
+    const total = p.steps.length;
+    if (attempt === 1) {
+      o.onStep?.({ index: 0, total, step: p.steps[0], phase: 'confirmed', hash: H });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    }
+    for (const [index, s] of p.steps.entries()) o.onStep?.({ index, total, step: s, phase: 'confirmed', hash: H });
+    return { vault: V, steps: [] };
+  };
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  fake.link.mockImplementation(
+    (p: TxPlan, base: string) => `${base}#/sign?steps=${p.steps.map((s) => s.summary).join(',')}`,
+  );
+});
+
+describe('useTxRunner with TxCard', () => {
+  it('resumes after a partial failure without signing confirmed steps again', async () => {
+    const seen: string[][] = [];
+    let attempt = 0;
+    fake.send.mockImplementation(async (p: TxPlan, _w: unknown, o: Options) => {
+      seen.push(p.steps.map((s) => s.summary));
+      attempt++;
+      const total = p.steps.length;
+      if (attempt === 1) {
+        o.onStep?.({ index: 0, total, step: p.steps[0], phase: 'signing' });
+        o.onStep?.({ index: 0, total, step: p.steps[0], phase: 'confirmed', hash: H });
+        o.onStep?.({ index: 1, total, step: p.steps[1], phase: 'signing' });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      }
+      for (const index of [0, 1]) o.onStep?.({ index, total, step: p.steps[index], phase: 'confirmed', hash: H });
+      return { vault: V, steps: [] };
+    });
+    setup();
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(phase(1)).toBe('failed'));
+    expect(phase(0)).toBe('confirmed');
+    expect(sendButton().textContent).toBe('Resume from step 2');
+    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('USER_REJECTED'));
+
+    fireEvent.click(sendButton());
+    await screen.findByTestId('tx-done');
+    expect(seen).toEqual([
+      ['one', 'two', 'three'],
+      ['two', 'three'],
+    ]);
+    expect([phase(0), phase(1), phase(2)]).toEqual(['confirmed', 'confirmed', 'confirmed']);
+    expect(screen.queryByTestId('error')).toBeNull();
+  });
+
+  it('asks before the page unloads only while a sent plan is unfinished', async () => {
+    fake.send.mockImplementation(failOnceAtStep1());
+    const { unmount } = setup();
+    await ready();
+    expect(leaving()).toBe(false);
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    await waitFor(() => expect(leaving()).toBe(true));
+    fireEvent.click(sendButton());
+    await screen.findByTestId('tx-done');
+    await waitFor(() => expect(leaving()).toBe(false));
+    unmount();
+    expect(leaving()).toBe(false);
+  });
+
+  it('drops its unload guard when it unmounts mid-plan', async () => {
+    fake.send.mockImplementation(failOnceAtStep1());
+    const { unmount } = setup();
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    unmount();
+    expect(leaving()).toBe(false);
+  });
+
+  it('hands off only the steps that are not confirmed yet, on the sign page, and nothing once all are', async () => {
+    const writeText = vi.fn(async (_t: string) => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    fake.send.mockImplementation(failOnceAtStep1());
+    setup();
+    await ready();
+    const copy = () => {
+      const button = screen.getByTestId('tx-copy-link').querySelector('button');
+      if (!button) throw new Error('no copy button');
+      fireEvent.click(button);
+    };
+    copy();
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/sign/#steps=one,two,three`));
+    expect(fake.link).toHaveBeenLastCalledWith(expect.objectContaining({ from: A }), `${location.origin}/`);
+
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    // A hand-off of the whole plan would make the next signer send step 1 again.
+    const last = fake.link.mock.calls.at(-1)?.[0] as TxPlan;
+    expect(last.steps.map((s) => s.summary)).toEqual(['two', 'three']);
+    expect(last).toMatchObject({ chainId: plan.chainId, from: plan.from, vault: plan.vault });
+    copy();
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(`${location.origin}/sign/#steps=two,three`));
+
+    fireEvent.click(sendButton());
+    await screen.findByTestId('tx-done');
+    expect(screen.queryByTestId('tx-copy-link')).toBeNull();
+  });
+
+  it('counts the confirmed steps', async () => {
+    fake.send.mockImplementation(failOnceAtStep1());
+    const { reported } = setup();
+    await ready();
+    const bar = () => screen.getByTestId('tx-progress');
+    expect([bar().getAttribute('value'), bar().getAttribute('max')]).toEqual(['0', '3']);
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(phase(1)).toBe('failed'));
+    expect(bar().getAttribute('value')).toBe('1');
+    expect(reported.at(-1)).toEqual({ confirmed: 1, committed: true });
+    fireEvent.click(sendButton());
+    await screen.findByTestId('tx-done');
+    expect(bar().getAttribute('value')).toBe('3');
+    expect(reported.at(-1)).toEqual({ confirmed: 3, committed: true });
+    expect(reported.map((r) => r.confirmed)).toEqual(expect.arrayContaining([0, 1, 3]));
+  });
+
+  it('is committed while a send is in flight and free again after a rejection with no hash', async () => {
+    let reject: (e: unknown) => void = () => undefined;
+    fake.send.mockImplementation(
+      (_p: TxPlan, _w: unknown, o: Options) =>
+        new Promise((_, no) => {
+          o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'signing' });
+          reject = no;
+        }),
+    );
+    const { reported } = setup();
+    expect(reported.at(-1)).toEqual({ confirmed: 0, committed: false });
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(reported.at(-1)?.committed).toBe(true));
+    await waitFor(() => expect(phase(0)).toBe('signing'));
+    reject(new AtropyleError('USER_REJECTED', { details: { index: 0, completed: 0 } }));
+    await waitFor(() => expect(reported.at(-1)).toEqual({ confirmed: 0, committed: false }));
+  });
+
+  it('stays committed after a failure that follows a pending step with a hash', async () => {
+    fake.send.mockImplementation(async (_p: TxPlan, _w: unknown, o: Options) => {
+      o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'signing' });
+      o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'pending', hash: H });
+      throw new AtropyleError('UNKNOWN', { details: { index: 0, completed: 0 } });
+    });
+    const { reported } = setup();
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(phase(0)).toBe('failed'));
+    expect(reported.at(-1)).toEqual({ confirmed: 0, committed: true });
+  });
+
+  it('sends once, however often send is called while it runs', async () => {
+    fake.send.mockImplementation(() => new Promise(() => undefined));
+    const { runner } = setup();
+    await ready();
+    act(() => {
+      runner().send();
+      runner().send();
+    });
+    await waitFor(() => expect(fake.send).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(fake.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves the wallet to the right chain before it asks for a signature', async () => {
+    const order: string[] = [];
+    fake.send.mockImplementation(async () => {
+      order.push('send');
+      return { vault: V, steps: [] };
+    });
+    setup({
+      wallet: {
+        wrongChain: true,
+        switchChain: async () => {
+          order.push('switch');
+        },
+        walletClient: async () => {
+          order.push('client');
+          return {} as WalletClient;
+        },
+      },
+    });
+    expect(screen.getByText('Your wallet will first ask to switch to X Layer.')).toBeTruthy();
+    await ready();
+    fireEvent.click(sendButton());
+    await screen.findByTestId('tx-done');
+    expect(order).toEqual(['switch', 'client', 'send']);
+  });
+
+  it('a new plan starts clean', async () => {
+    fake.send.mockRejectedValue(new AtropyleError('USER_REJECTED', { details: { index: 0, completed: 0 } }));
+    const { show } = setup();
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(phase(0)).toBe('failed'));
+    await screen.findByTestId('error');
+    show({ ...plan, steps: [step('only')] });
+    expect(phase(0)).toBe('ready');
+    expect(screen.queryByTestId('tx-step-1')).toBeNull();
+    expect(screen.queryByTestId('tx-progress')).toBeNull();
+    expect(screen.queryByTestId('error')).toBeNull();
+    expect(sendButton().textContent).toBe('Send');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- error-box tx-card tx-runner`
+Expected: FAIL, không tìm thấy `../../src/tx/error-box`, `../../src/tx/tx-card`, `../../src/tx/use-tx-runner`.
+
+- [ ] **Step 5: Viết message, `useErrorView`, `ErrorBox`, `TxProgress`, `useTxRunner` và `TxCard`**
+
+Thay `apps/web/src/messages/tx.messages.ts` (giữ mọi khoá cũ, thêm khoá mới):
+
+```ts
+import { defineMessages } from '@/i18n/core';
+
+export const messages = defineMessages(
+  {
+    title: 'Review and sign',
+    stepsOne: 'One transaction',
+    stepsMany: '{n} transactions, in order',
+    signer: 'Signed by',
+    what: 'What this does',
+    check: 'Simulation',
+    status: 'Status',
+    simOk: 'Passes',
+    simFailed: 'Would fail',
+    simSkipped: 'Checked after the previous step',
+    phaseReady: 'Ready',
+    phaseBlocked: 'Blocked',
+    phaseSigning: 'Confirm in your wallet',
+    phasePending: 'Waiting for the block',
+    phaseConfirmed: 'Confirmed',
+    phaseFailed: 'Failed',
+    live: 'Step {n} of {total}: {status}',
+    viewTx: 'View transaction',
+    details: 'Technical details',
+    contract: 'Contract',
+    fn: 'Function',
+    gas: 'Gas estimate',
+    noGas: 'Estimated by your wallet',
+    progressLabel: 'Signing progress',
+    progress: '{done} of {total} confirmed',
+    preparing: 'Preparing…',
+    sending: 'Sending…',
+    resume: 'Resume from step {n}',
+    switchFirst: 'Your wallet will first ask to switch to {network}.',
+    done: 'All steps are confirmed on chain.',
+    connectFirst: 'Connect a wallet to sign.',
+    wrongAccountTitle: 'Another account must sign',
+    wrongAccount: 'This must be signed by the wallet below. Switch the account in your wallet.',
+    handoffTitle: 'Sign on another device',
+    handoffBody:
+      'Copy this link and open it where your wallet is. That page checks every step again before it lets you sign.',
+    copyLink: 'Copy link to sign on another device',
+    reason: 'The contract said',
+    readDocs: 'How to fix this',
+    errorCode: 'Error code',
+    errorUnavailable: 'The details of this error could not load. Check your connection, then try again.',
+  },
+  {
+    title: 'Xem lại và ký',
+    stepsOne: 'Một giao dịch',
+    stepsMany: '{n} giao dịch, lần lượt',
+    signer: 'Người ký',
+    what: 'Việc sẽ làm',
+    check: 'Mô phỏng',
+    status: 'Trạng thái',
+    simOk: 'Qua',
+    simFailed: 'Sẽ lỗi',
+    simSkipped: 'Kiểm sau bước trước',
+    phaseReady: 'Sẵn sàng',
+    phaseBlocked: 'Bị chặn',
+    phaseSigning: 'Xác nhận trong ví',
+    phasePending: 'Đang chờ block',
+    phaseConfirmed: 'Đã xác nhận',
+    phaseFailed: 'Thất bại',
+    live: 'Bước {n}/{total}: {status}',
+    viewTx: 'Xem giao dịch',
+    details: 'Chi tiết kỹ thuật',
+    contract: 'Contract',
+    fn: 'Hàm',
+    gas: 'Gas ước tính',
+    noGas: 'Ví của bạn sẽ ước tính',
+    progressLabel: 'Tiến độ ký',
+    progress: 'Đã xác nhận {done}/{total}',
+    preparing: 'Đang chuẩn bị…',
+    sending: 'Đang gửi…',
+    resume: 'Tiếp tục từ bước {n}',
+    switchFirst: 'Ví sẽ hỏi chuyển sang {network} trước.',
+    done: 'Mọi bước đã được xác nhận trên chain.',
+    connectFirst: 'Kết nối ví để ký.',
+    wrongAccountTitle: 'Cần tài khoản khác ký',
+    wrongAccount: 'Bước này phải do ví dưới đây ký. Hãy đổi tài khoản trong ví.',
+    handoffTitle: 'Ký trên thiết bị khác',
+    handoffBody: 'Sao chép link này và mở ở nơi có ví của bạn. Trang đó kiểm lại từng bước trước khi cho bạn ký.',
+    copyLink: 'Sao chép link để ký trên thiết bị khác',
+    reason: 'Contract trả lời',
+    readDocs: 'Cách khắc phục',
+    errorCode: 'Mã lỗi',
+    errorUnavailable: 'Không tải được chi tiết lỗi. Kiểm tra kết nối rồi thử lại.',
+  },
+);
+```
+
+`apps/web/src/tx/use-error-view.ts`:
+
+```ts
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { ENV } from '@/config/env';
+import type { ErrorDescription } from './impl/describe';
+import { loadTxImpl, peekTxImpl, type TxImpl } from './load';
+
+export type { ErrorDescription } from './impl/describe';
+
+export interface ErrorViewState {
+  /** null when there is no error, while the decoder loads, or when it cannot load. */
+  view: ErrorDescription | null;
+  /** The decoder could not load (offline): show a plain sentence instead. */
+  unavailable: boolean;
+}
+
+/**
+ * Describes any thrown value the way the SDK does: message, hint, and a docs link built from the code. The decoder
+ * lives next to the SDK; a page that shows an error has almost always loaded it, so this is synchronous in practice.
+ */
+export function useErrorView(error: unknown): ErrorViewState {
+  const [fetched, setFetched] = useState<TxImpl | null>(null);
+  const [failed, setFailed] = useState<{ error: unknown } | null>(null);
+  const impl = fetched ?? peekTxImpl();
+
+  useEffect(() => {
+    if (error === null || error === undefined || impl) return;
+    let live = true;
+    loadTxImpl().then(
+      (m) => {
+        if (live) setFetched(m);
+      },
+      () => {
+        if (live) setFailed({ error });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [error, impl]);
+
+  const view = useMemo(
+    () => (impl && error !== null && error !== undefined ? impl.describeError(error, ENV.docsPath) : null),
+    [impl, error],
+  );
+  return { view, unavailable: !impl && failed !== null && failed.error === error };
+}
+```
+
+`apps/web/src/tx/error-box.tsx`:
+
+```tsx
+'use client';
+
+import { RotateCcw } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages as common } from '@/messages/common.messages';
+import { messages } from '@/messages/tx.messages';
+import { Banner } from '@/ui/banner';
+import { Button } from '@/ui/button';
+import { ExternalLink } from '@/ui/external-link';
+import { SkeletonText } from '@/ui/skeleton';
+import { UntrustedText } from '@/ui/untrusted-text';
+import { useErrorView } from './use-error-view';
+
+const LOCAL_LINK =
+  'underline decoration-line-strong decoration-1 underline-offset-4 transition-colors duration-150 ' +
+  'hover:decoration-thread';
+
+/** Docs that ship with this site (`/docs/…`) open in place; the SDK's docs site opens in a new tab. */
+function DocsLink({ href, children }: { href: string; children: ReactNode }) {
+  if (href.startsWith('/')) {
+    return (
+      <a href={href} className={LOCAL_LINK}>
+        {children}
+      </a>
+    );
+  }
+  return <ExternalLink href={href}>{children}</ExternalLink>;
+}
+
+/**
+ * Any error, described by the SDK: the message as the title, the hint, the code and a docs link chosen by the code
+ * (never a URL from the message). The revert reason of an unknown revert is shown apart, as untrusted text.
+ */
+export function ErrorBox({
+  error,
+  onRetry,
+  testId = 'error',
+  className,
+}: {
+  error: unknown;
+  onRetry?(): void;
+  testId?: string;
+  className?: string;
+}) {
+  const c = useT(common);
+  const t = useT(messages);
+  const { view, unavailable } = useErrorView(error);
+  if (error === null || error === undefined) return null;
+
+  const retry = onRetry ? (
+    <Button variant="secondary" size="sm" onClick={onRetry} icon={<RotateCcw aria-hidden="true" strokeWidth={1.5} />}>
+      {c('retry')}
+    </Button>
+  ) : null;
+
+  if (view) {
+    return (
+      <div data-testid={testId} data-code={view.code} className={className}>
+        <Banner tone="error" title={view.message} className="break-words">
+          <p>{view.hint}</p>
+          {view.reason ? (
+            <p className="mt-2 flex flex-col items-start gap-1">
+              <span>{t('reason')}</span>
+              <UntrustedText
+                value={view.reason}
+                max={160}
+                className="rounded-lg bg-surface-2 px-2 py-1 font-mono text-caption text-ink"
+              />
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="inline-flex text-caption">
+              <span className="sr-only">{t('errorCode')}</span>
+              <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-ink">{view.code}</code>
+            </span>
+            <DocsLink href={view.docsUrl}>{t('readDocs')}</DocsLink>
+            {retry}
+          </div>
+        </Banner>
+      </div>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <div data-testid={testId} className={className}>
+        <Banner tone="error" title={c('error')} action={retry}>
+          {t('errorUnavailable')}
+        </Banner>
+      </div>
+    );
+  }
+
+  // The decoder is a cached chunk away: hold the place without announcing anything yet.
+  return (
+    <div aria-hidden="true" className={cn('rounded-2xl border border-danger/45 bg-danger/8 p-4', className)}>
+      <SkeletonText lines={2} />
+    </div>
+  );
+}
+```
+
+`apps/web/src/tx/tx-progress.tsx`:
+
+```tsx
+'use client';
+
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { messages } from '@/messages/tx.messages';
+import type { StepPhase, StepRow } from './tx-view';
+
+const SEGMENT: Record<StepPhase, string> = {
+  ready: 'bg-line',
+  skipped: 'bg-line',
+  blocked: 'bg-danger/45',
+  signing: 'bg-thread/30',
+  pending: 'bg-thread/30',
+  confirmed: 'bg-thread',
+  failed: 'bg-danger',
+};
+
+/**
+ * One segment per step, filled as the chain confirms them. The step in the wallet shimmers while motion is allowed;
+ * under reduced motion it is a still, lighter segment. A native <progress> carries the value for assistive tech.
+ */
+export function TxProgress({
+  rows,
+  testId,
+  className,
+}: {
+  rows: readonly StepRow[];
+  testId?: string;
+  className?: string;
+}) {
+  const t = useT(messages);
+  const total = rows.length;
+  const done = rows.filter((r) => r.phase === 'confirmed').length;
+  const text = t('progress', { done, total });
+  return (
+    <div className={cn('flex flex-col gap-2', className)}>
+      <progress
+        data-testid={testId}
+        value={done}
+        max={total}
+        aria-label={t('progressLabel')}
+        aria-valuetext={text}
+        className="sr-only"
+      />
+      <ol aria-hidden="true" className="flex items-center gap-1">
+        {rows.map((r) => (
+          <li
+            key={r.index}
+            data-phase={r.phase}
+            className={cn(
+              'relative h-1.5 flex-1 overflow-hidden rounded-full transition-colors duration-500',
+              SEGMENT[r.phase],
+            )}
+          >
+            {r.phase === 'signing' || r.phase === 'pending' ? (
+              <span className="absolute inset-0 bg-linear-to-r from-thread/0 via-thread to-thread/0 motion-safe:animate-shimmer motion-reduce:hidden" />
+            ) : null}
+          </li>
+        ))}
+      </ol>
+      <p aria-hidden="true" className="text-caption text-ink-muted tabular-nums">
+        {text}
+      </p>
+    </div>
+  );
+}
+```
+
+`apps/web/src/tx/use-tx-runner.ts`:
+
+```ts
+'use client';
+
+import type { SendResult, TxPlan } from '@atropyle/sdk';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSdk } from '@/chain/hooks';
+import { sameAddress } from '@/lib/address';
+import { useHaptics } from '@/motion/haptics';
+import { useWallet } from '@/wallet/provider';
+import { loadTxImpl, type TxImpl } from './load';
+import { toSignHref } from './sign-href';
+import { applyStep, failStep, type TxView, txView } from './tx-view';
+import { useLeaveGuard } from './use-leave-guard';
+
+/** Why `send()` would do nothing now, in the order the card asks the user to fix them. */
+export type TxBlocker = 'blocked' | 'connect' | 'wrongAccount' | 'loading';
+
+export interface TxRunner {
+  plan: TxPlan;
+  view: TxView;
+  busy: boolean;
+  /** The failure of the last send (decoded by the SDK), or the SDK chunk failing to load. */
+  error: unknown;
+  result: SendResult | null;
+  /** Steps confirmed by earlier, partly failed sends; the next send starts after them. */
+  offset: number;
+  confirmed: number;
+  /**
+   * A send is in flight, or the wallet accepted something for this plan (a hash, a pending or confirmed step). The
+   * page must not swap the plan, and closing the tab asks first.
+   */
+  committed: boolean;
+  blocker: TxBlocker | null;
+  /** The wallet is on another chain: send() asks it to switch first. */
+  switchFirst: boolean;
+  /** `/sign/#p=…` for the steps still to send; null while sending, when done, or above the SDK's payload limits. */
+  handoffLink: string | null;
+  explorer: string | null;
+  send(): void;
+  /** Opens the wallet sheet. */
+  connect(): void;
+  /** Loads the SDK chunk again after it failed. */
+  reload(): void;
+}
+
+export interface TxRunnerOptions {
+  plan: TxPlan;
+  /** After every step is confirmed, for example to refresh the vault (`useInvalidateVault`). */
+  onDone?(result: SendResult): void;
+}
+
+/** The steps not confirmed yet: what a retry sends, and what a hand-off link may carry. */
+function remaining(plan: TxPlan, offset: number): TxPlan {
+  return offset === 0 ? plan : { ...plan, steps: plan.steps.slice(offset) };
+}
+
+/** Sends a prepared plan step by step through the connected wallet (Quyết định 29). Nothing is ever retried alone. */
+export function useTxRunner({ plan, onDone }: TxRunnerOptions): TxRunner {
+  const sdkResult = useSdk();
+  const sdk = sdkResult.data;
+  const wallet = useWallet();
+  const { pulse } = useHaptics();
+  const [shown, setShown] = useState(plan);
+  const [view, setView] = useState(() => txView(plan));
+  const [busy, setBusy] = useState(false);
+  const [sendError, setSendError] = useState<unknown>(null);
+  const [result, setResult] = useState<SendResult | null>(null);
+  // Steps already confirmed on chain by an earlier, partly failed send; a retry never signs them again.
+  const [offset, setOffset] = useState(0);
+  const inFlight = useRef(false);
+  const live = useRef(plan);
+
+  // A different plan starts clean, in the same render (no frame shows the old rows under the new plan).
+  if (shown !== plan) {
+    setShown(plan);
+    setView(txView(plan));
+    setSendError(null);
+    setResult(null);
+    setOffset(0);
+  }
+
+  useEffect(() => {
+    live.current = plan;
+  }, [plan]);
+
+  // The send-failure decoder loads with the card, so a failure is described without a wait.
+  useEffect(() => {
+    loadTxImpl().catch(() => undefined);
+  }, []);
+
+  const confirmed = view.rows.filter((r) => r.phase === 'confirmed').length;
+  // A failed row keeps the hash it got, so a failure after `pending` stays accepted; a rejection before any hash does not.
+  const accepted = view.rows.some((r) => r.hash !== null || r.phase === 'pending' || r.phase === 'confirmed');
+  const committed = busy || accepted;
+  useLeaveGuard(committed && result === null);
+
+  const account = wallet.wallet?.account ?? null;
+  const blocker: TxBlocker | null = !view.canSend
+    ? 'blocked'
+    : account === null
+      ? 'connect'
+      : !sameAddress(account, plan.from)
+        ? 'wrongAccount'
+        : sdk
+          ? null
+          : 'loading';
+
+  const handoffLink = useMemo(() => {
+    if (!sdk || busy || result || offset >= plan.steps.length || typeof window === 'undefined') return null;
+    try {
+      const origin = window.location.origin;
+      return toSignHref(sdk.atro.handoff.link(remaining(plan, offset), `${origin}/`), origin);
+    } catch {
+      return null; // above PAYLOAD_LIMITS: no hand-off for this plan
+    }
+  }, [sdk, busy, result, plan, offset]);
+
+  const send = () => {
+    if (inFlight.current || blocker !== null || !sdk) return;
+    inFlight.current = true;
+    const sent = plan;
+    const base = offset;
+    setBusy(true);
+    setSendError(null);
+    void (async () => {
+      let tx: TxImpl | null = null;
+      try {
+        tx = await loadTxImpl();
+        if (wallet.wrongChain) await wallet.switchChain();
+        const client = await wallet.walletClient();
+        const r = await sdk.atro.send(remaining(sent, base), client, {
+          onStep: (e) => {
+            if (live.current === sent) setView((v) => applyStep(v, { ...e, index: e.index + base }));
+          },
+        });
+        if (live.current !== sent) return;
+        setResult(r);
+        pulse();
+        onDone?.(r);
+      } catch (e) {
+        if (live.current !== sent) return;
+        if (!tx) {
+          setSendError(e);
+          return;
+        }
+        const f = tx.decodeSendFailure(e);
+        const at = f.index;
+        if (at !== null) setView((v) => failStep(v, at + base, f.error));
+        if (f.completed > 0) setOffset(Math.min(base + f.completed, sent.steps.length));
+        setSendError(f.error);
+      } finally {
+        inFlight.current = false;
+        setBusy(false);
+      }
+    })();
+  };
+
+  return {
+    plan,
+    view,
+    busy,
+    error: sendError ?? (sdkResult.isError ? sdkResult.error : null),
+    result,
+    offset,
+    confirmed,
+    committed,
+    blocker,
+    switchFirst: account !== null && wallet.wrongChain,
+    handoffLink,
+    explorer: sdk?.deployment.explorerUrl ?? null,
+    send,
+    connect: wallet.openSheet,
+    reload: () => {
+      void sdkResult.refetch();
+    },
+  };
+}
+```
+
+`apps/web/src/tx/tx-card.tsx`:
+
+```tsx
+'use client';
+
+import { Ban, Check, ChevronDown, Signature, Smartphone, Wallet, X } from 'lucide-react';
+import { m } from 'motion/react';
+import { type ReactNode, useId } from 'react';
+import { CHAIN_ID } from '@/chain/hooks';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { formatAmount } from '@/lib/format';
+import { explorerTx } from '@/lib/links';
+import { messages } from '@/messages/tx.messages';
+import { messages as walletMessages } from '@/messages/wallet.messages';
+import { SPRING } from '@/motion/tokens';
+import { Address } from '@/ui/address';
+import { Banner } from '@/ui/banner';
+import { Button } from '@/ui/button';
+import { CopyButton } from '@/ui/copy-button';
+import { ExternalLink } from '@/ui/external-link';
+import { HoldButton } from '@/ui/hold-button';
+import { Spinner } from '@/ui/spinner';
+import { UntrustedText } from '@/ui/untrusted-text';
+import { networkName } from '@/wallet/network';
+import { ErrorBox } from './error-box';
+import { TxProgress } from './tx-progress';
+import { type StepPhase, type StepRow, warningKey } from './tx-view';
+import type { TxRunner } from './use-tx-runner';
+
+const PHASE = {
+  ready: { key: 'phaseReady', tone: 'text-ink-muted' },
+  skipped: { key: 'phaseReady', tone: 'text-ink-muted' },
+  blocked: { key: 'phaseBlocked', tone: 'text-danger' },
+  signing: { key: 'phaseSigning', tone: 'text-thread' },
+  pending: { key: 'phasePending', tone: 'text-thread' },
+  confirmed: { key: 'phaseConfirmed', tone: 'text-alive' },
+  failed: { key: 'phaseFailed', tone: 'text-danger' },
+} as const satisfies Record<StepPhase, { key: string; tone: string }>;
+
+const MARKER: Record<StepPhase, string> = {
+  ready: 'border-line-strong bg-surface-1 text-ink-muted',
+  skipped: 'border-line-strong bg-surface-1 text-ink-muted',
+  blocked: 'border-danger/45 bg-danger/8 text-danger',
+  signing: 'border-thread bg-surface-1 text-thread',
+  pending: 'border-thread bg-surface-1 text-thread',
+  confirmed: 'border-thread bg-thread text-on-thread',
+  failed: 'border-danger bg-danger text-on-danger',
+};
+
+const inWallet = (p: StepPhase) => p === 'signing' || p === 'pending';
+
+/** A knot on the thread: the step number, a turning arc while the wallet or the chain works, then a check or a cross. */
+function StepMarker({ row }: { row: StepRow }) {
+  const icon =
+    row.phase === 'confirmed' ? (
+      <Check size={16} strokeWidth={2} />
+    ) : row.phase === 'failed' ? (
+      <X size={16} strokeWidth={2} />
+    ) : row.phase === 'blocked' ? (
+      <Ban size={16} strokeWidth={1.5} />
+    ) : (
+      row.index + 1
+    );
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'relative z-10 grid size-8 shrink-0 place-items-center rounded-full border font-mono text-small tabular-nums',
+        'transition-colors duration-300',
+        MARKER[row.phase],
+      )}
+    >
+      {inWallet(row.phase) ? (
+        <Spinner size={16} />
+      ) : (
+        <m.span
+          key={row.phase}
+          className="inline-flex"
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={SPRING}
+        >
+          {icon}
+        </m.span>
+      )}
+    </span>
+  );
+}
+
+function StepItem({
+  row,
+  last,
+  explorer,
+  testId,
+}: {
+  row: StepRow;
+  last: boolean;
+  explorer: string | null;
+  testId: string;
+}) {
+  const t = useT(messages);
+  const phase = PHASE[row.phase];
+  const sim = row.simulation === 'ok' ? t('simOk') : row.simulation === 'failed' ? t('simFailed') : t('simSkipped');
+  return (
+    <li
+      data-testid={`${testId}-step-${row.index}`}
+      data-phase={row.phase}
+      className="relative flex gap-4 pb-5 last:pb-0"
+    >
+      {last ? null : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute top-9 bottom-1 left-[15.5px] w-px transition-colors duration-500',
+            row.phase === 'confirmed' ? 'bg-thread' : 'bg-line',
+          )}
+        />
+      )}
+      <StepMarker row={row} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
+        <p className="text-body text-ink">{row.summary}</p>
+        <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-small', phase.tone)}>
+          <span>{t(phase.key)}</span>
+          {row.hash && explorer ? (
+            <ExternalLink href={explorerTx(explorer, row.hash)} className="text-ink-muted">
+              {t('viewTx')}
+            </ExternalLink>
+          ) : null}
+          {row.hash && !explorer ? (
+            <code className="break-all font-mono text-caption text-ink-muted">{row.hash}</code>
+          ) : null}
+        </p>
+        <details className="group mt-1">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
+            {t('details')}
+            <ChevronDown
+              aria-hidden="true"
+              size={14}
+              strokeWidth={1.5}
+              className="transition-transform duration-150 group-open:rotate-180"
+            />
+          </summary>
+          <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-xl bg-surface-2/60 p-3 text-small">
+            <dt className="text-ink-muted">{t('contract')}</dt>
+            <dd className="min-w-0">
+              <Address address={row.to} size="sm" avatar={false} explorer={explorer} />
+            </dd>
+            <dt className="text-ink-muted">{t('fn')}</dt>
+            <dd>
+              <code className="font-mono text-ink">{row.action}</code>
+            </dd>
+            <dt className="text-ink-muted">{t('check')}</dt>
+            <dd className="text-ink">{sim}</dd>
+            <dt className="text-ink-muted">{t('gas')}</dt>
+            <dd className="font-mono text-ink tabular-nums">
+              {row.gas !== null ? `≈ ${formatAmount(row.gas, 0)}` : row.simulation === 'failed' ? '—' : t('noGas')}
+            </dd>
+          </dl>
+        </details>
+      </div>
+    </li>
+  );
+}
+
+export interface TxCardProps {
+  runner: TxRunner;
+  /** The send button, for example "Create vault". */
+  label: string;
+  title?: ReactNode;
+  /** `hold`: a HoldButton (600 ms, or Enter) for the actions the spec makes a ritual, such as the check-in. */
+  confirm?: 'click' | 'hold';
+  /** `danger` for a plan that cannot be undone. */
+  tone?: 'thread' | 'danger';
+  testId?: string;
+  className?: string;
+}
+
+/** A prepared plan, step by step: what each step does, what the simulation said, and where the wallet is. */
+export function TxCard({
+  runner,
+  label,
+  title,
+  confirm = 'click',
+  tone = 'thread',
+  testId = 'tx',
+  className,
+}: TxCardProps) {
+  const t = useT(messages);
+  const tw = useT(walletMessages);
+  const headingId = useId();
+  const { plan, view, busy, result, blocker, offset } = runner;
+  const active = view.rows.find((r) => inWallet(r.phase));
+  const announce = result
+    ? t('done')
+    : active
+      ? t('live', { n: active.index + 1, total: view.total, status: t(PHASE[active.phase].key) })
+      : '';
+  const sendLabel = busy
+    ? t('sending')
+    : blocker === 'loading'
+      ? t('preparing')
+      : offset > 0
+        ? t('resume', { n: offset + 1 })
+        : label;
+
+  let action: ReactNode;
+  if (result) {
+    action = (
+      <Banner tone="success" testId={`${testId}-done`}>
+        {t('done')}
+      </Banner>
+    );
+  } else if (blocker === 'connect') {
+    action = (
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-ink-muted text-small">{t('connectFirst')}</p>
+        <Button
+          variant="primary"
+          data-testid={`${testId}-connect`}
+          onClick={runner.connect}
+          icon={<Wallet aria-hidden="true" strokeWidth={1.5} />}
+        >
+          {tw('connect')}
+        </Button>
+      </div>
+    );
+  } else if (blocker === 'wrongAccount') {
+    action = (
+      <Banner tone="error" title={t('wrongAccountTitle')} testId={`${testId}-wrong-account`}>
+        <p>{t('wrongAccount')}</p>
+        <Address address={plan.from} size="sm" className="mt-2" />
+      </Banner>
+    );
+  } else {
+    action = (
+      <div className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}>
+        {confirm === 'hold' ? (
+          <HoldButton
+            data-testid={`${testId}-send`}
+            tone={tone}
+            disabled={busy || blocker !== null}
+            onConfirm={runner.send}
+          >
+            {sendLabel}
+          </HoldButton>
+        ) : (
+          <Button
+            data-testid={`${testId}-send`}
+            variant={tone === 'danger' ? 'danger' : 'primary'}
+            size="lg"
+            loading={busy || (blocker === 'loading' && runner.error === null)}
+            disabled={blocker !== null}
+            onClick={runner.send}
+            icon={<Signature aria-hidden="true" strokeWidth={1.5} />}
+            className="w-full sm:w-auto"
+          >
+            {sendLabel}
+          </Button>
+        )}
+        {runner.switchFirst ? (
+          <p className="text-caption text-ink-muted">{t('switchFirst', { network: networkName(CHAIN_ID) })}</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      data-testid={testId}
+      aria-labelledby={headingId}
+      className={cn('flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6', className)}
+    >
+      <header className="flex flex-col gap-1.5">
+        <h3 id={headingId} className="font-display text-ink text-title">
+          {title ?? t('title')}
+        </h3>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-muted text-small">
+          <span>{view.total === 1 ? t('stepsOne') : t('stepsMany', { n: view.total })}</span>
+          <span aria-hidden="true">·</span>
+          <span>{t('signer')}</span>
+          <Address address={plan.from} size="sm" copy={false} />
+        </div>
+      </header>
+
+      {view.total > 1 ? <TxProgress rows={view.rows} testId={`${testId}-progress`} /> : null}
+
+      {view.warnings.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {view.warnings.map((w) => (
+            <Banner key={warningKey(w)} tone="warn" testId={`warning-${w.code}`}>
+              <UntrustedText value={w.message} max={280} />
+            </Banner>
+          ))}
+        </div>
+      ) : null}
+
+      <ol aria-label={t('what')} className="flex flex-col">
+        {view.rows.map((r, i) => (
+          <StepItem
+            key={r.index}
+            row={r}
+            last={i === view.rows.length - 1}
+            explorer={runner.explorer}
+            testId={testId}
+          />
+        ))}
+      </ol>
+
+      {view.blockedError ? <ErrorBox error={view.blockedError} /> : null}
+      <ErrorBox error={runner.error} onRetry={blocker === 'loading' ? runner.reload : undefined} />
+
+      <footer className="flex flex-col gap-3 border-line border-t pt-5">{action}</footer>
+
+      {runner.handoffLink ? (
+        <details className="group rounded-2xl border border-line bg-surface-2/40">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-ink text-small [&::-webkit-details-marker]:hidden">
+            <Smartphone aria-hidden="true" size={16} strokeWidth={1.5} className="text-ink-muted" />
+            <span className="flex-1">{t('handoffTitle')}</span>
+            <ChevronDown
+              aria-hidden="true"
+              size={16}
+              strokeWidth={1.5}
+              className="text-ink-muted transition-transform duration-150 group-open:rotate-180"
+            />
+          </summary>
+          <div className="flex flex-col items-start gap-3 px-4 pb-4">
+            <p className="text-ink-muted text-small">{t('handoffBody')}</p>
+            <span data-testid={`${testId}-copy-link`} className="inline-flex">
+              <CopyButton
+                text={runner.handoffLink}
+                label={t('copyLink')}
+                showText
+                className="border border-line-strong"
+              />
+            </span>
+          </div>
+        </details>
+      ) : null}
+
+      <p aria-live="polite" className="sr-only">
+        {announce}
+      </p>
+    </section>
+  );
+}
+```
+
+Run: `npm test -w apps/web -- error-box tx-card tx-runner tx-impl tx-view errors-view lazy-boundary`
+Expected: PASS (error-box 3, tx-card 6, tx-runner 10, tx-impl 5, tx-view 5, errors-view 5, lazy-boundary 2). `lazy-boundary` giữ luật: `use-error-view.ts` chỉ `import type` từ `./impl/describe`, `use-tx-runner.ts` chỉ `import type` từ SDK; giá trị của SDK chỉ tới qua `loadTxImpl` và `useSdk`.
+
+Nếu `tx-runner` hỏng ở `ready()` (nút không bao giờ bật): kiểm mock của `../../src/chain/load` có `createSdk` trả `atro.send` và `handoff.link`, và `walletValue` mặc định đã kết nối đúng `TEST_ACCOUNT` (trùng `plan.from`).
+
+- [ ] **Step 6: Thêm `TxCard` vào trang `/dev/`**
+
+`apps/web/src/app/dev/tx-gallery.tsx`:
+
+```tsx
+'use client';
+
+import type { AtropyleErrorJson, PreparedTx, TxPlan } from '@atropyle/sdk';
+import type { ReactNode } from 'react';
+import { ErrorBox } from '@/tx/error-box';
+import { TxCard, type TxCardProps } from '@/tx/tx-card';
+import { applyStep, failStep, txView } from '@/tx/tx-view';
+import type { TxRunner } from '@/tx/use-tx-runner';
+
+const OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const VAULT = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+const HASH = `0x${'ab'.repeat(32)}` as const;
+const EXPLORER = 'https://www.oklink.com/xlayer';
+const DOCS = 'https://duongnq2798.github.io/atropyle/docs/reference/errors.html';
+const noop = () => undefined;
+
+function step(summary: string, action: PreparedTx['action'], gas: bigint): PreparedTx {
+  return {
+    chainId: 196,
+    from: OWNER,
+    to: VAULT,
+    data: '0x',
+    value: 0n,
+    action,
+    summary,
+    warnings: [],
+    simulation: { ok: true, gas },
+  };
+}
+
+function errorJson(
+  code: AtropyleErrorJson['code'],
+  message: string,
+  hint: string,
+  details?: Record<string, unknown>,
+): AtropyleErrorJson {
+  return { code, message, hint, docsUrl: `${DOCS}#${code.toLowerCase()}`, ...(details ? { details } : {}) };
+}
+
+const REJECTED = errorJson(
+  'USER_REJECTED',
+  'The request was rejected in the wallet.',
+  'Nothing was sent. Start again when ready.',
+  { index: 1, completed: 1 },
+);
+const NOT_OWNER = errorJson(
+  'NOT_OWNER',
+  'Only the vault owner can do this.',
+  'Sign with the owner wallet shown by `atropyle status`.',
+);
+const REVERT = errorJson(
+  'UNKNOWN',
+  'The call reverted with a reason this SDK does not recognize.',
+  'Run again with --verbose and report the output.',
+  { reason: { untrusted: true, value: 'ERC20: transfer amount exceeds balance', truncated: false } },
+);
+
+const CREATE: TxPlan = {
+  chainId: 196,
+  from: OWNER,
+  vault: VAULT,
+  steps: [
+    step('Allow the factory to take the creation fee', 'approve', 46_120n),
+    step('Create the vault', 'createVault', 1_284_300n),
+    step('Allow the vault to move the first asset', 'approve', 46_120n),
+  ],
+  summary: 'Create a vault',
+  warnings: [{ code: 'UNLIMITED_APPROVAL', message: 'The vault may move every unit of this token the wallet holds.' }],
+};
+const CHECK_IN: TxPlan = {
+  ...CREATE,
+  steps: [step('Check in: the countdown starts again', 'checkIn', 52_400n)],
+  summary: 'Check in',
+  warnings: [],
+};
+const BLOCKED: TxPlan = {
+  ...CREATE,
+  warnings: [],
+  steps: [
+    CREATE.steps[0],
+    { ...CREATE.steps[1], simulation: { ok: false, error: NOT_OWNER } },
+    { ...CREATE.steps[2], simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } },
+  ],
+};
+
+function runner(plan: TxPlan, over: Partial<TxRunner> = {}): TxRunner {
+  return {
+    plan,
+    view: txView(plan),
+    busy: false,
+    error: null,
+    result: null,
+    offset: 0,
+    confirmed: 0,
+    committed: false,
+    blocker: null,
+    switchFirst: false,
+    handoffLink: 'http://localhost:3000/sign/#p=example',
+    explorer: EXPLORER,
+    send: noop,
+    connect: noop,
+    reload: noop,
+    ...over,
+  };
+}
+
+const FIRST = applyStep(txView(CREATE), { index: 0, phase: 'confirmed', hash: HASH });
+const ALL = [1, 2].reduce((v, index) => applyStep(v, { index, phase: 'confirmed', hash: HASH }), FIRST);
+
+const CARDS: { label: string; props: TxCardProps }[] = [
+  { label: 'ready', props: { runner: runner(CREATE), label: 'Create vault' } },
+  {
+    label: 'signing step 2',
+    props: {
+      runner: runner(CREATE, {
+        view: applyStep(FIRST, { index: 1, phase: 'signing' }),
+        busy: true,
+        confirmed: 1,
+        committed: true,
+        handoffLink: null,
+      }),
+      label: 'Create vault',
+    },
+  },
+  {
+    label: 'resume after a rejection',
+    props: {
+      runner: runner(CREATE, {
+        view: failStep(FIRST, 1, REJECTED),
+        offset: 1,
+        error: REJECTED,
+        confirmed: 1,
+        committed: true,
+      }),
+      label: 'Create vault',
+    },
+  },
+  {
+    label: 'blocked by the simulation',
+    props: { runner: runner(BLOCKED, { blocker: 'blocked' }), label: 'Create vault' },
+  },
+  { label: 'connect first', props: { runner: runner(CREATE, { blocker: 'connect' }), label: 'Create vault' } },
+  { label: 'wrong account', props: { runner: runner(CREATE, { blocker: 'wrongAccount' }), label: 'Create vault' } },
+  {
+    label: 'all confirmed',
+    props: {
+      runner: runner(CREATE, {
+        view: ALL,
+        result: { vault: VAULT, steps: [] },
+        confirmed: 3,
+        committed: true,
+        handoffLink: null,
+      }),
+      label: 'Create vault',
+    },
+  },
+  {
+    label: 'hold to confirm, wallet on another chain',
+    props: { runner: runner(CHECK_IN, { switchFirst: true }), label: 'Check in', confirm: 'hold' },
+  },
+];
+
+function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-caption text-ink-muted">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** TxCard in every state, from fake runners: nothing here can reach a wallet. */
+export function TxGallery() {
+  return (
+    <section className="flex flex-col gap-4 border-line border-t pt-8">
+      <h2 className="text-h2">Transactions</h2>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {CARDS.map((c) => (
+          <Labelled key={c.label} label={c.label}>
+            <TxCard {...c.props} testId={`gallery-tx-${c.label.replaceAll(' ', '-')}`} />
+          </Labelled>
+        ))}
+      </div>
+      <Labelled label="error with a revert reason">
+        <ErrorBox error={REVERT} onRetry={noop} testId="gallery-error" />
+      </Labelled>
+    </section>
+  );
+}
+```
+
+Trong `apps/web/src/app/dev/gallery.tsx`: thêm `import { TxGallery } from './tx-gallery';` ngay trước dòng `import { WalletGallery } from './wallet-gallery';`, và thêm `      <TxGallery />` ngay sau dòng `      <WalletGallery />`.
+
+Thay `apps/web/test/unit/dev-gallery.test.tsx`:
+
+```tsx
+import { screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { Gallery } from '../../src/app/dev/gallery';
+import { renderWithProviders } from '../helpers/render';
+
+describe('/dev/ gallery', () => {
+  it('shows every group of primitives', () => {
+    renderWithProviders(<Gallery />);
+    for (const name of [
+      'Colour',
+      'Type',
+      'Buttons',
+      'Hold to confirm',
+      'Thread',
+      'Data',
+      'Feedback',
+      'Forms and overlays',
+      'Wallet',
+      'Transactions',
+    ]) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
+    }
+  });
+});
+```
+
+Run: `npm test -w apps/web -- dev-gallery`
+Expected: PASS (1).
+
+Run: `npm run dev -w apps/web`, mở `http://localhost:3000/dev/`, cuộn tới "Transactions".
+Expected: tám thẻ; ở "signing step 2" nút bước 2 quay và đoạn thứ hai của thanh tiến độ ánh lên; ở "resume after a rejection" nút ghi "Resume from step 2" và hộp lỗi `USER_REJECTED`; bật reduced motion của hệ điều hành thì không còn gì chuyển động. Dừng server.
+
+- [ ] **Step 7: Chạy toàn bộ và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+git add apps/web/src/tx apps/web/src/messages/tx.messages.ts apps/web/src/app/dev/gallery.tsx apps/web/src/app/dev/tx-gallery.tsx apps/web/test/helpers/wallet.ts apps/web/test/unit/tx-view.test.ts apps/web/test/unit/errors-view.test.ts apps/web/test/unit/tx-impl.test.ts apps/web/test/unit/error-box.test.tsx apps/web/test/unit/tx-card.test.tsx apps/web/test/unit/tx-runner.test.tsx apps/web/test/unit/dev-gallery.test.tsx
+git commit -m "feat(web): transaction engine with resume, hand-off to the sign page, TxCard and ErrorBox" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS; typecheck và Biome sạch.
+
+---
+
+### Task 14: Client API (chỉ bản vercel), số liệu API trước, chain sau, và lính canh URL ở bản deweb
+
+Spec §9.6 là giao diện duy nhất với backend (Plan 8 viết song song), nên kiểu trong `src/api/types.ts` chép đúng bảng đó và client kiểm hình dạng của mọi câu trả lời: câu trả lời lệch hợp đồng thành lỗi `BAD_RESPONSE`, không bao giờ lọt vào giao diện. Bản deweb không có backend: `getApi()` trả `null`, mọi hook đứng yên, và không file nào trong `out/` của deweb chứa URL backend (Quyết định 30).
+
+Ba lớp giữ URL khỏi bản deweb, mỗi lớp đủ chặn một đường rò:
+- `scripts/lib/build-env.ts` đặt `NEXT_PUBLIC_API_URL=''` (rỗng, không xoá) trước khi Next chạy. `@next/env` 16.4.6 chỉ nạp một khoá từ file `.env*` khi khoá đó `undefined` trong môi trường ban đầu (`processEnv`: `typeof p[t]==="undefined"`, `p` là bản chụp `process.env` lúc đầu), nên chuỗi rỗng chặn cả `.env.local` của nhà phát triển. Xoá khoá thì không chặn. Bản vercel không có URL trong môi trường cũng nhận chuỗi rỗng: URL chỉ đến từ môi trường build, đúng nguồn mà CSP của trang đọc (Task 15), nên `connect-src` không bao giờ lệch với bundle.
+- `next.config.mjs` cũng đặt rỗng (cho `next build` gọi trực tiếp) và luôn đặt `NEXT_PUBLIC_TARGET`, để Next inline target ở mọi module.
+- `src/config/env.ts` chỉ đọc URL sau phép so `process.env.NEXT_PUBLIC_TARGET === 'vercel'`. Ở bản deweb phép so thành `"deweb" === "vercel"`, minifier gập nó và bỏ nhánh chứa URL.
+
+Test build `the deweb build never contains the API url` (Review Focus 5) chạy thật hai lần `next build` với URL sentinel trong môi trường **và** một file `apps/web/.env.production.local` chứa sentinel thứ hai.
+
+**Files:**
+- Create: `apps/web/src/api/types.ts`, `apps/web/src/api/client.ts`, `apps/web/src/api/instance.ts`, `apps/web/src/api/hooks.ts`
+- Modify: `apps/web/src/chain/use-stats.ts` (thay toàn bộ), `apps/web/src/chain/query-client.ts` (thay toàn bộ), `apps/web/src/config/env.ts` (một dòng), `apps/web/scripts/lib/build-env.ts`, `apps/web/next.config.mjs`, `apps/web/test/build/paths.ts`, `apps/web/test/build/global-setup.ts`, `apps/web/test/unit/build-env.test.ts`
+- Test: `apps/web/test/unit/api-client.test.ts`, `apps/web/test/unit/api-hooks.test.tsx`, `apps/web/test/build/api-url.test.ts`
+
+**Interfaces:**
+- Consumes: Task 2 (`ENV`, `IS_VERCEL`, `buildEnvFor`, `buildApp`, `APP_DIR`, `OUT_DIR`, `BUILD_OUT`, `API_SENTINEL`, `outOf`), Task 5 (`isAddressText`, `sameAddress`), Task 10 (`CHAIN_ID`, `chainKeys`, `PERMANENT_CODES`, `shouldRetry`, `useSdk`, `loadChainImpl`, `type CachedStats`, `type Sdk`, `toCache`, `makeWrapper`, `test/unit/fixtures.ts`).
+- Produces:
+  - `src/api/types.ts` (chỉ kiểu và một hằng): `type Role = 'owner' | 'guardian' | 'heir'`; `type Lang = 'en' | 'vi'`; `PROBLEM_CODES`; `type ProblemCode`; `interface Problem`; `interface SubscribeRequest { email: string; vault: Address; role: Role; lang: Lang; website: string }`; `interface OkResponse { ok: true }`; `interface ConfirmResponse { ok: true; vault: Address; role: Role }`; `interface MeVault { vault: Address; roles: Role[]; drill: boolean; state: string; released: boolean }`; `interface MeResponse { address: Address; block: string; vaults: MeVault[] }`; `interface StatsResponse { block: string; vaults: string; drills: string; checkIns: string; updatedAt: string }`; `interface HealthResponse { indexer: { block: string; lagBlocks: number; updatedAt: string }; integrity: { at: string; block: string; ok: boolean } | null; keeper: { lastRunAt: string; balanceWei: string; dryRun: boolean } | null }`.
+  - `src/api/client.ts`: `type ApiErrorCode = ProblemCode | 'NETWORK' | 'TIMEOUT' | 'BAD_RESPONSE' | 'UNAVAILABLE'`; `class ApiError extends Error { readonly code: ApiErrorCode; readonly status: number | null }`; `interface ApiClient { subscribe(req, signal?): Promise<OkResponse>; confirm(token, signal?): Promise<ConfirmResponse>; unsubscribe(token, signal?): Promise<OkResponse>; me(address, signal?): Promise<MeResponse>; stats(signal?): Promise<StatsResponse>; health(signal?): Promise<HealthResponse> }`; `interface ApiClientOptions { fetch?: typeof fetch; timeoutMs?: number }`; `createApiClient(base: string, o?: ApiClientOptions): ApiClient`.
+  - `src/api/instance.ts`: `getApi(): ApiClient | null` (null ở bản deweb và khi bản vercel không có URL).
+  - `src/api/hooks.ts`: `useApiStats(): UseQueryResult<StatsResponse>`; `useMe(account: string | null): UseQueryResult<MeResponse>`; `useHealth(): UseQueryResult<HealthResponse>`; `useSubscribe(): UseMutationResult<OkResponse, Error, SubscribeRequest>`; `useConfirm(): UseMutationResult<ConfirmResponse, Error, string>`; `useUnsubscribe(): UseMutationResult<OkResponse, Error, string>`. Không có backend thì query đứng yên (`fetchStatus 'idle'`) và mutation hỏng với `ApiError` mã `UNAVAILABLE`.
+  - `src/chain/use-stats.ts`: `StatsState` thêm `loading: boolean`; `summaryOfApi(s: StatsResponse): StatsSummary`; `freshest(a: StatsSummary | null, b: StatsSummary | null): StatsSummary | null`; `useStats()` đọc API trước, đếm chain khi người dùng bấm.
+  - `src/chain/query-client.ts`: `PERMANENT_CODES` thêm `INVALID_INPUT`, `NOT_A_VAULT`, `RATE_LIMITED`, `TOKEN_INVALID`, `UNAUTHORIZED`, `BAD_RESPONSE`, `UNAVAILABLE`.
+  - `test/build/paths.ts`: `DOTENV_SENTINEL = 'https://dotenv.atropyle.invalid/functions/v1'`.
+
+- [ ] **Step 1: Viết test hỏng cho client**
+
+`apps/web/test/unit/api-client.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { ApiError, createApiClient } from '../../src/api/client';
+import type { SubscribeRequest } from '../../src/api/types';
+import { shouldRetry } from '../../src/chain/query-client';
+
+const BASE = 'https://api.atropyle.test/functions/v1';
+const OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const OTHER = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+const VAULT = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+
+const REQUEST: SubscribeRequest = { email: 'ana@example.com', vault: VAULT, role: 'heir', lang: 'vi', website: '' };
+const STATS = { block: '2500', vaults: '7', drills: '2', checkIns: '40', updatedAt: '2026-11-23T08:00:00.000Z' };
+const ME = {
+  address: OWNER,
+  block: '1234',
+  vaults: [{ vault: VAULT, roles: ['owner'], drill: true, state: 'active', released: false }],
+};
+const HEALTH = {
+  indexer: { block: '1234', lagBlocks: 2, updatedAt: '2026-11-23T08:00:00.000Z' },
+  integrity: { at: '2026-11-23T07:50:00.000Z', block: '1200', ok: true },
+  keeper: { lastRunAt: '2026-11-23T07:59:00.000Z', balanceWei: '50000000000000000', dryRun: false },
+};
+
+const json = (status: number, body: unknown, type = 'application/json') =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': type } });
+const problem = (status: number, code: string) =>
+  json(status, { type: 'about:blank', title: code.toLowerCase(), status, code }, 'application/problem+json');
+
+/** A fake backend that answers with `answers` in order and records every request. */
+function backend(...answers: Array<Response | Error>) {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const fetch = async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    const a = answers.shift();
+    if (!a) throw new Error('no answer left');
+    if (a instanceof Error) throw a;
+    return a;
+  };
+  return { calls, client: createApiClient(`${BASE}/`, { fetch: fetch as unknown as typeof globalThis.fetch }) };
+}
+
+/** A fetch that never answers and rejects like the real one when its signal aborts. */
+const hanging = (_url: string, init: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    const abort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+    if (init.signal?.aborted) abort();
+    else init.signal?.addEventListener('abort', abort);
+  });
+
+describe('api client', () => {
+  it('sends a GET without credentials, referrer, redirects or a header that needs a preflight', async () => {
+    const { calls, client } = backend(json(200, STATS));
+    expect(await client.stats()).toEqual(STATS);
+    expect(calls[0].url).toBe(`${BASE}/stats`);
+    expect(calls[0].init).toMatchObject({
+      method: 'GET',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      redirect: 'error',
+    });
+    expect(calls[0].init.headers).toEqual({ accept: 'application/json' });
+    expect(calls[0].init.body).toBeUndefined();
+  });
+
+  it('posts JSON to each form endpoint and reads its answer', async () => {
+    const { calls, client } = backend(
+      json(202, { ok: true }),
+      json(200, { ok: true, vault: VAULT, role: 'heir' }),
+      json(200, { ok: true }),
+    );
+    expect(await client.subscribe(REQUEST)).toEqual({ ok: true });
+    expect(await client.confirm('tok-1')).toEqual({ ok: true, vault: VAULT, role: 'heir' });
+    expect(await client.unsubscribe('tok-2')).toEqual({ ok: true });
+    expect(calls.map((c) => c.url)).toEqual([`${BASE}/subscribe`, `${BASE}/confirm`, `${BASE}/unsubscribe`]);
+    expect(calls[0].init).toMatchObject({
+      method: 'POST',
+      credentials: 'omit',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+    });
+    expect(JSON.parse(String(calls[0].init.body))).toEqual(REQUEST);
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ token: 'tok-1' });
+    expect(JSON.parse(String(calls[2].init.body))).toEqual({ token: 'tok-2' });
+  });
+
+  it('reads me and health as the contract has them', async () => {
+    const { calls, client } = backend(
+      json(200, ME),
+      json(200, HEALTH),
+      json(200, { ...HEALTH, integrity: null, keeper: null }),
+    );
+    expect(await client.me(OWNER)).toEqual(ME);
+    expect(calls[0].url).toBe(`${BASE}/me?address=${OWNER}`);
+    expect(await client.health()).toEqual(HEALTH);
+    expect(await client.health()).toEqual({ ...HEALTH, integrity: null, keeper: null });
+  });
+
+  it('turns a problem+json answer into an ApiError with its code and status', async () => {
+    const { client } = backend(
+      problem(429, 'RATE_LIMITED'),
+      problem(404, 'TOKEN_INVALID'),
+      problem(400, 'NOT_A_VAULT'),
+    );
+    await expect(client.subscribe(REQUEST)).rejects.toMatchObject({
+      name: 'ApiError',
+      code: 'RATE_LIMITED',
+      status: 429,
+    });
+    await expect(client.confirm('old')).rejects.toMatchObject({ code: 'TOKEN_INVALID', status: 404 });
+    await expect(client.subscribe(REQUEST)).rejects.toMatchObject({ code: 'NOT_A_VAULT', status: 400 });
+  });
+
+  it('maps an error without a known problem to INTERNAL on 5xx and BAD_RESPONSE otherwise', async () => {
+    const { client } = backend(
+      new Response('<html>Bad gateway</html>', { status: 502 }),
+      json(418, { code: 'TEAPOT' }),
+    );
+    await expect(client.stats()).rejects.toMatchObject({ code: 'INTERNAL', status: 502 });
+    await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE', status: 418 });
+  });
+
+  it('refuses an answer that breaks the contract and keeps only the fields of the contract', async () => {
+    const { client } = backend(
+      json(200, { ...STATS, vaults: 7 }),
+      json(200, { ...STATS, block: '-1' }),
+      json(200, { ...HEALTH, indexer: { ...HEALTH.indexer, lagBlocks: -1 } }),
+      json(200, { ...HEALTH, keeper: 'later' }),
+      json(200, { ...ME, vaults: [{ ...ME.vaults[0], roles: ['owner', 'admin'] }] }),
+      json(200, { ...ME, vaults: [{ ...ME.vaults[0], state: '<img src=x>' }] }),
+      json(200, { ...ME, address: OTHER }),
+      json(200, { ...STATS, note: '<script>alert(1)</script>' }),
+      new Response('not json', { status: 200 }),
+    );
+    await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.health()).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.health()).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.me(OWNER)).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.me(OWNER)).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    await expect(client.me(OWNER)).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+    expect(await client.stats()).toEqual(STATS);
+    await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE' });
+  });
+
+  it('checks the input before asking', async () => {
+    const { calls, client } = backend();
+    await expect(client.me('0x123')).rejects.toMatchObject({ code: 'INVALID_INPUT', status: null });
+    await expect(client.confirm('')).rejects.toMatchObject({ code: 'TOKEN_INVALID', status: null });
+    await expect(client.unsubscribe('x'.repeat(513))).rejects.toMatchObject({ code: 'TOKEN_INVALID' });
+    expect(calls).toEqual([]);
+  });
+
+  it('reports a network failure and a timeout with their own codes', async () => {
+    const offline = createApiClient(BASE, {
+      fetch: (async () => {
+        throw new TypeError('Failed to fetch');
+      }) as typeof fetch,
+    });
+    await expect(offline.stats()).rejects.toMatchObject({ code: 'NETWORK', status: null });
+    const slow = createApiClient(BASE, { fetch: hanging as unknown as typeof fetch, timeoutMs: 20 });
+    await expect(slow.stats()).rejects.toMatchObject({ code: 'TIMEOUT', status: null });
+  });
+
+  it('lets a cancelled query end as a cancellation, not as an ApiError', async () => {
+    const client = createApiClient(BASE, { fetch: hanging as unknown as typeof fetch });
+    const ctrl = new AbortController();
+    const pending = client.stats(ctrl.signal);
+    ctrl.abort();
+    const e = await pending.catch((x: unknown) => x);
+    expect(e).not.toBeInstanceOf(ApiError);
+    expect(e).toMatchObject({ name: 'AbortError' });
+  });
+
+  it('never retries an answer that will not change, and retries a passing failure', () => {
+    const permanent = [
+      'INVALID_INPUT',
+      'NOT_A_VAULT',
+      'RATE_LIMITED',
+      'TOKEN_INVALID',
+      'UNAUTHORIZED',
+      'BAD_RESPONSE',
+      'UNAVAILABLE',
+    ] as const;
+    for (const code of permanent) expect(shouldRetry(0, new ApiError(code, 400, code)), code).toBe(false);
+    for (const code of ['INTERNAL', 'NETWORK', 'TIMEOUT'] as const) {
+      expect(shouldRetry(0, new ApiError(code, null, code)), code).toBe(true);
+    }
+  });
+});
+```
+
+Run: `npm test -w apps/web -- api-client`
+Expected: FAIL, không tìm thấy `../../src/api/client`.
+
+- [ ] **Step 2: Viết kiểu của hợp đồng, client và mã lỗi vĩnh viễn**
+
+`apps/web/src/api/types.ts`:
+
+```ts
+import type { Address } from 'viem';
+
+/**
+ * The contract of spec §9.6, the only interface between this app and the backend (Plan 8). Change the spec first.
+ * Wire types: bigint values are decimal strings, times are ISO 8601 UTC strings, addresses are checksummed.
+ */
+export type Role = 'owner' | 'guardian' | 'heir';
+export type Lang = 'en' | 'vi';
+
+export const PROBLEM_CODES = [
+  'INVALID_INPUT',
+  'NOT_A_VAULT',
+  'RATE_LIMITED',
+  'TOKEN_INVALID',
+  'UNAUTHORIZED',
+  'INTERNAL',
+] as const;
+export type ProblemCode = (typeof PROBLEM_CODES)[number];
+
+/** An error answer, served as `application/problem+json`. */
+export interface Problem {
+  type: 'about:blank';
+  title: string;
+  status: number;
+  code: ProblemCode;
+}
+
+export interface SubscribeRequest {
+  email: string;
+  vault: Address;
+  role: Role;
+  lang: Lang;
+  /** A trap for bots: a person never sees the field, so it is always empty. */
+  website: string;
+}
+
+export interface OkResponse {
+  ok: true;
+}
+
+export interface ConfirmResponse {
+  ok: true;
+  vault: Address;
+  role: Role;
+}
+
+export interface MeVault {
+  vault: Address;
+  roles: Role[];
+  drill: boolean;
+  /** The SDK's state name (`active`, `grace`, …): shown as data, never as markup. */
+  state: string;
+  released: boolean;
+}
+
+export interface MeResponse {
+  address: Address;
+  block: string;
+  vaults: MeVault[];
+}
+
+export interface StatsResponse {
+  block: string;
+  vaults: string;
+  drills: string;
+  checkIns: string;
+  updatedAt: string;
+}
+
+export interface HealthResponse {
+  indexer: { block: string; lagBlocks: number; updatedAt: string };
+  /** null until the first integrity run. */
+  integrity: { at: string; block: string; ok: boolean } | null;
+  /** null until the keeper's first run. */
+  keeper: { lastRunAt: string; balanceWei: string; dryRun: boolean } | null;
+}
+```
+
+`apps/web/src/api/client.ts`:
+
+```ts
+import type { Address } from 'viem';
+import { isAddressText, sameAddress } from '@/lib/address';
+import {
+  type ConfirmResponse,
+  type HealthResponse,
+  type MeResponse,
+  type MeVault,
+  type OkResponse,
+  PROBLEM_CODES,
+  type ProblemCode,
+  type Role,
+  type StatsResponse,
+  type SubscribeRequest,
+} from './types';
+
+export type ApiErrorCode = ProblemCode | 'NETWORK' | 'TIMEOUT' | 'BAD_RESPONSE' | 'UNAVAILABLE';
+
+/**
+ * Every failure of a backend call. The UI words its message by `code`; `message` is for the console only, since the
+ * backend's `title` is neither translated nor meant for people.
+ */
+export class ApiError extends Error {
+  readonly code: ApiErrorCode;
+  /** The HTTP status, or null when no answer came (network, timeout, an input refused before asking). */
+  readonly status: number | null;
+
+  constructor(code: ApiErrorCode, status: number | null, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+export interface ApiClient {
+  subscribe(req: SubscribeRequest, signal?: AbortSignal): Promise<OkResponse>;
+  confirm(token: string, signal?: AbortSignal): Promise<ConfirmResponse>;
+  unsubscribe(token: string, signal?: AbortSignal): Promise<OkResponse>;
+  me(address: string, signal?: AbortSignal): Promise<MeResponse>;
+  stats(signal?: AbortSignal): Promise<StatsResponse>;
+  health(signal?: AbortSignal): Promise<HealthResponse>;
+}
+
+export interface ApiClientOptions {
+  /** The global fetch by default; tests pass a fake. */
+  fetch?: typeof fetch;
+  /** Per request, the answer's body included. 10 s by default. */
+  timeoutMs?: number;
+}
+
+type Obj = Record<string, unknown>;
+type Parse<T> = (v: unknown) => T | null;
+
+const MAX_TOKEN = 512;
+const MAX_VAULTS = 1000;
+
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+/** A bigint on the wire: a decimal string without sign or leading zero, at most 78 digits (2^256 has 78). */
+const isDecimal = (v: unknown): v is string => typeof v === 'string' && /^(?:0|[1-9]\d{0,77})$/.test(v);
+const isTime = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= 40 && /^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v));
+const isAddress = (v: unknown): v is Address => typeof v === 'string' && isAddressText(v);
+const isRole = (v: unknown): v is Role => v === 'owner' || v === 'guardian' || v === 'heir';
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+/** SDK state names are camelCase words; anything else is refused rather than shown. */
+const isStateName = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z]{1,32}$/.test(v);
+const isProblemCode = (v: unknown): v is ProblemCode =>
+  typeof v === 'string' && (PROBLEM_CODES as readonly string[]).includes(v);
+
+const okOf: Parse<OkResponse> = (v) => (isObj(v) && v.ok === true ? { ok: true } : null);
+
+const confirmOf: Parse<ConfirmResponse> = (v) =>
+  isObj(v) && v.ok === true && isAddress(v.vault) && isRole(v.role) ? { ok: true, vault: v.vault, role: v.role } : null;
+
+function meVaultOf(v: unknown): MeVault | null {
+  if (!isObj(v) || !isAddress(v.vault) || !Array.isArray(v.roles)) return null;
+  const roles = v.roles.filter(isRole);
+  if (roles.length === 0 || roles.length !== v.roles.length) return null;
+  if (typeof v.drill !== 'boolean' || typeof v.released !== 'boolean' || !isStateName(v.state)) return null;
+  return { vault: v.vault, roles: [...new Set(roles)], drill: v.drill, state: v.state, released: v.released };
+}
+
+const meOf: Parse<MeResponse> = (v) => {
+  if (!isObj(v) || !isAddress(v.address) || !isDecimal(v.block)) return null;
+  if (!Array.isArray(v.vaults) || v.vaults.length > MAX_VAULTS) return null;
+  const vaults: MeVault[] = [];
+  for (const raw of v.vaults) {
+    const one = meVaultOf(raw);
+    if (!one) return null;
+    vaults.push(one);
+  }
+  return { address: v.address, block: v.block, vaults };
+};
+
+const statsOf: Parse<StatsResponse> = (v) =>
+  isObj(v) &&
+  isDecimal(v.block) &&
+  isDecimal(v.vaults) &&
+  isDecimal(v.drills) &&
+  isDecimal(v.checkIns) &&
+  isTime(v.updatedAt)
+    ? { block: v.block, vaults: v.vaults, drills: v.drills, checkIns: v.checkIns, updatedAt: v.updatedAt }
+    : null;
+
+const indexerOf: Parse<HealthResponse['indexer']> = (v) =>
+  isObj(v) && isDecimal(v.block) && isCount(v.lagBlocks) && isTime(v.updatedAt)
+    ? { block: v.block, lagBlocks: v.lagBlocks, updatedAt: v.updatedAt }
+    : null;
+
+const integrityOf: Parse<NonNullable<HealthResponse['integrity']>> = (v) =>
+  isObj(v) && isTime(v.at) && isDecimal(v.block) && typeof v.ok === 'boolean'
+    ? { at: v.at, block: v.block, ok: v.ok }
+    : null;
+
+const keeperOf: Parse<NonNullable<HealthResponse['keeper']>> = (v) =>
+  isObj(v) && isTime(v.lastRunAt) && isDecimal(v.balanceWei) && typeof v.dryRun === 'boolean'
+    ? { lastRunAt: v.lastRunAt, balanceWei: v.balanceWei, dryRun: v.dryRun }
+    : null;
+
+/** null stays null (that part has not run yet); anything else must parse, or `undefined` refuses the answer. */
+function nullable<T>(v: unknown, parse: Parse<T>): T | null | undefined {
+  if (v === null) return null;
+  return parse(v) ?? undefined;
+}
+
+const healthOf: Parse<HealthResponse> = (v) => {
+  if (!isObj(v)) return null;
+  const indexer = indexerOf(v.indexer);
+  const integrity = nullable(v.integrity, integrityOf);
+  const keeper = nullable(v.keeper, keeperOf);
+  return indexer && integrity !== undefined && keeper !== undefined ? { indexer, integrity, keeper } : null;
+};
+
+function problemOf(v: unknown): { code: ProblemCode; title: string } | null {
+  if (!isObj(v) || !isProblemCode(v.code)) return null;
+  return { code: v.code, title: typeof v.title === 'string' ? v.title.slice(0, 200) : v.code };
+}
+
+function jsonOf(text: string): unknown {
+  if (text === '') return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The backend of spec §9.6 at `base` (`https://<project>.supabase.co/functions/v1`). Every answer is checked against
+ * the contract and rebuilt from its known fields only; a cancelled `signal` rejects with the abort error itself, so
+ * TanStack Query sees a cancellation rather than a failure.
+ */
+export function createApiClient(base: string, o: ApiClientOptions = {}): ApiClient {
+  const root = base.replace(/\/+$/, '');
+  // Called bare: the browser's fetch throws when called as a method of another object (the options here).
+  const send: (url: string, init: RequestInit) => Promise<Response> = o.fetch ?? ((url, init) => fetch(url, init));
+  const timeoutMs = o.timeoutMs ?? 10_000;
+
+  async function call<T>(
+    method: 'GET' | 'POST',
+    path: string,
+    body: object | null,
+    parse: Parse<T>,
+    outer?: AbortSignal,
+  ): Promise<T> {
+    // No query string in messages: `me` carries an address.
+    const what = `${method} /${path.split('?')[0]}`;
+    const ctrl = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, timeoutMs);
+    const forward = () => ctrl.abort(outer?.reason);
+    if (outer?.aborted) forward();
+    else outer?.addEventListener('abort', forward, { once: true });
+    let res: Response;
+    let text: string;
+    try {
+      res = await send(`${root}/${path}`, {
+        method,
+        // A GET with only `accept` is a simple CORS request, so it needs no preflight (spec §9.2 opens GET to all).
+        headers: body
+          ? { accept: 'application/json', 'content-type': 'application/json' }
+          : { accept: 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'error',
+        signal: ctrl.signal,
+      });
+      text = await res.text();
+    } catch (e) {
+      if (timedOut) throw new ApiError('TIMEOUT', null, `${what} took longer than ${timeoutMs} ms`);
+      if (outer?.aborted) throw e;
+      throw new ApiError('NETWORK', null, `${what} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      clearTimeout(timer);
+      outer?.removeEventListener('abort', forward);
+    }
+    const json = jsonOf(text);
+    if (!res.ok) {
+      const p = problemOf(json);
+      if (p) throw new ApiError(p.code, res.status, `${what}: ${p.title}`);
+      throw new ApiError(res.status >= 500 ? 'INTERNAL' : 'BAD_RESPONSE', res.status, `${what}: HTTP ${res.status}`);
+    }
+    const value = parse(json);
+    if (value === null)
+      throw new ApiError('BAD_RESPONSE', res.status, `${what}: the answer does not match the contract`);
+    return value;
+  }
+
+  const refuse = (code: ApiErrorCode, message: string): Promise<never> =>
+    Promise.reject(new ApiError(code, null, message));
+  const badToken = (t: string) => t.length === 0 || t.length > MAX_TOKEN;
+
+  return {
+    subscribe: (req, signal) =>
+      call(
+        'POST',
+        'subscribe',
+        { email: req.email, vault: req.vault, role: req.role, lang: req.lang, website: req.website },
+        okOf,
+        signal,
+      ),
+    confirm: (token, signal) =>
+      badToken(token)
+        ? refuse('TOKEN_INVALID', 'The link carries no valid token.')
+        : call('POST', 'confirm', { token }, confirmOf, signal),
+    unsubscribe: (token, signal) =>
+      badToken(token)
+        ? refuse('TOKEN_INVALID', 'The link carries no valid token.')
+        : call('POST', 'unsubscribe', { token }, okOf, signal),
+    me: (address, signal) => {
+      if (!isAddressText(address)) return refuse('INVALID_INPUT', 'me needs an address.');
+      const forAddress: Parse<MeResponse> = (v) => {
+        const m = meOf(v);
+        return m && sameAddress(m.address, address) ? m : null;
+      };
+      return call('GET', `me?address=${encodeURIComponent(address)}`, null, forAddress, signal);
+    },
+    stats: (signal) => call('GET', 'stats', null, statsOf, signal),
+    health: (signal) => call('GET', 'health', null, healthOf, signal),
+  };
+}
+```
+
+Thay `apps/web/src/chain/query-client.ts` (thêm mã lỗi vĩnh viễn của backend, Quyết định 30):
+
+```ts
+import { QueryClient } from '@tanstack/react-query';
+
+/** Errors that the same request will meet again (Quyết định 18): retrying only delays the message. */
+export const PERMANENT_CODES: ReadonlySet<string> = new Set([
+  'NOT_VAULT',
+  'INVALID_ADDRESS',
+  'DEPLOYMENT_INVALID',
+  'DEPLOYMENT_MISSING',
+  'LINK_INVALID',
+  'PLAN_INVALID',
+  'INVALID_OPTIONS',
+  'USER_REJECTED',
+  'WRONG_CHAIN',
+  'WRONG_ACCOUNT',
+  'POLICY_MISMATCH',
+  'DRILL_EXPIRED',
+  // The backend (src/api/client.ts): its answers to the same request do not change, and RATE_LIMITED only gets worse.
+  'INVALID_INPUT',
+  'NOT_A_VAULT',
+  'RATE_LIMITED',
+  'TOKEN_INVALID',
+  'UNAUTHORIZED',
+  'BAD_RESPONSE',
+  'UNAVAILABLE',
+]);
+
+/** The `code` of an AtropyleError or an ApiError, read structurally so this file stays free of the SDK. */
+export function errorCode(e: unknown): string | null {
+  const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
+  return typeof code === 'string' ? code : null;
+}
+
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  return failureCount < 2 && !PERMANENT_CODES.has(errorCode(error) ?? '');
+}
+
+export function makeQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: shouldRetry, staleTime: 15_000, refetchOnWindowFocus: true },
+      mutations: { retry: false },
+    },
+  });
+}
+```
+
+Run: `npm test -w apps/web -- api-client query-client`
+Expected: PASS (api-client 10, query-client 2).
+
+- [ ] **Step 3: Viết test hỏng cho hook API và `useStats`**
+
+`apps/web/test/unit/api-hooks.test.tsx`:
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../src/api/client';
+import { useApiStats, useConfirm, useHealth, useMe, useSubscribe, useUnsubscribe } from '../../src/api/hooks';
+import type { SubscribeRequest } from '../../src/api/types';
+import { toCache } from '../../src/chain/impl/stats-view';
+import { freshest, type StatsSummary, summaryOfApi, useStats } from '../../src/chain/use-stats';
+import { makeWrapper } from '../helpers/render';
+import { fixtureDeployment, fixtureStats, PEOPLE } from './fixtures';
+
+const fake = vi.hoisted(() => ({
+  subscribe: vi.fn(),
+  confirm: vi.fn(),
+  unsubscribe: vi.fn(),
+  me: vi.fn(),
+  stats: vi.fn(),
+  health: vi.fn(),
+}));
+const backend = vi.hoisted(() => ({ on: true }));
+vi.mock('../../src/api/instance', () => ({ getApi: () => (backend.on ? fake : null) }));
+
+const impl = vi.hoisted(() => ({
+  loadDeployment: vi.fn(),
+  createSdk: vi.fn(),
+  cachedStats: vi.fn(),
+  countStats: vi.fn(),
+}));
+vi.mock('../../src/chain/load', () => ({ loadChainImpl: async () => impl, peekChainImpl: () => impl }));
+
+const STATS = { block: '2500', vaults: '7', drills: '2', checkIns: '40', updatedAt: '2026-11-23T08:00:00.000Z' };
+const REQUEST: SubscribeRequest = {
+  email: 'ana@example.com',
+  vault: PEOPLE.vault,
+  role: 'heir',
+  lang: 'vi',
+  website: '',
+};
+const HEALTH = {
+  indexer: { block: '1234', lagBlocks: 2, updatedAt: '2026-11-23T08:00:00.000Z' },
+  integrity: null,
+  keeper: null,
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  backend.on = true;
+  impl.loadDeployment.mockImplementation(() => fixtureDeployment());
+  impl.createSdk.mockImplementation(() => ({ fake: 'sdk' }));
+  impl.cachedStats.mockReturnValue(null);
+});
+
+describe('stats summary', () => {
+  const at = (source: 'api' | 'chain', block: bigint): StatsSummary => ({
+    source,
+    block,
+    vaults: 1,
+    drills: 0,
+    checkIns: 0,
+    savedAtMs: null,
+  });
+
+  it('takes the count at the higher block, and the count of this device on a tie', () => {
+    expect(freshest(null, null)).toBeNull();
+    expect(freshest(at('api', 5n), null)?.source).toBe('api');
+    expect(freshest(null, at('chain', 5n))?.source).toBe('chain');
+    expect(freshest(at('api', 6n), at('chain', 5n))?.source).toBe('api');
+    expect(freshest(at('api', 5n), at('chain', 6n))?.source).toBe('chain');
+    expect(freshest(at('api', 5n), at('chain', 5n))?.source).toBe('chain');
+    expect(freshest(at('chain', 5n), at('api', 5n))?.source).toBe('chain');
+  });
+
+  it('reads the decimal strings of the backend', () => {
+    expect(summaryOfApi(STATS)).toEqual({
+      source: 'api',
+      block: 2_500n,
+      vaults: 7,
+      drills: 2,
+      checkIns: 40,
+      savedAtMs: null,
+    });
+  });
+});
+
+describe('useStats with a backend', () => {
+  it('shows the backend count without counting on the chain', async () => {
+    fake.stats.mockResolvedValue(STATS);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.summary).toMatchObject({ source: 'api', block: 2_500n, vaults: 7 }));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(impl.countStats).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the chain when the backend fails, and reports the failure only while nothing shows', async () => {
+    fake.stats.mockRejectedValue(new ApiError('INTERNAL', 503, 'GET /stats: HTTP 503'));
+    impl.countStats.mockResolvedValue(toCache(fixtureStats(), 6));
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    await waitFor(() => expect(result.current.error).toMatchObject({ code: 'INTERNAL' }));
+    expect(result.current.summary).toBeNull();
+    expect(result.current.loading).toBe(false);
+    await waitFor(() => expect(impl.cachedStats).toHaveBeenCalled());
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.summary).toMatchObject({ source: 'chain', block: 2_000n, vaults: 3 }));
+    expect(result.current.error).toBeNull();
+  });
+
+  it('asks nothing on a build without a backend', async () => {
+    backend.on = false;
+    impl.cachedStats.mockReturnValue(toCache(fixtureStats(), 5));
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    expect(result.current.loading).toBe(false);
+    await waitFor(() => expect(result.current.summary).toMatchObject({ source: 'chain', checkIns: 5 }));
+    expect(fake.stats).not.toHaveBeenCalled();
+  });
+});
+
+describe('backend hooks', () => {
+  it('asks for the vaults of an account only once there is a valid one', async () => {
+    fake.me.mockResolvedValue({ address: PEOPLE.owner, block: '10', vaults: [] });
+    const { wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(({ a }: { a: string | null }) => useMe(a), {
+      wrapper,
+      initialProps: { a: null as string | null },
+    });
+    expect(result.current.fetchStatus).toBe('idle');
+    rerender({ a: 'not an address' });
+    expect(result.current.fetchStatus).toBe('idle');
+    rerender({ a: PEOPLE.owner });
+    await waitFor(() => expect(result.current.data?.address).toBe(PEOPLE.owner));
+    expect(fake.me).toHaveBeenCalledTimes(1);
+    expect(fake.me.mock.calls[0][0]).toBe(PEOPLE.owner);
+  });
+
+  it('reads the health of the backend', async () => {
+    fake.health.mockResolvedValue(HEALTH);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useHealth(), { wrapper });
+    await waitFor(() => expect(result.current.data).toEqual(HEALTH));
+  });
+
+  it('sends a subscription, a confirmation and an unsubscription as given', async () => {
+    fake.subscribe.mockResolvedValue({ ok: true });
+    fake.confirm.mockResolvedValue({ ok: true, vault: PEOPLE.vault, role: 'heir' });
+    fake.unsubscribe.mockResolvedValue({ ok: true });
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ s: useSubscribe(), c: useConfirm(), u: useUnsubscribe() }), { wrapper });
+    await act(async () => {
+      await result.current.s.mutateAsync(REQUEST);
+      await result.current.c.mutateAsync('tok-1');
+      await result.current.u.mutateAsync('tok-2');
+    });
+    expect(fake.subscribe).toHaveBeenCalledWith(REQUEST);
+    expect(fake.confirm).toHaveBeenCalledWith('tok-1');
+    expect(fake.unsubscribe).toHaveBeenCalledWith('tok-2');
+    await waitFor(() => expect(result.current.c.data).toEqual({ ok: true, vault: PEOPLE.vault, role: 'heir' }));
+  });
+
+  it('stays idle without a backend, and a form fails as unavailable', async () => {
+    backend.on = false;
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ stats: useApiStats(), health: useHealth(), subscribe: useSubscribe() }), {
+      wrapper,
+    });
+    expect(result.current.stats.fetchStatus).toBe('idle');
+    expect(result.current.health.fetchStatus).toBe('idle');
+    await act(async () => {
+      await expect(result.current.subscribe.mutateAsync(REQUEST)).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+    });
+    expect(fake.subscribe).not.toHaveBeenCalled();
+    expect(fake.stats).not.toHaveBeenCalled();
+  });
+});
+```
+
+Run: `npm test -w apps/web -- api-hooks`
+Expected: FAIL, không tìm thấy `../../src/api/hooks`.
+
+- [ ] **Step 4: Viết `instance.ts`, `hooks.ts` và `useStats` mới**
+
+`apps/web/src/api/instance.ts`:
+
+```ts
+import { ENV, IS_VERCEL } from '@/config/env';
+import { type ApiClient, createApiClient } from './client';
+
+/**
+ * The backend of the vercel build (spec §9.6). The deweb build has none: `IS_VERCEL` folds to false there, and its
+ * bundle never holds the URL (test/build/api-url.test.ts, Quyết định 30).
+ */
+const API: ApiClient | null = IS_VERCEL && ENV.apiUrl ? createApiClient(ENV.apiUrl) : null;
+
+/** A function rather than the constant, so a test can stand in a fake backend or none. */
+export function getApi(): ApiClient | null {
+  return API;
+}
+```
+
+`apps/web/src/api/hooks.ts`:
+
+```ts
+'use client';
+
+import { skipToken, type UseMutationResult, type UseQueryResult, useMutation, useQuery } from '@tanstack/react-query';
+import { CHAIN_ID } from '@/chain/hooks';
+import { chainKeys } from '@/chain/keys';
+import { isAddressText } from '@/lib/address';
+import { type ApiClient, ApiError } from './client';
+import { getApi } from './instance';
+import type { ConfirmResponse, HealthResponse, MeResponse, OkResponse, StatsResponse, SubscribeRequest } from './types';
+
+/** For forms, which the deweb build does not show (spec §5.7); a call there fails as UNAVAILABLE. */
+function requireApi(): ApiClient {
+  const api = getApi();
+  if (!api) throw new ApiError('UNAVAILABLE', null, 'This build has no backend.');
+  return api;
+}
+
+/** Counts for the home page; the backend caches them 60 s (spec §9.2). Idle without a backend. */
+export function useApiStats(): UseQueryResult<StatsResponse> {
+  const api = getApi();
+  return useQuery({
+    queryKey: chainKeys.stats(CHAIN_ID, 'api'),
+    queryFn: api ? ({ signal }) => api.stats(signal) : skipToken,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * The vaults where `account` has a role, from the backend's index (spec §5.6). The page still reads each vault on the
+ * chain before it shows a state. Idle without a backend or a valid address.
+ */
+export function useMe(account: string | null): UseQueryResult<MeResponse> {
+  const api = getApi();
+  return useQuery({
+    queryKey: chainKeys.me(CHAIN_ID, account ?? ''),
+    queryFn: api && account && isAddressText(account) ? ({ signal }) => api.me(account, signal) : skipToken,
+    staleTime: 30_000,
+  });
+}
+
+/** Indexer lag, the last integrity run and the keeper, for /status/ (spec §5.8). Idle without a backend. */
+export function useHealth(): UseQueryResult<HealthResponse> {
+  const api = getApi();
+  return useQuery({
+    queryKey: chainKeys.health(CHAIN_ID),
+    queryFn: api ? ({ signal }) => api.health(signal) : skipToken,
+    refetchInterval: 30_000,
+  });
+}
+
+/** Double opt-in: the answer is the same whether the email is known or not (spec §5.7). Never retried. */
+export function useSubscribe(): UseMutationResult<OkResponse, Error, SubscribeRequest> {
+  return useMutation({ mutationFn: async (req: SubscribeRequest) => requireApi().subscribe(req) });
+}
+
+/** The token comes from `#t=` of /alerts/confirm/, never from a query string (spec §9.6). */
+export function useConfirm(): UseMutationResult<ConfirmResponse, Error, string> {
+  return useMutation({ mutationFn: async (token: string) => requireApi().confirm(token) });
+}
+
+/** Idempotent: an unknown token answers ok as well (spec §9.6). */
+export function useUnsubscribe(): UseMutationResult<OkResponse, Error, string> {
+  return useMutation({ mutationFn: async (token: string) => requireApi().unsubscribe(token) });
+}
+```
+
+Thay `apps/web/src/chain/use-stats.ts`:
+
+```ts
+'use client';
+
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useApiStats } from '@/api/hooks';
+import type { StatsResponse } from '@/api/types';
+import { useKV } from '@/lib/kv';
+import { useSdk } from './hooks';
+import { loadChainImpl } from './load';
+import type { CachedStats, Sdk } from './types';
+
+export interface StatsSummary {
+  source: 'api' | 'chain';
+  block: bigint;
+  vaults: number;
+  drills: number;
+  checkIns: number;
+  /** When this device counted (chain); null when the backend's own time is not a device time. */
+  savedAtMs: number | null;
+}
+
+export interface StatsState {
+  summary: StatsSummary | null;
+  /** The backend's count is on its way and nothing shows yet (vercel build only). */
+  loading: boolean;
+  progress: { done: number; total: number } | null;
+  busy: boolean;
+  error: unknown;
+  /** Counts from the chain, resuming from the last count on this device. */
+  refresh(): void;
+}
+
+export function summaryOfCache(c: CachedStats): StatsSummary {
+  return {
+    source: 'chain',
+    block: c.stats.toBlock,
+    vaults: c.stats.vaults.total,
+    drills: c.stats.vaults.drill,
+    checkIns: c.stats.checkIns,
+    savedAtMs: c.savedAtMs,
+  };
+}
+
+/** The backend's numbers (spec §9.6: decimal strings) as a summary. */
+export function summaryOfApi(s: StatsResponse): StatsSummary {
+  return {
+    source: 'api',
+    block: BigInt(s.block),
+    vaults: Number(s.vaults),
+    drills: Number(s.drills),
+    checkIns: Number(s.checkIns),
+    savedAtMs: null,
+  };
+}
+
+/** The count at the higher block; on a tie the one this device made from the chain itself. */
+export function freshest(a: StatsSummary | null, b: StatsSummary | null): StatsSummary | null {
+  if (!a) return b;
+  if (!b) return a;
+  if (a.block !== b.block) return a.block > b.block ? a : b;
+  return a.source === 'chain' ? a : b;
+}
+
+/**
+ * The count on this device shows at once; reading the chain waits for a button (the factory's logs take many
+ * requests on public RPC, 100 blocks per request on X Layer).
+ */
+export function useChainStats(): StatsState {
+  const kv = useKV();
+  const sdk = useSdk().data;
+  const [cached, setCached] = useState<CachedStats | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    if (!sdk) return;
+    let live = true;
+    loadChainImpl().then(
+      (impl) => {
+        if (live) setCached(impl.cachedStats(sdk, kv));
+      },
+      () => {
+        // The SDK query reports a chunk that failed to load; there is nothing cached to show then.
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [sdk, kv]);
+
+  const count = useMutation({
+    mutationFn: async (s: Sdk) => {
+      const impl = await loadChainImpl();
+      return impl.countStats(s, kv, (done, total) => setProgress({ done, total }));
+    },
+    onSuccess: (c) => setCached(c),
+    onSettled: () => setProgress(null),
+  });
+
+  return {
+    summary: cached ? summaryOfCache(cached) : null,
+    loading: false,
+    progress,
+    busy: count.isPending,
+    error: count.error,
+    refresh: () => {
+      if (sdk) count.mutate(sdk);
+    },
+  };
+}
+
+/**
+ * The backend's count first on the vercel build; this device's own count wins when it is at a later block, and
+ * "count from the chain" works on both builds (spec §2: the site keeps working when the backend is down). A backend
+ * failure shows only while there is nothing to show.
+ */
+export function useStats(): StatsState {
+  const chain = useChainStats();
+  const api = useApiStats();
+  const summary = freshest(api.data ? summaryOfApi(api.data) : null, chain.summary);
+  return {
+    ...chain,
+    summary,
+    loading: summary === null && api.isLoading,
+    error: chain.error ?? (summary === null ? api.error : null),
+  };
+}
+```
+
+Run: `npm test -w apps/web -- api-hooks chain-hooks lazy-boundary`
+Expected: PASS (api-hooks 9, chain-hooks 6, lazy-boundary 2). `chain-hooks` không mock backend: trong Vitest `NEXT_PUBLIC_TARGET` không được đặt, nên `getApi()` thật trả `null` và đường chain giữ nguyên hành vi.
+
+- [ ] **Step 5: Viết test hỏng cho môi trường build: URL rỗng thay vì bị xoá**
+
+Thay `apps/web/test/unit/build-env.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { buildEnvFor } from '../../scripts/lib/build-env';
+
+describe('build env', () => {
+  it('always disables Next telemetry', () => {
+    expect(buildEnvFor({}).NEXT_TELEMETRY_DISABLED).toBe('1');
+  });
+
+  it('defaults to deweb and blanks the API URL there, so that no .env file can set it', () => {
+    const env = buildEnvFor({ NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' });
+    expect(env.NEXT_PUBLIC_TARGET).toBe('deweb');
+    // @next/env loads a .env key only when the variable is undefined; an empty string keeps it out (Quyết định 30).
+    expect(env.NEXT_PUBLIC_API_URL).toBe('');
+    expect(buildEnvFor({}).NEXT_PUBLIC_API_URL).toBe('');
+  });
+
+  it('keeps the API URL for vercel, and blanks it there when unset so that only the environment sets it', () => {
+    const env = buildEnvFor({
+      NEXT_PUBLIC_TARGET: 'vercel',
+      NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1',
+    });
+    expect(env.NEXT_PUBLIC_API_URL).toBe('https://x.supabase.co/functions/v1');
+    expect(buildEnvFor({ NEXT_PUBLIC_TARGET: 'vercel' }).NEXT_PUBLIC_API_URL).toBe('');
+  });
+
+  it('refuses an unknown target', () => {
+    expect(() => buildEnvFor({ NEXT_PUBLIC_TARGET: 'pages' })).toThrow(/vercel or deweb/);
+  });
+
+  it('removes NODE_ENV, which Next sets itself, and never mutates its input', () => {
+    const base = { NODE_ENV: 'test', NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' };
+    const env = buildEnvFor(base);
+    expect('NODE_ENV' in env).toBe(false);
+    expect(base).toEqual({ NODE_ENV: 'test', NEXT_PUBLIC_API_URL: 'https://x.supabase.co/functions/v1' });
+  });
+});
+```
+
+Run: `npm test -w apps/web -- build-env`
+Expected: FAIL ở hai test, `defaults to deweb and blanks the API URL there…` và `keeps the API URL for vercel, and blanks it there when unset…`, cùng thông báo `expected undefined to be ''`.
+
+- [ ] **Step 6: Ba lớp chặn URL ở bản deweb**
+
+Thay `apps/web/scripts/lib/build-env.ts`:
+
+```ts
+/** The environment every `next build` and `next dev` runs with (Quyết định 5, 30 and spec §2). */
+export function buildEnvFor(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base, NEXT_TELEMETRY_DISABLED: '1' };
+  const target = env.NEXT_PUBLIC_TARGET?.trim() || 'deweb';
+  if (target !== 'vercel' && target !== 'deweb') {
+    throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
+  }
+  env.NEXT_PUBLIC_TARGET = target;
+  // Never undefined: @next/env never lets a .env file set a variable that is already in the environment, even as ''
+  // (processEnv checks `typeof initialEnv[key] === 'undefined'`). So a developer's .env.local cannot reach deweb, and
+  // on vercel the build environment is the only source of the URL: the same one the page CSP reads (Task 15).
+  if (target === 'deweb' || env.NEXT_PUBLIC_API_URL === undefined) env.NEXT_PUBLIC_API_URL = '';
+  // Vitest sets NODE_ENV=test; Next picks production or development itself and warns on anything else.
+  delete env.NODE_ENV;
+  return env;
+}
+```
+
+Trong `apps/web/next.config.mjs`, thay hai dòng
+
+```js
+  // The deweb build must never carry the backend URL (spec §2); scripts/lib/build-env.ts drops it too.
+  if (target !== 'vercel') delete process.env.NEXT_PUBLIC_API_URL;
+```
+
+bằng
+
+```js
+  // Next inlines every NEXT_PUBLIC_* variable, so set the target even for a bare `next build`: src/config/env.ts
+  // compares it with 'vercel', and the minifier drops the vercel-only branch from the deweb bundle.
+  process.env.NEXT_PUBLIC_TARGET = target;
+  // The deweb build must never carry the backend URL (spec §2). Blank, not deleted, like scripts/lib/build-env.ts,
+  // which blanks it before Next starts and so also keeps .env files out (Quyết định 30).
+  if (target !== 'vercel') process.env.NEXT_PUBLIC_API_URL = '';
+```
+
+Trong `apps/web/src/config/env.ts`, ở object truyền cho `readEnv` của `ENV`, thay dòng
+
+```ts
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+```
+
+bằng
+
+```ts
+  // Read behind the target: on deweb the comparison folds to false and the URL never reaches the bundle.
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_TARGET === 'vercel' ? process.env.NEXT_PUBLIC_API_URL : undefined,
+```
+
+Run: `npm test -w apps/web -- build-env env`
+Expected: PASS (build-env 5, env 6).
+
+- [ ] **Step 7: Test build: sentinel trong môi trường và trong file `.env`**
+
+Thay `apps/web/test/build/paths.ts`:
+
+```ts
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const BUILD_OUT = fileURLToPath(new URL('./.out', import.meta.url));
+/** In the environment of both builds; must reach only the vercel build (test/build/api-url.test.ts). */
+export const API_SENTINEL = 'https://api.atropyle.invalid/functions/v1';
+/** In apps/web/.env.production.local during both builds; must reach neither. */
+export const DOTENV_SENTINEL = 'https://dotenv.atropyle.invalid/functions/v1';
+export const outOf = (target: 'vercel' | 'deweb'): string => join(BUILD_OUT, target);
+```
+
+Thay `apps/web/test/build/global-setup.ts`:
+
+```ts
+import { cpSync, existsSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { APP_DIR, buildApp, OUT_DIR } from '../../scripts/lib/run-next';
+import { API_SENTINEL, BUILD_OUT, DOTENV_SENTINEL, outOf } from './paths';
+
+/** The file Next reads first in a production build; a developer's copy is the likeliest leak into deweb. */
+const DOTENV = join(APP_DIR, '.env.production.local');
+
+/** Two real production builds; ATROPYLE_REUSE_BUILD=1 reuses the last ones for a quick rerun. */
+export default async function setup(): Promise<void> {
+  if (process.env.ATROPYLE_REUSE_BUILD === '1' && existsSync(outOf('vercel')) && existsSync(outOf('deweb'))) return;
+  if (existsSync(DOTENV)) {
+    throw new Error(`${DOTENV} exists. The build test writes its own and never touches yours: move it away first.`);
+  }
+  rmSync(BUILD_OUT, { recursive: true, force: true });
+  writeFileSync(DOTENV, `NEXT_PUBLIC_API_URL=${DOTENV_SENTINEL}\n`, { flag: 'wx' });
+  try {
+    for (const target of ['vercel', 'deweb'] as const) {
+      // Typed: spreading process.env next to other keys drops its index signature, and `delete` needs it.
+      const env: NodeJS.ProcessEnv = { ...process.env, NEXT_PUBLIC_TARGET: target, NEXT_PUBLIC_API_URL: API_SENTINEL };
+      delete env.ATROPYLE_E2E;
+      const r = await buildApp({ env, quiet: true });
+      if (r.code !== 0) throw new Error(`next build (${target}) failed:\n${r.output}`);
+      cpSync(OUT_DIR, outOf(target), { recursive: true });
+    }
+  } finally {
+    rmSync(DOTENV, { force: true });
+  }
+}
+```
+
+`apps/web/test/build/api-url.test.ts`:
+
+```ts
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { API_SENTINEL, DOTENV_SENTINEL, outOf } from './paths';
+
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)],
+  );
+}
+
+/** Every file of a build whose bytes contain `needle`, relative to the build. */
+function holders(target: 'vercel' | 'deweb', needle: string): string[] {
+  const out = outOf(target);
+  return files(out)
+    .filter((f) => readFileSync(f).includes(needle))
+    .map((f) => relative(out, f).replaceAll('\\', '/'));
+}
+
+describe('backend URL', () => {
+  it('the deweb build never contains the API url', () => {
+    // Both sentinels live under this host: the build environment's and the .env.production.local file's.
+    expect(holders('deweb', 'atropyle.invalid')).toEqual([]);
+  });
+
+  it('the vercel build carries the URL of its build environment and ignores a .env file', () => {
+    expect(holders('vercel', API_SENTINEL).length).toBeGreaterThan(0);
+    expect(holders('vercel', DOTENV_SENTINEL)).toEqual([]);
+  });
+});
+```
+
+Run: `npm run test:build -w apps/web`
+Expected: PASS, trong đó có `the deweb build never contains the API url` và `the vercel build carries the URL of its build environment and ignores a .env file`; sau khi chạy, `apps/web/.env.production.local` không còn (`git status` sạch ở `apps/web`). Test này không có bước đỏ chắc chắn: lớp của Task 2 (xoá biến trong `next.config.mjs`) có thể đã đủ cho đúng tình huống này, còn ba lớp của Step 6 chặn thêm `next build` gọi trực tiếp, process con của Next và nhánh đọc trong mã.
+
+Kiểm tra tuỳ chọn (thêm vài phút build): tạm xoá dòng `if (target === 'deweb' || env.NEXT_PUBLIC_API_URL === undefined) env.NEXT_PUBLIC_API_URL = '';` trong `build-env.ts` và dòng `if (target !== 'vercel') process.env.NEXT_PUBLIC_API_URL = '';` trong `next.config.mjs`, đổi dòng của `env.ts` về `NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,`, rồi chạy lại `npm run test:build -w apps/web`. Expected: `the deweb build never contains the API url` FAIL và liệt kê các file JS chứa `atropyle.invalid`. Hoàn lại cả ba chỗ.
+
+- [ ] **Step 8: Chạy toàn bộ và commit**
+
+```bash
+npm test -w apps/web
+npm run typecheck -w apps/web
+npx biome ci .
+npm run test:build -w apps/web
+git add apps/web/src/api/types.ts apps/web/src/api/client.ts apps/web/src/api/instance.ts apps/web/src/api/hooks.ts apps/web/src/chain/use-stats.ts apps/web/src/chain/query-client.ts apps/web/src/config/env.ts apps/web/scripts/lib/build-env.ts apps/web/next.config.mjs apps/web/test/build/paths.ts apps/web/test/build/global-setup.ts apps/web/test/build/api-url.test.ts apps/web/test/unit/build-env.test.ts apps/web/test/unit/api-client.test.ts apps/web/test/unit/api-hooks.test.tsx
+git commit -m "feat(web): backend client for the vercel build, stats from the API first, and no backend URL in the deweb build" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Expected: mọi test PASS; typecheck và Biome sạch; `git status` không còn file `.env*` mới trong `apps/web`.
+
+---
+
+### Task 15: Gia cố: CSP theo hash, header Vercel, e2e có axe trên anvil, ngân sách kích thước và Lighthouse
+
+Task cuối biến các cổng chất lượng của spec §8 và §11 thành lệnh chạy được trong CI. `buildApp` thêm bước postbuild: mỗi trang nhận một thẻ `<meta>` CSP chứa SHA-256 của từng script inline của chính trang đó (Quyết định 12), còn `vercel.json` gửi kèm những directive mà thẻ meta không mang được. E2E chạy bản build deweb trên anvil với ví giả của web cũ, phục vụ bằng đúng header của Vercel; mỗi test tự fail khi trang gọi ra ngoài (badge "100% on-chain"), khi có vi phạm CSP hoặc khi trang ném lỗi. `size-limit` đo JS lần tải đầu của từng route, Lighthouse chạy cục bộ trên bản production (Quyết định 24 và 31).
+
+**Files:**
+- Create: `apps/web/scripts/lib/csp.ts`, `apps/web/scripts/lib/site-headers.ts`, `apps/web/scripts/lib/lighthouse-score.ts`, `apps/web/scripts/lighthouse.ts`, `apps/web/vercel.json`, `apps/web/.size-limit.mjs`, `apps/web/playwright.config.ts`, `apps/web/public/robots.txt`, `apps/web/src/app/icon.svg`, `apps/web/README.md`
+- Create (e2e mới): `apps/web/test/e2e/{global-setup,network,fixtures,helpers}.ts`, `apps/web/test/e2e/{shell,legacy,wallet,motion,csp,worker}.spec.ts`
+- Create (chép nguyên văn từ `apps/web-legacy/test/e2e/`): `apps/web/test/e2e/state.ts`, `apps/web/test/e2e/wallet.ts`, `apps/web/test/e2e/offchain.spec.ts`
+- Modify: `apps/web/scripts/lib/run-next.ts` (bước CSP trong `buildApp`), `apps/web/scripts/lib/static-server.ts` (nén gzip), `apps/web/test/unit/static-server.test.ts`, `apps/web/package.json`, `package-lock.json`, `.gitignore`, `biome.json`, `.github/workflows/ci.yml` (thay job `web-next`), `scripts/test/site/ci-web-next.test.ts` (thay toàn bộ), `AGENTS.md`, `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§16 hàng 17)
+- Test: `apps/web/test/unit/csp.test.ts`, `apps/web/test/unit/vercel-config.test.ts`, `apps/web/test/unit/lighthouse-score.test.ts`, `apps/web/test/build/csp.test.ts`, `apps/web/test/build/html-purity.test.ts`, các file `apps/web/test/e2e/*.spec.ts`
+
+**Interfaces:**
+- Consumes: Task 2 (`buildApp`, `runNext`, `APP_DIR`, `OUT_DIR`, `NEXT_BIN`, `BUNDLER_FLAGS`, `RunOptions`, `buildEnvFor`, `startStaticServer`, `outOf`, trang `e2e/worker`, job CI `web-next`), Task 9 (nút `Skip to content`, `Settings`, `Menu`, tiêu đề hero và 404, `legacyTarget`), Task 11 (nhãn ví: `Connect wallet`, `Choose a wallet`, `Wallet {account}`, `Disconnect`, `network-banner`, `Switch to {expected}`), Task 12 (hàng `worker-smoke` và `worker-verify`), Task 14 (`build-env` không để file `.env` đặt URL API). Từ gốc repo: `scripts/lib/anvil.ts` (`startAnvil`, `ANVIL_ACCOUNTS`, `rpc`), `scripts/lib/onchain-check.ts` (`RPC_HOSTS`, `scanSite`), `scripts/lib/site-files.ts` (`walkSite`, `contentTypeOf`), `scripts/e2e-devnet-prep.ts`.
+- Produces:
+  - `scripts/lib/csp.ts`: `XLAYER_RPC_ORIGINS`, `LOCAL_RPC_ORIGINS`, `interface CspEnv`, `rpcOrigins(chain, deploymentJson): string[]`, `apiOrigin(target, apiUrl): string | null`, `connectOrigins(env: CspEnv): string[]`, `inlineScripts(html: string): string[]`, `scriptHash(text: string): string`, `buildCsp(o: { scriptHashes: readonly string[]; connect: readonly string[] }): string`, `withCsp(html: string, csp: string): string`, `applyCsp(outDir: string, env: CspEnv): number`.
+  - `scripts/lib/run-next.ts`: `buildApp` chèn CSP sau `next build` (trả `code: 1` khi `out/` không có trang HTML).
+  - `scripts/lib/static-server.ts`: chữ ký giữ nguyên; text (HTML, JS, CSS, JSON, SVG) được gzip khi request có `accept-encoding: gzip`, mọi response có `vary: accept-encoding`.
+  - `scripts/lib/site-headers.ts`: `VERCEL_JSON`, `siteHeaders(json?: string): Record<string, string>`.
+  - `scripts/lib/lighthouse-score.ts`: `LIGHTHOUSE_ROUTES: readonly string[]` (`['/']`, Plan 7B thêm `/create/`, `/proof/`), `CATEGORIES`, `THRESHOLDS`, `interface Run`, `interface LhrLike`, `runOf(lhr: LhrLike): Run`, `medianRun(runs: readonly Run[]): Run`, `failures(r: Run): string[]`.
+  - `test/e2e/fixtures.ts`: `test` (fixture `state`, `requests`, `cspViolations`, `deployment`, `atro`, `wallet`, `page` có ba lưới chặn), `expect`, `ANVIL`, `interface CspViolation`.
+  - `test/e2e/helpers.ts`: `AXE_TAGS`, `settle(page)`, `runningAnimations(page): Promise<string[]>`, `expectAccessible(page)`, `expectAccessibleInBothThemes(page)`, `openSettings(page): Promise<Locator>`, `connectWallet(page, name?)`.
+  - Lệnh: `npm run e2e|size|lighthouse -w apps/web`.
+
+- [ ] **Step 1: Cài gói, thêm lệnh và bỏ qua thư mục đo kích thước**
+
+```bash
+npm install -E -D -w apps/web @axe-core/playwright@4.14.0 size-limit@14.3.0 @size-limit/file@14.3.0 lighthouse@13.6.0 chrome-launcher@1.2.3
+npm run lockfile:check -- --fix
+npm run lockfile:check
+npm pkg set scripts.e2e="playwright test" scripts.size="size-limit" scripts.lighthouse="tsx scripts/lighthouse.ts" -w apps/web
+npm pkg get scripts -w apps/web
+```
+
+Expected: `every dependency resolves.`; `npm pkg get` in ra thêm `"e2e": "playwright test"`, `"size": "size-limit"`, `"lighthouse": "tsx scripts/lighthouse.ts"`. Không gói nào tải trình duyệt khi cài: Lighthouse và chrome-launcher dùng Chromium mà `npm run playwright:install -w apps/web` đã cài; Lighthouse qua Node API chỉ gửi báo lỗi khi được truyền `enableErrorReporting`, script của task này không truyền.
+
+Thêm vào cuối `.gitignore` ở gốc:
+
+```gitignore
+apps/web/.size/
+```
+
+Thêm vào mảng `files.includes` của `biome.json`, ngay sau dòng `"!apps/web/lighthouse-report"` (nhớ dấu phẩy ở dòng trước):
+
+```json
+      "!apps/web/.size"
+```
+
+- [ ] **Step 2: Viết test hỏng cho CSP**
+
+`apps/web/test/unit/csp.test.ts`:
+
+```ts
+// @vitest-environment node
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { getDeployment } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import {
+  apiOrigin,
+  applyCsp,
+  buildCsp,
+  connectOrigins,
+  inlineScripts,
+  rpcOrigins,
+  scriptHash,
+  withCsp,
+  XLAYER_RPC_ORIGINS,
+} from '../../scripts/lib/csp';
+
+describe('csp', () => {
+  it('hashes a script the way browsers do: SHA-256 of its UTF-8 text, base64', () => {
+    expect(scriptHash('')).toBe("'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='");
+    expect(scriptHash('abc')).toBe("'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='");
+    expect(scriptHash('alert("Ví")')).toBe("'sha256-hZIhXqlBP0tpUDcF8iB1nx6q2uQEGsvuP2dxYTRoCrg='");
+  });
+
+  it('reads every inline script, skips scripts with a src, and normalizes newlines like the HTML parser', () => {
+    const html =
+      '<head><script src="/_next/a.js" async=""></script><script>self.__next_f=[]</script></head>' +
+      '<body><script data-src="x" id="b">a()</script><SCRIPT type="module">b()</SCRIPT ><script>c(1,\r\n2)\r</script></body>';
+    expect(inlineScripts(html)).toEqual(['self.__next_f=[]', 'a()', 'b()', 'c(1,\n2)\n']);
+  });
+
+  it('takes RPC origins from the deployment JSON, else from the chain', () => {
+    const json = JSON.stringify({
+      rpcUrls: ['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com/'],
+      quorumRpcUrls: [['https://rpc.xlayer.tech'], ['https://xlayer.drpc.org']],
+    });
+    expect(rpcOrigins('xlayer', json)).toEqual([
+      'https://rpc.xlayer.tech',
+      'https://xlayerrpc.okx.com',
+      'https://xlayer.drpc.org',
+    ]);
+    expect(rpcOrigins('local', undefined)).toEqual(['http://127.0.0.1:8545']);
+    expect(rpcOrigins(undefined, ' ')).toEqual([...XLAYER_RPC_ORIGINS]);
+  });
+
+  it('covers every RPC of the SDK deployment of X Layer', () => {
+    const d = getDeployment('xlayer');
+    for (const url of [...d.rpcUrls, ...d.quorumRpcUrls.flat()]) {
+      expect(XLAYER_RPC_ORIGINS).toContain(new URL(url).origin);
+    }
+  });
+
+  it('lets only the vercel build reach the backend, and only over https', () => {
+    const url = 'https://abc.supabase.co/functions/v1';
+    expect(apiOrigin('vercel', url)).toBe('https://abc.supabase.co');
+    expect(apiOrigin('deweb', url)).toBeNull();
+    expect(apiOrigin(undefined, url)).toBeNull();
+    expect(apiOrigin('vercel', 'http://abc.supabase.co/functions/v1')).toBeNull();
+    expect(apiOrigin('vercel', 'not a url')).toBeNull();
+    expect(apiOrigin('vercel', '')).toBeNull();
+    expect(
+      connectOrigins({ NEXT_PUBLIC_TARGET: 'vercel', NEXT_PUBLIC_API_URL: url, NEXT_PUBLIC_CHAIN: 'local' }),
+    ).toEqual(['http://127.0.0.1:8545', 'https://abc.supabase.co']);
+    expect(
+      connectOrigins({ NEXT_PUBLIC_TARGET: 'deweb', NEXT_PUBLIC_API_URL: url, NEXT_PUBLIC_CHAIN: 'local' }),
+    ).toEqual(['http://127.0.0.1:8545']);
+  });
+
+  it('builds the policy of Quyết định 12', () => {
+    expect(
+      buildCsp({ scriptHashes: ["'sha256-a'", "'sha256-a'", "'sha256-b'"], connect: ['https://rpc.xlayer.tech'] }),
+    ).toBe(
+      "default-src 'self'; script-src 'self' 'sha256-a' 'sha256-b'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data:; font-src 'self'; connect-src 'self' https://rpc.xlayer.tech; worker-src 'self'; " +
+        "manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+    );
+  });
+
+  it('puts the policy right after the charset, before any script, and only once', () => {
+    const html = '<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/><script>x()</script></head></html>';
+    const out = withCsp(html, "default-src 'self'");
+    expect(out).toBe(
+      '<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/>' +
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'"/><script>x()</script></head></html>`,
+    );
+    expect(withCsp('<html><head class="a"><script>x()</script></head></html>', "default-src 'self'")).toBe(
+      `<html><head class="a"><meta http-equiv="Content-Security-Policy" content="default-src 'self'"/><script>x()</script></head></html>`,
+    );
+    expect(() => withCsp(out, "default-src 'self'")).toThrow(/already has/);
+    expect(() => withCsp('<p>no head</p>', "default-src 'self'")).toThrow(/no <head>/);
+    expect(() => withCsp('<head></head>', 'default-src "self"')).toThrow(/escaping/);
+  });
+
+  it('gives every page of a build the hashes of its own inline scripts', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atropyle-csp-'));
+    mkdirSync(join(dir, 'x'));
+    writeFileSync(join(dir, 'index.html'), '<html><head><meta charset="utf-8"><script>a()</script></head></html>');
+    writeFileSync(join(dir, 'x', 'index.html'), '<html><head><script>b()</script></head></html>');
+    writeFileSync(join(dir, 'x', 'index.txt'), '<script>c()</script>');
+    const env = { NEXT_PUBLIC_TARGET: 'vercel', NEXT_PUBLIC_API_URL: 'https://api.example.test/functions/v1' };
+    expect(applyCsp(dir, env)).toBe(2);
+    const home = readFileSync(join(dir, 'index.html'), 'utf8');
+    expect(home).toContain(scriptHash('a()'));
+    expect(home).not.toContain(scriptHash('b()'));
+    expect(home).toContain('https://xlayer.drpc.org https://api.example.test; worker-src');
+    expect(readFileSync(join(dir, 'x', 'index.html'), 'utf8')).toContain(scriptHash('b()'));
+    expect(readFileSync(join(dir, 'x', 'index.txt'), 'utf8')).toBe('<script>c()</script>');
+    expect(() => applyCsp(dir, env)).toThrow(/already has/);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- csp`
+Expected: FAIL, không tìm thấy `../../scripts/lib/csp`.
+
+- [ ] **Step 3: Viết `csp.ts`**
+
+`apps/web/scripts/lib/csp.ts`:
+
+```ts
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** X Layer RPC origins the app may call: the two OKX nodes, and dRPC for the opt-in cross-check (web v1, Plan 4). */
+export const XLAYER_RPC_ORIGINS: readonly string[] = [
+  'https://rpc.xlayer.tech',
+  'https://xlayerrpc.okx.com',
+  'https://xlayer.drpc.org',
+];
+
+/** `npm run devnet` listens here, like the SDK's built-in local deployment. */
+export const LOCAL_RPC_ORIGINS: readonly string[] = ['http://127.0.0.1:8545'];
+
+/** The build variables the policy depends on; a NodeJS.ProcessEnv fits. */
+export interface CspEnv {
+  NEXT_PUBLIC_TARGET?: string;
+  NEXT_PUBLIC_CHAIN?: string;
+  NEXT_PUBLIC_DEPLOYMENT?: string;
+  NEXT_PUBLIC_API_URL?: string;
+}
+
+/** The origin of every RPC URL in the deployment JSON; without one, the RPCs of the SDK deployment of the chain. */
+export function rpcOrigins(chain: string | undefined, deploymentJson: string | undefined): string[] {
+  if (deploymentJson?.trim()) {
+    const d = JSON.parse(deploymentJson) as { rpcUrls?: unknown; quorumRpcUrls?: unknown };
+    const groups = Array.isArray(d.quorumRpcUrls) ? (d.quorumRpcUrls as unknown[]).flat() : [];
+    const urls: unknown[] = [...(Array.isArray(d.rpcUrls) ? d.rpcUrls : []), ...groups];
+    return [...new Set(urls.filter((u): u is string => typeof u === 'string').map((u) => new URL(u).origin))];
+  }
+  return chain?.trim() === 'local' ? [...LOCAL_RPC_ORIGINS] : [...XLAYER_RPC_ORIGINS];
+}
+
+/** The backend origin: only in the vercel build, and only over https (spec §8). */
+export function apiOrigin(target: string | undefined, apiUrl: string | undefined): string | null {
+  const raw = apiUrl?.trim();
+  if (target?.trim() !== 'vercel' || !raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' ? u.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every origin the pages of this build may fetch from, besides their own. */
+export function connectOrigins(env: CspEnv): string[] {
+  const api = apiOrigin(env.NEXT_PUBLIC_TARGET, env.NEXT_PUBLIC_API_URL);
+  return [...rpcOrigins(env.NEXT_PUBLIC_CHAIN, env.NEXT_PUBLIC_DEPLOYMENT), ...(api ? [api] : [])];
+}
+
+// A <script> without a src attribute; `\s` before src, so that data-src="…" does not count as one.
+const INLINE_SCRIPT = /<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script\s*>/gi;
+
+/**
+ * The text of every inline <script> of a page, in order, with CR LF and lone CR turned into LF: the HTML parser does
+ * that before the browser hashes a script, so a page built on Windows still matches its policy.
+ */
+export function inlineScripts(html: string): string[] {
+  return [...html.matchAll(INLINE_SCRIPT)].map((m) => m[1].replace(/\r\n?/g, '\n'));
+}
+
+/** The CSP source of one inline script: SHA-256 of its UTF-8 text, in base64. */
+export function scriptHash(text: string): string {
+  return `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
+}
+
+/** Quyết định 12: the policy of one page. frame-ancestors only works in a header, so vercel.json carries it. */
+export function buildCsp(o: { scriptHashes: readonly string[]; connect: readonly string[] }): string {
+  return [
+    "default-src 'self'",
+    ['script-src', "'self'", ...new Set(o.scriptHashes)].join(' '),
+    // Prerendered HTML carries style attributes (the first frame of motion, avatar colours) that no hash can cover.
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    ['connect-src', "'self'", ...new Set(o.connect)].join(' '),
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+}
+
+const META_CSP = /<meta\b[^>]*http-equiv\s*=\s*["']?content-security-policy/i;
+const CHARSET = /<meta\s+charset\s*=\s*["']?utf-8["']?\s*\/?>/i;
+const HEAD = /<head\b[^>]*>/i;
+
+/** The page with its policy first in <head>, right after the charset, so that it governs every script below. */
+export function withCsp(html: string, csp: string): string {
+  if (/["<>&]/.test(csp)) throw new Error('a policy must not need escaping inside an HTML attribute');
+  if (META_CSP.test(html)) throw new Error('the page already has a Content-Security-Policy meta tag');
+  const at = CHARSET.exec(html) ?? HEAD.exec(html);
+  if (!at) throw new Error('the page has no <head>');
+  const end = at.index + at[0].length;
+  return `${html.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}"/>${html.slice(end)}`;
+}
+
+function htmlFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) return htmlFiles(path);
+    return e.name.endsWith('.html') ? [path] : [];
+  });
+}
+
+/** After `next build` (run-next.ts): each page gets a meta policy with the hashes of its own inline scripts. */
+export function applyCsp(outDir: string, env: CspEnv): number {
+  const connect = connectOrigins(env);
+  const pages = htmlFiles(outDir);
+  for (const page of pages) {
+    const html = readFileSync(page, 'utf8');
+    writeFileSync(page, withCsp(html, buildCsp({ scriptHashes: inlineScripts(html).map(scriptHash), connect })));
+  }
+  return pages.length;
+}
+```
+
+Run: `npm test -w apps/web -- csp`
+Expected: PASS (8 test).
+
+- [ ] **Step 4: `buildApp` chèn CSP; test build cho CSP và cho HTML của bản deweb**
+
+Sửa `apps/web/scripts/lib/run-next.ts`. Không thay cả file: `BUNDLER_FLAGS` giữ đúng giá trị mà spike của Task 2 (hoặc test font của Task 4) đã chốt. Thêm import ngay sau dòng `import { buildEnvFor } from './build-env';`:
+
+```ts
+import { applyCsp } from './csp';
+```
+
+Thay hàm `buildApp` cùng comment của nó:
+
+```ts
+/** `next build` into out/, then the postbuild steps (Task 15 adds the CSP). */
+export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  return runNext('build', o);
+}
+```
+
+bằng:
+
+```ts
+/** `next build` into out/, then the postbuild step: a hashed CSP in every page (Quyết định 12). */
+export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
+  const built = await runNext('build', o);
+  if (built.code !== 0) return built;
+  // The environment `next build` ran with, so that connect-src matches the bundle (Task 14 keeps .env files out).
+  const pages = applyCsp(OUT_DIR, buildEnvFor(o.env ?? process.env));
+  const line =
+    pages > 0 ? `csp: ${pages} pages carry a hashed Content-Security-Policy\n` : 'csp: out/ has no HTML page\n';
+  if (!o.quiet) process.stdout.write(line);
+  return { code: pages > 0 ? 0 : 1, output: built.output + line };
+}
+```
+
+`apps/web/test/build/csp.test.ts`:
+
+```ts
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { inlineScripts, scriptHash } from '../../scripts/lib/csp';
+import { outOf } from './paths';
+
+const META = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"\/>/g;
+
+function pages(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) return pages(path);
+    return e.name.endsWith('.html') ? [path] : [];
+  });
+}
+
+function policies(html: string): { csp: string; at: number }[] {
+  return [...html.matchAll(META)].map((m) => ({ csp: m[1], at: m.index ?? -1 }));
+}
+
+/** The sources of one directive of a policy. */
+function sources(csp: string, directive: string): string[] {
+  const found = csp
+    .split(';')
+    .map((d) => d.trim().split(/\s+/))
+    .find(([name]) => name === directive);
+  return found ? found.slice(1) : [];
+}
+
+for (const target of ['vercel', 'deweb'] as const) {
+  describe(`${target} build`, () => {
+    const out = outOf(target);
+    const files = pages(out);
+
+    it('every page carries exactly one policy, before its first script', () => {
+      expect(files.length).toBeGreaterThanOrEqual(2);
+      for (const file of files) {
+        const html = readFileSync(file, 'utf8');
+        const found = policies(html);
+        expect(found, relative(out, file)).toHaveLength(1);
+        const firstScript = html.search(/<script\b/i);
+        if (firstScript !== -1) expect(found[0].at, relative(out, file)).toBeLessThan(firstScript);
+      }
+    });
+
+    it('lets each page run its own inline scripts and nothing else', () => {
+      for (const file of files) {
+        const html = readFileSync(file, 'utf8');
+        const scripts = sources(policies(html)[0].csp, 'script-src');
+        expect(scripts[0], relative(out, file)).toBe("'self'");
+        for (const s of scripts.slice(1)) expect(s, relative(out, file)).toMatch(/^'sha256-[A-Za-z0-9+/]{43}='$/);
+        for (const text of inlineScripts(html)) expect(scripts, relative(out, file)).toContain(scriptHash(text));
+      }
+    });
+  });
+}
+
+describe('connect-src', () => {
+  const home = (target: 'vercel' | 'deweb'): string =>
+    policies(readFileSync(join(outOf(target), 'index.html'), 'utf8'))[0].csp;
+
+  it('reaches the backend only from the vercel build', () => {
+    expect(sources(home('vercel'), 'connect-src')).toContain('https://api.atropyle.invalid');
+    expect(home('deweb')).not.toContain('atropyle.invalid');
+  });
+
+  it('allows the OKX nodes of X Layer in both builds', () => {
+    for (const target of ['vercel', 'deweb'] as const) {
+      expect(sources(home(target), 'connect-src')).toEqual(
+        expect.arrayContaining(['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com']),
+      );
+    }
+  });
+});
+```
+
+`apps/web/test/build/html-purity.test.ts` (Review Focus 5):
+
+```ts
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { scanSite } from '../../../../scripts/lib/onchain-check.ts';
+import { contentTypeOf, walkSite } from '../../../../scripts/lib/site-files.ts';
+import { outOf } from './paths';
+
+describe('deweb build', () => {
+  it('deweb HTML has no external attribute', () => {
+    // The gateway's own static check (Quyết định 16): any src, href, action, srcset or CSS url() that leaves the
+    // site costs the "100% on-chain" badge. The meta CSP lists RPC origins inside `content`, which it never reads.
+    const root = outOf('deweb');
+    const files = new Map(
+      walkSite(root).map((path) => [path, { bytes: readFileSync(join(root, path)), contentType: contentTypeOf(path) }]),
+    );
+    expect(files.size).toBeGreaterThan(0);
+    expect(scanSite(files).external).toEqual([]);
+  });
+});
+```
+
+`apps/web/public/robots.txt` (Lighthouse SEO đòi một file hợp lệ; không có dòng `Sitemap`, vì nó cần URL tuyệt đối của một domain chưa chốt):
+
+```text
+User-agent: *
+Allow: /
+```
+
+`apps/web/src/app/icon.svg` (cùng sợi chỉ của `Wordmark`, màu `thread` và `bg` của theme tối; không có icon thì Chrome xin `/favicon.ico` và nhận 404 trong console, làm hỏng Best Practices):
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#0b0d12"/>
+  <path d="M2 20c6 0 7.5-8 13-8 4 0 5 4 2.5 6s-5.5-.5-3.5-3.5S21 12 23.5 15s3.5 5 6.5 5" fill="none" stroke="#e8b65a" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+```
+
+Run: `npm run build && npm test -w apps/web && npm run test:build -w apps/web`
+Expected: PASS. Output của `test:build` có `csp.test.ts` (6 test), `html-purity.test.ts` (1 test) cùng các test của Task 2 đến Task 14. Nếu `deweb HTML has no external attribute` FAIL, dòng lỗi chỉ ra file và URL: một `<a href="https://…">` lọt vào HTML prerender nghĩa là có chỗ dùng thẳng `<a>` thay cho `ExternalLink` (Quyết định 16); sửa chỗ đó, không nới test.
+
+- [ ] **Step 5: Test hỏng cho `vercel.json`, rồi viết nó cùng `site-headers.ts`**
+
+`apps/web/test/unit/vercel-config.test.ts`:
+
+```ts
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { siteHeaders, VERCEL_JSON } from '../../scripts/lib/site-headers';
+
+interface Rule {
+  source: string;
+  headers: { key: string; value: string }[];
+}
+interface VercelConfig {
+  framework: unknown;
+  installCommand: string;
+  buildCommand: string;
+  outputDirectory: string;
+  trailingSlash: boolean;
+  headers: Rule[];
+}
+
+const raw = readFileSync(VERCEL_JSON, 'utf8');
+const config = JSON.parse(raw) as VercelConfig;
+
+describe('vercel.json', () => {
+  it('installs and builds from the monorepo root, the SDK first, the vercel target into out/', () => {
+    expect(config.framework).toBeNull();
+    expect(config.installCommand).toBe('cd ../.. && npm ci');
+    expect(config.buildCommand).toBe(
+      'cd ../.. && npm run build && NEXT_PUBLIC_TARGET=vercel npm run build -w apps/web',
+    );
+    expect(config.outputDirectory).toBe('out');
+    expect(config.trailingSlash).toBe(true);
+  });
+
+  it('sends only the directives a meta policy cannot carry, so the hashed meta CSP still decides scripts', () => {
+    // A header with default-src or script-src would block the inline scripts it cannot hash (Quyết định 12).
+    expect(siteHeaders()['content-security-policy']).toBe(
+      "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'",
+    );
+  });
+
+  it('hardens every page and caches hashed assets for a year', () => {
+    expect(siteHeaders()).toEqual({
+      'content-security-policy': "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'",
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+      'cross-origin-opener-policy': 'same-origin',
+    });
+    expect(config.headers.find((h) => h.source === '/_next/static/(.*)')?.headers).toEqual([
+      { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+    ]);
+  });
+
+  it('holds no secret and no backend URL: those live in the Vercel project settings', () => {
+    expect(raw).not.toMatch(/supabase|NEXT_PUBLIC_API_URL|token|secret|password/i);
+  });
+
+  it('refuses a config without a rule for every page', () => {
+    expect(() => siteHeaders('{"headers":[]}')).toThrow(/no header rule/);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- vercel-config`
+Expected: FAIL, không tìm thấy `../../scripts/lib/site-headers`.
+
+`apps/web/scripts/lib/site-headers.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+export const VERCEL_JSON = fileURLToPath(new URL('../../vercel.json', import.meta.url));
+
+interface HeaderRule {
+  source: string;
+  headers: { key: string; value: string }[];
+}
+
+/**
+ * The headers vercel.json sends with every page (its rule for "/(.*)"), keys in lower case. The local servers of e2e
+ * and Lighthouse send them too, so the header policy and the meta policy of each page are tested together.
+ */
+export function siteHeaders(json: string = readFileSync(VERCEL_JSON, 'utf8')): Record<string, string> {
+  const rules = (JSON.parse(json) as { headers?: HeaderRule[] }).headers ?? [];
+  const rule = rules.find((h) => h.source === '/(.*)');
+  if (!rule) throw new Error('vercel.json has no header rule for "/(.*)"');
+  return Object.fromEntries(rule.headers.map((h) => [h.key.toLowerCase(), h.value]));
+}
+```
+
+`apps/web/vercel.json` (Quyết định 26; không có `$schema`, để không trình soạn thảo nào tải schema từ mạng; không có HSTS vì Vercel tự gửi cho mọi deployment, và `includeSubDomains` hay `preload` là quyết định về cả domain của maintainer):
+
+```json
+{
+  "framework": null,
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ../.. && npm run build && NEXT_PUBLIC_TARGET=vercel npm run build -w apps/web",
+  "outputDirectory": "out",
+  "trailingSlash": true,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}
+```
+
+`NEXT_PUBLIC_API_URL` của bản vercel đặt trong Project Settings → Environment Variables của Vercel (maintainer làm), không bao giờ trong file này hay trong `.env` (test cuối của file test trên giữ luật đó).
+
+Run: `npm test -w apps/web -- vercel-config`
+Expected: PASS (5 test).
+
+- [ ] **Step 6: Hạ tầng e2e: cấu hình, ví giả, lưới chặn của từng test**
+
+Chép nguyên văn ba file của web cũ (đường dẫn tương đối tới `scripts/lib/anvil.ts` giữ nguyên vì cùng độ sâu thư mục):
+
+```bash
+mkdir -p apps/web/test/e2e
+cp apps/web-legacy/test/e2e/state.ts apps/web/test/e2e/state.ts
+cp apps/web-legacy/test/e2e/wallet.ts apps/web/test/e2e/wallet.ts
+cp apps/web-legacy/test/e2e/offchain.spec.ts apps/web/test/e2e/offchain.spec.ts
+```
+
+`apps/web/playwright.config.ts`:
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+// The site and anvil run on free ports chosen by global-setup; tests read the site URL from the state file.
+// Every test runs on a desktop and on a phone: the header, the settings and the wallet sheet change shape between them.
+export default defineConfig({
+  testDir: 'test/e2e',
+  globalSetup: './test/e2e/global-setup.ts',
+  workers: 1,
+  fullyParallel: false,
+  timeout: 90_000,
+  expect: { timeout: 20_000 },
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  use: { trace: 'retain-on-failure' },
+  projects: [
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+  ],
+});
+```
+
+`apps/web/test/e2e/network.ts`:
+
+```ts
+import type { Page } from '@playwright/test';
+import { RPC_HOSTS } from '../../../../scripts/lib/onchain-check.ts';
+
+/** The only chain nodes the DeWEB gateway counts as on-chain: its own list, which the site check also reads. */
+export const OKX_ORIGINS: readonly string[] = RPC_HOSTS.map((host) => `https://${host}`);
+
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'content-type',
+  'access-control-allow-methods': 'POST, OPTIONS',
+};
+
+/** The page talks to the OKX origins, like the real deweb site; every such request is answered by anvil. */
+export async function routeRpcToAnvil(page: Page, rpcUrl: string): Promise<void> {
+  await page.route(
+    (url) => OKX_ORIGINS.includes(url.origin),
+    async (route) => {
+      const req = route.request();
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      const res = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: req.postData() ?? '',
+      });
+      return route.fulfill({
+        status: res.status,
+        headers: { ...CORS, 'content-type': 'application/json' },
+        body: await res.text(),
+      });
+    },
+  );
+}
+
+export function recordRequests(page: Page, urls: string[] = []): string[] {
+  page.on('request', (r) => urls.push(r.url()));
+  return urls;
+}
+
+/** Requests the gateway would report: anything not on the site origin and not an OKX chain node. */
+export function offchain(urls: readonly string[], siteOrigin: string): string[] {
+  const out = urls.filter((u) => {
+    if (/^(data|blob|about):/.test(u)) return false;
+    const origin = new URL(u).origin;
+    return origin !== siteOrigin && !OKX_ORIGINS.includes(origin);
+  });
+  return [...new Set(out)];
+}
+```
+
+`apps/web/test/e2e/fixtures.ts`:
+
+```ts
+import { type AtropyleClient, createAtropyle, type Deployment, parseDeployment } from '@atropyle/sdk';
+import { test as base, expect, type Page } from '@playwright/test';
+import type { Address } from 'viem';
+import { ANVIL_ACCOUNTS } from '../../../../scripts/lib/anvil.ts';
+import { offchain, recordRequests, routeRpcToAnvil } from './network.ts';
+import { type E2EState, readState, resetChain } from './state.ts';
+import { installWallet, type TestWallet, type WalletOptions } from './wallet.ts';
+
+export const ANVIL: readonly Address[] = ANVIL_ACCOUNTS;
+
+export interface CspViolation {
+  directive: string;
+  blocked: string;
+  sample: string;
+}
+
+/** Every securitypolicyviolation of every document the page loads, sent to Node as it happens. */
+async function recordCspViolations(page: Page, out: CspViolation[]): Promise<void> {
+  await page.exposeFunction('__atropyleCsp', (v: CspViolation) => {
+    out.push(v);
+  });
+  await page.addInitScript(() => {
+    document.addEventListener('securitypolicyviolation', (e) => {
+      const w = window as unknown as { __atropyleCsp(v: { directive: string; blocked: string; sample: string }): void };
+      w.__atropyleCsp({ directive: e.effectiveDirective, blocked: e.blockedURI, sample: e.sample });
+    });
+  });
+}
+
+interface Fixtures {
+  state: E2EState;
+  /** Every URL the page requested, in order. */
+  requests: string[];
+  /** Policy violations seen so far; a test that provokes one on purpose empties it (csp.spec.ts). */
+  cspViolations: CspViolation[];
+  deployment: Deployment;
+  atro: AtropyleClient;
+  wallet: (o: Omit<WalletOptions, 'rpcUrl'>) => Promise<TestWallet>;
+}
+
+export const test = base.extend<Fixtures>({
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright passes fixture dependencies as the first argument
+  state: async ({}, use) => {
+    await use(await resetChain(readState()));
+  },
+  deployment: async ({ state }, use) => {
+    await use(parseDeployment(state.deployment));
+  },
+  atro: async ({ state, deployment }, use) => {
+    const chain = { ...deployment, rpcUrls: [state.rpcUrl], quorumRpcUrls: [[state.rpcUrl]] };
+    await use(createAtropyle({ chain, builderCode: null }));
+  },
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright passes fixture dependencies as the first argument
+  requests: async ({}, use) => {
+    await use([]);
+  },
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright passes fixture dependencies as the first argument
+  cspViolations: async ({}, use) => {
+    await use([]);
+  },
+  // Three nets under every test: no request leaves the site and the OKX nodes, no policy violation, no uncaught error.
+  page: async ({ page, state, requests, cspViolations }, use) => {
+    await routeRpcToAnvil(page, state.rpcUrl);
+    recordRequests(page, requests);
+    await recordCspViolations(page, cspViolations);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await use(page);
+    expect(
+      offchain(requests, new URL(state.siteUrl).origin),
+      'requests that would break the 100% on-chain badge',
+    ).toEqual([]);
+    expect(cspViolations, 'Content Security Policy violations').toEqual([]);
+    expect(errors, 'uncaught errors in the page').toEqual([]);
+  },
+  wallet: async ({ page, state }, use) => {
+    await use((o) => installWallet(page, { rpcUrl: state.rpcUrl, ...o }));
+  },
+});
+
+export { expect };
+```
+
+`apps/web/test/e2e/helpers.ts`:
+
+```ts
+import { AxeBuilder } from '@axe-core/playwright';
+import { expect, type Locator, type Page } from '@playwright/test';
+
+/** WCAG 2.2 AA, the bar of spec §11. */
+export const AXE_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+/** Waits until every animation that can end has ended; loops (the thread pulse) never end and are let through. */
+export async function settle(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      document
+        .getAnimations()
+        .every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().endTime === Number.POSITIVE_INFINITY),
+    undefined,
+    { timeout: 10_000 },
+  );
+}
+
+/** The animations running now, each as `<name> on <tag.class>`, so that a failure says what moves. */
+export function runningAnimations(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.playState === 'running')
+      .map((a) => {
+        const name =
+          a instanceof CSSAnimation
+            ? a.animationName
+            : a instanceof CSSTransition
+              ? `transition:${a.transitionProperty}`
+              : a.id || 'scripted';
+        const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+        const classes = (target?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean).slice(0, 3);
+        return `${name} on ${target ? [target.tagName.toLowerCase(), ...classes].join('.') : 'nothing'}`;
+      }),
+  );
+}
+
+/** No axe violation at WCAG 2.2 AA, once the page is at rest. */
+export async function expectAccessible(page: Page): Promise<void> {
+  await settle(page);
+  const { violations } = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+  expect(violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual(
+    [],
+  );
+}
+
+/** The same check in the dark theme (the default) and in the light one, through the system preference. */
+export async function expectAccessibleInBothThemes(page: Page): Promise<void> {
+  for (const colorScheme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expectAccessible(page);
+  }
+}
+
+/** The settings: the Settings popover on wide screens, the Menu sheet on phones. */
+export async function openSettings(page: Page): Promise<Locator> {
+  const settings = page.getByRole('button', { name: 'Settings' });
+  if (await settings.isVisible()) {
+    await settings.click();
+    return page.getByRole('dialog', { name: 'Settings' });
+  }
+  await page.getByRole('button', { name: 'Menu' }).click();
+  return page.getByRole('dialog', { name: 'Menu' });
+}
+
+/** Connect through the header button and the wallet sheet, as a person would. */
+export async function connectWallet(page: Page, name = 'Test Wallet'): Promise<void> {
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Choose a wallet' });
+  await sheet.getByRole('button', { name }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('button', { name: /^Wallet 0x/ })).toBeVisible();
+}
+```
+
+`apps/web/test/e2e/global-setup.ts`:
+
+```ts
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { startAnvil } from '../../../../scripts/lib/anvil.ts';
+import { buildApp, OUT_DIR } from '../../scripts/lib/run-next.ts';
+import { siteHeaders } from '../../scripts/lib/site-headers.ts';
+import { startStaticServer } from '../../scripts/lib/static-server.ts';
+import { OKX_ORIGINS } from './network.ts';
+import { type E2EState, rpcCall, writeState } from './state.ts';
+
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+/** The e2e build, copied out of out/ so that a later `npm run build` cannot change it under a running suite. */
+const SITE = fileURLToPath(new URL('./.site', import.meta.url));
+
+/** Deploys the contracts and seeds the demo vaults; its own process, because it imports repo sources directly. */
+function prepareDevnet(rpcUrl: string): Pick<E2EState, 'deployment' | 'seeded'> {
+  const out = join(mkdtempSync(join(tmpdir(), 'atropyle-e2e-')), 'devnet.json');
+  const r = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/e2e-devnet-prep.ts', rpcUrl, out], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (r.status !== 0) throw new Error(`e2e-devnet-prep failed:\n${r.stdout}\n${r.stderr}`);
+  return JSON.parse(readFileSync(out, 'utf8')) as Pick<E2EState, 'deployment' | 'seeded'>;
+}
+
+export default async function globalSetup(): Promise<() => Promise<void>> {
+  const anvil = await startAnvil();
+  let server: Awaited<ReturnType<typeof startStaticServer>> | undefined;
+  try {
+    const devnet = prepareDevnet(anvil.url);
+    // The deweb build, pointed at the OKX origins that every test routes to anvil (network.ts).
+    const site = {
+      ...devnet.deployment,
+      rpcUrls: [...OKX_ORIGINS],
+      quorumRpcUrls: [[...OKX_ORIGINS], ['https://xlayer.drpc.org']],
+      webUrl: null,
+    };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      NEXT_PUBLIC_TARGET: 'deweb',
+      NEXT_PUBLIC_CHAIN: 'local',
+      NEXT_PUBLIC_DEPLOYMENT: JSON.stringify(site),
+      ATROPYLE_E2E: '1',
+    };
+    const built = await buildApp({ env, quiet: true });
+    if (built.code !== 0) throw new Error(`next build (e2e) failed:\n${built.output}`);
+    rmSync(SITE, { recursive: true, force: true });
+    cpSync(OUT_DIR, SITE, { recursive: true });
+    // Served with the headers of vercel.json, so the header policy and each page's meta policy apply together.
+    server = await startStaticServer(SITE, 0, siteHeaders());
+    const snapshot = (await rpcCall(anvil.url, 'evm_snapshot')) as string;
+    writeState({ rpcUrl: anvil.url, siteUrl: `${server.url}/`, snapshot, ...devnet });
+    const started = server;
+    return async () => {
+      await started.close();
+      await anvil.stop();
+    };
+  } catch (e) {
+    await server?.close();
+    await anvil.stop();
+    throw e;
+  }
+}
+```
+
+Run: `npm run typecheck -w apps/web && npx biome ci .`
+Expected: không lỗi. (`wallet.ts` và `state.ts` chép nguyên văn đã qua Biome ở web cũ; `offchain.spec.ts` dùng `OKX_ORIGINS` và `offchain` của `network.ts` mới.)
+
+- [ ] **Step 7: Các spec e2e**
+
+`apps/web/test/e2e/shell.spec.ts`:
+
+```ts
+import { expect, test } from './fixtures.ts';
+import { expectAccessibleInBothThemes, openSettings } from './helpers.ts';
+
+const HERO = 'What happens to your crypto when you can no longer sign?';
+const HERO_VI = 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?';
+
+test('the home page and the 404 page pass axe in both themes', async ({ page, state }) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  await expectAccessibleInBothThemes(page);
+  await page.goto(new URL('no-such-page/', state.siteUrl).href);
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  await expectAccessibleInBothThemes(page);
+});
+
+test('the skip button moves focus to the main content and keeps the hash', async ({ page, state }) => {
+  await page.goto(`${state.siteUrl}#keep`);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  await page.keyboard.press('Tab');
+  const skip = page.getByRole('button', { name: 'Skip to content' });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeInViewport();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main')).toBeFocused();
+  // A fragment link would have replaced it; the hash carries page parameters (Task 9).
+  expect(new URL(page.url()).hash).toBe('#keep');
+});
+
+test('the theme and the language persist across a reload', async ({ page, state }) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  const settings = await openSettings(page);
+  await settings.getByText('Light', { exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await settings.getByText('Tiếng Việt', { exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+  await page.reload();
+  // The boot script sets the theme before the first paint; the language follows after hydration.
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('heading', { level: 1, name: HERO_VI })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+});
+```
+
+`apps/web/test/e2e/legacy.spec.ts` (Review Focus 1):
+
+```ts
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
+
+/** 4 kB of every character base64url uses: the shape of a long signing payload (as in boot.test.ts). */
+const PAYLOAD = Array.from({ length: 4096 }, (_, i) => 'ABYZabyz0189-_'[i % 14]).join('');
+const VAULT = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+/**
+ * Opens a legacy link from another document, so that it is a real page load. Returns the history length before it:
+ * a redirect by location.replace adds one entry (the new route), never two.
+ */
+async function openLegacy(page: Page, siteUrl: string, hash: string): Promise<number> {
+  await page.goto(new URL('robots.txt', siteUrl).href);
+  const before = await page.evaluate(() => history.length);
+  // 'commit': the boot script replaces the document while it parses, so the first one never finishes loading.
+  await page.goto(`${siteUrl}${hash}`, { waitUntil: 'commit' });
+  return before;
+}
+
+test('legacy links land on the new routes', async ({ page, state }) => {
+  const cases: [string, string][] = [
+    [`#/sign?p=${PAYLOAD}`, `/sign/#p=${PAYLOAD}`],
+    // Two p parameters move as they are, so the sign page still refuses the link.
+    ['#/sign?p=a&p=b', '/sign/#p=a&p=b'],
+    [`#/v/${VAULT}/verify`, `/verify/#${VAULT}`],
+    [`#/v/${VAULT}`, `/vault/#${VAULT}`],
+    ['#/create?drill=1', '/create/#drill'],
+    ['#/status', '/status/'],
+  ];
+  for (const [hash, want] of cases) {
+    const before = await openLegacy(page, state.siteUrl, hash);
+    await page.waitForURL((u) => `${u.pathname}${u.hash}` === want);
+    expect(await page.evaluate(() => history.length), hash).toBe(before + 1);
+  }
+});
+
+test('unknown hashes and hashes on other pages stay where they are', async ({ page, state }) => {
+  for (const rest of ['#/nope', '#/v/a/edit', '#drill', '#p=abc', 'no-such-page/#/sign?p=a']) {
+    // From another document each time: a hash-only change would not load the page, and the boot script would not run.
+    await page.goto(new URL('robots.txt', state.siteUrl).href);
+    await page.goto(`${state.siteUrl}${rest}`);
+    // Once the page has hydrated, a redirect would already have changed the URL.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(page.url(), rest).toBe(`${state.siteUrl}${rest}`);
+  }
+});
+```
+
+`apps/web/test/e2e/wallet.spec.ts`:
+
+```ts
+import { ANVIL, expect, test } from './fixtures.ts';
+import { connectWallet, expectAccessible } from './helpers.ts';
+import { rpcCall } from './state.ts';
+
+/** compactAddress of ANVIL[1] (Task 5). */
+const ACCOUNT = 'Wallet 0x7099 7970 … 17dc 79C8';
+
+const REFUSED = [
+  ['eth_sendRawTransaction', ['0x02f8']],
+  ['personal_sign', ['0x68656c6c6f', ANVIL[1]]],
+  ['eth_sign', [ANVIL[1], '0x68656c6c6f']],
+  ['eth_signTypedData_v4', [ANVIL[1], '{}']],
+  ['eth_signTransaction', [{ from: ANVIL[1], to: ANVIL[2] }]],
+] as const;
+
+test('a wallet connects through the sheet, comes back after a reload without a prompt, and disconnects', async ({
+  page,
+  state,
+  wallet,
+}) => {
+  const w = await wallet({ account: ANVIL[1] });
+  await page.goto(state.siteUrl);
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Choose a wallet' });
+  await expect(sheet.getByRole('button', { name: 'Test Wallet' })).toBeVisible();
+  await expectAccessible(page);
+  await sheet.getByRole('button', { name: 'Test Wallet' }).click();
+  await expect(sheet).toBeHidden();
+  const account = page.getByRole('button', { name: ACCOUNT, exact: true });
+  await expect(account).toBeVisible();
+  expect(w.calls.map((c) => c.method)).toContain('eth_requestAccounts');
+
+  const before = w.calls.length;
+  await page.reload();
+  await expect(account).toBeVisible();
+  // Quyết định 27: a remembered wallet comes back through eth_accounts, never through a prompt.
+  expect(w.calls.slice(before).map((c) => c.method)).not.toContain('eth_requestAccounts');
+
+  await account.click();
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+  const connect = page.getByRole('button', { name: 'Connect wallet' });
+  await expect(connect).toBeVisible();
+  await page.reload();
+  await expect(connect).toBeVisible();
+  await expect(account).toBeHidden();
+});
+
+test('a wallet on another chain sees the banner and switches with one press', async ({ page, state, wallet }) => {
+  await wallet({ account: ANVIL[1], chainId: 196, knownChains: [31337] });
+  await page.goto(state.siteUrl);
+  await connectWallet(page);
+  const banner = page.getByTestId('network-banner');
+  await expect(banner).toContainText('Your wallet is on X Layer. Atropyle runs on Anvil (chain 31337).');
+  await expect(page.getByRole('button', { name: `${ACCOUNT}, wrong network` })).toBeVisible();
+  await expectAccessible(page);
+  await banner.getByRole('button', { name: 'Switch to Anvil' }).click();
+  await expect(banner).toBeHidden();
+  await expect(page.getByRole('button', { name: ACCOUNT, exact: true })).toBeVisible();
+});
+
+test('the wallet refuses signing and raw-transaction methods before anvil sees them', async ({
+  page,
+  state,
+  wallet,
+}) => {
+  const w = await wallet({ account: ANVIL[1] });
+  await page.goto(state.siteUrl);
+  const before = await rpcCall(state.rpcUrl, 'eth_blockNumber');
+  const codes = await page.evaluate(async (cases) => {
+    const provider = await new Promise<{ request(a: { method: string; params: unknown[] }): Promise<unknown> }>(
+      (resolve) => {
+        window.addEventListener('eip6963:announceProvider', (e) => resolve((e as CustomEvent).detail.provider), {
+          once: true,
+        });
+        window.dispatchEvent(new Event('eip6963:requestProvider'));
+      },
+    );
+    const out: unknown[] = [];
+    for (const [method, params] of cases) {
+      out.push(
+        await provider.request({ method, params: [...params] }).then(
+          () => 'accepted',
+          (e: { code?: number }) => e.code,
+        ),
+      );
+    }
+    return out;
+  }, REFUSED);
+  expect(codes).toEqual(REFUSED.map(() => 4200));
+  expect(w.calls.map((c) => c.method)).toEqual(REFUSED.map(([m]) => m));
+  expect(await rpcCall(state.rpcUrl, 'eth_blockNumber')).toBe(before);
+});
+```
+
+`apps/web/test/e2e/motion.spec.ts` (Review Focus 4):
+
+```ts
+import { expect, test } from './fixtures.ts';
+import { runningAnimations } from './helpers.ts';
+
+test('reduced motion leaves no running animation', async ({ page, state }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const path of ['', 'no-such-page/']) {
+    await page.goto(new URL(path, state.siteUrl).href);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    // At rest: a finite transition may still finish, a loop never does.
+    await expect.poll(() => runningAnimations(page), { timeout: 5_000 }).toEqual([]);
+  }
+});
+
+test('without reduced motion the thread breathes, so the test above can fail', async ({ page, state }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(state.siteUrl);
+  await expect.poll(async () => (await runningAnimations(page)).some((a) => a.startsWith('thread-pulse '))).toBe(true);
+});
+```
+
+`apps/web/test/e2e/csp.spec.ts`:
+
+```ts
+import { expect, test } from './fixtures.ts';
+
+test('every page runs under its policy without a single violation', async ({ page, state }) => {
+  // The page fixture fails the test on any violation; the worker page also loads a module worker and its chunks.
+  for (const path of ['', 'no-such-page/', 'e2e/worker/']) {
+    await page.goto(new URL(path, state.siteUrl).href);
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+  }
+});
+
+test('an injected inline script is blocked and reported', async ({ page, state, cspViolations }) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const ran = await page.evaluate(() => {
+    const s = document.createElement('script');
+    s.textContent = 'window.__injected = true;';
+    document.head.append(s);
+    return (window as unknown as { __injected?: boolean }).__injected === true;
+  });
+  expect(ran).toBe(false);
+  await expect.poll(() => cspViolations.map((v) => v.directive)).toEqual(['script-src-elem']);
+  // Provoked on purpose: clear it, so the fixture still guards the rest of this test.
+  cspViolations.length = 0;
+});
+```
+
+`apps/web/test/e2e/worker.spec.ts`:
+
+```ts
+import { expect, test } from './fixtures.ts';
+
+test('the proof worker loads and runs under the page policy', async ({ page, state }) => {
+  await page.goto(new URL('e2e/worker/', state.siteUrl).href);
+  for (const id of ['worker-smoke', 'worker-verify']) {
+    const row = page.getByTestId(id);
+    await expect(row).not.toHaveAttribute('data-state', 'running', { timeout: 60_000 });
+    expect(`${await row.getAttribute('data-state')}: ${await row.textContent()}`, id).toMatch(/^ok: /);
+  }
+});
+```
+
+Run:
+
+```bash
+cd contracts && forge build && cd ..
+npm run build
+npm run playwright:install -w apps/web
+npm run e2e -w apps/web
+```
+
+Expected: PASS, 14 test × 2 project (`desktop`, `mobile`) = 28 test. Global setup mất vài phút (anvil, triển khai hợp đồng, một lần `next build`). Lỗi thường gặp và cách đọc:
+- `requests that would break the 100% on-chain badge`: trang gọi một origin ngoài; tìm nguồn trong mảng in ra, không thêm origin vào `offchain`.
+- `Content Security Policy violations` với `script-src-elem` và `sample` là đoạn đầu của một script inline: script đó sinh ra sau bước postbuild hoặc có `\r` lạ; xem `inlineScripts`. Với `worker-src`: Turbopack tạo worker qua `blob:`, đổi `BUNDLER_FLAGS` sang `--webpack` (Quyết định 3).
+- `reduced motion leaves no running animation` in tên animation và phần tử (ví dụ `thread-tremble on path.…`): class đó thiếu tiền tố `motion-safe:`.
+
+- [ ] **Step 8: Ngân sách kích thước theo route**
+
+`apps/web/.size-limit.mjs`:
+
+```js
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Global Constraints of Plan 7A and spec §11: first-load JS of `/` and of every other route, and all JS of the site.
+const HOME_LIMIT = '170 kB';
+const ROUTE_LIMIT = '230 kB';
+const TOTAL_LIMIT = '900 kB';
+
+const OUT = fileURLToPath(new URL('./out/', import.meta.url));
+/** size-limit globs every path; staged copies get plain names, whatever characters the bundler put in its own. */
+const STAGE = fileURLToPath(new URL('./.size/', import.meta.url));
+
+function walk(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
+  );
+}
+
+if (!existsSync(join(OUT, 'index.html'))) {
+  throw new Error('apps/web/out holds no build: run `npm run build -w apps/web` first.');
+}
+if (existsSync(join(OUT, 'e2e'))) {
+  throw new Error('apps/web/out holds the e2e build: run `npm run build -w apps/web` first.');
+}
+
+/** `/` for out/index.html, `/x/` for out/x/index.html, `/404` for out/404.html. */
+function routeOf(file) {
+  const rel = relative(OUT, file).split(sep).join('/');
+  if (rel === 'index.html') return '/';
+  if (rel.endsWith('/index.html')) return `/${rel.slice(0, -'index.html'.length)}`;
+  return `/${rel.slice(0, -'.html'.length)}`;
+}
+
+/** The script files a page loads before it is interactive: every <script src>, except the nomodule fallback. */
+function scriptsOf(file) {
+  const files = [];
+  for (const [tag] of readFileSync(file, 'utf8').matchAll(/<script\b[^>]*>/gi)) {
+    const src = /\ssrc="([^"]+)"/i.exec(tag)?.[1];
+    if (!src || /\snomodule\b/i.test(tag)) continue;
+    if (!src.startsWith('/_next/')) throw new Error(`${routeOf(file)} loads a script from outside /_next/: ${src}`);
+    const path = join(OUT, ...decodeURIComponent(src.split('?')[0]).split('/'));
+    if (!existsSync(path)) throw new Error(`${routeOf(file)} loads ${src}, which is not in out/`);
+    files.push(path);
+  }
+  if (files.length === 0) throw new Error(`${routeOf(file)} loads no script: the HTML of Next changed shape`);
+  return files;
+}
+
+function stage(name, files) {
+  const dir = join(STAGE, name);
+  mkdirSync(dir, { recursive: true });
+  return files.map((file, i) => {
+    copyFileSync(file, join(dir, `${i}.js`));
+    return `.size/${name}/${i}.js`;
+  });
+}
+
+rmSync(STAGE, { recursive: true, force: true });
+const pages = walk(OUT)
+  .filter((f) => f.endsWith('.html'))
+  .sort();
+
+export default [
+  ...pages.map((file, i) => ({
+    name: `first load of ${routeOf(file)}`,
+    path: stage(`route-${i}`, scriptsOf(file)),
+    limit: routeOf(file) === '/' ? HOME_LIMIT : ROUTE_LIMIT,
+    gzip: true,
+  })),
+  {
+    name: 'all JavaScript of the site',
+    path: stage(
+      'all',
+      walk(join(OUT, '_next', 'static')).filter((f) => f.endsWith('.js')),
+    ),
+    limit: TOTAL_LIMIT,
+    gzip: true,
+  },
+];
+```
+
+Run: `npm run build -w apps/web && npm run size -w apps/web`
+Expected: mỗi dòng `first load of /`, `first load of /404`, … và `all JavaScript of the site` có `Size limit` và `Size` (gzip), lệnh thoát 0. Nếu `/` vượt 170 kB: chạy `npx size-limit --why` không giúp được (plugin `file` không phân tích bundle); thay vào đó tìm module nặng bằng cách so tên chunk trong `out/index.html` với `out/_next/static/chunks/`, rồi kiểm luật nạp lười (`npm test -w apps/web -- lazy-boundary`). Không nâng ngân sách trong task này: ngân sách là của spec §11.
+
+- [ ] **Step 9: Lighthouse: server nén như host thật, phần chấm điểm thuần có test, rồi script**
+
+Lighthouse giả lập mạng 4G chậm từ số byte thật trên đường truyền. Server tĩnh của Task 2 gửi text không nén, nên JS 170 kB gzip sẽ thành khoảng 3 lần số byte và LCP, TBT bị đo tệ hơn bản thật trên Vercel (Vercel luôn nén). Server được nén gzip khi trình duyệt chấp nhận; e2e và `worker:check` dùng cùng server nên cũng chạy với nội dung nén.
+
+Trong `apps/web/test/unit/static-server.test.ts`, thêm test này ngay trước `it('never serves a file outside the root', …)`:
+
+```ts
+  it('gzips text when the client accepts it, as Vercel does, and leaves compressed formats alone', async () => {
+    const page = await fetch(`${server.url}/proof/`, { headers: { 'accept-encoding': 'gzip, br' } });
+    expect(page.headers.get('content-encoding')).toBe('gzip');
+    expect(page.headers.get('vary')).toBe('accept-encoding');
+    expect(await page.text()).toBe('<p>proof</p>');
+    const plain = await fetch(`${server.url}/proof/`, { headers: { 'accept-encoding': 'identity' } });
+    expect(plain.headers.get('content-encoding')).toBeNull();
+    expect(await plain.text()).toBe('<p>proof</p>');
+    const font = await fetch(`${server.url}/font.woff2`, { headers: { 'accept-encoding': 'gzip' } });
+    expect(font.headers.get('content-encoding')).toBeNull();
+  });
+```
+
+Run: `npm test -w apps/web -- static-server`
+Expected: FAIL ở test mới, `expected null to be 'gzip'`.
+
+Sửa `apps/web/scripts/lib/static-server.ts`. Thêm import ngay sau dòng import `node:path`:
+
+```ts
+import { gzipSync } from 'node:zlib';
+```
+
+Thêm hằng này ngay sau khối `TYPES`:
+
+```ts
+/** Text that Vercel compresses on the way out; woff2, images and wasm are compressed already. */
+const COMPRESSIBLE = /^(?:text\/|application\/(?:json|manifest\+json)|image\/svg\+xml)/;
+```
+
+Thay khối gửi file trong `startStaticServer`:
+
+```ts
+      const body = await readFile(target);
+      res.writeHead(status, {
+        ...headers,
+        'content-type': TYPES[extname(target)] ?? 'application/octet-stream',
+        'cache-control': 'no-store',
+      });
+      res.end(body);
+```
+
+bằng:
+
+```ts
+      const body = await readFile(target);
+      const type = TYPES[extname(target)] ?? 'application/octet-stream';
+      // Lighthouse simulates a slow network from the bytes on the wire, so text goes out gzipped as on Vercel.
+      const gzip = COMPRESSIBLE.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '');
+      res.writeHead(status, {
+        ...headers,
+        'content-type': type,
+        'cache-control': 'no-store',
+        vary: 'accept-encoding',
+        ...(gzip ? { 'content-encoding': 'gzip' } : {}),
+      });
+      res.end(gzip ? gzipSync(body) : body);
+```
+
+Run: `npm test -w apps/web -- static-server`
+Expected: PASS (5 test). Các test cũ vẫn đạt: `fetch` của Node tự gửi `accept-encoding: gzip, deflate` và tự giải nén.
+
+`apps/web/test/unit/lighthouse-score.test.ts`:
+
+```ts
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { failures, medianRun, type Run, runOf, THRESHOLDS } from '../../scripts/lib/lighthouse-score';
+
+const PASS: Run = { performance: 0.97, accessibility: 1, bestPractices: 1, seo: 1, lcpMs: 1500, cls: 0, tbtMs: 90 };
+
+describe('lighthouse score', () => {
+  it('reads the four categories and three metrics; a missing one counts as a failure', () => {
+    const lhr = {
+      categories: {
+        performance: { score: 0.96 },
+        accessibility: { score: 1 },
+        'best-practices': { score: null },
+        seo: { score: 1 },
+      },
+      audits: {
+        'largest-contentful-paint': { numericValue: 1700.4 },
+        'cumulative-layout-shift': { numericValue: 0 },
+      },
+    };
+    expect(runOf(lhr)).toEqual({
+      performance: 0.96,
+      accessibility: 1,
+      bestPractices: 0,
+      seo: 1,
+      lcpMs: 1700.4,
+      cls: 0,
+      tbtMs: Number.POSITIVE_INFINITY,
+    });
+  });
+
+  it('takes the run with the median performance score, with its own metrics', () => {
+    const runs = [
+      { ...PASS, performance: 0.99, lcpMs: 1 },
+      { ...PASS, performance: 0.91, lcpMs: 2 },
+      { ...PASS, performance: 0.96, lcpMs: 3 },
+    ];
+    expect(medianRun(runs)).toEqual({ ...PASS, performance: 0.96, lcpMs: 3 });
+    expect(() => medianRun([])).toThrow(/no Lighthouse run/);
+  });
+
+  it('passes a run that meets every threshold of spec §11, edges included', () => {
+    expect(failures(PASS)).toEqual([]);
+    const edge = { ...PASS, performance: THRESHOLDS.performance, lcpMs: 1800.4, tbtMs: THRESHOLDS.tbtMs };
+    expect(failures(edge)).toEqual([]);
+  });
+
+  it('names every threshold a run misses', () => {
+    const bad: Run = {
+      performance: 0.94,
+      accessibility: 0.98,
+      bestPractices: 0.96,
+      seo: 0.92,
+      lcpMs: 1801,
+      cls: 0.01,
+      tbtMs: 151,
+    };
+    expect(failures(bad)).toEqual([
+      'performance 0.94 < 0.95',
+      'accessibility 0.98 < 1',
+      'best-practices 0.96 < 1',
+      'seo 0.92 < 1',
+      'LCP 1801 ms > 1800 ms',
+      'CLS 0.01 > 0',
+      'TBT 151 ms > 150 ms',
+    ]);
+  });
+
+  it('rounds CLS to three decimals like the report, so float noise does not fail the gate', () => {
+    expect(failures({ ...PASS, cls: 0.0004 })).toEqual([]);
+    expect(failures({ ...PASS, cls: 0.0006 })).toEqual(['CLS 0.001 > 0']);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- lighthouse-score`
+Expected: FAIL, không tìm thấy `../../scripts/lib/lighthouse-score`.
+
+`apps/web/scripts/lib/lighthouse-score.ts`:
+
+```ts
+/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7B adds the other two when those routes exist. */
+export const LIGHTHOUSE_ROUTES: readonly string[] = ['/'];
+
+export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
+
+/** Spec §11 on mobile: Performance ≥ 95, the other three 100; LCP ≤ 1.8 s, CLS 0, TBT ≤ 150 ms. */
+export const THRESHOLDS = {
+  performance: 0.95,
+  accessibility: 1,
+  bestPractices: 1,
+  seo: 1,
+  lcpMs: 1800,
+  cls: 0,
+  tbtMs: 150,
+} as const;
+
+export interface Run {
+  performance: number;
+  accessibility: number;
+  bestPractices: number;
+  seo: number;
+  lcpMs: number;
+  cls: number;
+  tbtMs: number;
+}
+
+/** The part of a Lighthouse result the gate reads; the real `Result` type fits it. */
+export interface LhrLike {
+  categories: Record<string, { score: number | null } | undefined>;
+  audits: Record<string, { numericValue?: number } | undefined>;
+}
+
+const score = (lhr: LhrLike, id: string): number => lhr.categories[id]?.score ?? 0;
+const metric = (lhr: LhrLike, id: string): number => lhr.audits[id]?.numericValue ?? Number.POSITIVE_INFINITY;
+
+/** A missing score counts as 0 and a missing metric as infinitely slow, so a broken run never passes. */
+export function runOf(lhr: LhrLike): Run {
+  return {
+    performance: score(lhr, 'performance'),
+    accessibility: score(lhr, 'accessibility'),
+    bestPractices: score(lhr, 'best-practices'),
+    seo: score(lhr, 'seo'),
+    lcpMs: metric(lhr, 'largest-contentful-paint'),
+    cls: metric(lhr, 'cumulative-layout-shift'),
+    tbtMs: metric(lhr, 'total-blocking-time'),
+  };
+}
+
+/** Quyết định 24: the run with the median Performance score; its other numbers come with it. */
+export function medianRun(runs: readonly Run[]): Run {
+  if (runs.length === 0) throw new Error('no Lighthouse run');
+  const sorted = [...runs].sort((a, b) => a.performance - b.performance);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
+}
+
+/** Every threshold the run misses, one readable line each; empty when it passes. */
+export function failures(r: Run): string[] {
+  const out: string[] = [];
+  const atLeast = (name: string, got: number, want: number) => {
+    if (!(got >= want)) out.push(`${name} ${got} < ${want}`);
+  };
+  const atMost = (name: string, got: number, want: number, unit = '') => {
+    if (!(got <= want)) out.push(`${name} ${got}${unit} > ${want}${unit}`);
+  };
+  atLeast('performance', r.performance, THRESHOLDS.performance);
+  atLeast('accessibility', r.accessibility, THRESHOLDS.accessibility);
+  atLeast('best-practices', r.bestPractices, THRESHOLDS.bestPractices);
+  atLeast('seo', r.seo, THRESHOLDS.seo);
+  atMost('LCP', Math.round(r.lcpMs), THRESHOLDS.lcpMs, ' ms');
+  atMost('CLS', Math.round(r.cls * 1000) / 1000, THRESHOLDS.cls);
+  atMost('TBT', Math.round(r.tbtMs), THRESHOLDS.tbtMs, ' ms');
+  return out;
+}
+```
+
+Run: `npm test -w apps/web -- lighthouse-score`
+Expected: PASS (5 test).
+
+`apps/web/scripts/lighthouse.ts`:
+
+```ts
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { chromium } from '@playwright/test';
+import { launch } from 'chrome-launcher';
+import lighthouse from 'lighthouse';
+import { CATEGORIES, failures, LIGHTHOUSE_ROUTES, medianRun, type Run, runOf } from './lib/lighthouse-score';
+import { APP_DIR, OUT_DIR } from './lib/run-next';
+import { siteHeaders } from './lib/site-headers';
+import { startStaticServer } from './lib/static-server';
+
+/** Quyết định 24: three runs per route, the median decides. */
+const RUNS = 3;
+const REPORTS = join(APP_DIR, 'lighthouse-report');
+
+if (!existsSync(join(OUT_DIR, 'index.html')) || existsSync(join(OUT_DIR, 'e2e'))) {
+  console.error('lighthouse: out/ must hold a production build. Run `npm run build -w apps/web` first.');
+  process.exit(2);
+}
+
+rmSync(REPORTS, { recursive: true, force: true });
+mkdirSync(REPORTS, { recursive: true });
+const server = await startStaticServer(OUT_DIR, 0, siteHeaders());
+// The Chromium that Playwright installed: nothing is downloaded, and no report leaves the machine.
+const chrome = await launch({ chromePath: chromium.executablePath(), chromeFlags: ['--headless=new', '--no-sandbox'] });
+let failed = false;
+try {
+  for (const route of LIGHTHOUSE_ROUTES) {
+    const runs: Run[] = [];
+    for (let i = 1; i <= RUNS; i++) {
+      const result = await lighthouse(`${server.url}${route}`, {
+        port: chrome.port,
+        output: 'html',
+        logLevel: 'error',
+        onlyCategories: [...CATEGORIES],
+      });
+      if (!result) throw new Error(`Lighthouse returned nothing for ${route}`);
+      const name = route === '/' ? 'home' : route.replaceAll('/', '');
+      const report = typeof result.report === 'string' ? result.report : result.report.join('\n');
+      writeFileSync(join(REPORTS, `${name}-${i}.html`), report);
+      runs.push(runOf(result.lhr));
+    }
+    const median = medianRun(runs);
+    const missed = failures(median);
+    console.log(`${route}: ${JSON.stringify(median)}`);
+    for (const m of missed) console.error(`  ${route}: ${m}`);
+    if (missed.length > 0) failed = true;
+  }
+} finally {
+  chrome.kill();
+  await server.close();
+}
+console.log(failed ? 'lighthouse: FAIL (reports in apps/web/lighthouse-report/)' : 'lighthouse: PASS');
+process.exit(failed ? 1 : 0);
+```
+
+Run: `npm run build -w apps/web && npm run lighthouse -w apps/web`
+Expected: in `/: {"performance":…,"accessibility":1,"bestPractices":1,"seo":1,…}` rồi `lighthouse: PASS`. Mỗi lần chạy để lại `apps/web/lighthouse-report/home-{1,2,3}.html` (bị ignore). Nếu FAIL: mở báo cáo trung vị, sửa nguyên nhân (thường là LCP của tiêu đề Fraunces hoặc một lỗi console), không nới ngưỡng.
+
+- [ ] **Step 10: CI chạy e2e, kích thước và Lighthouse**
+
+Thay `scripts/test/site/ci-web-next.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expect, test } from 'vitest';
+import { parse } from 'yaml';
+
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+interface Step {
+  name?: string;
+  uses?: string;
+  run?: string;
+  if?: string;
+  env?: Record<string, string>;
+  with?: Record<string, unknown>;
+  'working-directory'?: string;
+}
+interface Job {
+  permissions?: Record<string, string>;
+  steps: Step[];
+}
+
+const workflow = parse(readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')) as { jobs: Record<string, Job> };
+const job = workflow.jobs['web-next'] as Job;
+const commands = (): string[] =>
+  (job?.steps ?? [])
+    .flatMap((s) => (s.run ?? '').split(/&&|\n/))
+    .map((c) => c.trim())
+    .filter((c) => c !== '');
+const scriptsOf = (dir: string): string[] =>
+  Object.keys(
+    (JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8')) as { scripts?: Record<string, string> })
+      .scripts ?? {},
+  );
+const isNpmScript = (c: string): boolean => c.startsWith('npm run ') || c.startsWith('npm test');
+
+/** Every command of the job, as Plan 7A Task 15 leaves it. */
+const WEB_NEXT_COMMANDS = [
+  'npm ci',
+  'forge build',
+  'npm run build',
+  'npm run typecheck -w apps/web',
+  'npm test -w apps/web',
+  'npm run playwright:install -w apps/web',
+  'npm run test:build -w apps/web',
+  'npm run worker:check -w apps/web',
+  'npm run e2e -w apps/web',
+  'npm run build -w apps/web',
+  'npm run size -w apps/web',
+  'npm run lighthouse -w apps/web',
+];
+
+test('the web-next job reads only, holds no secret and signs nothing', () => {
+  expect(job).toBeDefined();
+  expect(job.permissions).toEqual({ contents: 'read' });
+  expect(JSON.stringify(job)).not.toMatch(
+    /secrets\.|PRIVATE_KEY|DEWEB_OPERATOR_KEY|KEEPER_KEY|SUPABASE_ACCESS_TOKEN|VERCEL_TOKEN|--broadcast|cast send|deweb:publish|eth_sendRawTransaction/,
+  );
+});
+
+test('the web-next job checks out without keeping credentials and pins every action', () => {
+  const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
+  expect(checkout?.with?.['persist-credentials']).toBe(false);
+  for (const s of job.steps) if (s.uses) expect(s.uses, s.uses).toMatch(/@v\d+$/);
+  expect(commands().some((c) => c.startsWith('npx'))).toBe(false);
+});
+
+test('the web-next job builds the SDK first, then tests, then builds both targets', () => {
+  const c = commands();
+  for (const want of WEB_NEXT_COMMANDS) expect(c, want).toContain(want);
+  expect(c.indexOf('npm run build')).toBeLessThan(c.indexOf('npm test -w apps/web'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(
+    c.indexOf('npm run worker:check -w apps/web'),
+  );
+});
+
+test('the web-next job installs Foundry 1.9.0 and builds the contracts before e2e', () => {
+  const foundry = job.steps.find((s) => s.uses?.startsWith('foundry-rs/foundry-toolchain@'));
+  expect(foundry?.with?.version).toBe('v1.9.0');
+  expect(job.steps.find((s) => s.run === 'forge build')?.['working-directory']).toBe('contracts');
+  const c = commands();
+  expect(c.indexOf('forge build')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+});
+
+test('size and Lighthouse read a fresh production build, made after every other build', () => {
+  const c = commands();
+  const build = c.indexOf('npm run build -w apps/web');
+  for (const before of [
+    'npm run test:build -w apps/web',
+    'npm run worker:check -w apps/web',
+    'npm run e2e -w apps/web',
+  ]) {
+    expect(c.indexOf(before), before).toBeLessThan(build);
+  }
+  expect(build).toBeLessThan(c.indexOf('npm run size -w apps/web'));
+  expect(c.indexOf('npm run size -w apps/web')).toBeLessThan(c.indexOf('npm run lighthouse -w apps/web'));
+});
+
+test('the web-next job runs only npm scripts that exist', () => {
+  const runs = commands().filter(isNpmScript);
+  expect(runs.length).toBeGreaterThanOrEqual(WEB_NEXT_COMMANDS.filter(isNpmScript).length);
+  for (const c of runs) {
+    const m = /^npm (?:run ([\w:-]+)|(test))(?: -w (\S+))?/.exec(c);
+    expect(m, c).not.toBeNull();
+    const [, script, npmTest, workspace] = m as RegExpExecArray;
+    expect(scriptsOf(workspace ?? '.'), c).toContain(script ?? npmTest);
+  }
+});
+```
+
+Run: `npx vitest run --config scripts/vitest.site.config.ts scripts/test/site/ci-web-next.test.ts`
+Expected: FAIL ở `the web-next job builds the SDK first…` (thiếu `forge build`, `npm run e2e -w apps/web`, …), `the web-next job installs Foundry 1.9.0…` , `size and Lighthouse read a fresh production build…` và `runs only npm scripts that exist` (job cũ có 6 lệnh npm, test cần ít nhất 10).
+
+Trong `.github/workflows/ci.yml`, thay toàn bộ job `web-next` (từ dòng comment ngay trên `web-next:` tới hết job) bằng:
+
+```yaml
+  # The Next.js web app v2 (Plan 7A). Read-only and keyless: e2e sends only from unlocked accounts of its own anvil,
+  # and no step signs or broadcasts anything to a real chain.
+  web-next:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - run: npm ci
+      - run: forge build
+        working-directory: contracts
+      - name: Build circuits and the SDK
+        run: npm run build
+      - name: Typecheck and unit tests
+        run: npm run typecheck -w apps/web && npm test -w apps/web
+      - name: Chromium for Playwright
+        run: npm run playwright:install -w apps/web
+      - name: Production builds of both targets
+        run: npm run test:build -w apps/web
+      - name: The worker loads under a strict CSP
+        run: npm run worker:check -w apps/web
+      - name: E2E on a local anvil, with axe, the on-chain request rule and the CSP
+        run: npm run e2e -w apps/web
+      - name: Size budget per route, on a fresh production build
+        run: npm run build -w apps/web && npm run size -w apps/web
+      - name: Lighthouse on the production build, run locally
+        run: npm run lighthouse -w apps/web
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-next-reports
+          path: |
+            apps/web/playwright-report
+            apps/web/lighthouse-report
+          retention-days: 7
+```
+
+Run: `npx vitest run --config scripts/vitest.site.config.ts scripts/test/site/ci-web-next.test.ts scripts/test/site/ci-web.test.ts`
+Expected: PASS (ci-web-next 6 test, cùng các test của job `web` cũ).
+
+- [ ] **Step 11: README của app, AGENTS và spec**
+
+`apps/web/README.md`:
+
+~~~markdown
+# @atropyle/web
+
+The Atropyle web app v2: Next.js 16, exported as a static site and built for two targets.
+
+| Target            | Hosting                             | Backend                                        | Build                                                 |
+| ----------------- | ----------------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| `deweb` (default) | DeWEB, 100% on-chain                | None: the build never contains the backend URL | `npm run build -w apps/web`                           |
+| `vercel`          | Vercel, configured by `vercel.json` | Supabase Functions at `NEXT_PUBLIC_API_URL`    | `NEXT_PUBLIC_TARGET=vercel npm run build -w apps/web` |
+
+Build the circuits and the SDK first (`npm run build` at the repository root): the app reads the SDK's `dist`.
+
+## Commands
+
+```bash
+npm run dev -w apps/web            # next dev, with the /dev/ gallery of every component
+npm test -w apps/web               # unit tests (Vitest, happy-dom)
+npm run typecheck -w apps/web
+npm run test:build -w apps/web     # two real production builds, then checks on their output
+npm run worker:check -w apps/web   # the proof worker under a strict CSP in Chromium
+npm run e2e -w apps/web            # Playwright on a local anvil with a test wallet; needs `forge build` in contracts/
+npm run build -w apps/web && npm run size -w apps/web
+npm run lighthouse -w apps/web     # after a production build; reports in lighthouse-report/
+```
+
+`npm run playwright:install -w apps/web` installs Chromium once, for `worker:check`, `e2e` and `lighthouse`.
+
+## Build variables
+
+| Variable                 | Values                                                      |
+| ------------------------ | ----------------------------------------------------------- |
+| `NEXT_PUBLIC_TARGET`     | `deweb` (default) or `vercel`                               |
+| `NEXT_PUBLIC_CHAIN`      | `xlayer` (default) or `local`                               |
+| `NEXT_PUBLIC_DEPLOYMENT` | A deployment JSON, for e2e and local work                   |
+| `NEXT_PUBLIC_API_URL`    | `vercel` only: `https://<project>.supabase.co/functions/v1` |
+| `NEXT_PUBLIC_DOCS_PATH`  | `/docs/` when the site carries its own docs                 |
+
+Set them in the environment of the build, not in a `.env` file. The CSP of every page is computed from the build environment, and the build keeps `.env` files away from the backend URL. On Vercel, `NEXT_PUBLIC_API_URL` lives in the project settings.
+
+## Security
+
+- **CSP.** After `next build`, every page gets a `<meta>` policy with the SHA-256 of each of its inline scripts (`scripts/lib/csp.ts`). `connect-src` allows the RPC nodes of the deployment, plus the backend on `vercel`. `vercel.json` adds `frame-ancestors 'none'` and the other directives a meta tag cannot carry.
+- **No telemetry, no third parties.** The build sets `NEXT_TELEMETRY_DISABLED=1`. Fonts are self-hosted with their OFL licences in `public/licenses/fonts/`. Lighthouse runs on this machine against the local build.
+- **Zero keys.** The app never asks for a key or a seed phrase; people sign in their own wallet. The e2e wallet holds no key either: it sends from unlocked accounts of a local anvil.
+- **Untrusted text.** Token names, revert reasons and wallet names are shown through `UntrustedText`, never as HTML or as a link.
+
+## Budgets
+
+Spec §11, checked in CI: first-load JS of `/` at most 170 kB gzip, any other route at most 230 kB, all JS of the site at most 900 kB (`size-limit`). Lighthouse mobile on `/`: Performance at least 95; Accessibility, Best Practices and SEO 100; LCP at most 1.8 s, CLS 0, TBT at most 150 ms.
+~~~
+
+Trong `AGENTS.md`, chèn đoạn sau ngay trước dòng bắt đầu bằng `Integration and e2e tests start their own anvil devnet`:
+
+~~~markdown
+The web app v2 in `apps/web` has its own checks. Its e2e, like the legacy one, needs the output of `forge build` in `contracts/` and Chromium. `size` and `lighthouse` read the production build in `apps/web/out`, so run `npm run build -w apps/web` right before them.
+
+```bash
+npm run typecheck -w apps/web
+npm test -w apps/web
+npm run test:build -w apps/web
+npm run worker:check -w apps/web
+npm run e2e -w apps/web
+npm run build -w apps/web
+npm run size -w apps/web
+npm run lighthouse -w apps/web
+```
+
+~~~
+
+Thêm hàng 17 vào bảng §16 của spec `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md`, ngay sau hàng 16:
+
+```markdown
+| 17 | CSP theo hash trong thẻ `<meta>` ở cả hai bản; header của Vercel chỉ mang `frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` (§8 nói bản vercel đặt CSP qua header) | `vercel.json` là file tĩnh, không chứa được hash của script inline sinh lúc build; header có `script-src` hay `default-src` sẽ chặn chính các script đó. `style-src` cần `'unsafe-inline'` vì HTML prerender có thuộc tính `style` | Header và meta cùng được áp: thêm directive vào header phải kiểm cả hai; bỏ `'unsafe-inline'` ở style cần nonce, tức là cần server |
+```
+
+Run: `npx biome ci .`
+Expected: không lỗi (Biome không đọc Markdown; `vercel.json`, `.size-limit.mjs` và mọi file `.ts` mới đã đúng format).
+
+- [ ] **Step 12: Kiểm toàn bộ và commit**
+
+```bash
+npm run lockfile:check
+npm test -w apps/web
+npm run typecheck
+npx biome ci .
+npm run test:build -w apps/web
+npm run worker:check -w apps/web
+npm run e2e -w apps/web
+npm run build -w apps/web
+npm run size -w apps/web
+npm run lighthouse -w apps/web
+npx vitest run --config scripts/vitest.site.config.ts scripts/test/site/ci-web-next.test.ts
+git status --short
+```
+
+Expected: mọi lệnh PASS; `git status` không liệt kê `apps/web/.size/`, `apps/web/out/`, `apps/web/test/e2e/.site/`, `apps/web/test/e2e/.state.json`, `apps/web/test-results/`, `apps/web/playwright-report/` hay `apps/web/lighthouse-report/`.
+
+```bash
+git add apps/web/scripts/lib/csp.ts apps/web/scripts/lib/site-headers.ts apps/web/scripts/lib/lighthouse-score.ts apps/web/scripts/lib/run-next.ts apps/web/scripts/lib/static-server.ts apps/web/scripts/lighthouse.ts apps/web/vercel.json apps/web/.size-limit.mjs apps/web/playwright.config.ts apps/web/public/robots.txt apps/web/src/app/icon.svg apps/web/README.md apps/web/package.json package-lock.json
+git add apps/web/test/unit/csp.test.ts apps/web/test/unit/vercel-config.test.ts apps/web/test/unit/lighthouse-score.test.ts apps/web/test/unit/static-server.test.ts apps/web/test/build/csp.test.ts apps/web/test/build/html-purity.test.ts
+git add apps/web/test/e2e/global-setup.ts apps/web/test/e2e/network.ts apps/web/test/e2e/fixtures.ts apps/web/test/e2e/helpers.ts apps/web/test/e2e/state.ts apps/web/test/e2e/wallet.ts apps/web/test/e2e/offchain.spec.ts apps/web/test/e2e/shell.spec.ts apps/web/test/e2e/legacy.spec.ts apps/web/test/e2e/wallet.spec.ts apps/web/test/e2e/motion.spec.ts apps/web/test/e2e/csp.spec.ts apps/web/test/e2e/worker.spec.ts
+git add .gitignore biome.json .github/workflows/ci.yml scripts/test/site/ci-web-next.test.ts AGENTS.md docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md
+git commit -m "feat(web): hashed page CSP, Vercel headers, e2e with axe on anvil, size and Lighthouse budgets" -m "Ruling 17 of the spec records the CSP split between the meta tag and the Vercel header." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+## Interfaces for Plan 7B
+
+Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cùng các file được nêu. Đường dẫn tính từ `apps/web/`; mã trong `src/` import qua alias `@/`. Chữ ký dưới đây là bản cuối cùng, sau Task 15. Mọi component là client component (`'use client'`) trừ khi ghi khác.
+
+### Luật Plan 7B phải giữ
+
+1. **Route mới** là `src/app/<segment>/page.tsx`. Tham số động nằm sau `#` và đọc bằng `useLocationHash()`; đổi tham số mà không thêm mục lịch sử bằng `replaceHash()`. Link tới route dùng `ROUTES` và các hàm `*Href` của `src/routes.ts`. Khi route đích đã có, bỏ `prefetch={false}` ở link trỏ tới nó (Quyết định 22).
+2. **Ranh giới nạp lười** (Global Constraints, test `lazy-boundary`): mã dùng chung trong `src/` chỉ `import type` từ `@atropyle/sdk*`, `viem*` và `**/impl/**`. Thư mục route con `src/app/<segment>/**` được import giá trị SDK trực tiếp, nhưng JS lần tải đầu của route vẫn ≤ 230 kB gzip. `.size-limit.mjs` tự thêm mọi trang HTML mới vào phép đo, không cần sửa.
+3. **Lighthouse:** thêm `'/create/'` và `'/proof/'` vào `LIGHTHOUSE_ROUTES` (`scripts/lib/lighthouse-score.ts`) khi hai route đó có (spec §11).
+4. **Văn bản không tin cậy** (tên token, lý do revert, tên ví, `state` của `MeVault`) chỉ hiển thị qua `UntrustedText`, `Amount` (với `symbol: Untrusted`) hoặc `ErrorBox`. Link ra ngoài chỉ qua `ExternalLink` (bản deweb: chữ thường lúc prerender, test `html-purity`). Không `dangerouslySetInnerHTML` (test `no-html-sinks`).
+5. **Giao dịch:** trang dựng `TxPlan` bằng SDK trong thư mục route con, rồi `const runner = useTxRunner({ plan, onDone })` và `<TxCard runner={runner} label=… />`. Nghi thức (check-in) dùng `confirm="hold"`; plan không hoàn tác được dùng `tone="danger"`. Sau `onDone`, làm mới dữ liệu bằng `useInvalidateVault()`.
+6. **Chuỗi giao diện** nằm trong `src/messages/<trang>.messages.ts` (`defineMessages(en, vi)`, VI đủ khoá) và đọc bằng `useT(messages)`. Tên ngôn ngữ, mã lỗi và địa chỉ không dịch.
+7. **Backend** chỉ qua `src/api/hooks.ts`. Bản deweb không có backend: query đứng yên (`fetchStatus === 'idle'`), mutation hỏng với `ApiError` mã `UNAVAILABLE`; trang phải có cách hiển thị trạng thái đó (ví dụ `/me/` đọc chain bằng `useVaultsOf`).
+8. **CSP:** không thêm `<script>` inline, `eval`, iframe hay origin mới. `connect-src` của mỗi trang sinh từ `connectOrigins(env)`: RPC của deployment, cộng backend ở bản vercel. Một origin mới phải vào `scripts/lib/csp.ts` kèm test.
+9. **E2E** (`test/e2e/`): import `test`, `expect`, `ANVIL` từ `./fixtures.ts`; ba lưới chặn (request off-chain, vi phạm CSP, lỗi trang) tự chạy sau mỗi test. Mỗi trang mới có một test `expectAccessibleInBothThemes(page)`. Ví giả: `await wallet({ account: ANVIL[1], sendCalls?: true, chainId?, knownChains? })`; tua thời gian bằng `warp(state, seconds)` của `./state.ts`. Vault mẫu đã seed ở `state.seeded.{simple,guarded,grace}`.
+10. **Test id ổn định** mà e2e của Plan 7B dựa vào: `TxCard` (`tx`, `tx-progress`, `tx-step-<i>` với `data-phase`, `tx-send`, `tx-connect`, `tx-wrong-account`, `tx-done`, `tx-copy-link`, `warning-<code>`), `ErrorBox` (`error`, `data-code`), `network-banner`, ví giả tên `Test Wallet`.
+
+### Cấu hình, route và môi trường
+
+```ts
+// src/config/env.ts
+export type Target = 'vercel' | 'deweb';
+export interface RawEnv { NEXT_PUBLIC_TARGET?: string; NEXT_PUBLIC_CHAIN?: string; NEXT_PUBLIC_DEPLOYMENT?: string; NEXT_PUBLIC_API_URL?: string; NEXT_PUBLIC_DOCS_PATH?: string; NEXT_PUBLIC_APP_VERSION?: string }
+export interface AppEnv { target: Target; chain: ChainName; deploymentJson: string | null; apiUrl: string | null; docsPath: '/docs/' | null; version: string }
+export function targetOf(raw?: string): Target;
+export function chainNameOf(raw?: string): ChainName;
+export function apiUrlOf(target: Target, raw?: string): string | null;
+export function readEnv(raw: RawEnv): AppEnv;
+export function chainIdOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): number;
+export function explorerUrlOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): string | null;
+export const XLAYER_EXPLORER = 'https://www.oklink.com/xlayer';
+export const ENV: AppEnv;
+export const IS_VERCEL: boolean;
+
+// src/routes.ts
+export const ROUTES: { home: '/'; create: '/create/'; vault: '/vault/'; verify: '/verify/'; sign: '/sign/'; proof: '/proof/'; me: '/me/'; join: '/join/'; alertsConfirm: '/alerts/confirm/'; alertsUnsubscribe: '/alerts/unsubscribe/'; status: '/status/'; developers: '/developers/'; privacy: '/privacy/' };
+export type RouteName = keyof typeof ROUTES;
+export type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers';
+export const NAV: readonly { route: RouteName; key: NavKey }[];
+export function createHref(mode?: 'drill' | 'real'): string;            // '/create/#drill' (mặc định) | '/create/#real'
+export function vaultHref(vault: string): string;                       // '/vault/#<vault>'
+export function verifyHref(vault: string): string;                      // '/verify/#<vault>'
+export function joinHref(vault: string, role: 'guardian' | 'heir'): string; // '/join/#<vault>.<role>'
+export function signHref(encodedPayload: string): string;               // '/sign/#p=<payload>'
+export function toSdkSignLink(hash: string): string;
+export function isCurrent(pathname: string, href: string): boolean;
+export { legacyTarget } from './theme/boot';                            // (pathname: string, hash: string) => string | null
+
+// src/lib/hash.ts
+export function useLocationHash(): string;       // gồm '#', '' lúc prerender và hydrate
+export function replaceHash(hash: string): void; // không thêm mục lịch sử; mọi useLocationHash nhận giá trị mới
+```
+
+### i18n, bộ nhớ, theme, helper
+
+```ts
+// src/i18n/core.ts
+export type Lang = 'en' | 'vi';
+export interface Messages<K extends string> { en: Record<K, string>; vi: Record<K, string> }
+export type Params = Record<string, string | number | bigint>;
+export function defineMessages<K extends string>(en: Record<K, string>, vi: Record<NoInfer<K>, string>): Messages<K>;
+export function format(template: string, params?: Params): string;
+export function translate<K extends string>(m: Messages<K>, lang: Lang, key: K, params?: Params): string;
+export function placeholders(s: string): string[];
+export function detectLang(stored: string | null, languages: readonly string[]): Lang;
+
+// src/i18n/provider.tsx
+export function LangProvider(p: { children: ReactNode }): JSX.Element;
+export function useLang(): { lang: Lang; setLang(l: Lang): void };
+export function useT<K extends string>(m: Messages<K>): (key: K, params?: Params) => string;
+
+// src/lib/store.ts, src/lib/kv.tsx
+export interface KV { get(key: string): string | null; set(key: string, value: string): void; remove(key: string): void }
+export function memoryKV(): KV;
+export function safeKV(storage: () => Storage | null | undefined): KV;
+export function jsonStringify(value: unknown, space?: number): string; // bigint thành chuỗi thập phân
+export function readJson<T>(kv: KV, key: string, revive: (raw: unknown) => T | null): T | null;
+export function writeJson(kv: KV, key: string, value: unknown): void;
+export const KEYS: { lang: 'atropyle:lang'; crossCheck: 'atropyle:crossCheck'; theme: 'atropyle:theme'; haptics: 'atropyle:haptics'; wallet: 'atropyle:wallet'; stats: 'atropyle:stats' };
+export function KVProvider(p: { kv?: KV; children: ReactNode }): JSX.Element;
+export function useKV(): KV;
+
+// src/theme/theme.ts, src/theme/provider.tsx, src/theme/boot.ts, src/theme/boot-script.tsx
+export type ThemeChoice = 'system' | 'light' | 'dark';
+export const THEME_CHOICES: readonly ThemeChoice[];
+export function parseTheme(raw: string | null | undefined): ThemeChoice;
+export function readThemeAttr(): ThemeChoice;
+export function subscribeTheme(cb: () => void): () => void;
+export function applyTheme(choice: ThemeChoice, root?: HTMLElement): void;
+export function ThemeProvider(p: { children: ReactNode }): JSX.Element;
+export function useTheme(): { choice: ThemeChoice; resolved: 'light' | 'dark'; setChoice(c: ThemeChoice): void };
+export function legacyTarget(pathname: string, hash: string): string | null;
+export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void;
+export const BOOT_SCRIPT: string;
+export function BootScript(): JSX.Element; // server component, trong <head> của layout
+
+// src/lib/address.ts, untrusted.ts, duration.ts, docs.ts
+export function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean;
+export function isAddressText(s: string): boolean;
+export function addressGroups(address: string): string[];   // ['0x', 10 cụm 4 ký tự]; không phải địa chỉ thì [address]
+export function compactAddress(address: string): string;    // '0x7099 7970 … 17dc 79C8'
+export interface Untrusted { readonly untrusted: true; readonly value: string; readonly truncated: boolean }
+export function untrusted(raw: unknown, max?: number): Untrusted;
+export function formatDuration(seconds: number | bigint): string;
+export const DOCS_BASE_URL: string;
+export function errorDocsUrl(code: string): string;
+
+// src/lib/format.ts (port nguyên văn)
+export function formatAmount(raw: bigint, decimals: number | null, maxFraction?: number): string;
+export function formatBps(bps: number): string;
+export function formatTimestamp(ts: bigint): string;
+export function formatRemaining(target: bigint, now: bigint): { past: boolean; text: string };
+export function coveragePercent(coverage: bigint, held: bigint): number | null;
+export function chainNow(blockTimestamp: bigint, fetchedAtMs: number, nowMs: number): bigint;
+
+// src/lib/links.ts, cn.ts, use-mounted.ts, use-now.ts
+export const REPO_URL: string; export const LICENSE_URL: string; export const XLAYER_URL: string;
+export function explorerAddress(base: string, address: string): string;
+export function explorerTx(base: string, hash: string): string;
+export function explorerName(base: string): string;
+export function docsHome(docsPath: string | null): string;
+export type ClassValue = string | false | null | undefined;
+export function cn(...v: ClassValue[]): string;
+export function useMounted(): boolean;                     // false lúc prerender và hydrate
+export function useNow(intervalMs?: number): number | null; // null lúc prerender
+
+// src/messages/labels.messages.ts (mọi *.messages.ts export `messages`)
+export const messages: Messages<LabelKey>;
+export type LabelKey = keyof typeof messages.en;
+export const STATE_KEY: Record<StateName, LabelKey>;
+export const ROLE_KEY: Record<Role, LabelKey>;
+export const THREAD_STATE_KEY: Record<StateName | 'expired', LabelKey>;
+```
+
+`src/messages/` đã có (port từ web cũ ở Task 5, thêm mới ở các task sau): `labels`, `common`, `shell`, `ui`, `tx`, `wallet`, `home`, `create`, `developers`, `guardian`, `heir`, `owner`, `sign`, `status`, `vault`, `verify`, `action-runner`, `editors`. Plan 7B sửa nội dung các file trang, giữ khoá mà test đang đọc.
+
+### Motion, sợi chỉ, trạng thái
+
+```ts
+// src/motion/tokens.ts
+export const DURATION: { instant: 90; quick: 160; base: 240; slow: 420; story: 720 };
+export type DurationName = keyof typeof DURATION;
+export const sec: (ms: number) => number;
+export const EASE_OUT_EXPO: readonly [0.16, 1, 0.3, 1];
+export const EASE_IN_OUT_SINE: readonly [0.37, 0, 0.63, 1];
+export const SPRING: { type: 'spring'; stiffness: 380; damping: 32; mass: 1 };
+export const SPRING_MS = 443; export const HOLD_MS = 600; export const REDUCED_MS = 120;
+export function springAt(t: number): number;
+export function springStops(samples?: number): number[];
+
+// src/motion/provider.tsx, view-transition.tsx, haptics.ts, use-hold.ts
+export function MotionProvider(p: { children: ReactNode }): JSX.Element; // MotionConfig reducedMotion="user" + LazyMotion strict
+export function usePrefersReducedMotion(): boolean;                     // false lúc prerender và hydrate
+export const THREAD_VT_NAME = 'atropyle-thread';
+export function SharedThread(p: { children: ReactNode }): JSX.Element;
+export function withViewTransition(update: () => void): void;
+export function canVibrate(): boolean;
+export function useHaptics(): { supported: boolean; enabled: boolean; setEnabled(on: boolean): void; pulse(): void };
+export type HoldPhase = 'idle' | 'holding' | 'done';
+export interface HoldOptions { duration?: number; disabled?: boolean; onConfirm(): void; onCancel?(progress: number): void }
+export interface HoldBind { onPointerDown(e: PointerEvent<HTMLElement>): void; onPointerUp(): void; onPointerLeave(): void; onPointerCancel(): void; onKeyDown(e: KeyboardEvent<HTMLElement>): void; onKeyUp(e: KeyboardEvent<HTMLElement>): void; onClick(e: MouseEvent<HTMLElement>): void; onContextMenu(e: MouseEvent<HTMLElement>): void; onBlur(): void }
+export function useHold(o: HoldOptions): { phase: HoldPhase; bind: HoldBind };
+
+// src/thread/state.ts, geometry.ts, glyphs.tsx, thread.tsx, state-badge.tsx
+export type ThreadState = StateName | 'expired';
+export const THREAD_STATES: readonly ThreadState[];
+export function threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState;
+export function threadRemaining(s: Pick<VaultStatus, 'state' | 'expired' | 'lastAlive' | 'lateAt' | 'alarmAt' | 'windowEndsAt'>, now: bigint): number; // 0–1
+export const THREAD_COLOR: Record<ThreadState, string>;
+export const BADGE_COLOR: Record<ThreadState, string>;
+export const STATE_GLYPH: Record<ThreadState, GlyphName>;
+export interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[] }
+export function threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry; // cùng VIEW, GATE_X, FRAY_X, BEND_X, RECOVERY_END, MAIN_WIDTH, waveY, smoothPath, waveSegment, branchWidths, branchEnds
+export type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot';
+export const GLYPH_NAMES: readonly GlyphName[];
+export function StateGlyph(p: { name: GlyphName; size?: number; className?: string }): JSX.Element; // aria-hidden
+export interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; className?: string }
+export function Thread(p: ThreadProps): JSX.Element;        // có label: role="img"; shared: tối đa một sợi mỗi trang
+export interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }
+export function StateBadge(p: StateBadgeProps): JSX.Element;
+```
+
+### Primitive (`src/ui/`)
+
+```ts
+export { Root as VisuallyHidden } from '@radix-ui/react-visually-hidden';
+export function Spinner(p: { label?: string; size?: number; className?: string }): JSX.Element;
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+export function buttonClass(o?: { variant?: ButtonVariant; size?: ButtonSize; className?: string }): string; // cho <Link>
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; icon?: ReactNode; ref?: Ref<HTMLButtonElement> }
+export function Button(p: ButtonProps): JSX.Element;
+export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> { icon: LucideIcon; label: string; size?: 'sm' | 'md'; tooltip?: boolean; ref?: Ref<HTMLButtonElement> }
+export function IconButton(p: IconButtonProps): JSX.Element;
+export interface HoldButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type'> { onConfirm(): void; children: ReactNode; icon?: ReactNode; tone?: 'thread' | 'danger'; size?: 'md' | 'lg'; duration?: number; hint?: string }
+export function HoldButton(p: HoldButtonProps): JSX.Element; // giữ 600 ms, Enter xác nhận ngay, Space là giữ
+export function TooltipProvider(p: { children: ReactNode }): JSX.Element;
+export function Tooltip(p: { content: ReactNode; children: ReactElement; side?: 'top' | 'right' | 'bottom' | 'left' }): JSX.Element;
+export function Popover(p: { trigger: ReactElement; children: ReactNode; open?: boolean; onOpenChange?(open: boolean): void; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label?: string; className?: string }): JSX.Element;
+export const PopoverClose = P.Close; // P = @radix-ui/react-popover
+export interface DialogProps { open?: boolean; onOpenChange?(open: boolean): void; trigger?: ReactElement; title: ReactNode; description?: ReactNode; children?: ReactNode; size?: 'sm' | 'md' | 'lg'; sheet?: boolean; onCloseAutoFocus?(event: Event): void; className?: string }
+export function Dialog(p: DialogProps): JSX.Element;
+export function copyText(text: string): Promise<boolean>;
+export function CopyButton(p: { text: string; label: string; showText?: boolean; className?: string }): JSX.Element;
+export function isUntrusted(v: unknown): v is Untrusted;
+export function UntrustedText(p: { value: unknown; max?: number; className?: string }): JSX.Element; // trong <bdi>
+export function safeExternalHref(href: string): string | null;
+export function ExternalLink(p: { href: string; children: ReactNode; icon?: boolean; variant?: 'inline' | 'icon'; className?: string }): JSX.Element;
+export interface IdenticonData { hue: number; cells: boolean[] }
+export function identiconOf(address: string): IdenticonData;
+export function Avatar(p: { address: string; size?: number }): JSX.Element;
+export function Address(p: { address: string; explorer?: string | null; copy?: boolean; avatar?: boolean; size?: 'sm' | 'md'; className?: string }): JSX.Element;
+export function Amount(p: { raw: bigint; decimals: number | null; symbol?: Untrusted | string | null; maxFraction?: number; className?: string }): JSX.Element;
+export function Countdown(p: { target: bigint; blockTimestamp: bigint; fetchedAtMs: number; className?: string }): JSX.Element;
+export function Skeleton(p: { className?: string }): JSX.Element;
+export function SkeletonText(p: { lines?: number; className?: string }): JSX.Element;
+export function EmptyState(p: { title: ReactNode; body?: ReactNode; action?: ReactNode; icon?: ReactNode; className?: string }): JSX.Element;
+export function InlineError(p: { id?: string; children: ReactNode; className?: string }): JSX.Element;
+export type BannerTone = 'info' | 'warn' | 'error' | 'success';
+export function Banner(p: { tone?: BannerTone; title?: ReactNode; children: ReactNode; action?: ReactNode; onDismiss?(): void; testId?: string; className?: string }): JSX.Element;
+export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> { label: ReactNode; hint?: ReactNode; error?: ReactNode; mono?: boolean; ref?: Ref<HTMLInputElement> }
+export function TextField(p: TextFieldProps): JSX.Element; // id từ useId(), aria-describedby nối hint và error
+export function qrPath(data: readonly (readonly boolean[])[]): string;
+export function QrCode(p: { value: string; label: string; size?: number; className?: string }): JSX.Element;
+```
+
+Lớp Tailwind (Task 3): màu `bg`, `surface-1|2|3`, `ink`, `ink-muted`, `thread`, `on-thread`, `alive`, `grace`, `recovery`, `release`, `danger`, `on-danger`, `line`, `line-strong`; chữ `text-caption|small|body|lead|title|h2|h1|display`, `font-display|sans|mono`; easing `ease-out-expo|in-out-sine|spring`; animation `motion-safe:animate-thread-pulse|thread-tremble|shimmer` (luôn kèm `motion-safe:`, test `reduced motion leaves no running animation`); Radix `atro-overlay|dialog|sheet|pop`.
+
+### Khung trang
+
+```ts
+// src/shell/*.tsx, src/home/hero.tsx
+export function Providers(p: { children: ReactNode; kv?: KV }): JSX.Element; // KV → Lang → Theme → Chain (Query) → Wallet → Motion → Tooltip
+export function Frame(p: { children: ReactNode }): JSX.Element;               // SkipLink, Header, NetworkBanner, <main tabIndex={-1}>, Footer, ConnectSheet
+export function Header(): JSX.Element;
+export function NavList(p: { layout: 'bar' | 'sheet'; onNavigate?(): void }): JSX.Element;
+export function SettingsMenu(): JSX.Element;  // popover "Settings" (md trở lên)
+export function MobileMenu(): JSX.Element;    // dialog "Menu" (dưới md)
+export function Footer(): JSX.Element;
+export function SkipLink(p: { targetId: string }): JSX.Element; // một <button>, giữ nguyên hash
+export function LangSwitch(): JSX.Element;
+export function ThemeSwitch(): JSX.Element;
+export function HapticsSwitch(): JSX.Element;
+export function Wordmark(p: { className?: string }): JSX.Element;
+export function HomeHero(): JSX.Element;      // Plan 7B thay bằng trang chủ sáu cảnh
+```
+
+### Dữ liệu chain
+
+```ts
+// src/chain/types.ts (chỉ kiểu)
+export interface Sdk { atro: AtropyleClient; deployment: Deployment; rpc: RpcPlan }
+export interface RpcPlan { read: string[]; verify: string[][]; crossCheck: boolean; offchain: string[] }
+export interface LoadedVault { snap: VaultSnapshot; timeline: Timeline; registered: boolean; fetchedAtMs: number }
+export type { CachedStats, StatsSnapshot } from './impl/stats-view';
+
+// src/chain/load.ts (một chunk, nạp một lần, nạp lại được sau lỗi mạng)
+export type ChainImpl = typeof Impl; // import type * as Impl from './impl'
+export function loadChainImpl(): Promise<ChainImpl>;
+export function peekChainImpl(): ChainImpl | null;
+// src/chain/impl/index.ts (chỉ qua loadChainImpl)
+export function loadDeployment(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): Deployment;
+export function createSdk(d: Deployment, target: Target, crossCheck: boolean): Sdk;
+export function rpcPlan(d: Deployment, target: Target, crossCheck: boolean): RpcPlan;
+export function loadVault(sdk: Sdk, vault: Address, nowMs?: () => number): Promise<LoadedVault>;
+export function rolesIn(snap: VaultSnapshot, account: string | null): Role[];
+export function vaultsOf(sdk: Sdk, account: Address): Promise<VaultRef[]>;
+export function cachedStats(sdk: Sdk, kv: KV): CachedStats | null;
+export function countStats(sdk: Sdk, kv: KV, onProgress?: (done: number, total: number) => void): Promise<CachedStats>;
+
+// src/chain/query-client.ts, keys.ts, provider.tsx
+export const PERMANENT_CODES: ReadonlySet<string>; // mã SDK vĩnh viễn + INVALID_INPUT, NOT_A_VAULT, RATE_LIMITED, TOKEN_INVALID, UNAUTHORIZED, BAD_RESPONSE, UNAVAILABLE
+export function errorCode(e: unknown): string | null;
+export function shouldRetry(failureCount: number, error: unknown): boolean; // tối đa 2 lần, không bao giờ với mã vĩnh viễn
+export function makeQueryClient(): QueryClient;
+export const chainKeys: {
+  all(chainId: number): readonly ['atropyle', number];
+  sdk(chainId: number, crossCheck: boolean): readonly ['atropyle', number, 'sdk', 'cross' | 'own'];
+  vault(chainId: number, vault: string): readonly ['atropyle', number, 'vault', string];       // địa chỉ chữ thường
+  vaultsOf(chainId: number, account: string): readonly ['atropyle', number, 'vaultsOf', string];
+  stats(chainId: number, source: 'api' | 'chain'): readonly ['atropyle', number, 'stats', 'api' | 'chain'];
+  me(chainId: number, account: string): readonly ['atropyle', number, 'me', string];
+  health(chainId: number): readonly ['atropyle', number, 'health'];
+};
+export function ChainProvider(p: { children: ReactNode; client?: QueryClient }): JSX.Element;
+export function useChainSettings(): { crossCheck: boolean; setCrossCheck(on: boolean): void };
+
+// src/chain/hooks.ts, time.ts, use-stats.ts
+export const CHAIN_ID: number;
+export function sdkQuery(crossCheck: boolean); // queryOptions({ queryKey: chainKeys.sdk(CHAIN_ID, crossCheck), queryFn: (): Promise<Sdk> }), cho queryClient.fetchQuery
+export function useSdk(): UseQueryResult<Sdk>;
+export function useVault(vault: Address | null): UseQueryResult<LoadedVault>; // không placeholderData
+export function useVaultsOf(account: Address | null): UseQueryResult<VaultRef[]>;
+export function useInvalidateVault(): (vault: string) => Promise<void>;
+export function useChainNow(read: { blockTimestamp: bigint; fetchedAtMs: number } | null, intervalMs?: number): bigint | null;
+export interface StatsSummary { source: 'api' | 'chain'; block: bigint; vaults: number; drills: number; checkIns: number; savedAtMs: number | null }
+export interface StatsState { summary: StatsSummary | null; loading: boolean; progress: { done: number; total: number } | null; busy: boolean; error: unknown; refresh(): void }
+export function summaryOfCache(c: CachedStats): StatsSummary;
+export function summaryOfApi(s: StatsResponse): StatsSummary;
+export function freshest(a: StatsSummary | null, b: StatsSummary | null): StatsSummary | null;
+export function useChainStats(): StatsState;
+export function useStats(): StatsState; // API trước (vercel), chain khi người dùng bấm refresh(); nạp chunk chain sau khi mount
+```
+
+### Ví
+
+```ts
+// src/wallet/types.ts (chỉ kiểu)
+export type { Eip1193, WalletOption, WalletWindow } from './impl/wallet';
+export type { CallsResult, CallsStatus, SendCallsOptions } from './impl/send-calls';
+export type WalletStatus = 'idle' | 'restoring' | 'connecting' | 'connected';
+export interface ConnectedWallet { option: WalletOption; account: Address; chainId: number }
+export interface RememberedWallet { rdns: string | null; source: WalletOption['source']; name: string }
+
+// src/wallet/provider.tsx
+export interface WalletValue {
+  status: WalletStatus;
+  wallet: ConnectedWallet | null;
+  expectedChainId: number;
+  wrongChain: boolean;
+  wallets: WalletOption[] | null;
+  discovering: boolean;
+  discover(): Promise<WalletOption[]>;
+  connect(option: WalletOption): Promise<ConnectedWallet>; // USER_REJECTED khi người dùng từ chối
+  disconnect(): void;
+  switchChain(): Promise<void>;
+  walletClient(): Promise<WalletClient>;                     // ký qua ví đã kết nối, trên chain của build
+  sheetOpen: boolean;
+  openSheet(): void;
+  setSheetOpen(open: boolean): void;
+  sheetOpener: RefObject<HTMLElement | null>;
+}
+export const WalletContext: Context<WalletValue | null>;
+export function WalletProvider(p: { children: ReactNode; win?: WalletWindow }): JSX.Element;
+export function useWallet(): WalletValue;
+
+// src/wallet/load.ts, remember.ts, network.ts, use-vault-roles.ts
+export type WalletImpl = typeof Impl; // import type * as Impl from './impl'
+export function loadWalletImpl(): Promise<WalletImpl>;
+export function reviveRemembered(raw: unknown): RememberedWallet | null;
+export function readRemembered(kv: KV): RememberedWallet | null;
+export function remember(kv: KV, option: WalletOption): void;
+export function forget(kv: KV): void;
+export function networkName(chainId: number): string; // 196 → 'X Layer', 31337 → 'Anvil', khác → 'chain <id>'
+export function useVaultRoles(loaded: LoadedVault | undefined): readonly Role[] | null;
+
+// src/wallet/connect-sheet.tsx, wallet-button.tsx, wallet-menu.tsx, network-banner.tsx
+export const QR_MAX_CHARS = 512;
+export type PickerError = 'rejected' | 'requestPending' | 'connectFailed' | 'searchFailed';
+export function connectErrorKey(e: unknown): Exclude<PickerError, 'searchFailed'>;
+export function isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean;
+export interface WalletPickerProps { wallets: readonly WalletOption[] | null; searching: boolean; connectingId: string | null; error: PickerError | null; pageUrl: string; onPick(option: WalletOption): void; onSearch(): void }
+export function WalletPicker(p: WalletPickerProps): JSX.Element;
+export function ConnectSheet(): JSX.Element;          // Frame đã gắn; trang mở bằng useWallet().openSheet()
+export function WalletButton(): JSX.Element;
+export function WalletMenu(): JSX.Element;
+export function SwitchNetworkButton(p: { className?: string }): JSX.Element;
+export function NetworkBanner(): JSX.Element;         // data-testid="network-banner"
+
+// src/wallet/impl/index.ts (chỉ qua loadWalletImpl): discoverWallets, providerErrorCodes, call, requestAccount,
+// readChainId, ensureChain, walletClientFor (wallet.ts); UNSUPPORTED_CODES, CallsUnsupported, isUnsupported,
+// supportsSendCalls, normalizeStatus, sendCalls (send-calls.ts); parseAccountsEvent, parseChainEvent,
+// isTransientDisconnect, WalletEvents, watchWallet, findRemembered, silentAccount, RestoreResult, restoreWallet,
+// connectWallet, notConnected (session.ts). useTxRunner ký lần lượt từng bước bằng atro.send; đường wallet_sendCalls
+// thuộc Plan 7B (Task 3 của 7B), không có trong 7A.
+```
+
+### Proof trong worker
+
+```ts
+// src/verify/types.ts (chỉ kiểu)
+export type { PolicyVerification } from '@atropyle/sdk';
+export type { PolicyBundle, VaultVerification } from '@atropyle/sdk/verify';
+export interface ProofProgress { done: number; total: number }
+
+// src/verify/hooks.ts
+export type RunStatus = 'idle' | 'running' | 'done' | 'error';
+export const verifyKeys: { proof(crossCheck: boolean): readonly unknown[]; vault(vault: string, policy: boolean, crossCheck: boolean): readonly unknown[] };
+export interface ProofState { status: RunStatus; progress: ProofProgress | null; result: PolicyVerification | undefined; error: unknown; run(): void }
+export function useProof(): ProofState; // không chạy tới khi run(); kết quả giữ cả phiên; trang mount lại vẫn thấy tiến độ
+export interface VaultVerifyState { status: RunStatus; progress: ProofProgress | null; result: VaultVerification | undefined; error: unknown; retry(): void }
+export function useVaultVerify(vault: Address | null, policy: boolean): VaultVerifyState;
+
+// src/verify/verify-view.ts (thuần, port nguyên văn)
+export type RowState = 'pass' | 'fail' | 'unknown';
+export type RowId = 'factory' | 'proxy' | 'binding' | 'code' | 'policy' | 'operators';
+export interface VerifyRow { id: RowId; state: RowState; detail: string | null }
+export function vaultVerifyRows(v: VaultVerification): VerifyRow[];
+export const PROPERTY_ORDER: readonly PropertyName[]; // P1 … P8
+export interface ProofSummary { ok: boolean; properties: { name: PropertyName; ok: boolean; violations: number }[]; combos: number; seconds: number; rpcs: number; blockNumber: bigint; warnings: Warning[]; issues: string[] }
+export function proofSummary(r: PolicyVerification): ProofSummary;
+
+// src/verify/load.ts: type VerifyImpl; loadVerifyImpl(): Promise<VerifyImpl>.
+// src/verify/impl/index.ts (chỉ qua loadVerifyImpl): WorkerIn, WorkerOut, WorkerLike, WorkerFactory, createVerifyWorker,
+// errorFromJson, evaluateInWorker, quorumClient, proofKey, runProof(sdk, o?), runVaultVerify(sdk, vault, o).
+```
+
+### Giao dịch
+
+```ts
+// src/tx/tx-view.ts (thuần, port nguyên văn)
+export type StepPhase = 'ready' | 'skipped' | 'blocked' | 'signing' | 'pending' | 'confirmed' | 'failed';
+export interface StepRow { index: number; action: ActionName; to: Address; summary: string; simulation: 'ok' | 'failed' | 'skipped'; gas: bigint | null; phase: StepPhase; hash: Hex | null; error: AtropyleErrorJson | null }
+export interface TxView { total: number; rows: StepRow[]; warnings: Warning[]; canSend: boolean; blockedAt: number | null; blockedError: AtropyleErrorJson | null }
+export function simState(s: Simulation): StepRow['simulation'];
+export function warningKey(w: Warning): string;
+export function uniqueWarnings(lists: readonly (readonly Warning[])[]): Warning[];
+export function txView(plan: TxPlan): TxView;
+export function applyStep(v: TxView, e: { index: number; phase: SendPhase; hash?: Hex }): TxView;
+export function failStep(v: TxView, index: number, error: AtropyleErrorJson): TxView;
+
+// src/tx/use-tx-runner.ts
+export type TxBlocker = 'blocked' | 'connect' | 'wrongAccount' | 'loading';
+export interface TxRunnerOptions { plan: TxPlan; onDone?(result: SendResult): void }
+export interface TxRunner {
+  plan: TxPlan;
+  view: TxView;
+  busy: boolean;
+  error: unknown;
+  result: SendResult | null;
+  offset: number;              // bước đã xác nhận ở các lần gửi trước; lần gửi sau bắt đầu sau chúng
+  confirmed: number;
+  committed: boolean;          // trang không được đổi plan; đóng tab sẽ hỏi
+  blocker: TxBlocker | null;
+  switchFirst: boolean;        // send() xin ví đổi chain trước
+  handoffLink: string | null;  // '/sign/#p=…' cho các bước còn lại; null khi đang gửi, đã xong, hoặc quá giới hạn SDK
+  explorer: string | null;
+  send(): void;
+  connect(): void;
+  reload(): void;
+}
+export function useTxRunner(o: TxRunnerOptions): TxRunner;
+
+// src/tx/tx-card.tsx, tx-progress.tsx, error-box.tsx, use-error-view.ts, use-leave-guard.ts, sign-href.ts, load.ts
+export interface TxCardProps { runner: TxRunner; label: string; title?: ReactNode; confirm?: 'click' | 'hold'; tone?: 'thread' | 'danger'; testId?: string; className?: string }
+export function TxCard(p: TxCardProps): JSX.Element;
+export function TxProgress(p: { rows: readonly StepRow[]; testId?: string; className?: string }): JSX.Element;
+export function ErrorBox(p: { error: unknown; onRetry?(): void; testId?: string; className?: string }): JSX.Element; // data-testid, data-code
+export interface ErrorViewState { view: ErrorDescription | null; unavailable: boolean }
+export function useErrorView(error: unknown): ErrorViewState;
+export type { ErrorDescription } from './impl/describe'; // ErrorView { code; message; hint; docsUrl } + { reason: string | null }
+export function useLeaveGuard(active: boolean): void;
+export function toSignHref(sdkLink: string, origin: string): string | null;
+export type TxImpl = typeof Impl; // import type * as Impl from './impl'
+export function loadTxImpl(): Promise<TxImpl>;
+export function peekTxImpl(): TxImpl | null;
+// src/tx/impl/index.ts (chỉ qua loadTxImpl): errorView, isErrorJson, localDocs, ErrorView, describeError(e, docsPath),
+// ErrorDescription, decodeSendFailure(e): SendFailure { error: AtropyleErrorJson; index: number | null; completed: number }.
+```
+
+### Backend (chỉ bản vercel)
+
+```ts
+// src/api/types.ts — chép đúng spec §9.6; bigint là chuỗi thập phân, thời gian là chuỗi ISO
+export type Role = 'owner' | 'guardian' | 'heir';
+export type Lang = 'en' | 'vi';
+export const PROBLEM_CODES: readonly ['INVALID_INPUT', 'NOT_A_VAULT', 'RATE_LIMITED', 'TOKEN_INVALID', 'UNAUTHORIZED', 'INTERNAL'];
+export type ProblemCode = (typeof PROBLEM_CODES)[number];
+export interface Problem { type: 'about:blank'; title: string; status: number; code: ProblemCode }
+export interface SubscribeRequest { email: string; vault: Address; role: Role; lang: Lang; website: string } // website: bẫy bot, luôn ''
+export interface OkResponse { ok: true }
+export interface ConfirmResponse { ok: true; vault: Address; role: Role }
+export interface MeVault { vault: Address; roles: Role[]; drill: boolean; state: string; released: boolean }
+export interface MeResponse { address: Address; block: string; vaults: MeVault[] }
+export interface StatsResponse { block: string; vaults: string; drills: string; checkIns: string; updatedAt: string }
+export interface HealthResponse { indexer: { block: string; lagBlocks: number; updatedAt: string }; integrity: { at: string; block: string; ok: boolean } | null; keeper: { lastRunAt: string; balanceWei: string; dryRun: boolean } | null }
+
+// src/api/client.ts, instance.ts, hooks.ts
+export type ApiErrorCode = ProblemCode | 'NETWORK' | 'TIMEOUT' | 'BAD_RESPONSE' | 'UNAVAILABLE';
+export class ApiError extends Error { readonly code: ApiErrorCode; readonly status: number | null }
+export interface ApiClient { subscribe(req: SubscribeRequest, signal?: AbortSignal): Promise<OkResponse>; confirm(token: string, signal?: AbortSignal): Promise<ConfirmResponse>; unsubscribe(token: string, signal?: AbortSignal): Promise<OkResponse>; me(address: string, signal?: AbortSignal): Promise<MeResponse>; stats(signal?: AbortSignal): Promise<StatsResponse>; health(signal?: AbortSignal): Promise<HealthResponse> }
+export interface ApiClientOptions { fetch?: typeof fetch; timeoutMs?: number }
+export function createApiClient(base: string, o?: ApiClientOptions): ApiClient;
+export function getApi(): ApiClient | null; // null ở bản deweb và khi bản vercel không có URL
+export function useApiStats(): UseQueryResult<StatsResponse>;
+export function useMe(account: string | null): UseQueryResult<MeResponse>;
+export function useHealth(): UseQueryResult<HealthResponse>;
+export function useSubscribe(): UseMutationResult<OkResponse, Error, SubscribeRequest>;
+export function useConfirm(): UseMutationResult<ConfirmResponse, Error, string>;     // token từ '/alerts/confirm/#t=<token>'
+export function useUnsubscribe(): UseMutationResult<OkResponse, Error, string>;
+```
+
+### Build, test và công cụ
+
+```ts
+// scripts/lib/run-next.ts, build-env.ts, static-server.ts, csp.ts, site-headers.ts, lighthouse-score.ts
+export const APP_DIR: string; export const OUT_DIR: string; export const NEXT_BIN: string;
+export const BUNDLER_FLAGS: readonly string[];
+export interface RunOptions { env?: NodeJS.ProcessEnv; args?: readonly string[]; quiet?: boolean }
+export function runNext(command: 'build' | 'dev', o?: RunOptions): Promise<{ code: number; output: string }>;
+export function buildApp(o?: RunOptions): Promise<{ code: number; output: string }>; // next build, rồi CSP có hash cho mọi trang
+export function buildEnvFor(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+export function startStaticServer(root: string, port?: number, headers?: Record<string, string>): Promise<{ port: number; url: string; close(): Promise<void> }>;
+export const XLAYER_RPC_ORIGINS: readonly string[]; export const LOCAL_RPC_ORIGINS: readonly string[];
+export interface CspEnv { NEXT_PUBLIC_TARGET?: string; NEXT_PUBLIC_CHAIN?: string; NEXT_PUBLIC_DEPLOYMENT?: string; NEXT_PUBLIC_API_URL?: string }
+export function rpcOrigins(chain: string | undefined, deploymentJson: string | undefined): string[];
+export function apiOrigin(target: string | undefined, apiUrl: string | undefined): string | null;
+export function connectOrigins(env: CspEnv): string[];
+export function inlineScripts(html: string): string[];
+export function scriptHash(text: string): string;
+export function buildCsp(o: { scriptHashes: readonly string[]; connect: readonly string[] }): string;
+export function withCsp(html: string, csp: string): string;
+export function applyCsp(outDir: string, env: CspEnv): number;
+export const VERCEL_JSON: string;
+export function siteHeaders(json?: string): Record<string, string>;
+export const LIGHTHOUSE_ROUTES: readonly string[]; // ['/']; Plan 7B thêm '/create/', '/proof/'
+export const CATEGORIES: readonly ['performance', 'accessibility', 'best-practices', 'seo'];
+export const THRESHOLDS: { performance: 0.95; accessibility: 1; bestPractices: 1; seo: 1; lcpMs: 1800; cls: 0; tbtMs: 150 };
+export interface Run { performance: number; accessibility: number; bestPractices: number; seo: number; lcpMs: number; cls: number; tbtMs: number }
+export function runOf(lhr: LhrLike): Run;
+export function medianRun(runs: readonly Run[]): Run;
+export function failures(r: Run): string[];
+
+// test/helpers/render.tsx, test/helpers/wallet.ts, test/unit/fixtures.ts (Vitest)
+export interface ProviderOptions { kv?: KV; lang?: Lang; queryClient?: QueryClient; win?: WalletWindow }
+export function testQueryClient(): QueryClient;
+export function TestProviders(p: { kv: KV; queryClient: QueryClient; win?: WalletWindow; children: ReactNode }): JSX.Element;
+export function makeWrapper(o?: ProviderOptions): { wrapper: (p: { children: ReactNode }) => JSX.Element; kv: KV; queryClient: QueryClient };
+export function renderWithProviders(ui: ReactElement, o?: ProviderOptions): RenderResult & { kv: KV; queryClient: QueryClient };
+export interface FakeWalletState { accounts: string[]; chainId: number; shared: boolean; reject: boolean }
+export interface FakeWallet { provider: Eip1193; state: FakeWalletState; calls: string[]; emit(event: string, ...args: unknown[]): void; listenerCount(event: string): number }
+export function fakeWallet(o?: Partial<FakeWalletState>): FakeWallet;
+export interface Announced { info: { uuid: string; name: string; rdns: string; icon: string }; provider: Eip1193 }
+export function walletWindow(announced?: Announced[], globals?: { okxwallet?: unknown; ethereum?: unknown }): WalletWindow;
+export const TEST_ACCOUNT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+export function walletValue(over?: Partial<WalletValue>): WalletValue; // mặc định: đã kết nối TEST_ACCOUNT trên chain 196
+export function fixtureDeployment(): Deployment;
+
+// test/e2e/fixtures.ts, helpers.ts, state.ts, wallet.ts, network.ts (Playwright)
+export const test: TestType<{ state: E2EState; requests: string[]; cspViolations: CspViolation[]; deployment: Deployment; atro: AtropyleClient; wallet(o: Omit<WalletOptions, 'rpcUrl'>): Promise<TestWallet> }>;
+export { expect };
+export const ANVIL: readonly Address[];
+export interface CspViolation { directive: string; blocked: string; sample: string }
+export const AXE_TAGS: readonly string[]; // wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa
+export function settle(page: Page): Promise<void>;
+export function runningAnimations(page: Page): Promise<string[]>;
+export function expectAccessible(page: Page): Promise<void>;
+export function expectAccessibleInBothThemes(page: Page): Promise<void>;
+export function openSettings(page: Page): Promise<Locator>;
+export function connectWallet(page: Page, name?: string): Promise<void>;
+export interface E2EState { rpcUrl: string; siteUrl: string; snapshot: string; deployment: Record<string, unknown>; seeded: { simple: Address; guarded: Address; grace: Address } }
+export function readState(): E2EState;
+export function resetChain(s: E2EState): Promise<E2EState>;
+export function warp(s: E2EState, seconds: number): Promise<void>;
+export const rpcCall: (url: string, method: string, params?: unknown[]) => Promise<unknown>;
+export interface WalletOptions { rpcUrl: string; account: Address; chainId?: number; knownChains?: number[]; sendCalls?: boolean }
+export interface TestWallet { calls: { method: string; params: unknown[] }[]; setAccount(a: Address): void }
+export function installWallet(page: Page, o: WalletOptions): Promise<TestWallet>; // không khoá; ký và raw tx bị từ chối 4200
+export const OKX_ORIGINS: readonly string[];
+export function routeRpcToAnvil(page: Page, rpcUrl: string): Promise<void>;
+export function offchain(urls: readonly string[], siteOrigin: string): string[];
+```
+
+Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|lighthouse|playwright:install -w apps/web`. `size` và `lighthouse` đọc `out/` của một bản production mới build; `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
