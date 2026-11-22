@@ -104,9 +104,30 @@ describe('the schema on PGlite', () => {
     const [r] = await db.query<{ r: unknown }>('select public.atropyle_cleanup($1::timestamptz) as r', [
       new Date(now).toISOString(),
     ]);
-    expect(r.r).toEqual({ pending: 1, rateLimits: 1, integrityRuns: 0 });
+    expect(r.r).toEqual({ pending: 1, rateLimits: 1, integrityRuns: 0, keeperLog: 0 });
     const left = await db.query<{ email: string }>('select email::text as email from public.subscriptions order by 1');
     expect(left.map((x) => x.email)).toEqual(['kept@b.co', 'new@b.co']);
     expect(await count('rate_limits')).toBe(1);
+  });
+
+  it('cleanup drops keeper_log rows after 90 days and integrity runs after 30 days (M5)', async () => {
+    const now = Date.UTC(2026, 10, 30, 12);
+    const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString();
+    await db.query(
+      `insert into public.keeper_log (vault, action, tx_hash, status, chain_at, at)
+       values ($1, 'poke', $2, 'sent', 1, $3::timestamptz), ($1, 'poke', $4, 'sent', 2, $5::timestamptz)`,
+      [VAULT, `0x${hash(1)}`, daysAgo(91), `0x${hash(2)}`, daysAgo(89)],
+    );
+    await db.query(
+      `insert into public.integrity_runs (at, block, ok, report)
+       values ($1::timestamptz, 1, true, '{}'), ($2::timestamptz, 2, true, '{}')`,
+      [daysAgo(31), daysAgo(29)],
+    );
+    const [r] = await db.query<{ r: unknown }>('select public.atropyle_cleanup($1::timestamptz) as r', [
+      new Date(now).toISOString(),
+    ]);
+    expect(r.r).toEqual({ pending: 0, rateLimits: 0, integrityRuns: 1, keeperLog: 1 });
+    expect(await db.query('select chain_at::int as c from public.keeper_log')).toEqual([{ c: 2 }]);
+    expect(await count('integrity_runs')).toBe(1);
   });
 });

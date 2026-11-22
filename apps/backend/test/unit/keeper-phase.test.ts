@@ -84,7 +84,7 @@ describe('runKeeperPhase (spec §9.3.3)', () => {
     });
   });
 
-  it('looks again in five minutes after a dry run, and never logs an idle vault', async () => {
+  it('looks again in five minutes after a dry run, and logs neither a dry run nor an idle vault (M5)', async () => {
     env.chain.keeperImpl = async (run) =>
       report({
         dryRun: true,
@@ -101,16 +101,13 @@ describe('runKeeperPhase (spec §9.3.3)', () => {
       });
     await runKeeperPhase(env.d, T0, far());
     expect((await getVault(db, VAULT))?.nextCheckAt).toBe(T0 + 300n);
-    const logs = await db.query<{ status: string; tx_hash: string | null }>(
-      'select status, tx_hash from public.keeper_log',
-    );
-    expect(logs).toEqual([{ status: 'dry-run', tx_hash: null }]);
+    expect(await db.query('select 1 from public.keeper_log')).toEqual([]);
 
     env.chain.keeperImpl = async (run) =>
       report({ outcomes: [{ vault: run.vaults[0], decision: null, status: 'idle', nextCheckAt: T0 + 400n }] });
     await db.query('update public.vaults set next_check_at = $1::bigint', [String(T0 - 1n)]);
     await runKeeperPhase(env.d, T0, far());
-    expect(await db.query('select 1 from public.keeper_log')).toHaveLength(1);
+    expect(await db.query('select 1 from public.keeper_log')).toEqual([]);
   });
 
   it('caps transactions by the time left, and skips the keeper when almost none is left', async () => {

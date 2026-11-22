@@ -153,7 +153,8 @@ alter table public.keeper_log enable row level security;
 alter table public.integrity_runs enable row level security;
 
 -- Daily job (schedule migration): pending sign-ups older than 48 h, rate-limit windows older than 24 h (spec
--- §9.1, §9.5) and integrity runs older than 30 days.
+-- §9.1, §9.5), integrity runs older than 30 days and keeper_log rows older than 90 days (M5). The distribute back-off
+-- reads keeper_log only an hour back.
 create function public.atropyle_cleanup(p_now timestamptz default now())
 returns jsonb
 language plpgsql
@@ -163,6 +164,7 @@ declare
   pending_count int;
   limit_count int;
   integrity_count int;
+  keeper_count int;
 begin
   delete from public.subscriptions where status = 'pending' and created_at < p_now - interval '48 hours';
   get diagnostics pending_count = row_count;
@@ -170,7 +172,10 @@ begin
   get diagnostics limit_count = row_count;
   delete from public.integrity_runs where at < p_now - interval '30 days';
   get diagnostics integrity_count = row_count;
-  return jsonb_build_object('pending', pending_count, 'rateLimits', limit_count, 'integrityRuns', integrity_count);
+  delete from public.keeper_log where at < p_now - interval '90 days';
+  get diagnostics keeper_count = row_count;
+  return jsonb_build_object('pending', pending_count, 'rateLimits', limit_count, 'integrityRuns', integrity_count,
+                            'keeperLog', keeper_count);
 end;
 $$;
 revoke execute on function public.atropyle_cleanup(timestamptz) from public;

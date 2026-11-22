@@ -94,13 +94,17 @@ export async function runKeeperPhase(
   return result;
 }
 
-/** Logs each broadcast hash, then commits the outcomes' next_check_at and keeper_log rows in one transaction. */
+/**
+ * Logs each broadcast hash, then commits the outcomes' next_check_at and keeper_log rows in one transaction. A dry
+ * run, an idle vault, an owner-wallet vault and a vault over the limit get no keeper_log row: nothing was sent, and a
+ * dry run would otherwise add a row per due vault every five minutes (M5).
+ */
 async function commitOutcomes(d: Deps, report: KeeperReport): Promise<void> {
   const logs: KeeperLogRow[] = [];
   for (const o of report.outcomes) {
     const hash = o.hash ?? failedHash(o.error?.details);
     if (hash !== null) d.log.info('keeper broadcast', { vault: o.vault, action: o.decision?.action ?? null, hash });
-    if (o.status === 'owner-wallet' || o.status === 'idle' || o.status === 'limit') continue;
+    if (o.status === 'dry-run' || o.status === 'owner-wallet' || o.status === 'idle' || o.status === 'limit') continue;
     logs.push({
       vault: o.vault,
       action: o.decision?.action ?? null,

@@ -173,5 +173,5 @@ Then create a Drill from the web app, subscribe as its owner and confirm. Within
 - **Privacy** (spec §9.5):
   - The only personal data is the email address.
   - Tokens are stored as hashes, and rate-limit keys are HMACs, never IPs or addresses.
-  - The daily cleanup deletes pending sign-ups after 48 h and rate-limit rows after 24 h.
+  - The daily cleanup deletes pending sign-ups after 48 h, rate-limit rows after 24 h, integrity runs after 30 days and `keeper_log` rows after 90 days. The keeper logs only what it sent or tried to send, never a dry run.
   - Unsubscribing deletes the row.
