@@ -2,6 +2,7 @@ import { type CreatedVault, type StateName, stringify, type VaultEvent } from '@
 import { type Address, getAddress } from 'viem';
 import type { StoredAsset, VaultView } from '../chain/port';
 import type { Sql } from '../db/sql';
+import type { Role } from '../types';
 
 const big = (s: string | null): bigint | null => (s === null ? null : BigInt(s));
 const low = (a: string) => a.toLowerCase();
@@ -176,4 +177,45 @@ export async function getVault(sql: Sql, vault: Address): Promise<VaultRow | nul
     assets: r.assets,
     updatedBlock: BigInt(r.updated_block),
   };
+}
+
+export interface AddressVault {
+  vault: Address;
+  roles: Role[];
+  drill: boolean;
+  state: StateName;
+  released: boolean;
+}
+
+/** Vaults where `address` holds a role, newest first, roles in the order owner, guardian, heir (spec §9.6 /me). */
+export async function vaultsOfAddress(sql: Sql, address: Address): Promise<AddressVault[]> {
+  const rows = await sql.query<{ address: string; roles: Role[]; drill: boolean; state: StateName; released: boolean }>(
+    `select v.address, v.drill, v.state, v.released,
+            array_agg(r.role order by array_position(array['owner', 'guardian', 'heir'], r.role)) as roles
+       from public.vault_roles r
+       join public.vaults v on v.address = r.vault
+      where r.address = $1::text
+      group by v.address, v.drill, v.state, v.released, v.created_block
+      order by v.created_block desc, v.address
+      limit 200`,
+    [address.toLowerCase()],
+  );
+  return rows.map((r) => ({
+    vault: getAddress(r.address),
+    roles: r.roles,
+    drill: r.drill,
+    state: r.state,
+    released: r.released,
+  }));
+}
+
+/** Home page counters (spec §9.6 /stats). Every vault emits one Alive when it is created; the rest are check-ins. */
+export async function vaultStats(sql: Sql): Promise<{ vaults: string; drills: string; checkIns: string }> {
+  const [row] = await sql.query<{ vaults: string; drills: string; check_ins: string }>(
+    `select count(*)::text as vaults,
+            (count(*) filter (where drill))::text as drills,
+            greatest((select count(*) from public.vault_events where name = 'Alive') - count(*), 0)::text as check_ins
+       from public.vaults`,
+  );
+  return { vaults: row.vaults, drills: row.drills, checkIns: row.check_ins };
 }
