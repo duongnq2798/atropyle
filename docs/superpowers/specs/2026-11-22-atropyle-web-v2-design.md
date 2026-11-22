@@ -406,6 +406,31 @@ Kết nối ví để thấy mọi vault theo vai trò.
 - **Không chia sẻ, không marketing.** Email chỉ dùng cho thông báo của vault đã đăng ký.
 - **Xoá:** hủy là xoá thật. Trang `/privacy/` mô tả đủ.
 
+### 9.6 Hợp đồng API giữa web và backend
+
+Plan 7 (web) và Plan 8 (backend) viết song song. Bảng dưới là giao diện duy nhất giữa hai bên; đổi nó phải sửa spec trước.
+
+- **Gốc URL:** `NEXT_PUBLIC_API_URL`, dạng `https://<project>.supabase.co/functions/v1`. Chỉ bản vercel có biến này.
+- **Định dạng:** JSON UTF-8. `bigint` là chuỗi thập phân, địa chỉ có checksum (theo AGENTS.md). Thời điểm là chuỗi ISO 8601 UTC.
+- **Lỗi:** `application/problem+json` dạng `{ "type": "about:blank", "title": string, "status": number, "code": string }`. Các `code`: `INVALID_INPUT`, `NOT_A_VAULT`, `RATE_LIMITED`, `TOKEN_INVALID`, `UNAUTHORIZED`, `INTERNAL`.
+- **Kiểu dùng chung:** `Role = "owner" | "guardian" | "heir"`, `Lang = "en" | "vi"`.
+
+| Endpoint | Yêu cầu | Trả về |
+|---|---|---|
+| `POST /subscribe` | `{ email: string, vault: Address, role: Role, lang: Lang, website: string }`. `website` là bẫy bot, phải rỗng | `202 { ok: true }` cho mọi email hợp lệ, có hay chưa có trong hệ thống. `400 INVALID_INPUT`, `400 NOT_A_VAULT`, `429 RATE_LIMITED` |
+| `POST /confirm` | `{ token: string }` | `200 { ok: true, vault: Address, role: Role }`. `404 TOKEN_INVALID` |
+| `POST /unsubscribe` | `{ token: string }`, hoặc `?t=<token>` với thân `List-Unsubscribe=One-Click` (RFC 8058) | `200 { ok: true }`, kể cả khi token không còn (idempotent) |
+| `GET /me?address=<Address>` | | `200 { address, block: string, vaults: [{ vault: Address, roles: Role[], drill: boolean, state: string, released: boolean }] }`. `state` là tên trạng thái của SDK |
+| `GET /stats` | | `200 { block: string, vaults: string, drills: string, checkIns: string, updatedAt: string }` |
+| `GET /health` | | `200 { indexer: { block: string, lagBlocks: number, updatedAt: string }, integrity: { at: string, block: string, ok: boolean } \| null, keeper: { lastRunAt: string, balanceWei: string, dryRun: boolean } \| null }` |
+
+- **Link trong email** (web phải có các trang này):
+  - `<SITE_URL>/vault/#<vault>`;
+  - `<SITE_URL>/alerts/confirm/#t=<token>`;
+  - `<SITE_URL>/alerts/unsubscribe/#t=<token>`.
+  - Trang web đọc token sau `#` rồi `POST` lên function. Token không bao giờ nằm trong query string gửi tới Vercel.
+- **Header `List-Unsubscribe`:** trỏ thẳng tới `POST <API_URL>/unsubscribe?t=<token>`. Đây là một chạm theo RFC 8058, mail client gọi trực tiếp, không qua web.
+
 ## 10. Hosting và triển khai
 
 - **Vercel (bản chính):**
