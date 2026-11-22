@@ -1,5 +1,4 @@
 import {
-  Body,
   Button,
   Column,
   Container,
@@ -48,7 +47,8 @@ export function darkCss(): string {
 }
 
 const st = {
-  body: { fontFamily: SANS, margin: '0', padding: '32px 0 40px' },
+  page: { backgroundColor: LIGHT.bg, margin: '0', padding: '0' },
+  body: { backgroundColor: LIGHT.bg, color: LIGHT.ink, fontFamily: SANS, margin: '0', padding: '32px 0 40px' },
   container: { maxWidth: '560px', margin: '0 auto', padding: '0 16px' },
   masthead: { padding: '0 4px 18px' },
   wordmark: {
@@ -156,110 +156,119 @@ export function Email({ kind, lang }: { kind: EmailKind; lang: Lang }) {
         <style>{darkCss()}</style>
       </Head>
       <Preview>{k.preheader}</Preview>
-      <Body className="at-bg" style={st.body}>
-        <Container style={st.container}>
-          <Section style={st.masthead}>
-            <Row>
-              <Column>
-                <Text className="at-ink" style={st.wordmark}>
-                  Atropyle
-                </Text>
-              </Column>
-              <Column align="right">
-                <Text style={st.chip}>
-                  <span className={`at-text-${thread.tone}`} style={{ color: LIGHT[thread.tone] }}>
-                    {'●'}
-                  </span>
-                  {'  '}
-                  <span className="at-muted" style={{ color: LIGHT.muted }}>
-                    {k.eyebrow}
-                  </span>
-                </Text>
-              </Column>
-            </Row>
-          </Section>
+      {/* Not <Body>: it puts the style on an inner cell that cannot take the dark-mode classes. */}
+      <body className="at-bg" style={st.page}>
+        <table role="presentation" width="100%" border={0} cellPadding={0} cellSpacing={0} align="center">
+          <tbody>
+            <tr>
+              <td className="at-bg at-ink" style={st.body}>
+                <Container style={st.container}>
+                  <Section style={st.masthead}>
+                    <Row>
+                      <Column>
+                        <Text className="at-ink" style={st.wordmark}>
+                          Atropyle
+                        </Text>
+                      </Column>
+                      <Column align="right">
+                        <Text style={st.chip}>
+                          <span className={`at-text-${thread.tone}`} style={{ color: LIGHT[thread.tone] }}>
+                            {'●'}
+                          </span>
+                          {'  '}
+                          <span className="at-muted" style={{ color: LIGHT.muted }}>
+                            {k.eyebrow}
+                          </span>
+                        </Text>
+                      </Column>
+                    </Row>
+                  </Section>
 
-          <Section className="at-card" style={st.card}>
-            <Thread tone={thread.tone} progress={thread.progress} shape={thread.shape} />
-            <Section style={st.inner}>
-              <Heading as="h1" className="at-ink" style={st.h1}>
-                {k.heading}
-              </Heading>
-              {k.body.map((p) => (
-                <Text key={p} className="at-ink" style={st.p}>
-                  {p}
-                </Text>
-              ))}
-              {facts.length > 0 ? (
-                <Section style={st.facts}>
-                  {facts.map((f) => (
-                    <Fragment key={f}>
+                  <Section className="at-card" style={st.card}>
+                    <Thread tone={thread.tone} progress={thread.progress} shape={thread.shape} />
+                    <Section style={st.inner}>
+                      <Heading as="h1" className="at-ink" style={st.h1}>
+                        {k.heading}
+                      </Heading>
+                      {k.body.map((p) => (
+                        <Text key={p} className="at-ink" style={st.p}>
+                          {p}
+                        </Text>
+                      ))}
+                      {facts.length > 0 ? (
+                        <Section style={st.facts}>
+                          {facts.map((f) => (
+                            <Fragment key={f}>
+                              <Text className="at-muted" style={st.label}>
+                                {c.labels[f]}
+                              </Text>
+                              <Text className="at-ink" style={MONO_FACTS.has(f) ? st.mono : st.value}>
+                                {`{{${f}}}`}
+                              </Text>
+                            </Fragment>
+                          ))}
+                        </Section>
+                      ) : null}
+                      {kind === 'distributed' ? (
+                        <Section style={st.facts}>
+                          <Text className="at-muted" style={st.label}>
+                            {c.labels.transfers}
+                          </Text>
+                          {'{{{transfersHtml}}}'}
+                        </Section>
+                      ) : null}
+                      <Section style={st.cta}>
+                        <Button href="{{actionUrl}}" style={st.button}>
+                          {k.cta}
+                        </Button>
+                      </Section>
+                      {k.note ? (
+                        <Text className="at-muted" style={st.note}>
+                          {k.note}
+                        </Text>
+                      ) : null}
+                    </Section>
+                    <Section className="at-well" style={st.well}>
                       <Text className="at-muted" style={st.label}>
-                        {c.labels[f]}
+                        {c.labels.vault}
                       </Text>
-                      <Text className="at-ink" style={MONO_FACTS.has(f) ? st.mono : st.value}>
-                        {`{{${f}}}`}
+                      <Text className="at-ink" style={st.address}>
+                        {'{{vaultGrouped}}'}
                       </Text>
-                    </Fragment>
-                  ))}
-                </Section>
-              ) : null}
-              {kind === 'distributed' ? (
-                <Section style={st.facts}>
-                  <Text className="at-muted" style={st.label}>
-                    {c.labels.transfers}
-                  </Text>
-                  {'{{{transfersHtml}}}'}
-                </Section>
-              ) : null}
-              <Section style={st.cta}>
-                <Button href="{{actionUrl}}" style={st.button}>
-                  {k.cta}
-                </Button>
-              </Section>
-              {k.note ? (
-                <Text className="at-muted" style={st.note}>
-                  {k.note}
-                </Text>
-              ) : null}
-            </Section>
-            <Section className="at-well" style={st.well}>
-              <Text className="at-muted" style={st.label}>
-                {c.labels.vault}
-              </Text>
-              <Text className="at-ink" style={st.address}>
-                {'{{vaultGrouped}}'}
-              </Text>
-              <Text className="at-muted" style={st.small}>
-                {c.labels.compare}
-              </Text>
-              <Text className="at-muted" style={st.label}>
-                {c.labels.role}
-              </Text>
-              <Text className="at-ink" style={st.value}>
-                {'{{roleLabel}}'}
-              </Text>
-            </Section>
-          </Section>
+                      <Text className="at-muted" style={st.small}>
+                        {c.labels.compare}
+                      </Text>
+                      <Text className="at-muted" style={st.label}>
+                        {c.labels.role}
+                      </Text>
+                      <Text className="at-ink" style={st.value}>
+                        {'{{roleLabel}}'}
+                      </Text>
+                    </Section>
+                  </Section>
 
-          <Section style={st.footer}>
-            <Text className="at-ink at-never" style={st.never}>
-              {c.footer.never}
-            </Text>
-            <Text className="at-muted" style={st.small}>
-              {c.footer.why}
-            </Text>
-            <Text className="at-muted" style={st.small}>
-              <Link href="{{unsubscribeUrl}}" className="at-muted" style={st.link}>
-                {c.footer.unsubscribe}
-              </Link>
-            </Text>
-            <Text className="at-muted" style={st.small}>
-              {c.footer.beta}
-            </Text>
-          </Section>
-        </Container>
-      </Body>
+                  <Section style={st.footer}>
+                    <Text className="at-ink at-never" style={st.never}>
+                      {c.footer.never}
+                    </Text>
+                    <Text className="at-muted" style={st.small}>
+                      {c.footer.why}
+                    </Text>
+                    <Text className="at-muted" style={st.small}>
+                      <Link href="{{unsubscribeUrl}}" className="at-muted" style={st.link}>
+                        {c.footer.unsubscribe}
+                      </Link>
+                    </Text>
+                    <Text className="at-muted" style={st.small}>
+                      {c.footer.beta}
+                    </Text>
+                  </Section>
+                </Container>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </body>
     </Html>
   );
 }
