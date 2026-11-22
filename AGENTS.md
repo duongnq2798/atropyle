@@ -89,7 +89,7 @@ The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/
 
 ## Backend
 
-`apps/backend` holds the Supabase Edge Functions, the email templates and the keeper. `supabase/` holds the migrations and `config.toml`.
+`apps/backend` holds the Supabase Edge Functions, the email templates and the keeper. `supabase/` holds the migrations and `supabase/config.toml`.
 
 - The unit tests run on PGlite with a fake chain and a capturing mailer.
 - The e2e starts its own anvil, so it needs `forge build` and the built SDK.
