@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  assertSafeSpec,
   entryFrom,
   fixLock,
   type LockEntry,
@@ -130,5 +131,15 @@ describe('lockfile check', () => {
     expect(Object.keys(r.lock.packages)).toEqual(Object.keys(real().packages));
     expect(JSON.stringify(r.lock.packages[CORE])).toBe(JSON.stringify(fixture['@emnapi/core']));
     expect(JSON.stringify(r.lock.packages[RUNTIME])).toBe(JSON.stringify(fixture['@emnapi/runtime']));
+  });
+});
+
+describe('assertSafeSpec', () => {
+  it.each(['x@1" & calc & "', 'x@1 && calc', 'x@$(id)', 'a/..@1', '@a/../b@1'])('rejects %s', (spec) => {
+    expect(() => assertSafeSpec(spec)).toThrow(/unsafe/);
+  });
+
+  it.each(['@emnapi/core@^1.4.3', 'tslib@>=2 <3', 'a@1.0.0 || 2.x'])('accepts %s', (spec) => {
+    expect(assertSafeSpec(spec)).toBe(spec);
   });
 });

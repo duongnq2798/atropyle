@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface LockEntry {
   version?: string;
@@ -101,14 +103,34 @@ export function entryFrom(view: unknown, dev: boolean, optional: boolean): LockE
 
 export type NpmView = (spec: string) => unknown;
 
-/** `npm` is a .cmd on Windows, so it runs through a shell there; the quotes keep `^` and `<` literal for cmd.exe. */
+const SAFE_SPEC = /^(@[a-z0-9._~-]+\/)?[a-z0-9._~-]+@[\w.^~<>=|*\s-]+$/;
+
+/** A spec comes from the lockfile, which a PR can change: only package names and semver ranges pass. */
+export function assertSafeSpec(spec: string): string {
+  if (!SAFE_SPEC.test(spec)) throw new Error(`unsafe package spec: ${JSON.stringify(spec)}`);
+  return spec;
+}
+
+/** npm's own entry script, so npm runs as `node npm-cli.js` with no shell (a .cmd needs one on Windows). */
+function npmCli(): string {
+  const bin = dirname(process.execPath);
+  const candidates = [
+    process.env.npm_execpath?.endsWith('npm-cli.js') ? process.env.npm_execpath : '',
+    join(bin, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    join(bin, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+  const found = candidates.find((c) => c !== '' && existsSync(c));
+  if (!found) throw new Error('cannot find npm-cli.js next to node; run this through npm run');
+  return found;
+}
+
 export const npmView: NpmView = (spec) => {
-  const win = process.platform === 'win32';
   const r = spawnSync(
-    'npm',
+    process.execPath,
     [
+      npmCli(),
       'view',
-      win ? `"${spec}"` : spec,
+      assertSafeSpec(spec),
       'version',
       'dist.tarball',
       'dist.integrity',
@@ -116,9 +138,11 @@ export const npmView: NpmView = (spec) => {
       'dependencies',
       '--json',
     ],
-    { encoding: 'utf8', shell: win, windowsHide: true },
+    { encoding: 'utf8', shell: false, windowsHide: true },
   );
-  if (r.status !== 0) throw new Error(`npm view ${spec} failed:\n${r.stderr}`);
+  if (r.status !== 0)
+    throw new Error(`npm view ${spec} failed:
+${r.stderr}`);
   return JSON.parse(r.stdout) as unknown;
 };
 
