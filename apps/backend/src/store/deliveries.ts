@@ -12,9 +12,16 @@ export const CLAIM_STALE_MS = 10 * 60_000;
 
 const keyParams = (k: DeliveryKey) => [k.subscriptionId, k.kind, k.periodKey];
 
-/** True when this run may send the email: no row yet, or an unsent claim that went stale. */
-export async function claimDelivery(sql: Sql, key: DeliveryKey, nowMs: number): Promise<boolean> {
-  const rows = await sql.query(
+/**
+ * - 'claimed': this run may send the email (no row yet, or an unsent claim that went stale);
+ * - 'sent': the email already went out;
+ * - 'busy': another run holds an unsent claim younger than CLAIM_STALE_MS. It may still be sending, or it died; either
+ *   way the caller must not count the email as delivered, and a run after the stale window takes the claim over.
+ */
+export type ClaimResult = 'claimed' | 'sent' | 'busy';
+
+export async function claimDelivery(sql: Sql, key: DeliveryKey, nowMs: number): Promise<ClaimResult> {
+  const claimed = await sql.query(
     `insert into public.deliveries (subscription_id, kind, period_key, claimed_at)
      values ($1::bigint, $2::text, $3::text, $4::timestamptz)
      on conflict (subscription_id, kind, period_key) do update set claimed_at = excluded.claimed_at
@@ -22,7 +29,14 @@ export async function claimDelivery(sql: Sql, key: DeliveryKey, nowMs: number): 
      returning 1 as claimed`,
     [...keyParams(key), new Date(nowMs).toISOString(), new Date(nowMs - CLAIM_STALE_MS).toISOString()],
   );
-  return rows.length > 0;
+  if (claimed.length > 0) return 'claimed';
+  const rows = await sql.query<{ sent: boolean }>(
+    `select sent_at is not null as sent from public.deliveries
+      where subscription_id = $1::bigint and kind = $2::text and period_key = $3::text`,
+    keyParams(key),
+  );
+  // No row: its holder released the claim between the two queries. Busy too: the next tick claims it.
+  return rows[0]?.sent === true ? 'sent' : 'busy';
 }
 
 export async function completeDelivery(sql: Sql, key: DeliveryKey, providerId: string, nowMs: number): Promise<void> {

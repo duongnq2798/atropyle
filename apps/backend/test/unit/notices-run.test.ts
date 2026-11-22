@@ -1,6 +1,7 @@
 import { zeroAddress } from 'viem';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MailError } from '../../src/mail/mailer';
+import { CLAIM_STALE_MS } from '../../src/store/deliveries';
 import { insertEvents, saveView } from '../../src/store/vaults';
 import { runNotices } from '../../src/tick/notices';
 import { type TestDb, testDb } from '../helpers/db';
@@ -84,6 +85,32 @@ describe('runNotices (spec §9.3.2)', () => {
         .sort(),
     ).toEqual(['guardian@example.com', 'heir@example.com']);
     expect(await unnotified()).toBe(0);
+  });
+
+  it('keeps an event open while a dead run still holds a fresh claim, then sends once after the claim goes stale (C1)', async () => {
+    await seedVault(db, view({ state: 'grace', pending: 'grace', windowEndsAt: T0 + 115n }));
+    const owner = await activeSubscriber(db, { email: 'owner@example.com', vault: VAULT, role: 'owner' });
+    await add('AlarmRaised', { state: 1, target: zeroAddress }, { block: 190n, at: T0 - 5n, tx: 10 });
+    // Run A claimed alarm-owner two minutes ago, then its isolate was killed before the send (no release).
+    await db.query(
+      `insert into public.deliveries (subscription_id, kind, period_key, claimed_at)
+       values ($1::bigint, 'alarm-owner', $2::text, $3::timestamptz)`,
+      [owner.id, `${txh(10)}:0`, new Date(env.clock.now() - 120_000).toISOString()],
+    );
+    // Run C, inside the stale window: the alarm stays open (only the seeded Alive event is marked).
+    const inside = await runNotices(env.d, T0, far(), true);
+    expect(inside).toMatchObject({ sent: 0, busy: 1, events: 1 });
+    expect(env.mailer.sent).toEqual([]);
+    expect(await unnotified()).toBe(1);
+
+    // Past the stale window the claim is taken over: one email, then the event is marked.
+    env.clock.advance(CLAIM_STALE_MS);
+    const after = await runNotices(env.d, T0, far(), true);
+    expect(after).toMatchObject({ sent: 1, busy: 0, events: 1 });
+    expect(env.mailer.byKind('alarm-owner').map((m) => m.to)).toEqual(['owner@example.com']);
+    expect(await unnotified()).toBe(0);
+    await runNotices(env.d, T0, far(), true);
+    expect(env.mailer.sent).toHaveLength(1);
   });
 
   it('sends one payout email per transaction and skips events older than 24 hours', async () => {

@@ -140,7 +140,8 @@ export async function runNotices(d: Deps, now: bigint, deadlineMs: number, caugh
       for (const n of notices) {
         for (const sub of readers.filter((s) => s.role === n.role)) {
           const r = await deliver(d, { sub, kind: n.kind, periodKey: n.periodKey, facts: n.facts }, run);
-          if (r === 'failed') complete = false;
+          // Marked only once every email is sent or was sent before: a busy claim may belong to a run that died.
+          if (r === 'failed' || r === 'busy') complete = false;
         }
       }
     }
