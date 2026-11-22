@@ -71,10 +71,10 @@ Its key goes only into the `KEEPER_KEY` secret (step 4); nobody else ever sees i
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `SITE_URL`                   | The web app, for example `https://atropyle.xyz`. Every email link starts with it            |
 | `MAIL_FROM`                  | `Atropyle <alerts@your-domain>` on the domain verified in Resend                            |
-| `RESEND_API_KEY`             | The key from step 2. Without it, emails wait unsent                                         |
+| `RESEND_API_KEY`             | The key from step 2. Without it nothing is sent; event emails over 24 h old are dropped     |
 | `CRON_SECRET`                | 64 random hex characters (command below); the same value goes into the Vault in step 6      |
 | `TOKEN_SECRET`               | 64 random hex characters; signs unsubscribe links and hashes rate-limit keys                |
-| `OPS_EMAIL`                  | Where alerts about the keeper and integrity go                                              |
+| `OPS_EMAIL`                  | Where ops alerts go: the keeper, integrity, a stalled indexer, failing mail                 |
 | `KEEPER_KEY`                 | The keeper wallet's private key. Without it the keeper runs dry (it simulates, never sends) |
 | `RPC_URLS` (optional)        | Comma-separated X Layer RPC URLs; default: the URLs of the SDK's X Layer deployment         |
 | `ALLOWED_ORIGINS` (optional) | Extra origins allowed to POST, such as a Vercel preview URL                                 |
@@ -165,6 +165,9 @@ Then create a Drill from the web app, subscribe as its owner and confirm. Within
   - `keeper-balance`: the keeper is below 0.005 OKB, so top it up;
   - `keeper-key`: `KEEPER_KEY` is set but unusable;
   - `integrity`: a deployment check failed. Read `integrity_runs.report`.
+  - `indexer-lag`: the indexer has not reached head − `HEAD_MARGIN` for 15 minutes (an RPC that fails: check `RPC_URLS` and `/health`), or a vault's view has been stale for 30 minutes (the email names how many and the oldest). It can fire once after the first deploy, while the indexer catches up. Event emails older than 24 h are dropped, so act on it.
+  - `mail-failing`: for 10 minutes, every tick had failed emails and none sent. Check `RESEND_API_KEY` and the domain in Resend. Event emails older than 24 h are dropped; reminders wait.
+  - If Resend itself is broken, the ops email fails too. The alert is then only in the function logs (`ops alert not sent`) and is retried every tick.
 - **Budget:** about 48,000 cron invocations a month: one `tick` a minute and one `integrity` every ten minutes.
 - **Privacy** (spec §9.5):
   - The only personal data is the email address.

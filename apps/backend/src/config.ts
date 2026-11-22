@@ -15,7 +15,7 @@ export interface Config {
   /** Shared with the pg_cron job through Vault; tick and integrity refuse calls without it. */
   cronSecret: string;
   opsEmail: string | null;
-  /** Without it the mailer is off: sends fail and are retried once it is set. */
+  /** Without it the mailer is off: reminders wait for it, event emails older than 24 h are dropped. */
   resendApiKey: string | null;
   /** Override for the deployment's read RPCs. */
   rpcUrls: string[] | null;

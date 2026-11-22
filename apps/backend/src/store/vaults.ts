@@ -1,7 +1,7 @@
 import { type CreatedVault, type StateName, stringify, type VaultEvent } from '@atropyle/sdk';
 import { type Address, getAddress } from 'viem';
 import type { StoredAsset, VaultView } from '../chain/port';
-import type { Sql } from '../db/sql';
+import { type Sql, toIso } from '../db/sql';
 import type { Role } from '../types';
 
 const big = (s: string | null): bigint | null => (s === null ? null : BigInt(s));
@@ -149,6 +149,22 @@ export async function dueStaleViews(sql: Sql, nowIso: string, limit = 50): Promi
     [nowIso, limit],
   );
   return rows.map((r) => getAddress(r.address));
+}
+
+/** Vaults stale since `beforeIso` or earlier: how many, and the one stale the longest. */
+export async function staleViewsSince(
+  sql: Sql,
+  beforeIso: string,
+): Promise<{ count: number; oldest: { vault: Address; since: string } | null }> {
+  const rows = await sql.query<{ n: number; address: string; since: unknown }>(
+    `select count(*) over ()::int as n, address, view_stale_since as since from public.vaults
+      where view_stale_since <= $1::timestamptz
+      order by view_stale_since, address
+      limit 1`,
+    [beforeIso],
+  );
+  if (rows.length === 0) return { count: 0, oldest: null };
+  return { count: rows[0].n, oldest: { vault: getAddress(rows[0].address), since: toIso(rows[0].since) } };
 }
 
 export async function countStaleViews(sql: Sql): Promise<number> {

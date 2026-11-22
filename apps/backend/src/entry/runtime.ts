@@ -22,7 +22,7 @@ export interface BuildOptions {
  * - Database: SUPABASE_DB_URL (a Supabase default secret) through postgres.js.
  * - Chain: the X Layer deployment bundled in the SDK, read over RPC_URLS when set, else the deployment's own URLs.
  * - Keeper: the keeper secret, read only by keeperSignerFromEnv. Without it the keeper runs dry.
- * - Mail: Resend when RESEND_API_KEY is set; otherwise every delivery fails and stays unsent until it is.
+ * - Mail: Resend when RESEND_API_KEY is set; otherwise every delivery fails (see disabledMailer).
  */
 export function buildDeps(env: Env, o: BuildOptions = {}): Deps {
   const problems: string[] = [];

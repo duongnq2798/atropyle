@@ -3,6 +3,7 @@ import type { Deps } from '../deps';
 import { errorText } from '../log';
 import { opsAlert } from '../ops';
 import { leaseUntil, releaseLease, renewLease, tryLease } from '../store/meta';
+import { checkIndexerLag, checkMail } from './alerts';
 import { type IndexResult, runIndexer } from './indexer';
 import { type KeeperPhaseResult, runKeeperPhase } from './keeper';
 import { type NoticeResult, runNotices } from './notices';
@@ -26,7 +27,8 @@ export interface TickResult {
 
 /**
  * Spec §9.3: one minute's work under one lease and a 50 s budget. The indexer may use half of it, the notices run
- * until 70%, the keeper uses the rest. A failing phase is recorded in `errors` and the next phase still runs.
+ * until 70%, the keeper uses the rest. A failing phase is recorded in `errors` and the next phase still runs. The
+ * indexer-lag check runs on every tick, also when the head cannot be read; the mail check after the notices (I3).
  */
 export async function runTick(d: Deps): Promise<TickResult> {
   const start = d.clock.now();
@@ -49,23 +51,31 @@ export async function runTick(d: Deps): Promise<TickResult> {
     } catch (e) {
       fail('ops', e);
     }
-    let head: ChainHead;
+    let head: ChainHead | null = null;
     try {
       head = await d.chain.head();
     } catch (e) {
       fail('head', e);
-      return result;
     }
-    result.head = head.number;
     const budget = d.config.budgetMs;
-    try {
-      result.indexer = await runIndexer(d, head, start + budget * 0.5);
-      if (result.indexer.error !== null) result.errors.push(`indexer: ${result.indexer.error}`);
-    } catch (e) {
-      fail('indexer', e);
+    if (head !== null) {
+      result.head = head.number;
+      try {
+        result.indexer = await runIndexer(d, head, start + budget * 0.5);
+        if (result.indexer.error !== null) result.errors.push(`indexer: ${result.indexer.error}`);
+      } catch (e) {
+        fail('indexer', e);
+      }
     }
+    try {
+      await checkIndexerLag(d);
+    } catch (e) {
+      fail('ops', e);
+    }
+    if (head === null) return result;
     try {
       result.notices = await runNotices(d, head.timestamp, start + budget * 0.7, result.indexer?.caughtUp ?? false);
+      await checkMail(d, result.notices);
     } catch (e) {
       fail('notices', e);
     }

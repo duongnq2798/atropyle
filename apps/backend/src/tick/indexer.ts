@@ -3,7 +3,7 @@ import type { ChainHead, VaultView } from '../chain/port';
 import { isoAt } from '../clock';
 import type { Deps } from '../deps';
 import { errorText } from '../log';
-import { getCursor, setCursor, setMeta } from '../store/meta';
+import { getCursor, getMeta, setCursor, setMeta } from '../store/meta';
 import {
   countStaleViews,
   dueStaleViews,
@@ -121,8 +121,20 @@ export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): 
   r.to = cursor;
   r.caughtUp = r.error === null && cursor >= target;
   r.staleViews = await countStaleViews(d.sql);
-  await setMeta(d.sql, 'indexer', { block: cursor, head: head.number }, isoAt(d.clock.now()));
+  const nowIso = isoAt(d.clock.now());
+  // caughtUpAt: the last time the cursor reached head − margin (the first run starts the clock). The indexer-lag
+  // alert compares it with the time, so a head that cannot be read counts as lag too.
+  const prev = await getMeta<IndexerMeta>(d.sql, 'indexer');
+  const caughtUpAt = cursor >= target ? nowIso : (prev?.value.caughtUpAt ?? nowIso);
+  await setMeta(d.sql, 'indexer', { block: cursor, head: head.number, caughtUpAt }, nowIso);
   return r;
+}
+
+/** meta 'indexer': read by /health and by the indexer-lag alert. */
+export interface IndexerMeta {
+  block: string;
+  head: string;
+  caughtUpAt?: string;
 }
 
 /** One vault's view, or null when the read failed. Only the chain read is caught: a database error still throws. */

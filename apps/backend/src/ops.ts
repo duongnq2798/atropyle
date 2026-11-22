@@ -5,11 +5,12 @@ import { escapeHtml } from './email/fill';
 import { errorText } from './log';
 import { getMeta, setMeta } from './store/meta';
 
-export type OpsAlert = 'keeper-balance' | 'keeper-key' | 'integrity';
+export type OpsAlert = 'keeper-balance' | 'keeper-key' | 'integrity' | 'indexer-lag' | 'mail-failing';
 
 /**
  * Mails OPS_EMAIL when an alert starts or ends, never while it stays the same. The new state is stored only after
- * the email went out (or when no OPS_EMAIL is set), so a failed send is retried on the next tick.
+ * the email went out (or when no OPS_EMAIL is set), so a failed send is logged and retried on the next tick. When
+ * Resend itself is broken this mail fails too: then only the log carries the alert.
  */
 export async function opsAlert(
   d: Deps,

@@ -119,7 +119,10 @@ export function captureMailer(): CaptureMailer {
   };
 }
 
-/** Without RESEND_API_KEY nothing is sent; deliveries stay unsent and go out once the key is set. */
+/**
+ * Without RESEND_API_KEY nothing is sent. Reminders and Drill summaries go out once the key is set; an event email
+ * is dropped once its event is older than 24 h (MAX_NOTICE_AGE), and the mail-failing ops alert fires meanwhile.
+ */
 export function disabledMailer(): Mailer {
   return {
     async send() {
