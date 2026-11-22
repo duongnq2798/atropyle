@@ -176,4 +176,54 @@ describe('runKeeperPhase (spec §9.3.3)', () => {
     await runKeeperPhase(env.d, T0 + 60n, far());
     expect(env.chain.calls.keeper[0].vaults).toEqual([]);
   });
+
+  it('keeps the hash of a broadcast that then failed, and backs off the next distribute', async () => {
+    await db.query("update public.vaults set state = 'releasedInherit', released = true where address = $1::text", [
+      VAULT.toLowerCase(),
+    ]);
+    env.chain.keeperImpl = async (run) =>
+      report({
+        outcomes: [
+          {
+            vault: run.vaults[0],
+            decision: { vault: run.vaults[0], action: 'distribute', reason: 'DISTRIBUTE_DUE', nextCheckAt: T0 },
+            status: 'send-failed',
+            error: {
+              code: 'UNKNOWN',
+              message: 'reverted',
+              hint: '',
+              docsUrl: '',
+              details: { hash: txh(77) },
+            },
+            nextCheckAt: T0 + 300n,
+          },
+        ],
+      });
+    await runKeeperPhase(env.d, T0, far());
+    const logs = await db.query<{ tx_hash: string; status: string; action: string }>(
+      'select tx_hash, status, action from public.keeper_log',
+    );
+    expect(logs).toEqual([{ tx_hash: txh(77), status: 'send-failed', action: 'distribute' }]);
+    env.chain.keeperImpl = async () => report();
+    await runKeeperPhase(env.d, T0 + 300n, far());
+    expect(env.chain.calls.keeper[1].lastDistributeAt.get(VAULT)).toBe(T0);
+  });
+
+  it('does not log or re-read an owner-wallet vault every minute', async () => {
+    env.chain.keeperImpl = async (run) =>
+      report({
+        outcomes: [
+          {
+            vault: run.vaults[0],
+            decision: { vault: run.vaults[0], action: 'poke', reason: 'TRANSITION_DUE', nextCheckAt: T0 },
+            status: 'owner-wallet',
+            error: { code: 'WRONG_ACCOUNT', message: 'owner', hint: '', docsUrl: '' },
+            nextCheckAt: T0,
+          },
+        ],
+      });
+    await runKeeperPhase(env.d, T0, far());
+    expect(await db.query('select 1 from public.keeper_log')).toEqual([]);
+    expect((await getVault(db, VAULT))?.nextCheckAt).toBe(T0 + 300n);
+  });
 });

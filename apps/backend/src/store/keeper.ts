@@ -28,7 +28,7 @@ export async function lastDistributes(sql: Sql, vaults: readonly Address[]): Pro
   if (vaults.length === 0) return out;
   const rows = await sql.query<{ vault: string; at: string }>(
     `select vault, max(chain_at)::text as at from public.keeper_log
-      where action = 'distribute' and status = 'sent' and vault = any(string_to_array($1::text, ','))
+      where action = 'distribute' and (status = 'sent' or (status = 'send-failed' and tx_hash is not null)) and vault = any(string_to_array($1::text, ','))
       group by vault`,
     [vaults.map((v) => v.toLowerCase()).join(',')],
   );

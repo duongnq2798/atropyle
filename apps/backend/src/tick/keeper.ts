@@ -1,4 +1,5 @@
 import { RETRY_AFTER } from '@atropyle/sdk';
+import { type Hex, isHex } from 'viem';
 import { isoAt } from '../clock';
 import type { Deps } from '../deps';
 import { opsAlert } from '../ops';
@@ -16,6 +17,12 @@ export interface KeeperPhaseResult {
   stopped: 'LOW_BALANCE' | null;
 }
 
+/** A broadcast that then failed (revert, unreadable receipt) reports its hash only in error.details.hash. */
+function failedHash(details: unknown): Hex | null {
+  const h = (details as { hash?: unknown } | undefined)?.hash;
+  return typeof h === 'string' && isHex(h) && h.length === 66 ? h : null;
+}
+
 /**
  * Spec §9.3.3 with the limits of the ecosystem spec §9.4: at most keeperMaxTx (20) attempts, the SDK's gas cap,
  * a stop below 0.005 OKB. Runs even with no vault due, so the balance alert and /health stay current.
@@ -29,14 +36,15 @@ export async function runKeeperPhase(d: Deps, now: bigint, deadlineMs: number): 
   const logs: KeeperLogRow[] = [];
   await d.sql.begin(async (tx) => {
     for (const o of report.outcomes) {
-      // A dry run would otherwise re-simulate the same vault every minute.
-      const next = o.status === 'dry-run' ? report.ranAt + RETRY_AFTER : o.nextCheckAt;
-      await setNextCheck(tx, o.vault, next);
+      // A dry run or a vault the keeper wallet owns would otherwise be read again every minute.
+      const quiet = o.status === 'dry-run' || o.status === 'owner-wallet';
+      await setNextCheck(tx, o.vault, quiet ? report.ranAt + RETRY_AFTER : o.nextCheckAt);
+      if (o.status === 'owner-wallet') continue;
       if (o.status === 'idle' || o.status === 'limit') continue;
       logs.push({
         vault: o.vault,
         action: o.decision?.action ?? null,
-        txHash: o.hash ?? null,
+        txHash: o.hash ?? failedHash(o.error?.details),
         status: o.status,
         error: o.error?.code ?? null,
         chainAt: report.ranAt,

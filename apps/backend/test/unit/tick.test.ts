@@ -108,4 +108,18 @@ describe('runTick (spec §9.3)', () => {
     expect(await getCursor(db)).toBe(200n - BigInt(env.d.config.headMargin));
     expect(await getMeta(db, TICK_LEASE)).toBeNull();
   });
+
+  it("a run that outlived its lease does not delete the next run's lease", async () => {
+    let started: Promise<unknown> | undefined;
+    const keeper = env.chain.keeperImpl;
+    env.chain.keeperImpl = async (run) => {
+      // While run A is inside its keeper phase, its lease expires and run B takes it.
+      env.clock.advance(121_000);
+      expect(await tryLease(db, TICK_LEASE, env.clock.now(), 120_000)).toBe(true);
+      return keeper(run);
+    };
+    started = runTick(env.d);
+    await started;
+    expect(await getMeta(db, TICK_LEASE)).not.toBeNull();
+  });
 });

@@ -47,11 +47,19 @@ export async function tryLease(sql: Sql, key: string, nowMs: number, ttlMs: numb
      on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at
        where (public.meta.value ->> 'until')::timestamptz <= $3::timestamptz
      returning 1 as taken`,
-    [key, new Date(nowMs + ttlMs).toISOString(), new Date(nowMs).toISOString()],
+    [key, leaseUntil(nowMs, ttlMs), new Date(nowMs).toISOString()],
   );
   return rows.length > 0;
 }
 
-export async function releaseLease(sql: Sql, key: string): Promise<void> {
-  await sql.query('delete from public.meta where key = $1::text', [key]);
+/** The `until` value tryLease stores for a lease taken at nowMs; a run releases only the lease it wrote. */
+export const leaseUntil = (nowMs: number, ttlMs: number): string => new Date(nowMs + ttlMs).toISOString();
+
+/** With `until`, deletes the lease only while it still carries that value (a later holder's lease stays). */
+export async function releaseLease(sql: Sql, key: string, until?: string): Promise<void> {
+  if (until === undefined) {
+    await sql.query('delete from public.meta where key = $1::text', [key]);
+    return;
+  }
+  await sql.query("delete from public.meta where key = $1::text and value ->> 'until' = $2::text", [key, until]);
 }

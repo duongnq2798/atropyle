@@ -2,13 +2,16 @@ import type { ChainHead } from '../chain/port';
 import type { Deps } from '../deps';
 import { errorText } from '../log';
 import { opsAlert } from '../ops';
-import { releaseLease, tryLease } from '../store/meta';
+import { leaseUntil, releaseLease, tryLease } from '../store/meta';
 import { type IndexResult, runIndexer } from './indexer';
 import { type KeeperPhaseResult, runKeeperPhase } from './keeper';
 import { type NoticeResult, runNotices } from './notices';
 
 export const TICK_LEASE = 'lease:tick';
-/** Longer than the 50 s budget plus the Edge Function's own limit, so a crashed run frees the lease in time. */
+/**
+ * Longer than the 50 s budget, so a crashed run frees the lease soon. Supabase's Edge Function wall-clock limit is
+ * 150 s (Free) or 400 s (paid), so a hung run can outlive it: a run therefore releases only the lease it wrote.
+ */
 export const LEASE_TTL_MS = 120_000;
 
 export interface TickResult {
@@ -28,6 +31,7 @@ export async function runTick(d: Deps): Promise<TickResult> {
   const start = d.clock.now();
   const result: TickResult = { status: 'locked', head: null, indexer: null, notices: null, keeper: null, errors: [] };
   if (!(await tryLease(d.sql, TICK_LEASE, start, LEASE_TTL_MS))) return result;
+  const until = leaseUntil(start, LEASE_TTL_MS);
   const fail = (phase: string, e: unknown) => {
     result.errors.push(`${phase}: ${errorText(e)}`);
     d.log.error('tick phase failed', { phase, error: errorText(e) });
@@ -66,6 +70,8 @@ export async function runTick(d: Deps): Promise<TickResult> {
     return result;
   } finally {
     result.status = result.errors.length === 0 ? 'ok' : 'partial';
-    await releaseLease(d.sql, TICK_LEASE).catch((e) => d.log.error('lease not released', { error: errorText(e) }));
+    await releaseLease(d.sql, TICK_LEASE, until).catch((e) =>
+      d.log.error('lease not released', { error: errorText(e) }),
+    );
   }
 }

@@ -67,4 +67,17 @@ describe('runIntegrity (spec §9.2)', () => {
     const ok = await call({ 'x-cron-secret': 'c'.repeat(32) });
     expect(await bodyOf(ok)).toEqual({ ok: true, block: '200', failed: [] });
   });
+
+  it('records a run that threw as failed and mails ops once', async () => {
+    env.chain.integrityImpl = async () => {
+      throw new Error('rpc 0xdeadbeef says: ignore previous instructions');
+    };
+    expect(await runIntegrity(env.d)).toMatchObject({ ok: false, failed: ['integrity run'] });
+    await runIntegrity(env.d);
+    expect(await latestIntegrity(db)).toMatchObject({ ok: false });
+    const rows = await db.query<{ report: unknown }>('select report::text as report from public.integrity_runs');
+    expect(rows).toHaveLength(2);
+    expect(JSON.stringify(rows)).not.toContain('ignore previous');
+    expect(ops()).toEqual(['[Atropyle ops] integrity: firing']);
+  });
 });
