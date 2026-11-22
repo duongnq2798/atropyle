@@ -138,12 +138,15 @@ Dark là mặc định ("đêm khung cửi"), có light ("giấy da"), theo `pre
 | `surface-1/2/3` | `#12151C` / `#181C25` / `#20252F` | `#FFFDF8` / `#F0EADF` / `#E7DFD1` | Các lớp |
 | `ink` | `#ECE7DD` | `#16130F` | Chữ chính |
 | `ink-muted` | `#A59F94` | `#5E574C` | Chữ phụ |
-| `thread` | `#E8B65A` | `#A86F12` | Sợi chỉ, hành động chính, focus ring |
-| `alive` | `#5CC8B0` | `#127A63` | ACTIVE |
-| `grace` | `#F0A23B` | `#A35A00` | GRACE |
+| `thread` | `#E8B65A` | `#86590E` | Sợi chỉ, hành động chính, focus ring |
+| `alive` | `#5CC8B0` | `#106F5A` | ACTIVE |
+| `grace` | `#F0A23B` | `#945100` | GRACE |
 | `recovery` | `#7FA8FF` | `#2E5BC7` | RECOVERY |
 | `release` | `#B7A6FF` | `#5B44C9` | Release |
 | `danger` | `#FF6B5E` | `#B42318` | Lỗi, thao tác không đảo ngược |
+| `on-thread` / `on-danger` | `#0B0D12` | `#FFFDF8` | Chữ trên nút tô `thread` hoặc `danger` |
+| `line` | `#2A303C` | `#DDD3C2` | Đường kẻ trang trí |
+| `line-strong` | `#737985` | `#80766A` | Viền điều khiển (≥ 3:1, WCAG 1.4.11) |
 
 Mọi cặp chữ trên nền đạt AA. Thân bài trên `bg` đạt AAA. Một test kiểm tỉ lệ tương phản của bảng token.
 
@@ -543,6 +546,7 @@ Hôm nay là 22/11. Khoá tính năng 2/12, nộp bài 6/12. Có hai plan chạy
 | 13 | Plan 8 thay Plan 5 | Cùng mục tiêu (chỉ mục, thông báo, keeper) trên stack mới | Phần Worker đã viết trong plan cũ bị bỏ (chưa có mã) |
 | 14 | Preact sang `apps/web-legacy`, Next.js ở `apps/web` ngay từ task đầu | Đường dẫn cuối có sẵn; CI và script sửa một lần; bản cũ vẫn được test tới lúc xoá | Hai app cùng chạy CI trong khoảng một tuần, CI chậm hơn |
 | 15 | Turbopack (mặc định của Next 16) cho build và dev | Spike ở Plan 7A Task 2: worker module nạp `@atropyle/sdk/verify` và một chunk lười của chính nó dưới CSP `worker-src 'self'` trong Chromium | Bản Next sau làm hỏng worker hoặc font thì đổi `BUNDLER_FLAGS` sang `--webpack`, một dòng trong `scripts/lib/run-next.ts` |
+| 16 | Làm đậm ba token light: `thread #86590E`, `alive #106F5A`, `grace #945100`; thêm `on-thread`, `on-danger`, `line`, `line-strong` | Giá trị ban đầu không đạt 4,5:1 trên `surface-3`; sau khi đổi, nhỏ nhất là 4,60:1 (light) và 5,50:1 (dark), test `contrast.test.ts` giữ ngưỡng | Vàng light hơi trầm hơn bản phác; đổi lại chỉ là sửa token, test chặn mọi giá trị không đạt AA |
 
 ## 17. Rủi ro
 
