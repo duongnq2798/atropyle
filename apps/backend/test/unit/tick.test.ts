@@ -62,6 +62,20 @@ describe('runTick (spec §9.3)', () => {
     expect(await getMeta(db, TICK_LEASE)).toBeNull();
   });
 
+  it('keeps the RPC URL out of the response body and the log when the head read fails (M6)', async () => {
+    env.chain.head = async () => {
+      throw new Error('HTTP request failed. URL: https://rpc.example/key-abc');
+    };
+    const res = await tick(
+      new Request(`${API}/tick`, { method: 'POST', headers: { 'x-cron-secret': 'c'.repeat(32) } }),
+      env.d,
+    );
+    const body = await bodyOf(res);
+    expect(body).toMatchObject({ status: 'partial', errors: ['head: HTTP request failed. URL: <url>'] });
+    expect(JSON.stringify(body)).not.toContain('key-abc');
+    expect(JSON.stringify(env.log.lines)).not.toContain('key-abc');
+  });
+
   it('keeps going when one phase fails', async () => {
     env.chain.keeperImpl = async () => {
       throw new Error('keeper rpc down');

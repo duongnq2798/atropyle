@@ -33,4 +33,15 @@ export function memoryLog(): MemoryLog {
   return { lines, info: at('info'), warn: at('warn'), error: at('error') };
 }
 
-export const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+/**
+ * A URL: a scheme, `://`, then everything up to whitespace, a quote or a bracket. Trailing punctuation stays outside,
+ * so "URL: https://x/k." keeps its full stop.
+ */
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'`<>()[\]{}]*[^\s"'`<>()[\]{}.,;:!?]/gi;
+
+/**
+ * The message of an error, with every URL replaced by `<url>` (M6). viem puts the RPC URL in its messages, and an RPC
+ * URL can hold an API key; this text goes to the function logs and into the `/tick` response, which `pg_net` keeps.
+ */
+export const errorText = (e: unknown): string =>
+  (e instanceof Error ? e.message : String(e)).replace(URL_PATTERN, '<url>');

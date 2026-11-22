@@ -83,6 +83,21 @@ describe('route', () => {
       { level: 'error', msg: 'handler failed', data: { path: '/functions/v1/x', error: 'db down' } },
     ]);
   });
+
+  it('never logs the URL in a handler error, which can hold an RPC key (M6)', async () => {
+    const d = deps();
+    const boom = route({ method: 'POST', cors: 'none' }, async () => {
+      throw new Error('HTTP request failed. URL: https://rpc.example/key-abc');
+    });
+    expect((await boom(post(), d)).status).toBe(500);
+    expect(d.log.lines).toEqual([
+      {
+        level: 'error',
+        msg: 'handler failed',
+        data: { path: '/functions/v1/x', error: 'HTTP request failed. URL: <url>' },
+      },
+    ]);
+  });
 });
 
 describe('readJson and clientIp', () => {
