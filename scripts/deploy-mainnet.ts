@@ -17,7 +17,7 @@
 import { type SpawnOptions, spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative } from 'node:path';
+import { delimiter, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 import { type Address, createPublicClient, formatEther, formatUnits, http, isAddressEqual, parseAbi } from 'viem';
 import { ANVIL_ACCOUNTS } from './lib/anvil';
@@ -32,6 +32,7 @@ import {
   parseExports,
   type Roles,
   readProgress,
+  resolveFoundry,
   STAGES,
   type Stage,
   stageDone,
@@ -117,6 +118,21 @@ function confirm(prompt: string, word: string): boolean {
   return spawnSync(process.execPath, ['-e', CONFIRM, word], { stdio: 'inherit' }).status === 0;
 }
 
+/**
+ * Finds forge and cast, on PATH or in ~/.foundry/bin, before anything else; stops with a clear message if neither.
+ * Returns how the maintainer's own shell can run cast, for the hints this script prints.
+ */
+function setUpFoundry(): string {
+  const works = (cmd: string) => spawnSync(cmd, ['--version'], { encoding: 'utf8' }).status === 0;
+  const found = resolveFoundry(works('forge') && works('cast'), homedir(), process.platform, existsSync);
+  if ('error' in found) stop(found.error);
+  if (found.use === 'path') return 'cast';
+  // Every child (forge, cast) inherits this PATH. On Windows process.env is case-insensitive, so this is "Path".
+  process.env.PATH = `${found.dir}${delimiter}${process.env.PATH ?? ''}`;
+  console.log(`forge and cast are not on PATH; using ${found.dir}`);
+  return process.platform === 'win32' ? `& "${join(found.dir, 'cast.exe')}"` : join(found.dir, 'cast');
+}
+
 const recordPath = (s: Stage, chainId: number) =>
   join(CONTRACTS, 'broadcast', `${s.script}.s.sol`, String(chainId), 'run-latest.json');
 
@@ -126,6 +142,7 @@ async function main(): Promise<void> {
     console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\nimport ')[0]);
     return;
   }
+  const castCmd = setUpFoundry();
 
   const rehearsal = args.rehearsal !== undefined;
   const rpc = args.rehearsal ?? MAINNET_RPC;
@@ -173,12 +190,13 @@ async function main(): Promise<void> {
       if (ANVIL_ACCOUNTS.some((x) => isAddressEqual(x, a)))
         stop(`${name} ${a} is a public anvil test account: its private key is public`);
     // Only the keystore's name is looked up, never its content.
-    const listed = spawnSync('cast', ['wallet', 'list'], { encoding: 'utf8' }).stdout ?? '';
-    const known = listed.split(/\r?\n/).some((l) => l.trim().split(/\s+/)[0] === account);
+    const list = spawnSync('cast', ['wallet', 'list'], { encoding: 'utf8' });
+    if (list.error) stop(`cannot run cast: ${list.error.message}`);
+    const known = (list.stdout ?? '').split(/\r?\n/).some((l) => l.trim().split(/\s+/)[0] === account);
     if (!known && !existsSync(join(homedir(), '.foundry', 'keystores', account)))
       stop(
         `no Foundry keystore named ${account}. Create one first (cast asks for a new password):\n` +
-          `  cast wallet new ${account}\n` +
+          `  ${castCmd} wallet new ${account}\n` +
           'then send BEM and OKB to the address it prints and pass that address as --deployer.',
       );
   }

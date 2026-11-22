@@ -1,7 +1,7 @@
 // Pure helpers for scripts/deploy-mainnet.ts: the stage table, the child environment, the parser for the
 // `export NAME=value` lines the forge scripts print, and the progress file. Nothing here signs or reads a key.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { type Address, getAddress, isAddress } from 'viem';
 
 /** The values the five stages hand to each other (contracts/README.md, "Triển khai mainnet"). */
@@ -137,6 +137,29 @@ export function controlledNamesInEnvFile(text: string): string[] {
     if (m && isControlledName(m[1]) && !names.includes(m[1])) names.push(m[1]);
   }
   return names;
+}
+
+export type FoundrySource = { use: 'path' } | { use: 'dir'; dir: string } | { error: string };
+
+/**
+ * Where forge and cast come from. If they are not on PATH, the default foundryup folder (~/.foundry/bin) is used
+ * when it holds both: PowerShell on Windows often lacks that folder when Foundry was installed from Git Bash.
+ */
+export function resolveFoundry(
+  onPath: boolean,
+  home: string,
+  platform: NodeJS.Platform,
+  exists: (path: string) => boolean,
+): FoundrySource {
+  if (onPath) return { use: 'path' };
+  const dir = join(home, '.foundry', 'bin');
+  const exe = platform === 'win32' ? '.exe' : '';
+  if (exists(join(dir, `forge${exe}`)) && exists(join(dir, `cast${exe}`))) return { use: 'dir', dir };
+  return {
+    error:
+      `forge and cast were found neither on PATH nor in ${dir}. Install Foundry 1.9.0 with foundryup, or add ` +
+      `its bin folder to PATH (PowerShell: $env:Path += ";$env:USERPROFILE\\.foundry\\bin").`,
+  };
 }
 
 /** Script 01's refusal when DEPLOYER already created an Atropyle processor: returns that processor. */
