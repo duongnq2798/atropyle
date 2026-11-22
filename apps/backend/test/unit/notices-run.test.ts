@@ -206,6 +206,23 @@ describe('runNotices (spec §9.3.2)', () => {
     expect(due.text).toContain('Deadline:');
   });
 
+  it('still reminds the 501st owner when the first 500 already got the reminder due (M2)', async () => {
+    await seedVault(db, view());
+    await db.query(
+      `insert into public.subscriptions (email, vault, role, lang, status, confirm_hash, confirmed_at)
+       select 'o' || g || '@example.com', $1::text, 'owner', 'en', 'active', lpad(to_hex(g), 64, '0'), now()
+         from generate_series(1, 501) g`,
+      [VAULT.toLowerCase()],
+    );
+    await db.query(
+      `insert into public.deliveries (subscription_id, kind, period_key, sent_at)
+       select id, 'checkin-80', '150', now() from public.subscriptions order by id limit 500`,
+    );
+    // 80% of the period is past at T0 + 86: checkin-80 is the reminder due.
+    await runNotices(env.d, T0 + 100n, far(), true);
+    expect(env.mailer.byKind('checkin-80').map((m) => m.to)).toEqual(['o501@example.com']);
+  });
+
   it('sends only the highest reminder when several are due at once', async () => {
     await seedVault(db, view());
     await subscribers();

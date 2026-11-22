@@ -85,9 +85,11 @@ export interface ReminderRow {
 }
 
 /**
- * Owner subscriptions of active vaults at 50% of the period or later whose cycle is not finished (no checkin-due sent
- * yet). The vault must have a known check-in block: until its Alive event is indexed there is no period key. A vault
- * whose stored view is stale waits, since its check-in may be newer than the view.
+ * Owner subscriptions of active vaults at 50% of the period or later whose reminder due now (the rule of
+ * dueReminder, repeated in SQL) is not sent yet in this cycle. Filtering it here, before the limit, keeps owners who
+ * already have theirs from crowding out the rest (M2). The vault must have a known check-in block: until its Alive
+ * event is indexed there is no period key. A vault whose stored view is stale waits, since its check-in may be newer
+ * than the view.
  */
 export async function reminderRows(sql: Sql, now: bigint, limit = 500): Promise<ReminderRow[]> {
   const rows = await sql.query<
@@ -106,8 +108,12 @@ export async function reminderRows(sql: Sql, now: bigint, limit = 500): Promise<
         and v.last_alive_block is not null and v.late_at > v.last_alive
         and ($1::bigint - v.last_alive) * 2 >= v.late_at - v.last_alive
         and not exists (select 1 from public.deliveries d
-                         where d.subscription_id = s.id and d.kind = 'checkin-due'
-                           and d.period_key = v.last_alive_block::text and d.sent_at is not null)
+                         where d.subscription_id = s.id and d.period_key = v.last_alive_block::text
+                           and d.sent_at is not null
+                           and d.kind = case
+                             when $1::bigint - v.last_alive >= v.late_at - v.last_alive then 'checkin-due'
+                             when ($1::bigint - v.last_alive) * 10 >= (v.late_at - v.last_alive) * 8 then 'checkin-80'
+                             else 'checkin-50' end)
       order by s.id
       limit $2::int`,
     [now.toString(), limit],
