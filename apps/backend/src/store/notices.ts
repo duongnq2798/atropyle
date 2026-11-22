@@ -36,10 +36,21 @@ const toEvent = (r: RawEvent): StoredEvent => ({
   args: r.args,
 });
 
-export async function unnotifiedEvents(sql: Sql, limit = 200): Promise<StoredEvent[]> {
+/**
+ * Unnotified events that can be handled now, in log order: those whose vault's stored view is at least as new as the
+ * event (C2), and those older than `oldBefore` (chain time), which are marked without an email whatever the view.
+ * An event that waits for its vault's view is filtered here, before the limit, so one stale vault never holds up the
+ * events of the others.
+ */
+export async function unnotifiedEvents(sql: Sql, oldBefore: bigint, limit = 200): Promise<StoredEvent[]> {
   const rows = await sql.query<RawEvent>(
-    `select ${EVENT_COLUMNS} from public.vault_events where notified_at is null order by block, log_index limit $1::int`,
-    [limit],
+    `select e.tx_hash, e.log_index, e.vault, e.name, e.block::text as block, e.at::text as at, e.args
+       from public.vault_events e
+       left join public.vaults v on v.address = e.vault
+      where e.notified_at is null and (v.view_block >= e.block or e.at < $1::bigint)
+      order by e.block, e.log_index
+      limit $2::int`,
+    [oldBefore.toString(), limit],
   );
   return rows.map(toEvent);
 }
@@ -75,7 +86,8 @@ export interface ReminderRow {
 
 /**
  * Owner subscriptions of active vaults at 50% of the period or later whose cycle is not finished (no checkin-due sent
- * yet). The vault must have a known check-in block: until its Alive event is indexed there is no period key.
+ * yet). The vault must have a known check-in block: until its Alive event is indexed there is no period key. A vault
+ * whose stored view is stale waits, since its check-in may be newer than the view.
  */
 export async function reminderRows(sql: Sql, now: bigint, limit = 500): Promise<ReminderRow[]> {
   const rows = await sql.query<
@@ -90,6 +102,7 @@ export async function reminderRows(sql: Sql, now: bigint, limit = 500): Promise<
        from public.vaults v
        join public.subscriptions s on s.vault = v.address and s.status = 'active' and s.role = 'owner'
       where v.state = 'active' and not v.expired and (v.expires_at is null or v.expires_at > $1::bigint)
+        and v.view_stale_since is null
         and v.last_alive_block is not null and v.late_at > v.last_alive
         and ($1::bigint - v.last_alive) * 2 >= v.late_at - v.last_alive
         and not exists (select 1 from public.deliveries d
@@ -116,7 +129,7 @@ export interface SummaryRow {
   released: 'inheritance' | 'recovery' | null;
 }
 
-/** Owner subscriptions of Drills whose lifetime has ended (chain time) and that got no summary yet. */
+/** Owner subscriptions of Drills whose lifetime has ended (chain time), whose view is current, and that got no summary yet. */
 export async function drillSummaryRows(sql: Sql, now: bigint, limit = 100): Promise<SummaryRow[]> {
   const rows = await sql.query<SubscriberRow & { alive: number; alarms: number; released_state: string | null }>(
     `select s.id::text as id, s.email::text as email, s.lang, s.role, s.vault,
@@ -126,7 +139,7 @@ export async function drillSummaryRows(sql: Sql, now: bigint, limit = 100): Prom
               where e.vault = v.address and e.name = 'Released' order by e.block limit 1) as released_state
        from public.vaults v
        join public.subscriptions s on s.vault = v.address and s.status = 'active' and s.role = 'owner'
-      where v.drill and v.expires_at is not null and v.expires_at <= $1::bigint
+      where v.drill and v.expires_at is not null and v.expires_at <= $1::bigint and v.view_stale_since is null
         and not exists (select 1 from public.deliveries d
                          where d.subscription_id = s.id and d.kind = 'drill-summary' and d.sent_at is not null)
       order by s.id

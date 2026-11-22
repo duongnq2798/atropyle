@@ -34,6 +34,7 @@ function row(over: Partial<VaultRow> = {}): VaultRow {
       { index: 2, kind: 'erc1155', token: TOKEN, id: '7', decimals: null },
     ],
     updatedBlock: 300n,
+    viewBlock: 300n,
     ...over,
   };
 }

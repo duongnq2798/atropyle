@@ -4,7 +4,16 @@ import { isoAt } from '../clock';
 import type { Deps } from '../deps';
 import { errorText } from '../log';
 import { getCursor, setCursor, setMeta } from '../store/meta';
-import { insertCreated, insertEvents, knownVaults, saveView } from '../store/vaults';
+import {
+  countStaleViews,
+  dueStaleViews,
+  insertCreated,
+  insertEvents,
+  knownVaults,
+  markStale,
+  saveView,
+  viewsInBackoff,
+} from '../store/vaults';
 
 export interface IndexResult {
   /** First block this run looked at. */
@@ -17,6 +26,10 @@ export interface IndexResult {
   created: number;
   /** Events stored for the first time. */
   events: number;
+  /** Vault views read and stored in this run, in steps and retries. */
+  views: number;
+  /** Vaults whose stored view is stale after this run (a read failed or did not happen in time). */
+  staleViews: number;
   /** True when the cursor reached the target without an error: reminders may trust the stored views. */
   caughtUp: boolean;
   error: string | null;
@@ -24,7 +37,15 @@ export interface IndexResult {
 
 const min = (a: bigint, b: bigint) => (a < b ? a : b);
 
-/** Spec §9.3.1. One transaction per step; any failure stops the run and keeps the last committed cursor. */
+/**
+ * Spec §9.3.1. One transaction per step: the created vaults, the events, the views read and the cursor. A failing
+ * scan stops the run and keeps the last committed cursor.
+ *
+ * Views are read per vault and never block a step (C2): a vault whose read fails, or which the step has no time left
+ * to read, is marked stale and keeps its last good view; notices for its newer events wait (unnotifiedEvents). A
+ * failing vault is not read again during its back-off. After the steps, stale views that are due are read again
+ * with the time left.
+ */
 export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): Promise<IndexResult> {
   const target = head.number - BigInt(d.config.headMargin);
   const start = (await getCursor(d.sql)) ?? d.chain.factoryBlock - 1n;
@@ -36,9 +57,12 @@ export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): 
     steps: 0,
     created: 0,
     events: 0,
+    views: 0,
+    staleViews: 0,
     caughtUp: false,
     error: null,
   };
+  const backingOff = await viewsInBackoff(d.sql, isoAt(d.clock.now()));
   let vaults: Address[] = await knownVaults(d.sql);
   let cursor = start;
   while (cursor < end && d.clock.now() < deadlineMs) {
@@ -55,7 +79,18 @@ export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): 
         touched.set(a.toLowerCase(), a);
       }
       const views: VaultView[] = [];
-      for (const a of touched.values()) views.push(await d.chain.view(a));
+      const failed: Address[] = [];
+      const late: Address[] = [];
+      for (const [key, a] of touched) {
+        if (backingOff.has(key)) continue;
+        if (d.clock.now() >= deadlineMs) {
+          late.push(a);
+          continue;
+        }
+        const v = await readView(d, a);
+        if (v === null) failed.push(a);
+        else views.push(v);
+      }
       const nowIso = isoAt(d.clock.now());
       const inserted = await d.sql.begin(async (tx) => {
         for (const c of scan.created) await insertCreated(tx, c, nowIso);
@@ -64,12 +99,16 @@ export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): 
           scan.events.map((event) => ({ event, at: times.get(event.blockNumber) ?? 0n })),
         );
         for (const v of views) await saveView(tx, v, nowIso);
+        for (const a of failed) await markStale(tx, a, nowIso, true);
+        for (const a of late) await markStale(tx, a, nowIso, false);
         await setCursor(tx, scan.toBlock, nowIso);
         return n;
       });
+      for (const a of failed) backingOff.add(a.toLowerCase());
       r.steps++;
       r.created += scan.created.length;
       r.events += inserted;
+      r.views += views.length;
       cursor = scan.toBlock;
       vaults = scan.cursor.vaults;
     } catch (e) {
@@ -78,8 +117,37 @@ export async function runIndexer(d: Deps, head: ChainHead, deadlineMs: number): 
       break;
     }
   }
+  r.views += await retryStaleViews(d, deadlineMs);
   r.to = cursor;
   r.caughtUp = r.error === null && cursor >= target;
+  r.staleViews = await countStaleViews(d.sql);
   await setMeta(d.sql, 'indexer', { block: cursor, head: head.number }, isoAt(d.clock.now()));
   return r;
+}
+
+/** One vault's view, or null when the read failed. Only the chain read is caught: a database error still throws. */
+async function readView(d: Deps, vault: Address): Promise<VaultView | null> {
+  try {
+    return await d.chain.view(vault);
+  } catch (e) {
+    d.log.warn('vault view failed', { vault, error: errorText(e) });
+    return null;
+  }
+}
+
+/** Reads stale views whose retry time has come, until the deadline. Returns how many were stored. */
+async function retryStaleViews(d: Deps, deadlineMs: number): Promise<number> {
+  let stored = 0;
+  for (const a of await dueStaleViews(d.sql, isoAt(d.clock.now()))) {
+    if (d.clock.now() >= deadlineMs) break;
+    const v = await readView(d, a);
+    const nowIso = isoAt(d.clock.now());
+    if (v === null) {
+      await markStale(d.sql, a, nowIso, true);
+      continue;
+    }
+    await d.sql.begin((tx) => saveView(tx, v, nowIso));
+    stored++;
+  }
+  return stored;
 }

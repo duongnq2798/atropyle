@@ -2,11 +2,11 @@ import { zeroAddress } from 'viem';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MailError } from '../../src/mail/mailer';
 import { CLAIM_STALE_MS } from '../../src/store/deliveries';
-import { insertEvents, saveView } from '../../src/store/vaults';
+import { insertCreated, insertEvents, saveView } from '../../src/store/vaults';
 import { runNotices } from '../../src/tick/notices';
 import { type TestDb, testDb } from '../helpers/db';
 import { type TestEnv, testEnv } from '../helpers/deps';
-import { HEIR, T0, TOKEN, txh, VAULT, vaultEvent, view } from '../helpers/fixtures';
+import { created, GUARDIAN, HEIR, T0, TARGET, TOKEN, txh, VAULT, VAULT2, vaultEvent, view } from '../helpers/fixtures';
 import { activeSubscriber, seedVault } from '../helpers/seed';
 
 const ISO = '2026-11-23T12:00:00.000Z';
@@ -113,6 +113,51 @@ describe('runNotices (spec §9.3.2)', () => {
     expect(env.mailer.sent).toHaveLength(1);
   });
 
+  it('lets the events of a vault wait until its stored view is as new as them, without holding up other vaults (C2)', async () => {
+    await seedVault(db, view());
+    await subscribers();
+    // VAULT2 is indexed but its view was never read: 201 events wait, more than one batch of unnotified events.
+    await insertCreated(db, created({ vault: VAULT2, blockNumber: 100n, transactionHash: txh(2) }), ISO);
+    await insertEvents(
+      db,
+      Array.from({ length: 201 }, (_, i) => ({
+        event: vaultEvent('Alive', { at: T0 - 5n }, { address: VAULT2, blockNumber: 100n, logIndex: i }),
+        at: T0 - 5n,
+      })),
+    );
+    await add('RecoveryVoted', { guardian: GUARDIAN, target: TARGET }, { block: 190n, at: T0 - 5n, tx: 14 });
+    // An event newer than VAULT's stored view (block 200) waits too.
+    await add('RecoveryVoted', { guardian: GUARDIAN, target: HEIR }, { block: 230n, at: T0 - 5n, tx: 15 });
+    await runNotices(env.d, T0, far(), true);
+    expect(env.mailer.byKind('recovery-vote').map((m) => m.text.includes(TARGET))).toEqual([true]);
+    expect(await unnotified()).toBe(202);
+
+    await saveView(db, view({ blockNumber: 230n }), ISO);
+    await saveView(db, view({ vault: VAULT2, blockNumber: 230n }), ISO);
+    // A run handles at most 200 events: VAULT2's backlog takes two.
+    await runNotices(env.d, T0, far(), true);
+    await runNotices(env.d, T0, far(), true);
+    expect(env.mailer.byKind('recovery-vote')).toHaveLength(2);
+    expect(await unnotified()).toBe(0);
+  });
+
+  it('still drops a waiting event once it is older than 24 hours (C2)', async () => {
+    await insertCreated(db, created({ vault: VAULT2, blockNumber: 100n, transactionHash: txh(2) }), ISO);
+    await activeSubscriber(db, { email: 'owner2@example.com', vault: VAULT2, role: 'owner' });
+    await insertEvents(db, [
+      {
+        event: vaultEvent(
+          'RecoveryVoted',
+          { guardian: GUARDIAN, target: TARGET },
+          { address: VAULT2, blockNumber: 101n, transactionHash: txh(16) },
+        ),
+        at: T0 - 90_000n,
+      },
+    ]);
+    expect(await runNotices(env.d, T0, far(), true)).toMatchObject({ events: 1, sent: 0 });
+    expect(await unnotified()).toBe(0);
+  });
+
   it('sends one payout email per transaction and skips events older than 24 hours', async () => {
     await seedVault(db, view({ state: 'releasedInherit', pending: 'releasedInherit', released: true }));
     await subscribers();
@@ -175,7 +220,17 @@ describe('runNotices (spec §9.3.2)', () => {
     expect(env.mailer.sent.map((m) => m.tags[0].value)).toEqual(['checkin-80']);
     // The owner checks in at T0 + 95 (block 240): a new Alive event, a new view, a new period key.
     await add('Alive', { at: T0 + 95n }, { block: 240n, at: T0 + 95n, tx: 20 });
-    await saveView(db, view({ lastAlive: T0 + 95n, lateAt: T0 + 215n, nextCheckAt: T0 + 215n }), ISO);
+    await saveView(
+      db,
+      view({
+        lastAlive: T0 + 95n,
+        lateAt: T0 + 215n,
+        nextCheckAt: T0 + 215n,
+        blockNumber: 240n,
+        blockTimestamp: T0 + 95n,
+      }),
+      ISO,
+    );
     // New cycle: 50% at T0 + 155, 80% at T0 + 191, due at T0 + 215.
     for (const t of [T0 + 155n, T0 + 191n, T0 + 215n]) await runNotices(env.d, t, far(), true);
     expect(env.mailer.sent.map((m) => m.tags[0].value)).toEqual([

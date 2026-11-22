@@ -43,12 +43,20 @@ create table public.vaults (
   assets jsonb not null default '[]'::jsonb,
   updated_block bigint not null,
   updated_at timestamptz not null default now(),
+  -- Block of the stored view; null until the indexer has read one. Notices wait for events newer than it.
+  view_block bigint,
+  -- Set while the stored view is not current: its read failed, did not happen in time, or came from a node behind
+  -- the vault's newest event. The indexer reads it again at view_retry_at (back-off 1 minute doubling to 1 hour).
+  view_stale_since timestamptz,
+  view_retry_at timestamptz,
+  view_failures int not null default 0,
   constraint vaults_state check (state in ('active', 'grace', 'recovery', 'releasedInherit', 'releasedRecover')),
   constraint vaults_pending_state check (
     pending_state in ('active', 'grace', 'recovery', 'releasedInherit', 'releasedRecover')
   )
 );
 create index vaults_due on public.vaults (next_check_at) where next_check_at is not null and not expired;
+create index vaults_stale on public.vaults (view_retry_at) where view_stale_since is not null;
 
 create table public.vault_roles (
   vault text not null references public.vaults (address) on delete cascade,

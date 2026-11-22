@@ -50,19 +50,24 @@ const opt = (v: bigint | null) => (v === null ? null : v.toString());
 /**
  * Upserts the vault from a fresh view, ties last_alive to the block of its Alive event (the period key of check-in
  * reminders, spec §9.3.2) and replaces its roles. last_alive_block stays null until that Alive event is indexed.
+ * The view is current unless it is older than the vault's newest stored event (a node behind the indexer): then the
+ * vault stays stale, without a failure, and the next run reads it again.
  */
 export async function saveView(sql: Sql, v: VaultView, nowIso: string): Promise<void> {
   await sql.query(
     `insert into public.vaults (address, owner, drill, created_block, state, pending_state, last_alive, late_at,
-       window_ends_at, recovery_target, next_check_at, expires_at, expired, released, assets, updated_block, updated_at)
+       window_ends_at, recovery_target, next_check_at, expires_at, expired, released, assets, updated_block, updated_at,
+       view_block)
      values ($1::text, $2::text, $3::boolean, $4::bigint, $5::text, $6::text, $7::bigint, $8::bigint, $9::bigint,
-       $10::text, $11::bigint, $12::bigint, $13::boolean, $14::boolean, $15::jsonb, $4::bigint, $16::timestamptz)
+       $10::text, $11::bigint, $12::bigint, $13::boolean, $14::boolean, $15::jsonb, $4::bigint, $16::timestamptz,
+       $4::bigint)
      on conflict (address) do update set
        owner = excluded.owner, state = excluded.state, pending_state = excluded.pending_state,
        last_alive = excluded.last_alive, late_at = excluded.late_at, window_ends_at = excluded.window_ends_at,
        recovery_target = excluded.recovery_target, next_check_at = excluded.next_check_at,
        expires_at = excluded.expires_at, expired = excluded.expired, released = excluded.released,
-       assets = excluded.assets, updated_block = excluded.updated_block, updated_at = excluded.updated_at`,
+       assets = excluded.assets, updated_block = excluded.updated_block, updated_at = excluded.updated_at,
+       view_block = excluded.view_block`,
     [
       low(v.vault),
       low(v.owner),
@@ -90,6 +95,16 @@ export async function saveView(sql: Sql, v: VaultView, nowIso: string): Promise<
       where address = $1::text`,
     [low(v.vault), v.lastAlive.toString()],
   );
+  await sql.query(
+    `update public.vaults v set
+       view_stale_since = case when b.behind then coalesce(v.view_stale_since, $2::timestamptz) end,
+       view_retry_at = case when b.behind then $2::timestamptz end,
+       view_failures = 0
+      from (select coalesce(max(e.block) > $3::bigint, false) as behind
+              from public.vault_events e where e.vault = $1::text) b
+     where v.address = $1::text`,
+    [low(v.vault), nowIso, v.blockNumber.toString()],
+  );
   await sql.query('delete from public.vault_roles where vault = $1::text', [low(v.vault)]);
   for (const r of v.roles) {
     await sql.query(
@@ -97,6 +112,50 @@ export async function saveView(sql: Sql, v: VaultView, nowIso: string): Promise<
       [low(v.vault), low(r.address), r.role],
     );
   }
+}
+
+/**
+ * The stored view of `vault` is not current; the last good view stays. A failed read (`failed`) is retried after a
+ * back-off of 1 minute doubling to 1 hour (C2); a read that did not happen in time is retried on the next run.
+ */
+export async function markStale(sql: Sql, vault: Address, nowIso: string, failed: boolean): Promise<void> {
+  await sql.query(
+    `update public.vaults set
+       view_stale_since = coalesce(view_stale_since, $2::timestamptz),
+       view_retry_at = $2::timestamptz + case when $3::boolean
+         then least(interval '1 hour', interval '1 minute' * power(2, least(view_failures, 6))) else interval '0' end,
+       view_failures = view_failures + case when $3::boolean then 1 else 0 end
+     where address = $1::text`,
+    [low(vault), nowIso, failed],
+  );
+}
+
+/** Lowercase addresses of stale vaults still in their back-off: a step that touches them does not read them. */
+export async function viewsInBackoff(sql: Sql, nowIso: string): Promise<Set<string>> {
+  const rows = await sql.query<{ address: string }>(
+    'select address from public.vaults where view_stale_since is not null and view_retry_at > $1::timestamptz',
+    [nowIso],
+  );
+  return new Set(rows.map((r) => r.address));
+}
+
+/** Stale vaults whose retry time has come, the longest waiting first. */
+export async function dueStaleViews(sql: Sql, nowIso: string, limit = 50): Promise<Address[]> {
+  const rows = await sql.query<{ address: string }>(
+    `select address from public.vaults
+      where view_stale_since is not null and view_retry_at <= $1::timestamptz
+      order by view_retry_at, address
+      limit $2::int`,
+    [nowIso, limit],
+  );
+  return rows.map((r) => getAddress(r.address));
+}
+
+export async function countStaleViews(sql: Sql): Promise<number> {
+  const [row] = await sql.query<{ n: number }>(
+    'select count(*)::int as n from public.vaults where view_stale_since is not null',
+  );
+  return row.n;
 }
 
 /** Every indexed vault: the scan's resume list. */
@@ -125,6 +184,8 @@ export interface VaultRow {
   released: boolean;
   assets: StoredAsset[];
   updatedBlock: bigint;
+  /** Block of the stored view; null until the indexer has read one. */
+  viewBlock: bigint | null;
 }
 
 interface RawVault {
@@ -145,6 +206,7 @@ interface RawVault {
   released: boolean;
   assets: StoredAsset[];
   updated_block: string;
+  view_block: string | null;
 }
 
 export async function getVault(sql: Sql, vault: Address): Promise<VaultRow | null> {
@@ -152,7 +214,8 @@ export async function getVault(sql: Sql, vault: Address): Promise<VaultRow | nul
     `select address, owner, drill, created_block::text as created_block, state, pending_state,
             last_alive::text as last_alive, last_alive_block::text as last_alive_block, late_at::text as late_at,
             window_ends_at::text as window_ends_at, recovery_target, next_check_at::text as next_check_at,
-            expires_at::text as expires_at, expired, released, assets, updated_block::text as updated_block
+            expires_at::text as expires_at, expired, released, assets, updated_block::text as updated_block,
+            view_block::text as view_block
        from public.vaults where address = $1::text`,
     [low(vault)],
   );
@@ -176,6 +239,7 @@ export async function getVault(sql: Sql, vault: Address): Promise<VaultRow | nul
     released: r.released,
     assets: r.assets,
     updatedBlock: BigInt(r.updated_block),
+    viewBlock: big(r.view_block),
   };
 }
 

@@ -109,8 +109,10 @@ export interface NoticeResult extends DeliveryRun {
 }
 
 /**
- * Spec §9.3.2. Event alerts first, in log order; then, only when the indexer has caught up (the stored views are
- * current), reminders and Drill summaries. Stops at the deadline or when the delivery circuit breaker opens.
+ * Spec §9.3.2. Event alerts first, in log order; an event waits until its vault's stored view is at least as new as
+ * the event (C2), and one older than MAX_NOTICE_AGE is marked without an email. Then, only when the indexer has
+ * caught up, reminders and Drill summaries for vaults whose view is current. Stops at the deadline or when the
+ * delivery circuit breaker opens.
  */
 export async function runNotices(d: Deps, now: bigint, deadlineMs: number, caughtUp: boolean): Promise<NoticeResult> {
   const run = newRun();
@@ -128,7 +130,7 @@ export async function runNotices(d: Deps, now: bigint, deadlineMs: number, caugh
   };
 
   const handled = new Set<string>();
-  for (const e of await unnotifiedEvents(d.sql)) {
+  for (const e of await unnotifiedEvents(d.sql, now - MAX_NOTICE_AGE)) {
     if (!open()) break;
     if (handled.has(`${e.txHash}:${e.logIndex}`)) continue;
     const group = e.name === 'Distributed' ? await eventsOfTx(d.sql, e.vault, e.txHash, 'Distributed') : [e];
