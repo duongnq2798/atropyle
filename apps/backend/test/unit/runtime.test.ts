@@ -4,7 +4,7 @@ import { ConfigError } from '../../src/config';
 import type { PgFactory, PgQueryable } from '../../src/db/postgres';
 import type { Deps } from '../../src/deps';
 import type { Mail } from '../../src/email/compose';
-import { buildDeps, lazyHandler } from '../../src/entry/runtime';
+import { buildDeps, deferTask, lazyHandler } from '../../src/entry/runtime';
 import { KEEPER_KEY_INVALID } from '../../src/keeper/signer';
 import { memoryLog } from '../../src/log';
 import { RESEND_URL } from '../../src/mail/mailer';
@@ -95,6 +95,23 @@ describe('buildDeps (production wiring, spec §9.2)', () => {
   it('keeps the keeper dry and records why when the keeper secret is not a key', () => {
     const d = buildDeps(envOf({ KEEPER_KEY: 'not-a-key' }), { pg: fakePg().factory });
     expect(d.keeperError).toBe(KEEPER_KEY_INVALID);
+  });
+
+  it('defers work with EdgeRuntime.waitUntil when it exists, and lets it run on its own otherwise (M1)', async () => {
+    const d = buildDeps(envOf(), { pg: fakePg().factory });
+    expect(d.defer).toBe(deferTask);
+    let ran = false;
+    const task = Promise.resolve().then(() => {
+      ran = true;
+    });
+    expect(() => deferTask(task)).not.toThrow();
+    await task;
+    expect(ran).toBe(true);
+    const waited: Promise<unknown>[] = [];
+    vi.stubGlobal('EdgeRuntime', { waitUntil: (p: Promise<unknown>) => waited.push(p) });
+    const next = Promise.resolve(1);
+    deferTask(next);
+    expect(waited).toEqual([next]);
   });
 });
 

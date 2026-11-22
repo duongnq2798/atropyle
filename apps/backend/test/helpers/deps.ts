@@ -33,6 +33,8 @@ export interface TestEnv {
   mailer: CaptureMailer;
   clock: FakeClock;
   log: MemoryLog;
+  /** Waits for everything handed to d.defer so far (the work an Edge Function does after its response). */
+  settle(): Promise<void>;
 }
 
 /** Deps over a test database with a fake chain, a capturing mailer, a fake clock and a memory log. */
@@ -41,6 +43,7 @@ export function testEnv(sql: Sql, o: { config?: Partial<Config>; keeperError?: s
   const mailer = captureMailer();
   const clock = fakeClock();
   const log = memoryLog();
+  const deferred: Promise<unknown>[] = [];
   let n = 0;
   // Distinct, deterministic bytes per call: tokens differ and tests stay reproducible.
   const random = (size: number) => {
@@ -56,6 +59,12 @@ export function testEnv(sql: Sql, o: { config?: Partial<Config>; keeperError?: s
     config: testConfig(o.config),
     random,
     keeperError: o.keeperError ?? null,
+    defer: (task) => {
+      deferred.push(task);
+    },
   };
-  return { d, chain, mailer, clock, log };
+  const settle = async () => {
+    while (deferred.length > 0) await Promise.all(deferred.splice(0));
+  };
+  return { d, chain, mailer, clock, log, settle };
 }

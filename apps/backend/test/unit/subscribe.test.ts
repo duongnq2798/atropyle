@@ -26,14 +26,49 @@ describe('subscribe, confirm, unsubscribe (spec §9.6)', () => {
     env.chain.setView(view());
   });
 
-  const sub = (
+  const request = (
     body: Record<string, unknown>,
     o: { ip?: string; origin?: string | null; headers?: Record<string, string> } = {},
-  ) => subscribe(postJson('subscribe', { vault: VAULT, role: 'heir', lang: 'en', website: '', ...body }, o), env.d);
+  ) => postJson('subscribe', { vault: VAULT, role: 'heir', lang: 'en', website: '', ...body }, o);
+  /** A sign-up, then the email work it deferred. */
+  const sub = async (body: Record<string, unknown>, o: Parameters<typeof request>[1] = {}) => {
+    const res = await subscribe(request(body, o), env.d);
+    await env.settle();
+    return res;
+  };
   const rows = () =>
     db.query<{ email: string; status: string; lang: string }>(
       'select email::text as email, status, lang from public.subscriptions order by id',
     );
+
+  it('answers 202 before the confirm email goes out, for a new and an active sign-up alike (M1)', async () => {
+    await activeSubscriber(db, { email: 'active@example.com', vault: VAULT, role: 'heir' });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const capture = env.mailer;
+    env.d.mailer = {
+      send: async (m) => {
+        await gate;
+        return capture.send(m);
+      },
+    };
+    const within = <T>(p: Promise<T>) =>
+      Promise.race([p, new Promise<'still waiting'>((r) => setTimeout(() => r('still waiting'), 2_000))]);
+    try {
+      const fresh = await within(subscribe(request({ email: 'new@example.com' }), env.d));
+      const active = await within(subscribe(request({ email: 'active@example.com' }), env.d));
+      expect(fresh).toBeInstanceOf(Response);
+      expect(active).toBeInstanceOf(Response);
+      expect([(fresh as Response).status, (active as Response).status]).toEqual([202, 202]);
+      expect(capture.sent).toEqual([]);
+    } finally {
+      release();
+    }
+    await env.settle();
+    expect(capture.byKind('confirm').map((m) => m.to)).toEqual(['new@example.com']);
+  });
 
   it('answers 202 { ok: true }, stores a pending row and sends one confirm email', async () => {
     const res = await sub({ email: 'heir@example.com' });

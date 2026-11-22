@@ -58,7 +58,17 @@ export function buildDeps(env: Env, o: BuildOptions = {}): Deps {
     config,
     random: (size) => crypto.getRandomValues(new Uint8Array(size)),
     keeperError: signer.error,
+    defer: deferTask,
   };
+}
+
+/**
+ * Keeps the isolate alive until `task` settles: EdgeRuntime.waitUntil on Supabase's Edge Runtime. Elsewhere the
+ * promise simply runs on its own.
+ */
+export function deferTask(task: Promise<unknown>): void {
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (typeof runtime?.waitUntil === 'function') runtime.waitUntil(task);
 }
 
 /**

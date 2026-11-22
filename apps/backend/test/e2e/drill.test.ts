@@ -32,6 +32,8 @@ describe('a Drill from creation to its summary, driven only by tick (spec §9.3,
     createWalletClient({ account, chain: atro.chain, transport: http(rpcUrl) });
   const mailer = captureMailer();
   const log = memoryLog();
+  /** Work /subscribe hands to d.defer (the confirm email), awaited like the Edge Runtime's waitUntil would. */
+  const deferred: Promise<unknown>[] = [];
   let db: TestDb;
   let d: Deps;
   let vault: Address;
@@ -80,6 +82,9 @@ describe('a Drill from creation to its summary, driven only by tick (spec §9.3,
       config: testConfig({ headMargin: 0 }),
       random: (size) => crypto.getRandomValues(new Uint8Array(size)),
       keeperError: null,
+      defer: (task) => {
+        deferred.push(task);
+      },
     };
   });
 
@@ -112,6 +117,7 @@ describe('a Drill from creation to its summary, driven only by tick (spec §9.3,
     const signUp = async (body: Record<string, string>) => {
       const res = await subscribe(postJson('subscribe', { ...body, vault, website: '' }), d);
       expect(res.status).toBe(202);
+      await Promise.all(deferred.splice(0));
     };
     await signUp({ email: ' Owner@Example.com ', role: 'owner', lang: 'en' });
     await signUp({ email: HEIR_EMAIL, role: 'heir', lang: 'vi' });

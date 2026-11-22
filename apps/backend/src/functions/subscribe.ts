@@ -3,6 +3,7 @@ import { isoAt } from '../clock';
 import { hmacHex, randomToken, sha256Hex } from '../crypto';
 import type { Deps } from '../deps';
 import { clientIp, HttpError, invalid, json, readJson, route } from '../http';
+import { errorText } from '../log';
 import { deliver } from '../mail/deliver';
 import { confirmsLastHour, HOUR_MS, hit, retryAfterSeconds } from '../store/ratelimit';
 import { upsertPending } from '../store/subscriptions';
@@ -92,8 +93,13 @@ export const subscribe = route<Deps>({ method: 'POST', cors: 'site' }, async (re
   });
   if (r.status === 'pending') {
     const sub = { id: r.id, email: input.email, lang: input.lang, role: input.role, vault: input.vault };
-    // A new hash per request, so a repeated sign-up sends a fresh link; the email limit caps how often.
-    await deliver(d, { sub, kind: 'confirm', periodKey: confirmHash, confirmToken: token });
+    // A new hash per request, so a repeated sign-up sends a fresh link; the email limit caps how often. The send runs
+    // after the answer (M1): an active row sends nothing, and the answer time must not tell the two apart.
+    d.defer(
+      deliver(d, { sub, kind: 'confirm', periodKey: confirmHash, confirmToken: token }).catch((e) =>
+        d.log.error('confirm email failed', { subscription: r.id, error: errorText(e) }),
+      ),
+    );
   }
   return json({ ok: true }, 202);
 });

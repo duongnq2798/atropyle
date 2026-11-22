@@ -17,4 +17,9 @@ export interface Deps {
   random(size: number): Uint8Array;
   /** Set when the keeper secret is present but unusable: the keeper then runs dry and ops get one alert. */
   keeperError: string | null;
+  /**
+   * Runs `task` after the response is sent (EdgeRuntime.waitUntil on Supabase), so a handler's answer time does not
+   * depend on it. `task` must not reject: catch and log inside it.
+   */
+  defer(task: Promise<unknown>): void;
 }
