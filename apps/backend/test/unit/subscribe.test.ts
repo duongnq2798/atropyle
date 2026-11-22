@@ -26,8 +26,10 @@ describe('subscribe, confirm, unsubscribe (spec §9.6)', () => {
     env.chain.setView(view());
   });
 
-  const sub = (body: Record<string, unknown>, o: { ip?: string; origin?: string | null } = {}) =>
-    subscribe(postJson('subscribe', { vault: VAULT, role: 'heir', lang: 'en', website: '', ...body }, o), env.d);
+  const sub = (
+    body: Record<string, unknown>,
+    o: { ip?: string; origin?: string | null; headers?: Record<string, string> } = {},
+  ) => subscribe(postJson('subscribe', { vault: VAULT, role: 'heir', lang: 'en', website: '', ...body }, o), env.d);
   const rows = () =>
     db.query<{ email: string; status: string; lang: string }>(
       'select email::text as email, status, lang from public.subscriptions order by id',
@@ -122,6 +124,47 @@ describe('subscribe, confirm, unsubscribe (spec §9.6)', () => {
     expect((await sub({ email: 'Same@Example.com' }, { ip: '198.51.100.9' })).status).toBe(429);
     const keys = await db.query<{ key: string }>('select key from public.rate_limits');
     for (const k of keys) expect(k.key).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('does not let a spoofed first X-Forwarded-For entry escape the IP limit (I2)', async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await sub({ email: `s${i}@example.com` }, { ip: `10.9.8.${i}, 203.0.113.7` });
+      expect(res.status).toBe(202);
+    }
+    expect((await sub({ email: 's5@example.com' }, { ip: '10.9.8.99, 203.0.113.7' })).status).toBe(429);
+    // cf-connecting-ip names the client when present.
+    const other = await sub(
+      { email: 's6@example.com' },
+      { ip: '203.0.113.7', headers: { 'cf-connecting-ip': '198.51.100.4' } },
+    );
+    expect(other.status).toBe(202);
+  });
+
+  it('caps confirm emails at 200 per rolling hour across all requests, then answers 429 (I2)', async () => {
+    const now = env.clock.now();
+    const [seed] = await db.query<{ id: string }>(
+      `insert into public.subscriptions (email, vault, role, lang, confirm_hash)
+       values ('seed@example.com', $1::text, 'heir', 'en', $2::text) returning id::text as id`,
+      [VAULT.toLowerCase(), 'a'.repeat(64)],
+    );
+    // 199 confirm emails within the last hour (the oldest 199 s ago), and one just outside it.
+    await db.query(
+      `insert into public.deliveries (subscription_id, kind, period_key, claimed_at, sent_at)
+       select $1::bigint, 'confirm', 'k' || g, $2::timestamptz - make_interval(secs => g), $2::timestamptz
+         from generate_series(1, 199) g
+       union all
+       select $1::bigint, 'confirm', 'old', $2::timestamptz - interval '3601 seconds', $2::timestamptz`,
+      [seed.id, new Date(now).toISOString()],
+    );
+    expect((await sub({ email: 'first@example.com' })).status).toBe(202);
+    const capped = await sub({ email: 'second@example.com' }, { ip: '198.51.100.30' });
+    expect(capped.status).toBe(429);
+    expect(await bodyOf(capped)).toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+    expect(capped.headers.get('retry-after')).toBe(String(3_600 - 199));
+    // An already active subscription gets the same answer: the cap reveals nothing about it.
+    await activeSubscriber(db, { email: 'active@example.com', vault: VAULT, role: 'heir' });
+    expect((await sub({ email: 'active@example.com' }, { ip: '198.51.100.31' })).status).toBe(429);
+    expect(env.mailer.byKind('confirm').map((m) => m.to)).toEqual(['first@example.com']);
   });
 
   it('refuses a POST from another origin', async () => {

@@ -93,9 +93,16 @@ describe('readJson and clientIp', () => {
     await expect(readJson(post({}, `{"a":"${'x'.repeat(5000)}"}`))).rejects.toMatchObject({ status: 400 });
   });
 
-  it('takes the first x-forwarded-for entry', () => {
-    expect(clientIp(post({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe('203.0.113.7');
-    expect(clientIp(post({ 'x-real-ip': '198.51.100.2' }))).toBe('198.51.100.2');
+  it('keys on cf-connecting-ip, else the last x-forwarded-for entry; a spoofed first entry changes nothing (I2)', () => {
+    expect(clientIp(post({ 'x-forwarded-for': '203.0.113.7' }))).toBe('203.0.113.7');
+    // A client-sent X-Forwarded-For is appended to, not replaced: the real address is the last entry.
+    expect(clientIp(post({ 'x-forwarded-for': '1.2.3.4, 203.0.113.7' }))).toBe('203.0.113.7');
+    expect(clientIp(post({ 'x-forwarded-for': '5.6.7.8,203.0.113.7 ' }))).toBe('203.0.113.7');
+    expect(clientIp(post({ 'cf-connecting-ip': ' 198.51.100.2 ', 'x-forwarded-for': '1.2.3.4, 203.0.113.7' }))).toBe(
+      '198.51.100.2',
+    );
+    expect(clientIp(post({ 'x-real-ip': '198.51.100.2' }))).toBe('unknown');
+    expect(clientIp(post({ 'x-forwarded-for': ' , ' }))).toBe('unknown');
     expect(clientIp(post())).toBe('unknown');
   });
 });

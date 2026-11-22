@@ -1,4 +1,4 @@
-import type { Sql } from '../db/sql';
+import { type Sql, toIso } from '../db/sql';
 
 export const HOUR_MS = 3_600_000;
 
@@ -12,6 +12,19 @@ export async function hit(sql: Sql, key: string, nowMs: number): Promise<number>
     [key, windowStart],
   );
   return rows[0].count;
+}
+
+/**
+ * Confirm emails claimed in the rolling hour before nowMs (the global cap of /subscribe, I2), and the time of the
+ * oldest of them: one slot frees when it leaves the window.
+ */
+export async function confirmsLastHour(sql: Sql, nowMs: number): Promise<{ count: number; oldestMs: number | null }> {
+  const [row] = await sql.query<{ n: number; oldest: unknown }>(
+    `select count(*)::int as n, min(claimed_at) as oldest from public.deliveries
+      where kind = 'confirm' and claimed_at > $1::timestamptz`,
+    [new Date(nowMs - HOUR_MS).toISOString()],
+  );
+  return { count: row.n, oldestMs: row.oldest === null ? null : Date.parse(toIso(row.oldest)) };
 }
 
 /** Seconds until the current window ends: the Retry-After of a 429. */

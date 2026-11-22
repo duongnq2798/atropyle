@@ -126,9 +126,14 @@ export async function readJson(req: Request, maxBytes = 4096): Promise<Record<st
   return v as Record<string, unknown>;
 }
 
-/** The caller's IP as Supabase's edge forwards it. Only ever used through an HMAC (spec §9.5). */
+/**
+ * The caller's IP, only ever used through an HMAC (spec §9.5). Supabase sits behind Cloudflare, which sets
+ * cf-connecting-ip and appends to a client-sent X-Forwarded-For instead of replacing it (I2). So: cf-connecting-ip,
+ * else the last X-Forwarded-For entry (added by the nearest proxy), else 'unknown'; never the first entry, which the
+ * client controls.
+ */
 export function clientIp(req: Request): string {
-  const first = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  if (first) return first;
-  return req.headers.get('x-real-ip')?.trim() || 'unknown';
+  const cf = req.headers.get('cf-connecting-ip')?.trim();
+  if (cf) return cf;
+  return req.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || 'unknown';
 }

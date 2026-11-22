@@ -152,6 +152,8 @@ select jobname, status, return_message, start_time from cron.job_run_details ord
 select id, status_code, error_msg, created from net._http_response order by created desc limit 10;
 ```
 
+Check that rate limiting sees each caller's own IP: from two networks (for example Wi-Fi, then a phone's mobile data), subscribe two different emails, then `select count(*) from public.rate_limits;` must show 4 rows (one per IP, one per email), not 3.
+
 Then create a Drill from the web app, subscribe as its owner and confirm. Within a few minutes a check-in reminder arrives, then the alarm once the keeper has poked. `tick` runs once a minute, so with the Drill's two-minute period it may send only the highest reminder due.
 
 ## Operate

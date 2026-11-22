@@ -4,13 +4,18 @@ import { hmacHex, randomToken, sha256Hex } from '../crypto';
 import type { Deps } from '../deps';
 import { clientIp, HttpError, invalid, json, readJson, route } from '../http';
 import { deliver } from '../mail/deliver';
-import { hit, retryAfterSeconds } from '../store/ratelimit';
+import { confirmsLastHour, HOUR_MS, hit, retryAfterSeconds } from '../store/ratelimit';
 import { upsertPending } from '../store/subscriptions';
 import { isLang, isRole, type Lang, type Role } from '../types';
 
 /** Spec §9.2: 5 sign-ups per hour per IP, 3 per hour per email. */
 export const IP_LIMIT = 5;
 export const EMAIL_LIMIT = 3;
+/**
+ * Confirm emails per rolling hour across all requests (I2). Plus-addressing beats the per-email limit, so this cap is
+ * what keeps a flood of sign-ups from burning the Resend reputation that alarm emails depend on.
+ */
+export const CONFIRM_CAP_PER_HOUR = 200;
 
 /** A practical check: one @, a dotted domain, no spaces, control characters or brackets, RFC 5321 lengths. */
 export function isEmail(s: string): boolean {
@@ -46,9 +51,9 @@ export function parseSubscribe(body: Record<string, unknown>): SubscribeInput {
   return { email, vault: getAddress(vault), role, lang, website };
 }
 
-const rateLimited = (nowMs: number) =>
+const rateLimited = (nowMs: number, seconds = retryAfterSeconds(nowMs)) =>
   new HttpError(429, 'RATE_LIMITED', 'Too many requests. Try again later.', {
-    'retry-after': String(retryAfterSeconds(nowMs)),
+    'retry-after': String(seconds),
   });
 
 /**
@@ -64,6 +69,12 @@ export const subscribe = route<Deps>({ method: 'POST', cors: 'site' }, async (re
   }
   if ((await hit(d.sql, await hmacHex(d.config.tokenSecret, `email:${input.email}`), now)) > EMAIL_LIMIT) {
     throw rateLimited(now);
+  }
+  // Checked before the row is looked at, so a new and an active sign-up get the same answer.
+  const confirms = await confirmsLastHour(d.sql, now);
+  if (confirms.count >= CONFIRM_CAP_PER_HOUR) {
+    const freesAt = (confirms.oldestMs ?? now) + HOUR_MS;
+    throw rateLimited(now, Math.max(1, Math.ceil((freesAt - now) / 1000)));
   }
   if (!(await d.chain.isVault(input.vault))) {
     throw new HttpError(400, 'NOT_A_VAULT', 'This address is not an Atropyle vault on X Layer.');

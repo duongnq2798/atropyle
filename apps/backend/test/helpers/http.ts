@@ -4,10 +4,15 @@ export const SITE = 'https://atropyle.test';
 export const API = 'https://ref.supabase.co/functions/v1';
 
 /** A browser POST from the site (origin) or, with origin: null, a server-to-server POST (mail client, pg_net). */
-export function postJson(path: string, body: unknown, o: { origin?: string | null; ip?: string } = {}): Request {
+export function postJson(
+  path: string,
+  body: unknown,
+  o: { origin?: string | null; ip?: string; headers?: Record<string, string> } = {},
+): Request {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     'x-forwarded-for': o.ip ?? '203.0.113.7',
+    ...o.headers,
   };
   if (o.origin !== null) headers.origin = o.origin ?? SITE;
   return new Request(`${API}/${path}`, { method: 'POST', headers, body: JSON.stringify(body) });

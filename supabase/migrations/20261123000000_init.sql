@@ -109,6 +109,8 @@ create table public.deliveries (
   provider_id text,
   primary key (subscription_id, kind, period_key)
 );
+-- The global cap of /subscribe counts the confirm emails of the last hour.
+create index deliveries_confirm on public.deliveries (claimed_at) where kind = 'confirm';
 
 -- Fixed one-hour windows; keys are HMACs of the IP or the email, never the values themselves.
 create table public.rate_limits (
