@@ -1,0 +1,45 @@
+# Supabase CLI settings for `supabase db push` and `supabase functions deploy --use-api` (apps/backend/README.md).
+# The functions are pre-bundled by `npm run build -w apps/backend` into functions/<name>/index.js (gitignored);
+# `entrypoint` is relative to this directory. JWT verification is off for all eight: the public endpoints take no
+# Supabase session (spec §9.6), and tick and integrity check the x-cron-secret header themselves.
+project_id = "atropyle"
+
+[functions.subscribe]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/subscribe/index.js"
+
+[functions.confirm]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/confirm/index.js"
+
+[functions.unsubscribe]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/unsubscribe/index.js"
+
+[functions.me]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/me/index.js"
+
+[functions.stats]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/stats/index.js"
+
+[functions.health]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/health/index.js"
+
+[functions.tick]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/tick/index.js"
+
+[functions.integrity]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/integrity/index.js"

@@ -17,3 +17,8 @@ apps/web/test/e2e/.state.json
 contracts/deweb-calls/*
 !contracts/deweb-calls/test/
 apps/backend/.preview/
+
+# Supabase: function bundles from `npm run build -w apps/backend`, and the CLI's local state (`supabase link`).
+supabase/functions/
+supabase/.temp/
+supabase/.branches/

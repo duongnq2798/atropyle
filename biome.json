@@ -28,7 +28,8 @@
       "!apps/web/test/e2e/.state.json",
       "!apps/backend/src/email/templates.gen.ts",
       "!apps/backend/test/__snapshots__",
-      "!apps/backend/.preview"
+      "!apps/backend/.preview",
+      "!supabase/functions"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
