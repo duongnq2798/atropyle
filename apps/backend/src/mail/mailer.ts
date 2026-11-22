@@ -19,6 +19,8 @@ export class MailError extends Error {
 }
 
 export const RESEND_URL = 'https://api.resend.com/emails';
+/** How long one Resend call may take before it is abandoned (I1): the tick's 50 s budget must hold. */
+export const RESEND_TIMEOUT_MS = 10_000;
 
 export interface ResendOptions {
   apiKey: string;
@@ -26,46 +28,62 @@ export interface ResendOptions {
   clock?: Clock;
   /** Gap between two sends (plan ruling 4): 550 ms stays under even the older 2 requests/s default. */
   minIntervalMs?: number;
+  /** Default RESEND_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
 
 /**
- * Resend's REST API with plain fetch (plan ruling 4). The Idempotency-Key makes a retried send after a timeout safe
- * for 24 hours. The error never carries Resend's response body, which can quote the recipient.
+ * Resend's REST API with plain fetch (plan ruling 4). Each call is abandoned after timeoutMs; a timeout or a network
+ * failure is a MailError like any other transport failure. The Idempotency-Key makes a retried send after a timeout
+ * safe for 24 hours. The error never carries Resend's response body, which can quote the recipient.
  */
 export function resendMailer(o: ResendOptions): Mailer {
   const f = o.fetch ?? fetch;
   const clock = o.clock ?? systemClock;
   const gap = o.minIntervalMs ?? 550;
+  const timeoutMs = o.timeoutMs ?? RESEND_TIMEOUT_MS;
   let last = Number.NEGATIVE_INFINITY;
   return {
     async send(mail) {
       const wait = last + gap - clock.now();
       if (wait > 0) await clock.sleep(wait);
       last = clock.now();
-      const res = await f(RESEND_URL, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${o.apiKey}`,
-          'content-type': 'application/json',
-          'idempotency-key': mail.idempotencyKey,
-        },
-        body: JSON.stringify({
-          from: mail.from,
-          to: [mail.to],
-          subject: mail.subject,
-          html: mail.html,
-          text: mail.text,
-          headers: mail.headers,
-          tags: mail.tags,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await f(RESEND_URL, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${o.apiKey}`,
+            'content-type': 'application/json',
+            'idempotency-key': mail.idempotencyKey,
+          },
+          body: JSON.stringify({
+            from: mail.from,
+            to: [mail.to],
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
+            headers: mail.headers,
+            tags: mail.tags,
+          }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (e) {
+        const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+        throw new MailError(
+          timedOut ? `Resend did not answer within ${timeoutMs} ms` : 'Resend unreachable',
+          null,
+          null,
+        );
+      }
       if (res.status === 429) {
         const s = Number(res.headers.get('retry-after'));
         throw new MailError('Resend rate limit', 429, Number.isFinite(s) && s > 0 ? s * 1000 : 1000);
       }
       if (!res.ok) throw new MailError(`Resend answered ${res.status}`, res.status, null);
-      const body = (await res.json()) as { id?: unknown };
-      if (typeof body.id !== 'string') throw new MailError('Resend answered without an id', res.status, null);
+      // A body cut off by the timeout reads as no id.
+      const body = (await res.json().catch(() => null)) as { id?: unknown } | null;
+      if (typeof body?.id !== 'string') throw new MailError('Resend answered without an id', res.status, null);
       return { id: body.id };
     },
   };

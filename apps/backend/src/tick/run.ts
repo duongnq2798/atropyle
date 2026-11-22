@@ -2,7 +2,7 @@ import type { ChainHead } from '../chain/port';
 import type { Deps } from '../deps';
 import { errorText } from '../log';
 import { opsAlert } from '../ops';
-import { leaseUntil, releaseLease, tryLease } from '../store/meta';
+import { leaseUntil, releaseLease, renewLease, tryLease } from '../store/meta';
 import { type IndexResult, runIndexer } from './indexer';
 import { type KeeperPhaseResult, runKeeperPhase } from './keeper';
 import { type NoticeResult, runNotices } from './notices';
@@ -10,7 +10,8 @@ import { type NoticeResult, runNotices } from './notices';
 export const TICK_LEASE = 'lease:tick';
 /**
  * Longer than the 50 s budget, so a crashed run frees the lease soon. Supabase's Edge Function wall-clock limit is
- * 150 s (Free) or 400 s (paid), so a hung run can outlive it: a run therefore releases only the lease it wrote.
+ * 150 s (Free) or 400 s (paid), so a hung run can outlive it: a run therefore re-asserts the lease before each keeper
+ * call that may send, stops keeping once another run holds it, and releases only the lease it wrote last.
  */
 export const LEASE_TTL_MS = 120_000;
 
@@ -31,7 +32,13 @@ export async function runTick(d: Deps): Promise<TickResult> {
   const start = d.clock.now();
   const result: TickResult = { status: 'locked', head: null, indexer: null, notices: null, keeper: null, errors: [] };
   if (!(await tryLease(d.sql, TICK_LEASE, start, LEASE_TTL_MS))) return result;
-  const until = leaseUntil(start, LEASE_TTL_MS);
+  let until = leaseUntil(start, LEASE_TTL_MS);
+  const holdLease = async (): Promise<boolean> => {
+    const next = await renewLease(d.sql, TICK_LEASE, until, d.clock.now(), LEASE_TTL_MS);
+    if (next === null) return false;
+    until = next;
+    return true;
+  };
   const fail = (phase: string, e: unknown) => {
     result.errors.push(`${phase}: ${errorText(e)}`);
     d.log.error('tick phase failed', { phase, error: errorText(e) });
@@ -63,7 +70,7 @@ export async function runTick(d: Deps): Promise<TickResult> {
       fail('notices', e);
     }
     try {
-      result.keeper = await runKeeperPhase(d, head.timestamp, start + budget);
+      result.keeper = await runKeeperPhase(d, head.timestamp, start + budget, holdLease);
     } catch (e) {
       fail('keeper', e);
     }

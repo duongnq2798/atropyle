@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { SAMPLE_CONFIG, sampleInput } from '../../emails/samples';
 import { fakeClock } from '../../src/clock';
 import { composeEmail } from '../../src/email/compose';
-import { captureMailer, disabledMailer, MailError, RESEND_URL, resendMailer } from '../../src/mail/mailer';
+import {
+  captureMailer,
+  disabledMailer,
+  MailError,
+  RESEND_TIMEOUT_MS,
+  RESEND_URL,
+  resendMailer,
+} from '../../src/mail/mailer';
 
 const mail = composeEmail(SAMPLE_CONFIG, sampleInput('welcome', 'en'));
 
@@ -50,6 +57,26 @@ describe('resendMailer', () => {
     await expect(m.send(mail)).rejects.toMatchObject({ name: 'MailError', status: 429, retryAfterMs: 2000 });
     await expect(m.send(mail)).rejects.toMatchObject({ status: 422, retryAfterMs: null });
     await expect(m.send(mail)).rejects.toThrow('without an id');
+  });
+
+  it('gives up on a Resend call after the timeout (10 s by default) with a MailError (I1)', async () => {
+    expect(RESEND_TIMEOUT_MS).toBe(10_000);
+    let signal: AbortSignal | undefined;
+    const hang = (async (_url: string | URL | Request, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    }) as typeof fetch;
+    const m = resendMailer({ apiKey: 're_test', fetch: hang, clock: fakeClock(), timeoutMs: 20 });
+    await expect(m.send(mail)).rejects.toMatchObject({ name: 'MailError', status: null, retryAfterMs: null });
+    expect(signal?.aborted).toBe(true);
+
+    const down = (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch;
+    const n = resendMailer({ apiKey: 're_test', fetch: down, clock: fakeClock() });
+    await expect(n.send(mail)).rejects.toMatchObject({ name: 'MailError', status: null });
   });
 
   it('spaces sends at least minIntervalMs apart', async () => {

@@ -55,6 +55,27 @@ export async function tryLease(sql: Sql, key: string, nowMs: number, ttlMs: numb
 /** The `until` value tryLease stores for a lease taken at nowMs; a run releases only the lease it wrote. */
 export const leaseUntil = (nowMs: number, ttlMs: number): string => new Date(nowMs + ttlMs).toISOString();
 
+/**
+ * Extends the lease to nowMs + ttlMs, but only while it still carries `until`, the value its holder last wrote.
+ * Returns the new `until`, or null when another run has taken the lease since.
+ */
+export async function renewLease(
+  sql: Sql,
+  key: string,
+  until: string,
+  nowMs: number,
+  ttlMs: number,
+): Promise<string | null> {
+  const next = leaseUntil(nowMs, ttlMs);
+  const rows = await sql.query(
+    `update public.meta set value = jsonb_build_object('until', $3::text), updated_at = $4::timestamptz
+      where key = $1::text and value ->> 'until' = $2::text
+     returning 1 as renewed`,
+    [key, until, next, new Date(nowMs).toISOString()],
+  );
+  return rows.length > 0 ? next : null;
+}
+
 /** With `until`, deletes the lease only while it still carries that value (a later holder's lease stays). */
 export async function releaseLease(sql: Sql, key: string, until?: string): Promise<void> {
   if (until === undefined) {

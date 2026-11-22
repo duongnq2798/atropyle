@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { tick } from '../../src/functions/tick';
 import { KEEPER_KEY_INVALID } from '../../src/keeper/signer';
-import { getCursor, getMeta, tryLease } from '../../src/store/meta';
-import { runTick, TICK_LEASE } from '../../src/tick/run';
+import { getCursor, getMeta, leaseUntil, tryLease } from '../../src/store/meta';
+import { LEASE_TTL_MS, runTick, TICK_LEASE } from '../../src/tick/run';
 import { type TestDb, testDb } from '../helpers/db';
 import { type TestEnv, testEnv } from '../helpers/deps';
-import { created, T0, txh, VAULT, vaultEvent, view } from '../helpers/fixtures';
+import { created, T0, txh, VAULT, VAULT2, vaultEvent, view } from '../helpers/fixtures';
 import { API, bodyOf } from '../helpers/http';
 import { activeSubscriber } from '../helpers/seed';
 
@@ -107,6 +107,42 @@ describe('runTick (spec §9.3)', () => {
     expect(env.chain.calls.keeper).toEqual([]);
     expect(await getCursor(db)).toBe(200n - BigInt(env.d.config.headMargin));
     expect(await getMeta(db, TICK_LEASE)).toBeNull();
+  });
+
+  it('stops the keeper of a run whose lease another run took over, so two runs never both keep (I1)', async () => {
+    // A budget longer than the lease, so only the lease (not the deadline) can stop run A here.
+    env.d.config.budgetMs = 600_000;
+    // Two vaults due for the keeper at T0.
+    env.chain.created = [created(), created({ vault: VAULT2, blockNumber: 151n, transactionHash: txh(2) })];
+    env.chain.setView(view({ nextCheckAt: T0 }));
+    env.chain.setView(view({ vault: VAULT2, nextCheckAt: T0 }));
+    let taken: string | null = null;
+    env.chain.keeperImpl = async (run) => {
+      // Run A is slow: its lease runs out during this call and run B takes the tick over.
+      env.clock.advance(121_000);
+      expect(await tryLease(db, TICK_LEASE, env.clock.now(), LEASE_TTL_MS)).toBe(true);
+      taken = leaseUntil(env.clock.now(), LEASE_TTL_MS);
+      return {
+        ranAt: T0,
+        dryRun: false,
+        keeper: null,
+        balance: 10n ** 18n,
+        stopped: null,
+        sent: 1,
+        outcomes: run.vaults.map((vault) => ({
+          vault,
+          decision: { vault, action: 'poke' as const, reason: 'TRANSITION_DUE' as const, nextCheckAt: T0 },
+          status: 'sent' as const,
+          hash: txh(40),
+          nextCheckAt: T0 + 60n,
+        })),
+      };
+    };
+    const a = await runTick(env.d);
+    expect(env.chain.calls.keeper.map((c) => c.vaults)).toEqual([[VAULT]]);
+    expect(a.keeper).toMatchObject({ due: 2, sent: 1, stopped: 'LEASE_LOST' });
+    // A's end leaves B's lease in place.
+    expect(await getMeta(db, TICK_LEASE)).toMatchObject({ value: { until: taken } });
   });
 
   it("a run that outlived its lease does not delete the next run's lease", async () => {
