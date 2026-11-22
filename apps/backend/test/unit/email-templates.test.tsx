@@ -6,6 +6,7 @@ import { SECOND_STRAND, segments } from '../../emails/Thread';
 import { COPY } from '../../src/email/copy';
 import { EMAIL_KINDS, PLACEHOLDERS, THREAD } from '../../src/email/kinds';
 import { TEMPLATES } from '../../src/email/templates.gen';
+import { BUTTON } from '../../src/email/theme';
 import { LANGS } from '../../src/types';
 
 const GEN = fileURLToPath(new URL('../../src/email/templates.gen.ts', import.meta.url));
@@ -82,6 +83,37 @@ describe('generated email templates (spec §9.4)', () => {
       for (const lang of LANGS) {
         expect(TEMPLATES[kind][lang].html, `${kind}.${lang}`).not.toContain('/create/');
         expect(TEMPLATES[kind][lang].text, `${kind}.${lang}`).not.toContain('/create/');
+      }
+    }
+  });
+
+  it('every inline light colour has a dark override class, so dark mode never leaves light-on-light text', () => {
+    const lightBg: Record<string, string[]> = {
+      '#F6F1E7': ['at-bg'],
+      '#FFFDF8': ['at-card', 'at-gap'],
+      '#F0EADF': ['at-well'],
+      '#E7DFD1': ['at-track'],
+    };
+    const lightText: Record<string, string> = { '#16130F': 'at-ink', '#5E574C': 'at-muted' };
+    for (const [kind, byLang] of Object.entries(TEMPLATES)) {
+      for (const [lang, t] of Object.entries(byLang)) {
+        for (const tag of t.html.match(/<[a-z]+\b[^>]*>/g) ?? []) {
+          const style = /style="([^"]*)"/.exec(tag)?.[1] ?? '';
+          const classes = (/class="([^"]*)"/.exec(tag)?.[1] ?? '').split(/\s+/);
+          const where = `${kind}.${lang}: ${tag.slice(0, 120)}`;
+          const bg = /(?:^|;)background-color:(#[0-9A-Fa-f]{6})/.exec(style)?.[1]?.toUpperCase();
+          if (bg && lightBg[bg]) {
+            expect(
+              classes.some((c) => lightBg[bg]?.includes(c)),
+              where,
+            ).toBe(true);
+          }
+          const fg = /(?:^|;)color:(#[0-9A-Fa-f]{6})/.exec(style)?.[1]?.toUpperCase();
+          // The button keeps its gold and ink text in both themes.
+          if (fg && lightText[fg] && bg !== BUTTON.background) {
+            expect(classes, where).toContain(lightText[fg]);
+          }
+        }
       }
     }
   });

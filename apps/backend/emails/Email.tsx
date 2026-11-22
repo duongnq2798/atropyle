@@ -48,7 +48,7 @@ export function darkCss(): string {
 }
 
 const st = {
-  body: { backgroundColor: LIGHT.bg, color: LIGHT.ink, fontFamily: SANS, margin: '0', padding: '32px 0 40px' },
+  body: { fontFamily: SANS, margin: '0', padding: '32px 0 40px' },
   container: { maxWidth: '560px', margin: '0 auto', padding: '0 16px' },
   masthead: { padding: '0 4px 18px' },
   wordmark: {
