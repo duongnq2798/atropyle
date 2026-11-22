@@ -73,7 +73,7 @@ Its key goes only into the `KEEPER_KEY` secret (step 4); nobody else ever sees i
 | `MAIL_FROM`                  | `Atropyle <alerts@your-domain>` on the domain verified in Resend                            |
 | `RESEND_API_KEY`             | The key from step 2. Without it nothing is sent; event emails over 24 h old are dropped     |
 | `CRON_SECRET`                | 64 random hex characters (command below); the same value goes into the Vault in step 6      |
-| `TOKEN_SECRET`               | 64 random hex characters; signs unsubscribe links and hashes rate-limit keys                |
+| `TOKEN_SECRET`               | 64 random hex characters; signs unsubscribe links, hashes rate-limit keys. Never rotate it  |
 | `OPS_EMAIL`                  | Where ops alerts go: the keeper, integrity, a stalled indexer, failing mail                 |
 | `KEEPER_KEY`                 | The keeper wallet's private key. Without it the keeper runs dry (it simulates, never sends) |
 | `RPC_URLS` (optional)        | Comma-separated X Layer RPC URLs; default: the URLs of the SDK's X Layer deployment         |
@@ -96,7 +96,7 @@ npx -y supabase@3.2.0 link --project-ref <project-ref>
 npx -y supabase@3.2.0 secrets set --env-file ~/atropyle-backend.env
 ```
 
-Delete the file afterwards, or keep it only in your password manager. Type `KEEPER_KEY` straight into the dashboard's Edge Function secrets page, so the key never lands in a file or in your shell history. Functions read changed secrets without a redeploy.
+Delete the file afterwards, or keep it only in your password manager. Type `KEEPER_KEY` straight into the dashboard's Edge Function secrets page, so the key never lands in a file or in your shell history. A changed secret needs no redeploy, but it does not take effect at once: each worker reads the secrets once, on its first request, and keeps them until Supabase recycles it.
 
 ### 5. Functions
 
@@ -159,8 +159,9 @@ Then create a Drill from the web app, subscribe as its owner and confirm. Within
 ## Operate
 
 - **Pause everything:** `select cron.unschedule('atropyle-tick'); select cron.unschedule('atropyle-integrity');`. Resume by re-running the two `cron.schedule` lines of `supabase/migrations/20261123000100_schedule.sql`.
-- **Stop only the keeper:** `npx -y supabase@3.2.0 secrets unset KEEPER_KEY`. The keeper then runs dry; indexing and email go on.
-- **Rotate `CRON_SECRET`:** set the new function secret, then run `select vault.update_secret((select id from vault.secrets where name = 'atropyle_cron_secret'), '<new value>');` within the same minute.
+- **Stop only the keeper:** `npx -y supabase@3.2.0 secrets unset KEEPER_KEY`. Once the `tick` workers recycle, the keeper runs dry; indexing and email go on. For an immediate keeper stop, unschedule `atropyle-tick` (`select cron.unschedule('atropyle-tick');`): this pauses indexing and email too, until you re-run its `cron.schedule` line once the secret is gone.
+- **Rotate `CRON_SECRET`:** set the new function secret, then run `select vault.update_secret((select id from vault.secrets where name = 'atropyle_cron_secret'), '<new value>');` within the same minute. Workers that still hold the old value answer 401 until they recycle; the next ticks then go through.
+- **Never rotate `TOKEN_SECRET`:** each subscription's stored `unsub_hash` derives from it. With a new value every unsubscribe link and `List-Unsubscribe` header stops working, in the emails already sent and in the next ones, until each row's `unsub_hash` is recomputed with the new value; no script does that yet. It would also restart the rate-limit windows.
 - **Ops emails** (`[Atropyle ops] <alert>: firing` and later `resolved`) are sent for:
   - `keeper-balance`: the keeper is below 0.005 OKB, so top it up;
   - `keeper-key`: `KEEPER_KEY` is set but unusable;
