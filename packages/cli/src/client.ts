@@ -1,7 +1,6 @@
 import { assertRpcChain } from '@atropyle/mcp/ops';
 import {
   type AtropyleClient,
-  AtropyleError,
   type AtropyleOptions,
   createAtropyle,
   type Deployment,
@@ -29,17 +28,7 @@ export interface RpcChoice {
 
 export async function deploymentFor(g: Globals, io: Io): Promise<Deployment> {
   if (g.deployment) return readDeployment(io, g.deployment);
-  try {
-    return getDeployment(g.chain);
-  } catch (e) {
-    if (e instanceof AtropyleError && e.code === 'DEPLOYMENT_MISSING') {
-      throw new AtropyleError('DEPLOYMENT_MISSING', {
-        message: e.message,
-        hint: 'X Layer works after the mainnet deployment; use --deployment <file> until then.',
-      });
-    }
-    throw e;
-  }
+  return getDeployment(g.chain);
 }
 
 /** --verbose: method and duration of every request. Never the URL, which can carry an API key. */

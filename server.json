@@ -26,7 +26,7 @@
         },
         {
           "name": "ATROPYLE_DEPLOYMENT",
-          "description": "Path to a deployment JSON file; wins over ATROPYLE_CHAIN. Needed until the X Layer mainnet deployment",
+          "description": "Path to a deployment JSON file; wins over ATROPYLE_CHAIN. Without it the server reads X Layer mainnet",
           "isRequired": false,
           "format": "filepath"
         },

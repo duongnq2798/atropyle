@@ -11,7 +11,7 @@ function xlayerUrls(): string[] | null {
   }
 }
 
-// The mainnet deployment is a maintainer step; getDeployment('xlayer') throws until it exists.
+// getDeployment('xlayer') throws only in a checkout without deployments/xlayer.json (before the mainnet deployment).
 const xlayer = xlayerUrls();
 
 describe('csp', () => {

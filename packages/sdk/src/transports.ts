@@ -1,8 +1,14 @@
 import { fallback, http, type Transport } from 'viem';
 
-/** JSON-RPC batching, retries with backoff (viem retries 429 and 5xx), bounded timeout. */
+/**
+ * Public RPCs cap a JSON-RPC batch, and a batch over the cap fails as a whole: on X Layer, rpc.xlayer.tech and
+ * xlayerrpc.okx.com refuse more than 10 calls, the free plan of xlayer.drpc.org more than 3 (measured 22 Nov 2026).
+ */
+export const MAX_BATCH = 3;
+
+/** JSON-RPC batching within MAX_BATCH, retries with backoff (viem retries 429 and 5xx), bounded timeout. */
 export function httpTransport(url: string): Transport {
-  return http(url, { batch: { batchSize: 20, wait: 0 }, retryCount: 3, retryDelay: 400, timeout: 20_000 });
+  return http(url, { batch: { batchSize: MAX_BATCH, wait: 0 }, retryCount: 3, retryDelay: 400, timeout: 20_000 });
 }
 
 /**

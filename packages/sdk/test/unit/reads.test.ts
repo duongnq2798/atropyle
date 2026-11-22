@@ -24,7 +24,7 @@ import { blockRanges, decodeLogs, getEventsChunked } from '../../src/read/events
 import { netlistSource } from '../../src/read/netlists';
 import { heldBy, readSnapshot } from '../../src/read/snapshot';
 import { readTokenInfo } from '../../src/read/tokens';
-import { readTransport } from '../../src/transports';
+import { MAX_BATCH, readTransport } from '../../src/transports';
 import { NFT, OWNER, TOKEN, VAULT } from './fixtures';
 
 // Every error below comes out of a real viem client (createPublicClient over a `custom` transport), so it has the
@@ -352,5 +352,26 @@ describe('readTransport attempts', () => {
     expect(await outcome).toBeInstanceOf(Error);
     expect(fetched.filter((u) => u.includes('a.example'))).toHaveLength(4);
     expect(fetched.filter((u) => u.includes('b.example'))).toHaveLength(4);
+  });
+
+  it('never sends a batch over MAX_BATCH (3), the cap of the free dRPC plan; a bigger batch fails as a whole', async () => {
+    const sizes: number[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { id: number } | { id: number }[];
+        const calls = Array.isArray(body) ? body : [body];
+        sizes.push(calls.length);
+        if (calls.length > 3) return new Response('{"error":"batch too large"}', { status: 400 });
+        const answers = calls.map((c) => ({ jsonrpc: '2.0', id: c.id, result: '0xc4' }));
+        return new Response(JSON.stringify(Array.isArray(body) ? answers : answers[0]), { status: 200 });
+      }),
+    );
+    const transport = readTransport(['https://a.example'])({ chain: undefined, retryCount: 0 });
+    const results = await Promise.all(Array.from({ length: 10 }, () => transport.request({ method: 'eth_chainId' })));
+    expect(results).toEqual(Array(10).fill('0xc4'));
+    expect(MAX_BATCH).toBe(3);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(MAX_BATCH);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(10);
   });
 });

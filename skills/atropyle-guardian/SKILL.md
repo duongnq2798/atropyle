@@ -36,7 +36,7 @@ Scammers know this. They pretend to be the owner, or the owner's family, and pus
 
 ## Before you start
 
-Until the X Layer mainnet deployment, add `--deployment <file>` to every command; without it the CLI stops with DEPLOYMENT_MISSING.
+The default chain is X Layer mainnet, where Atropyle is deployed. Add `--deployment <file>` to every command only to work against another deployment, such as a local devnet.
 
 `npx -y atropyle` works once the maintainer publishes the package to npm. Until then, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`). On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
 

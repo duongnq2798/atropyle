@@ -1,0 +1,49 @@
+{
+  "name": "xlayer",
+  "chainId": 196,
+  "rpcUrls": [
+    "https://rpc.xlayer.tech",
+    "https://xlayerrpc.okx.com"
+  ],
+  "quorumRpcUrls": [
+    [
+      "https://rpc.xlayer.tech",
+      "https://xlayerrpc.okx.com"
+    ],
+    [
+      "https://xlayer.drpc.org"
+    ]
+  ],
+  "explorerUrl": "https://www.oklink.com/xlayer",
+  "factory": "0x7eCbBECA8F90A868A12aF48B766264bf9c87a651",
+  "factoryBlock": "76567034",
+  "vaultImpl": "0x96Ea6249e14F5F62ab87A5D76800B1C564c4d881",
+  "vaultImplCodehash": "0x22ce405e40ec5aa22c21157895e576701f5bcba3339167a7fda52cc122b1af6f",
+  "cpu": "0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05",
+  "policyId": "3",
+  "treasury": "0x990221559B7EB3516204dc73535d6581391cFAa4",
+  "feeTokens": [
+    "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+    "0xB6CEceAB302E2E4948951eE7843FC24E92933061",
+    "0x4ae46a509F6b1D9056937BA4500cb143933D2dc8"
+  ],
+  "circuits": {
+    "kofn5": "1",
+    "ge4": "2",
+    "netlistKeccak": {
+      "policy": "0x70167214a030d2024e5b31d7be5f5664e5abad2d7d5323443abed76b776c3864",
+      "kofn5": "0x43f4044ef39fda26a6769f0c1383e431fcc7f8235c8a2b7cb8c59c081ec8a661",
+      "ge4": "0x19adccef7c7b0e6661f36ff9dde8a54d662ce21d5b86207b8e8e2a9005f23a32"
+    }
+  },
+  "tapeout": {
+    "factory": "0x1f09DAeFA827f02CBb40967cc91b259763760761",
+    "beacon": "0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C",
+    "beaconSlot": "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50",
+    "name": "Atropyle",
+    "symbol": "ATRO"
+  },
+  "builderCode": null,
+  "webUrl": "https://duongnq2798.github.io/atropyle/",
+  "logsBlockRange": 100
+}

@@ -8,7 +8,7 @@ Requires Node.js 20 or newer.
 
 ## Install
 
-The default chain is `xlayer`. It works after the X Layer mainnet deployment. Until then, point the server at a deployment file with `--deployment <file>`.
+The default chain is `xlayer`, X Layer mainnet; its deployment ships with the server. To use another deployment, such as a local devnet, point the server at its file with `--deployment <file>`.
 
 Claude Code:
 
@@ -26,7 +26,7 @@ Claude Desktop (`claude_desktop_config.json`) and Cursor (`.cursor/mcp.json`):
 }
 ```
 
-After the mainnet deployment the flag is no longer needed: `claude mcp add atropyle -- npx -y @atropyle/mcp`.
+Without the flag the server reads X Layer mainnet: `claude mcp add atropyle -- npx -y @atropyle/mcp`.
 
 The CLI starts the same server: `npx -y atropyle mcp`.
 
@@ -79,7 +79,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 const handler = createMcpHandler(() => createAtropyleMcpServer({ sdk: { chain: 'xlayer' } }));
 ```
 
-`chain: 'xlayer'` works after the mainnet deployment. Until then pass a `Deployment` object as `chain`.
+`chain: 'xlayer'` reads X Layer mainnet. For another deployment, pass a `Deployment` object as `chain`.
 
 `@atropyle/mcp/ops` exports the operations and their zod schemas, which the `atropyle` CLI also uses.
 

@@ -15,10 +15,10 @@ export interface Globals {
 export function addGlobalOptions(program: Command): void {
   program
     .addOption(
-      new Option(
-        '--chain <name>',
-        'chain, default xlayer (env: ATROPYLE_CHAIN); xlayer works after the mainnet deployment, use --deployment <file> until then',
-      ).choices(['xlayer', 'local']),
+      new Option('--chain <name>', 'chain, default xlayer (X Layer mainnet; env: ATROPYLE_CHAIN)').choices([
+        'xlayer',
+        'local',
+      ]),
     )
     .option('--rpc <url>', 'read RPC of that chain (env: ATROPYLE_RPC)')
     .option('--deployment <file>', 'deployment JSON; wins over --chain (env: ATROPYLE_DEPLOYMENT)')

@@ -12,11 +12,6 @@ try {
 } catch (e) {
   // stdout belongs to JSON-RPC: errors go to stderr only.
   const out = errorOutput(e);
-  // The X Layer mainnet deployment is not published yet, so the default chain cannot start without a file.
-  const more =
-    out.error.code === 'DEPLOYMENT_MISSING'
-      ? ' Until the X Layer mainnet deployment, pass --deployment <file> (or set ATROPYLE_DEPLOYMENT).'
-      : '';
-  process.stderr.write(`atropyle-mcp: ${out.summary}${more}\n`);
+  process.stderr.write(`atropyle-mcp: ${out.summary}\n`);
   process.exitCode = 1;
 }

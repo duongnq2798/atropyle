@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deploymentFor } from '../../src/client';
 import { main, redact } from '../../src/main';
 import { VERSION } from '../../src/version';
 import { memoryIo } from './memory-io';
@@ -148,13 +149,12 @@ describe('main', () => {
     expect(JSON.parse(io.stdout).error.message).toBe('Unknown command "bogus".');
   });
 
-  it('exits 1 with DEPLOYMENT_MISSING and a hint on the default chain', async () => {
-    const io = memoryIo();
-    expect(await main(['doctor', '--json'], io)).toBe(1);
-    expect(JSON.parse(io.stdout).error).toMatchObject({
-      code: 'DEPLOYMENT_MISSING',
-      hint: 'X Layer works after the mainnet deployment; use --deployment <file> until then.',
-    });
+  it('reads the built-in X Layer mainnet deployment on the default chain, with no file and no RPC call', async () => {
+    const g = { chain: 'xlayer', json: true, color: false, verbose: false } as const;
+    const d = await deploymentFor(g, memoryIo());
+    expect(d.chainId).toBe(196);
+    expect(d.factory).toBe('0x7eCbBECA8F90A868A12aF48B766264bf9c87a651');
+    expect(d.cpu).toBe('0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05');
   });
 
   it('names the variable, not the value, when ATROPYLE_RPC is not a URL', async () => {
