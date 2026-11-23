@@ -8,8 +8,9 @@ const loadFeatures = () => import('./features').then((r) => r.default);
 
 /**
  * `reducedMotion="user"`: motion drops transform and layout animations for users who ask for less motion, and
- * keeps opacity. `strict` throws on a `motion.*` component, so every animated element is an `m.*` whose features
- * load lazily. A static `useAnimate` import (HoldButton) still carries the animation engine.
+ * keeps opacity. `strict` throws on a `motion.*` component, so every animated element is an `m.*` whose features,
+ * and the engine with them, load lazily. A static `animate` or `useAnimate` import would carry the engine into the
+ * first load; HoldButton shakes with CSS instead (test/unit/motion-imports.test.ts).
  */
 export function MotionProvider({ children }: { children: ReactNode }) {
   return (

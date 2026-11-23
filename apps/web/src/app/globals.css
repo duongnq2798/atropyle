@@ -30,7 +30,7 @@
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
-  /* stiffness 380, damping 32, mass 1, sampled over 443 ms (src/motion/tokens.ts SPRING_LINEAR). */
+  /* stiffness 380, damping 32, mass 1, sampled over 443 ms (springStops() in src/motion/tokens.ts). */
   --ease-spring: linear(
     0,
     0.0531,
@@ -62,6 +62,8 @@
   --animate-thread-pulse: thread-pulse 2.4s var(--ease-in-out-sine) infinite;
   --animate-thread-tremble: thread-tremble 0.9s var(--ease-in-out-sine) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
+  /* HoldButton's one shake on an early release: DURATION.slow, motion's easeOut. Used only under motion-safe:. */
+  --animate-shake: atro-shake 420ms ease-out;
 
   @keyframes thread-pulse {
     0%,
@@ -90,6 +92,24 @@
     }
     to {
       transform: translateX(100%);
+    }
+  }
+  @keyframes atro-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-5px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(3px);
     }
   }
 }

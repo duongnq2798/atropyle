@@ -1,4 +1,6 @@
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '@testing-library/react';
+import { MotionGlobalConfig, processFrame } from 'motion/react';
+import type { PointerEvent, SyntheticEvent } from 'react';
 import { hydrateRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
@@ -6,7 +8,8 @@ import { LangProvider } from '../../src/i18n/provider';
 import { KVProvider } from '../../src/lib/kv';
 import { memoryKV } from '../../src/lib/store';
 import { MotionProvider } from '../../src/motion/provider';
-import type { HoldBind } from '../../src/motion/use-hold';
+import { DURATION } from '../../src/motion/tokens';
+import { type HoldBind, useHold } from '../../src/motion/use-hold';
 import { HoldButton, type HoldButtonProps } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
@@ -56,6 +59,38 @@ describe('HoldButton', () => {
     act(() => vi.advanceTimersByTime(2000));
     expect(onConfirm).not.toHaveBeenCalled();
     expect(screen.getByText('Hold to confirm, or press Enter')).toBeTruthy();
+  });
+
+  it('shakes once on an early release, and again on the next one', () => {
+    const { button } = setup();
+    expect(button.hasAttribute('data-shake')).toBe(false);
+    press(button);
+    act(() => vi.advanceTimersByTime(300));
+    fireEvent.pointerUp(button);
+    expect(button.hasAttribute('data-shake')).toBe(true);
+    act(() => vi.advanceTimersByTime(DURATION.slow));
+    expect(button.hasAttribute('data-shake')).toBe(false);
+    press(button);
+    act(() => vi.advanceTimersByTime(300));
+    fireEvent.pointerUp(button);
+    expect(button.hasAttribute('data-shake')).toBe(true);
+  });
+
+  it('does not shake under reduced motion, and still says to keep holding', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (q: string) =>
+        ({
+          matches: q.includes('reduce'),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+    const { button } = setup();
+    press(button);
+    act(() => vi.advanceTimersByTime(300));
+    fireEvent.pointerUp(button);
+    expect(button.hasAttribute('data-shake')).toBe(false);
+    expect(screen.getByText('Keep holding')).toBeTruthy();
   });
 
   it('cancels when the pointer leaves or the browser takes it over', () => {
@@ -126,9 +161,26 @@ describe('HoldButton', () => {
     // Stopped, not cancelled: a button that can no longer be held does not ask to keep holding.
     expect(button.getAttribute('data-phase')).toBe('idle');
     expect(screen.queryByText('Keep holding')).toBeNull();
+    expect(button.hasAttribute('data-shake')).toBe(false);
     act(() => vi.advanceTimersByTime(1000));
     fireEvent.keyDown(button, { key: 'Enter' });
     fireEvent.click(button, { detail: 0 });
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('useHold stops a hold that becomes disabled without calling onCancel', () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    const { result, rerender } = renderHook(({ disabled }) => useHold({ onConfirm, onCancel, disabled }), {
+      initialProps: { disabled: false },
+    });
+    act(() => result.current.bind.onPointerDown({ button: 0 } as PointerEvent<HTMLElement>));
+    expect(result.current.phase).toBe('holding');
+    act(() => vi.advanceTimersByTime(300));
+    rerender({ disabled: true });
+    expect(result.current.phase).toBe('idle');
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onCancel).not.toHaveBeenCalled();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
@@ -148,9 +200,119 @@ describe('HoldButton', () => {
     expect(onConfirm).toHaveBeenCalledTimes(2);
   });
 
-  it('accepts none of the handlers it binds itself, nor a description', () => {
-    // A caller's onKeyDown, onPointerDown, … or aria-describedby would be replaced without a word.
-    expectTypeOf<Extract<keyof HoldButtonProps, keyof HoldBind | 'aria-describedby'>>().toBeNever();
+  it("runs a caller's handlers first, and the hold still runs after they call preventDefault()", () => {
+    const log: string[] = [];
+    const onConfirm = vi.fn(() => {
+      log.push('confirm');
+    });
+    const NAMES = [
+      'onKeyDown',
+      'onKeyUp',
+      'onPointerDown',
+      'onPointerUp',
+      'onPointerLeave',
+      'onPointerCancel',
+      'onBlur',
+    ] as const satisfies readonly (keyof HoldBind)[];
+    const theirs: Pick<HoldButtonProps, (typeof NAMES)[number]> = Object.fromEntries(
+      NAMES.map((name) => [
+        name,
+        (e: SyntheticEvent) => {
+          log.push(name);
+          e.preventDefault();
+        },
+      ]),
+    );
+    // A caller's context menu handler that does not prevent it: the hold's still does.
+    const onContextMenu = vi.fn();
+    renderWithProviders(
+      <HoldButton onConfirm={onConfirm} onContextMenu={onContextMenu} {...theirs}>
+        Check in
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Check in' });
+    const phase = () => button.getAttribute('data-phase');
+
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(log).toEqual(['onKeyDown', 'confirm']);
+    act(() => vi.advanceTimersByTime(2000));
+
+    fireEvent.keyDown(button, { key: ' ' });
+    expect(phase()).toBe('holding');
+    fireEvent.keyUp(button, { key: ' ' });
+    expect(phase()).toBe('idle');
+    for (const release of [fireEvent.pointerUp, fireEvent.pointerLeave, fireEvent.pointerCancel, fireEvent.blur]) {
+      press(button);
+      expect(phase()).toBe('holding');
+      release(button);
+      expect(phase()).toBe('idle');
+    }
+    act(() => vi.advanceTimersByTime(2000));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(log).toEqual([
+      'onKeyDown',
+      'confirm',
+      'onKeyDown',
+      'onKeyUp',
+      ...['onPointerUp', 'onPointerLeave', 'onPointerCancel', 'onBlur'].flatMap((n) => ['onPointerDown', n]),
+    ]);
+
+    expect(fireEvent.contextMenu(button)).toBe(false);
+    expect(onContextMenu).toHaveBeenCalledOnce();
+  });
+
+  it("still cancels the hold when a caller's handler throws", () => {
+    // React reports an error thrown by a handler as a window error event; this test takes it over.
+    const errors: unknown[] = [];
+    const onError = (e: ErrorEvent) => {
+      errors.push(e.error);
+      e.preventDefault();
+    };
+    window.addEventListener('error', onError);
+    try {
+      const onConfirm = vi.fn();
+      renderWithProviders(
+        <HoldButton
+          onConfirm={onConfirm}
+          onPointerUp={() => {
+            throw new Error('caller failed');
+          }}
+        >
+          Check in
+        </HoldButton>,
+      );
+      const button = screen.getByRole('button', { name: 'Check in' });
+      press(button);
+      act(() => vi.advanceTimersByTime(300));
+      fireEvent.pointerUp(button);
+      expect(button.getAttribute('data-phase')).toBe('idle');
+      act(() => vi.advanceTimersByTime(1000));
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(errors).toEqual([new Error('caller failed')]);
+    } finally {
+      window.removeEventListener('error', onError);
+    }
+  });
+
+  it("joins a caller's aria-describedby with its own hint", () => {
+    renderWithProviders(
+      <>
+        <p id="warning">This cannot be undone.</p>
+        <HoldButton onConfirm={vi.fn()} aria-describedby="warning">
+          Release
+        </HoldButton>
+      </>,
+    );
+    const ids = screen.getByRole('button', { name: 'Release' }).getAttribute('aria-describedby')?.split(' ') ?? [];
+    expect(ids).toHaveLength(2);
+    expect(ids.map((id) => document.getElementById(id)?.textContent)).toEqual([
+      'This cannot be undone.',
+      'Hold to confirm, or press Enter',
+    ]);
+  });
+
+  it('accepts neither onClick nor type, which would go around the hold', () => {
+    expectTypeOf<Extract<keyof HoldButtonProps, 'onClick' | 'type'>>().toBeNever();
   });
 
   it('describes how to use it', () => {
@@ -160,7 +322,7 @@ describe('HoldButton', () => {
     expect(document.getElementById(id ?? '')?.textContent).toBe('Hold to confirm, or press Enter');
   });
 
-  it('shows the fill and the thread while held under reduced motion on a prerendered, hydrated page', async () => {
+  it('shows the fill and the thread while held under reduced motion on a prerendered, hydrated page, then fades them', async () => {
     // motion's frame loop and its lazy features need real time; a long hold keeps the timer out of the way.
     vi.useRealTimers();
     // The static export prerenders with motion allowed: usePrefersReducedMotion is false until hydrated.
@@ -205,7 +367,34 @@ describe('HoldButton', () => {
           expect(el.style.transform).not.toContain('scaleX(0)');
         }
       });
+
+      // Released, they fade out at full width over DURATION.quick and collapse only once out of sight. A hand-driven
+      // frame samples the fade an eighth of the way through (JS animations, no WAAPI), so the check is not a race.
+      MotionGlobalConfig.skipAnimations = false;
+      MotionGlobalConfig.useManualTiming = true;
+      const t0 = performance.now();
+      processFrame(t0);
+      act(() => {
+        fireEvent.pointerUp(button);
+      });
+      processFrame(t0 + DURATION.quick / 8);
+      for (const el of [fill, thread]) {
+        expect(Number(el.style.opacity), 'mid-fade').toBeGreaterThan(0);
+        expect(Number(el.style.opacity), 'mid-fade').toBeLessThan(1);
+        // 'none' is scaleX 1: neither cut to 0 (reduced motion makes a scaleX step instant) nor shrinking.
+        expect(el.style.transform, 'full width while fading').toBe('none');
+      }
+      // Back on the real clock, the fade ends and transitionEnd collapses them.
+      MotionGlobalConfig.useManualTiming = false;
+      await vi.waitFor(() => {
+        for (const el of [fill, thread]) {
+          expect(el.style.opacity).toBe('0');
+          expect(el.style.transform).toContain('scaleX(0)');
+        }
+      });
     } finally {
+      MotionGlobalConfig.useManualTiming = false;
+      MotionGlobalConfig.skipAnimations = true;
       act(() => root?.unmount());
       container.remove();
     }
