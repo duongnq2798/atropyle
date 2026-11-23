@@ -51,13 +51,13 @@ export const messages = defineMessages(
     recoveryPending:
       'Đang chờ khôi phục: nếu chủ vault không điểm danh trước khi hết thời gian báo động, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
     releasedRecover: 'Đã tới lúc vault trao tài sản cho ví khôi phục do các người giám hộ chọn:',
-    claimHelp: 'Đã tới lúc vault trao tài sản. Nút Nhận sẽ chuyển mọi tài sản đúng như vault đã được thiết lập.',
-    claimHelpRecover: 'Nút Nhận sẽ chuyển toàn bộ tài sản trong vault sang ví khôi phục ở trên.',
+    claimHelp: 'Đã tới lúc vault trao tài sản. Bấm Nhận để chuyển mọi tài sản đúng như vault đã được thiết lập.',
+    claimHelpRecover: 'Bấm Nhận để chuyển toàn bộ tài sản trong vault sang ví khôi phục ở trên.',
     claim: 'Nhận',
     deliverHelp:
-      'Đã tới lúc vault trao tài sản. Nút Chuyển tài sản sẽ gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
+      'Đã tới lúc vault trao tài sản. Bấm Chuyển tài sản để gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
     deliverHelpRecover:
-      'Nút Chuyển tài sản sẽ gửi toàn bộ tài sản trong vault sang ví khôi phục ở trên. Ví của bạn không nhận gì.',
+      'Bấm Chuyển tài sản để gửi toàn bộ tài sản trong vault sang ví khôi phục ở trên. Ví của bạn không nhận gì.',
     deliver: 'Chuyển tài sản',
     results: 'Các lần chuyển',
     history: 'Xem các lần chuyển gần đây',
