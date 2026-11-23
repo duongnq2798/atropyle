@@ -73,7 +73,7 @@ export const messages = defineMessages(
     windowLabel: 'Thời gian báo động',
     durationHelp: 'Thời lượng dạng 45s, 90m, 12h, 3d hoặc 2w.',
     assetsTitle: 'Tài sản',
-    assetsHelp: 'Vault không bao giờ giữ token của bạn. Vault được cấp allowance và chỉ chuyển token khi giải phóng.',
+    assetsHelp: 'Vault không bao giờ giữ token của bạn. Vault được cấp allowance và chỉ chuyển token khi tới lúc trao.',
     pickToken: 'Token',
     addToken: 'Thêm token',
     addNft: 'Thêm NFT',

@@ -42,20 +42,20 @@ export const messages = defineMessages(
     title: 'Bạn có thể nhận từ vault này',
     titleAnyone: 'Giúp vault này đi tiếp',
     anyone:
-      'Ai cũng có thể báo động, hoặc chuyển tài sản khi vault đã giải phóng; tài sản đi tới người thừa kế, không phải cho bạn.',
+      'Ai cũng có thể báo động, hoặc chuyển tài sản khi đã tới lúc trao; tài sản đi tới người thừa kế, không phải cho bạn.',
     anyoneRecover:
-      'Ai cũng có thể báo động, hoặc chuyển tài sản khi vault đã giải phóng; tài sản đi tới ví khôi phục do các người giám hộ chọn, không phải cho bạn.',
+      'Ai cũng có thể báo động, hoặc chuyển tài sản khi đã tới lúc trao; tài sản đi tới ví khôi phục do các người giám hộ chọn, không phải cho bạn.',
     pokeHelp:
       'Nếu chủ vault đã bỏ lỡ các lần điểm danh, ai cũng có thể báo động hoặc chuyển vault sang trạng thái kế tiếp. Chủ vault vẫn huỷ được báo động bằng cách điểm danh.',
     poke: 'Báo động',
     recoveryPending:
       'Đang chờ khôi phục: nếu chủ vault không điểm danh trước khi hết thời gian báo động, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
-    releasedRecover: 'Vault đã giải phóng cho ví khôi phục do các người giám hộ chọn:',
-    claimHelp: 'Vault đã giải phóng. Nhận sẽ chuyển mọi tài sản đúng như vault đã được thiết lập.',
+    releasedRecover: 'Đã tới lúc vault trao tài sản cho ví khôi phục do các người giám hộ chọn:',
+    claimHelp: 'Đã tới lúc vault trao tài sản. Nhận sẽ chuyển mọi tài sản đúng như vault đã được thiết lập.',
     claimHelpRecover: 'Nhận sẽ chuyển toàn bộ tài sản trong vault sang ví khôi phục ở trên.',
     claim: 'Nhận',
     deliverHelp:
-      'Vault đã giải phóng. Chuyển tài sản sẽ gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
+      'Đã tới lúc vault trao tài sản. Chuyển tài sản sẽ gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
     deliverHelpRecover:
       'Chuyển tài sản sẽ gửi toàn bộ tài sản trong vault sang ví khôi phục ở trên. Ví của bạn không nhận gì.',
     deliver: 'Chuyển tài sản',

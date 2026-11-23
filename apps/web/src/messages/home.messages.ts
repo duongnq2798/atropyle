@@ -64,7 +64,7 @@ export const messages = defineMessages(
     tileOwners: 'Chủ vault',
     tileCheckIns: 'Lần điểm danh',
     tileAlarms: 'Lần báo động',
-    tileReleases: 'Lần giải phóng',
+    tileReleases: 'Lần trao',
     tileDistributions: 'Lần chia tài sản',
   },
 );

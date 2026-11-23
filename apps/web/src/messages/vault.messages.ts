@@ -59,7 +59,7 @@ export const messages = defineMessages(
     owner: 'Chủ vault',
     lastAlive: 'Lần điểm danh gần nhất',
     nextAlarm: 'Có thể báo động',
-    nextRelease: 'Có thể giải phóng tài sản',
+    nextRelease: 'Có thể trao tài sản',
     nextDrillExpiry: 'Drill hết hạn',
     dueIn: 'sau {time}',
     dueSince: 'đã qua {time}',
