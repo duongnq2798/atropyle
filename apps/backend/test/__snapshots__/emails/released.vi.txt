@@ -1,6 +1,6 @@
-Subject: Vault 0x5FbD…0aa3 đã trao tài sản
+Subject: Đã tới lúc vault 0x5FbD…0aa3 trao tài sản
 
-Vault này đã trao tài sản
+Đã tới lúc vault này trao tài sản
 
 Cửa sổ thừa kế đã đóng mà không có lần điểm danh nào, nên vault giờ thuộc về người thừa kế.
 

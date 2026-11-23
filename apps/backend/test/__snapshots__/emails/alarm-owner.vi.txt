@@ -2,7 +2,7 @@ Subject: Vault 0x5FbD…0aa3 của bạn đang báo động
 
 Vault của bạn đang báo động
 
-Vault của bạn đã lỡ hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.
+Vault của bạn đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.
 
 Nếu bạn đang đọc thư này, hãy điểm danh trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam). Một lần điểm danh từ ví chủ sẽ huỷ báo động, và không tài sản nào bị chuyển đi.
 

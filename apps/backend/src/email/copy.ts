@@ -309,10 +309,10 @@ const vi: Copy = {
       cta: 'Mở vault',
     },
     released: {
-      subject: 'Vault {{vaultShort}} đã trao tài sản',
+      subject: 'Đã tới lúc vault {{vaultShort}} trao tài sản',
       preheader: '{{outcome}}',
-      eyebrow: 'Đã trao',
-      heading: 'Vault này đã trao tài sản',
+      eyebrow: 'Trao tài sản',
+      heading: 'Đã tới lúc vault này trao tài sản',
       body: [
         '{{outcome}}',
         'Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Bạn sẽ nhận thêm một email khi khoản chi trả về tới.',
@@ -349,8 +349,8 @@ const vi: Copy = {
     guardian: 'Người giám hộ',
     target: 'Ví được đề xuất',
     tx: 'Giao dịch',
-    checkIns: 'Lần điểm danh',
-    alarms: 'Lần báo động',
+    checkIns: 'Số lần điểm danh',
+    alarms: 'Số lần báo động',
     transfers: 'Đã chi trả',
   },
   footer: {
@@ -361,7 +361,7 @@ const vi: Copy = {
     beta: 'Atropyle đang chạy beta trên X Layer. Thông báo chỉ mang tính hỗ trợ: chain mới là nguồn sự thật, không phải email này.',
   },
   fragments: {
-    alarmOwnerInheritance: 'Vault của bạn đã lỡ hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
+    alarmOwnerInheritance: 'Vault của bạn đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
     alarmOwnerRecovery:
       'Các người giám hộ đã bỏ phiếu chuyển vault này sang một ví mới, nên cửa sổ khôi phục đã bắt đầu.',
     alarmGuardianInheritance: 'Chủ ví đã lỡ hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
@@ -369,7 +369,8 @@ const vi: Copy = {
     releasedInheritance: 'Cửa sổ thừa kế đã đóng mà không có lần điểm danh nào, nên vault giờ thuộc về người thừa kế.',
     releasedRecovery: 'Cửa sổ khôi phục đã đóng, nên vault giờ chi trả cho ví khôi phục.',
     summaryReleased: 'Vault đã đi hết hành trình: báo động, cửa sổ chờ và bước trao tài sản.',
-    summaryNotReleased: 'Vault chưa từng tới bước trao tài sản: các lần điểm danh đã giữ nó sống.',
+    summaryNotReleased:
+      'Vault chưa từng tới bước trao tài sản: các lần điểm danh của bạn đã giữ cho vault luôn hoạt động.',
     transferErc20: '{{amount}} token {{token}} cho {{to}}',
     transferErc721: 'Token #{{id}} của {{token}} cho {{to}}',
     transferErc1155: '{{amount}} token #{{id}} của {{token}} cho {{to}}',
