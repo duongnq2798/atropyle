@@ -169,7 +169,10 @@ const mono = localFont({
   ],
 });
 
-/** Every call's variable class goes on <html>, so each subset's @font-face ships and the three tokens resolve. */
+/**
+ * Every call's variable class goes on <html>, so each `localFont` call stays referenced and its @font-face ships.
+ * The tokens in globals.css name the families ('Atropyle Fraunces', ...) directly, not these variables.
+ */
 export const fontVariables = [frauncesVi, frauncesExt, fraunces, interVi, interExt, inter, monoVi, monoExt, mono]
   .map((f) => f.variable)
   .join(' ');

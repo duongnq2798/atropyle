@@ -107,6 +107,13 @@ for (const target of ['vercel', 'deweb'] as const) {
       const preloads = [...html.matchAll(/<link[^>]+rel="preload"[^>]+as="font"[^>]*>/g)].map((m) => m[0]);
       expect(preloads).toHaveLength(2);
       for (const p of preloads) expect(p).toMatch(/\.woff2"/);
+      const hrefs = preloads.map((p) => /href="([^"]+)"/.exec(p)?.[1] ?? '');
+      for (const name of ['fraunces_latin_full_normal', 'inter_latin_wght_normal']) {
+        expect(
+          hrefs.filter((h) => h.includes(name)),
+          name,
+        ).toHaveLength(1);
+      }
     });
 
     it('never reaches a font CDN', () => {
