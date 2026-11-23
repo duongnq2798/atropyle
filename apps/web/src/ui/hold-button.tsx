@@ -7,10 +7,11 @@ import { cn } from '@/lib/cn';
 import { messages as ui } from '@/messages/ui.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
 import { DURATION, EASE_OUT_EXPO, HOLD_MS, SPRING, sec } from '@/motion/tokens';
-import { useHold } from '@/motion/use-hold';
+import { type HoldBind, useHold } from '@/motion/use-hold';
 
+/** The handlers `useHold` binds and the hint's `aria-describedby` belong to the button; a caller's would be lost. */
 export interface HoldButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type'> {
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof HoldBind | 'aria-describedby' | 'children' | 'type'> {
   onConfirm(): void;
   children: ReactNode;
   icon?: ReactNode;
@@ -77,7 +78,9 @@ export function HoldButton({
     phase === 'holding'
       ? { duration: sec(duration), ease: 'linear' as const }
       : { duration: sec(DURATION.quick), ease: EASE_OUT_EXPO };
-  const fill = calm ? { opacity: on ? 1 : 0 } : { scaleX: on ? 1 : 0 };
+  // Both targets name both values: a value left without a target falls back to its first rendered one, and the
+  // prerendered page renders with motion allowed (scaleX 0). reducedMotion="user" makes the scaleX step instant.
+  const fill = calm ? { opacity: on ? 1 : 0, scaleX: on ? 1 : 0 } : { opacity: 1, scaleX: on ? 1 : 0 };
   const c = TONE[tone];
 
   return (

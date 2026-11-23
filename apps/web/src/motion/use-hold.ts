@@ -72,12 +72,13 @@ export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCan
     stop(hold);
     settling.current = true;
     setPhase('done');
-    latest.current.onConfirm();
+    // The settle timer starts first, so a throwing onConfirm cannot leave the control stuck in 'done'.
     stop(settle);
     settle.current = setTimeout(() => {
       settling.current = false;
       setPhase('idle');
     }, SETTLE_MS);
+    latest.current.onConfirm();
   }, []);
 
   const start = useCallback(() => {
@@ -94,9 +95,12 @@ export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCan
     latest.current.onCancel?.(Math.min(1, (Date.now() - startedAt.current) / duration));
   }, [duration]);
 
+  // Disabled mid-hold: stop without onCancel, which would ask the user to keep holding a button they cannot hold.
   useEffect(() => {
-    if (disabled) cancel();
-  }, [disabled, cancel]);
+    if (!disabled || hold.current === null) return;
+    stop(hold);
+    setPhase('idle');
+  }, [disabled]);
 
   useEffect(
     () => () => {
