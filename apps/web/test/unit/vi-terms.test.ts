@@ -23,6 +23,16 @@ const vi = Object.entries(mods).flatMap(([file, mod]) => flatten(mod.messages.vi
 
 const offending = (pattern: RegExp) => vi.filter(([, s]) => pattern.test(s)).map(([path, s]) => `${path}: ${s}`);
 
+/** The banned words. Each pattern also catches lookalike spellings a later paste could bring in. */
+const BANNED = [
+  ['giải phóng', /giải\s+phóng/iu],
+  ['check-in', /check[\s‐-―-]?in/iu],
+  ['release', /\brelease/iu],
+] as const;
+
+/** No-break space, a double space, non-breaking hyphen, en dash. */
+const LOOKALIKES = ['giải phóng', 'giải  phóng', 'check‑in', 'check–in', 'Check in'];
+
 /**
  * Ruling R20 (approved 24 Nov 2026): Vietnamese copy says "điểm danh" for check-in and "trao" for release.
  * "giải phóng" sounds cold to a grieving family, and "check-in" and "release" are English loanwords.
@@ -33,16 +43,17 @@ describe('Vietnamese words for check-in and release (ruling R20)', () => {
     expect(vi.length).toBeGreaterThan(0);
   });
 
-  for (const [name, pattern] of [
-    ['giải phóng', /giải phóng/iu],
-    ['check-in', /check[- ]?in/iu],
-    ['release', /\brelease/iu],
-  ] as const) {
+  for (const [name, pattern] of BANNED) {
     it(`no Vietnamese string says "${name}"`, () => {
       const hits = offending(pattern);
       expect(hits, `Vietnamese strings that say "${name}":\n${hits.join('\n')}`).toEqual([]);
     });
   }
+
+  it('the banned words also match their lookalike spellings', () => {
+    const missed = LOOKALIKES.filter((s) => !BANNED.some(([, pattern]) => pattern.test(s)));
+    expect(missed, 'lookalike spellings that no pattern catches').toEqual([]);
+  });
 
   it('says "điểm danh" and "trao" somewhere, so the checks above cannot pass on an empty dictionary', () => {
     expect(offending(/điểm danh/iu).length, 'Vietnamese strings that say "điểm danh"').toBeGreaterThan(0);
