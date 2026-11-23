@@ -2,9 +2,9 @@ Subject: Vault bạn giám hộ đang báo động, 0x5FbD…0aa3
 
 Vault bạn giám hộ đang báo động
 
-Chủ ví đã lỡ hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.
+Chủ vault đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.
 
-Chủ ví vẫn có thể huỷ bằng cách điểm danh trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam). Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.
+Chủ vault vẫn có thể huỷ bằng cách điểm danh trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam). Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.
 
 Hạn chót: 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam)
 

@@ -282,7 +282,7 @@ const vi: Copy = {
       heading: 'Vault bạn giám hộ đang báo động',
       body: [
         '{{reason}}',
-        'Chủ ví vẫn có thể huỷ bằng cách điểm danh trước {{deadline}}. Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.',
+        'Chủ vault vẫn có thể huỷ bằng cách điểm danh trước {{deadline}}. Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.',
       ],
       cta: 'Mở vault',
     },
@@ -292,7 +292,7 @@ const vi: Copy = {
       eyebrow: 'Báo động',
       heading: 'Cửa sổ thừa kế đã bắt đầu',
       body: [
-        'Chủ của vault này đã lỡ hạn điểm danh, nên báo động đã bật. Nếu họ điểm danh trước {{deadline}}, mọi thứ giữ nguyên.',
+        'Chủ của vault này đã quá hạn điểm danh, nên báo động đã bật. Nếu họ điểm danh trước {{deadline}}, mọi thứ giữ nguyên.',
         'Nếu không, sau mốc đó vault sẽ trao tài sản cho người thừa kế. Bạn chưa cần làm gì, và sẽ không ai yêu cầu bạn ký hay trả tiền.',
       ],
       cta: 'Mở vault',
@@ -311,7 +311,7 @@ const vi: Copy = {
     released: {
       subject: 'Đã tới lúc vault {{vaultShort}} trao tài sản',
       preheader: '{{outcome}}',
-      eyebrow: 'Trao tài sản',
+      eyebrow: 'Tới lúc trao tài sản',
       heading: 'Đã tới lúc vault này trao tài sản',
       body: [
         '{{outcome}}',
@@ -340,7 +340,7 @@ const vi: Copy = {
       cta: 'Mở vault',
     },
   },
-  roles: { owner: 'chủ ví', guardian: 'người giám hộ', heir: 'người thừa kế' },
+  roles: { owner: 'chủ vault', guardian: 'người giám hộ', heir: 'người thừa kế' },
   labels: {
     vault: 'Vault',
     role: 'Vai trò của bạn',
@@ -364,7 +364,7 @@ const vi: Copy = {
     alarmOwnerInheritance: 'Vault của bạn đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
     alarmOwnerRecovery:
       'Các người giám hộ đã bỏ phiếu chuyển vault này sang một ví mới, nên cửa sổ khôi phục đã bắt đầu.',
-    alarmGuardianInheritance: 'Chủ ví đã lỡ hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
+    alarmGuardianInheritance: 'Chủ vault đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.',
     alarmGuardianRecovery: 'Các người giám hộ đã bỏ phiếu khôi phục vault này, nên cửa sổ khôi phục đã bắt đầu.',
     releasedInheritance: 'Cửa sổ thừa kế đã đóng mà không có lần điểm danh nào, nên vault giờ thuộc về người thừa kế.',
     releasedRecovery: 'Cửa sổ khôi phục đã đóng, nên vault giờ chi trả cho ví khôi phục.',

@@ -2,14 +2,14 @@ Subject: Xác nhận nhận thông báo cho vault 0x5FbD…0aa3
 
 Xác nhận nhận thông báo
 
-Có người, hy vọng là bạn, đã đăng ký nhận thông báo cho vault Atropyle này với vai trò chủ ví.
+Có người, hy vọng là bạn, đã đăng ký nhận thông báo cho vault Atropyle này với vai trò chủ vault.
 
 Hãy xác nhận để bắt đầu. Nếu không phải bạn, cứ bỏ qua email này: chúng tôi không gửi gì cho tới khi bạn xác nhận, và yêu cầu sẽ bị xoá sau 48 giờ.
 
 Xác nhận: https://atropyle.test/alerts/confirm/#t=confirm-token-0123456789-abcdefghijklmnopqr
 
 Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Vai trò của bạn: chủ ví
+Vai trò của bạn: chủ vault
 Hãy đối chiếu địa chỉ này với địa chỉ trên trang vault trước khi làm gì.
 
 --
