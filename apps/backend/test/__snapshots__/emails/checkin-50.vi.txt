@@ -1,14 +1,14 @@
-Subject: Đã qua nửa chặng tới lần check-in kế tiếp, vault 0x5FbD…0aa3
+Subject: Đã qua nửa chặng tới lần điểm danh kế tiếp, vault 0x5FbD…0aa3
 
-Đã qua nửa chặng tới lần check-in
+Đã qua nửa chặng tới lần điểm danh
 
-Một nửa thời gian trước lần check-in kế tiếp đã trôi qua.
+Một nửa thời gian trước lần điểm danh kế tiếp đã trôi qua.
 
-Hãy check-in trước 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam). Một giao dịch từ ví chủ là đủ để đặt lại đồng hồ.
+Hãy điểm danh trước 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam). Một giao dịch từ ví chủ là đủ để đặt lại đồng hồ.
 
 Hạn chót: 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam)
 
-Check-in: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+Điểm danh: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
 
 Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
 Vai trò của bạn: chủ ví

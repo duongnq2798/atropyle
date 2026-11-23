@@ -1,8 +1,8 @@
-Subject: Vault 0x5FbD…0aa3 đã được giải phóng
+Subject: Vault 0x5FbD…0aa3 đã trao tài sản
 
-Vault này đã được giải phóng
+Vault này đã trao tài sản
 
-Cửa sổ thừa kế đã đóng mà không có lần check-in nào, nên vault giờ thuộc về người thừa kế.
+Cửa sổ thừa kế đã đóng mà không có lần điểm danh nào, nên vault giờ thuộc về người thừa kế.
 
 Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Bạn sẽ nhận thêm một email khi khoản chi trả về tới.
 
