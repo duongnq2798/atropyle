@@ -1,5 +1,6 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defineMessages } from '../../src/i18n/core';
 import { LangProvider, useLang, useT } from '../../src/i18n/provider';
@@ -39,6 +40,19 @@ describe('LangProvider', () => {
     render(<Greeting />, { wrapper: wrap(kv) });
     await waitFor(() => expect(screen.getByText('Xin chào An')).toBeTruthy());
     expect(document.documentElement.lang).toBe('vi');
+  });
+
+  it('prerenders English even when another language is stored (the static HTML)', () => {
+    const kv = memoryKV();
+    kv.set(KEYS.lang, 'vi');
+    const Wrapper = wrap(kv);
+    const html = renderToString(
+      <Wrapper>
+        <Greeting />
+      </Wrapper>,
+    );
+    expect(html).toContain('Hello An');
+    expect(html).not.toContain('Xin chào');
   });
 
   it('follows the browser language when nothing is stored', async () => {

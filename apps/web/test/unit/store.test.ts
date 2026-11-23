@@ -43,6 +43,25 @@ describe('store', () => {
     expect(kv.get('c')).toBeNull();
   });
 
+  it('keeps the newer memory copy when a later write hits the quota', () => {
+    const stored = new Map<string, string>();
+    let writes = 0;
+    const full = {
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        if (++writes > 1) throw new Error('QuotaExceededError');
+        stored.set(k, v);
+      },
+      removeItem: (k: string) => {
+        stored.delete(k);
+      },
+    } as unknown as Storage;
+    const kv = safeKV(() => full);
+    kv.set(KEYS.stats, '{"block":"1"}');
+    kv.set(KEYS.stats, '{"block":"2"}');
+    expect(kv.get(KEYS.stats)).toBe('{"block":"2"}');
+  });
+
   it('writes bigint values as strings and drops corrupt entries', () => {
     const kv = memoryKV();
     writeJson(kv, 'x', { n: 10n });

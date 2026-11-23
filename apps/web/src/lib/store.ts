@@ -40,7 +40,12 @@ export function safeKV(storage: () => Storage | null | undefined): KV {
       try {
         s()?.setItem(k, v);
       } catch {
-        // the memory copy above is enough
+        // The memory copy above is enough, once an older stored copy cannot hide it: get() reads storage first.
+        try {
+          s()?.removeItem(k);
+        } catch {
+          // nothing stored
+        }
       }
     },
     remove: (k) => {
