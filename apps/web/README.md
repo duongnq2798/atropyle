@@ -35,7 +35,7 @@ npm run lighthouse -w apps/web     # after a production build; reports in lighth
 | `NEXT_PUBLIC_API_URL`    | `vercel` only: `https://<project>.supabase.co/functions/v1` |
 | `NEXT_PUBLIC_DOCS_PATH`  | `/docs/` when the site carries its own docs                 |
 
-Set them in the environment of the build, not in a `.env` file. The CSP of every page is computed from the build environment, and the build keeps `.env` files away from the backend URL. On Vercel, `NEXT_PUBLIC_API_URL` lives in the project settings.
+Set them in the environment of the build, not in a `.env` file: `npm run build` and `npm run dev` ignore `.env` files for every one of them. The CSP of every page is computed from the build environment, so the bundle reads the same values, and a leftover `.env.local` cannot point a build at the devnet. On Vercel, `NEXT_PUBLIC_API_URL` lives in the project settings.
 
 ## Security
 

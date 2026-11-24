@@ -12,9 +12,12 @@ export function buildEnvFor(base: Readonly<Record<string, string | undefined>>):
   }
   env.NEXT_PUBLIC_TARGET = target;
   // Never undefined: @next/env never lets a .env file set a variable that is already in the environment, even as ''
-  // (processEnv checks `typeof initialEnv[key] === 'undefined'`). So a developer's .env.local cannot reach deweb, and
-  // on vercel the build environment is the only source of the URL: the same one the page CSP reads (Task 15).
+  // (processEnv checks `typeof initialEnv[key] === 'undefined'`). So every NEXT_PUBLIC_* build variable comes only
+  // from the build environment, the one the page CSP reads (Task 15): a developer's .env.local cannot point a build
+  // at the devnet while connect-src allows only X Layer, nor put the backend URL into deweb. src/config/env.ts reads
+  // '' as the default (xlayer, no deployment, no docs path); next.config.mjs sets NEXT_PUBLIC_APP_VERSION itself.
   if (target === 'deweb' || env.NEXT_PUBLIC_API_URL === undefined) env.NEXT_PUBLIC_API_URL = '';
+  for (const k of ['NEXT_PUBLIC_CHAIN', 'NEXT_PUBLIC_DEPLOYMENT', 'NEXT_PUBLIC_DOCS_PATH'] as const) env[k] ??= '';
   // Vitest sets NODE_ENV=test; Next picks production or development itself and warns on anything else.
   delete env.NODE_ENV;
   return env as NodeJS.ProcessEnv;

@@ -45,7 +45,8 @@ export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{
 export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
   const built = await runNext('build', o);
   if (built.code !== 0) return built;
-  // The environment `next build` ran with, so that connect-src matches the bundle (Task 14 keeps .env files out).
+  // The environment `next build` ran with, so that connect-src matches the bundle: buildEnvFor keeps .env files away
+  // from every NEXT_PUBLIC_* build variable, so the chain, the deployment and the API URL come only from here.
   // A plain record, as buildEnvFor takes: ProcessEnv declares TZ and NODE_ENV, which share no key with CspEnv.
   const env: Readonly<Record<string, string | undefined>> = buildEnvFor(o.env ?? process.env);
   const pages = applyCsp(OUT_DIR, env);

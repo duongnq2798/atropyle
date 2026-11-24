@@ -1,12 +1,15 @@
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { APP_DIR, buildApp, OUT_DIR } from '../../scripts/lib/run-next';
-import { API_SENTINEL, BUILD_OUT, DOTENV_SENTINEL, outOf } from './paths';
+import { API_SENTINEL, BUILD_OUT, DOTENV_DEPLOYMENT, DOTENV_SENTINEL, outOf } from './paths';
 
 /** The file Next reads first in a production build; a developer's copy is the likeliest leak into deweb. */
 const DOTENV = join(APP_DIR, '.env.production.local');
-/** What this setup writes there; a run cut off during the builds (Ctrl+C) leaves exactly this behind. */
-const OURS = `NEXT_PUBLIC_API_URL=${DOTENV_SENTINEL}\n`;
+/**
+ * What this setup writes there; a run cut off during the builds (Ctrl+C) leaves exactly this behind. A backend URL,
+ * and a devnet deployment left over from local work: neither may reach a build (scripts/lib/build-env.ts).
+ */
+const OURS = `NEXT_PUBLIC_API_URL=${DOTENV_SENTINEL}\nNEXT_PUBLIC_DEPLOYMENT='${DOTENV_DEPLOYMENT}'\n`;
 
 /** Two real production builds; ATROPYLE_REUSE_BUILD=1 reuses the last ones for a quick rerun. */
 export default async function setup(): Promise<void> {
