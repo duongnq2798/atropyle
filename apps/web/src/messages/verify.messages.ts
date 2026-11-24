@@ -29,7 +29,7 @@ export const messages = defineMessages(
     verifyIntro:
       'Each line is checked against the chain at one block, through independent RPC operators where possible.',
     rowfactory: 'Created by the Atropyle factory',
-    rowproxy: 'Is a plain proxy of the audited vault code',
+    rowproxy: 'Is a plain proxy of the published vault code',
     rowbinding: 'Bound to the Atropyle factory, processor and policy',
     rowcode: 'Vault code matches the published hash',
     rowpolicy: 'Policy circuit proven for every input',
