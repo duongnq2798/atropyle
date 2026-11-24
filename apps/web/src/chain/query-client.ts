@@ -14,9 +14,17 @@ export const PERMANENT_CODES: ReadonlySet<string> = new Set([
   'WRONG_ACCOUNT',
   'POLICY_MISMATCH',
   'DRILL_EXPIRED',
+  // The backend (src/api/client.ts): its answers to the same request do not change, and RATE_LIMITED only gets worse.
+  'INVALID_INPUT',
+  'NOT_A_VAULT',
+  'RATE_LIMITED',
+  'TOKEN_INVALID',
+  'UNAUTHORIZED',
+  'BAD_RESPONSE',
+  'UNAVAILABLE',
 ]);
 
-/** The `code` of an AtropyleError, read structurally so this file stays free of the SDK. */
+/** The `code` of an AtropyleError or an ApiError, read structurally so this file stays free of the SDK. */
 export function errorCode(e: unknown): string | null {
   const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
   return typeof code === 'string' ? code : null;

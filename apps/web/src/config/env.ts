@@ -98,7 +98,8 @@ export const ENV: AppEnv = readEnv({
   NEXT_PUBLIC_TARGET: process.env.NEXT_PUBLIC_TARGET,
   NEXT_PUBLIC_CHAIN: process.env.NEXT_PUBLIC_CHAIN,
   NEXT_PUBLIC_DEPLOYMENT: process.env.NEXT_PUBLIC_DEPLOYMENT,
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  // Read behind the target: on deweb the comparison folds to false and the URL never reaches the bundle.
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_TARGET === 'vercel' ? process.env.NEXT_PUBLIC_API_URL : undefined,
   NEXT_PUBLIC_DOCS_PATH: process.env.NEXT_PUBLIC_DOCS_PATH,
   NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
 });

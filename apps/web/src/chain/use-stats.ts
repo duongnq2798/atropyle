@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { useApiStats } from '@/api/hooks';
+import type { StatsResponse } from '@/api/types';
 import { useKV } from '@/lib/kv';
 import { sdkQuery, useSdk } from './hooks';
 import { loadChainImpl } from './load';
@@ -20,6 +22,8 @@ export interface StatsSummary {
 
 export interface StatsState {
   summary: StatsSummary | null;
+  /** The backend's count is on its way and nothing shows yet (vercel build only). */
+  loading: boolean;
   progress: { done: number; total: number } | null;
   busy: boolean;
   error: unknown;
@@ -36,6 +40,26 @@ export function summaryOfCache(c: CachedStats): StatsSummary {
     checkIns: c.stats.checkIns,
     savedAtMs: c.savedAtMs,
   };
+}
+
+/** The backend's numbers (spec §9.6: decimal strings) as a summary. */
+export function summaryOfApi(s: StatsResponse): StatsSummary {
+  return {
+    source: 'api',
+    block: BigInt(s.block),
+    vaults: Number(s.vaults),
+    drills: Number(s.drills),
+    checkIns: Number(s.checkIns),
+    savedAtMs: null,
+  };
+}
+
+/** The count at the higher block; on a tie the one this device made from the chain itself. */
+export function freshest(a: StatsSummary | null, b: StatsSummary | null): StatsSummary | null {
+  if (!a) return b;
+  if (!b) return a;
+  if (a.block !== b.block) return a.block > b.block ? a : b;
+  return a.source === 'chain' ? a : b;
 }
 
 /**
@@ -85,6 +109,7 @@ export function useChainStats(): StatsState {
 
   return {
     summary: cached ? summaryOfCache(cached) : null,
+    loading: false,
     progress,
     busy: count.isPending,
     error: count.error ?? sdkResult.error,
@@ -96,6 +121,19 @@ export function useChainStats(): StatsState {
   };
 }
 
+/**
+ * The backend's count first on the vercel build; this device's own count wins when it is at a later block, and
+ * "count from the chain" works on both builds (spec §2: the site keeps working when the backend is down). A backend
+ * failure shows only while there is nothing to show.
+ */
 export function useStats(): StatsState {
-  return useChainStats();
+  const chain = useChainStats();
+  const api = useApiStats();
+  const summary = freshest(api.data ? summaryOfApi(api.data) : null, chain.summary);
+  return {
+    ...chain,
+    summary,
+    loading: summary === null && api.isLoading,
+    error: chain.error ?? (summary === null ? api.error : null),
+  };
 }
