@@ -133,5 +133,8 @@ describe('a chunk that fails to load', () => {
     await screen.findByRole('dialog', { name: 'Choose a wallet' });
     expect(connect.hasAttribute('aria-busy')).toBe(false);
     expect(notice().textContent).toBe('');
+    // The sheet's search ends with the wallet's row, and nothing is left running after the test (its 250 ms wait
+    // outlived the window once, and its late state update failed the run).
+    await screen.findByText('OKX Wallet');
   });
 });

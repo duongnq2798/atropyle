@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { lazyChunk } from '../../src/lib/lazy-chunk';
 import { MobileMenu } from '../../src/shell/mobile-menu';
@@ -91,6 +91,8 @@ describe('the wallet sheet loads on its first open (ruling R23)', () => {
 
     chunks.sheet.open();
     const sheet = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    // The sheet's search ends with the wallet's row, so nothing it started outlives the test.
+    await within(sheet).findByText('OKX Wallet');
     await waitFor(() => expect(inside(sheet)).toBe(true));
 
     // The trap: focus that leaves the modal sheet is put back inside it.
