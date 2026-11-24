@@ -93,8 +93,19 @@ test('size and Lighthouse read a fresh production build, made after every other 
   ]) {
     expect(c.indexOf(before), before).toBeLessThan(build);
   }
-  expect(build).toBeLessThan(c.indexOf('npm run size -w apps/web'));
-  expect(c.indexOf('npm run size -w apps/web')).toBeLessThan(c.indexOf('npm run lighthouse -w apps/web'));
+  // The last size run reads out/; the one before it reads the vercel build of test:build (next test).
+  expect(build).toBeLessThan(c.lastIndexOf('npm run size -w apps/web'));
+  expect(c.lastIndexOf('npm run size -w apps/web')).toBeLessThan(c.indexOf('npm run lighthouse -w apps/web'));
+});
+
+test('size also measures the vercel build of test:build, the only bundle with the backend client', () => {
+  const at = job.steps.findIndex((s) => s.env?.SIZE_OUT === 'test/build/.out/vercel');
+  expect(at, 'a size step with SIZE_OUT=test/build/.out/vercel').toBeGreaterThan(-1);
+  expect(job.steps[at]?.run).toBe('npm run size -w apps/web');
+  expect(job.steps.findIndex((s) => s.run === 'npm run test:build -w apps/web')).toBeLessThan(at);
+  const others = job.steps.filter((s, i) => i !== at && s.run?.includes('npm run size'));
+  expect(others.length).toBe(1);
+  for (const s of others) expect(s.env?.SIZE_OUT, s.run).toBeUndefined();
 });
 
 test('the web-next job runs only npm scripts that exist', () => {

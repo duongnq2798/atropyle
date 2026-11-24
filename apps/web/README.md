@@ -47,4 +47,4 @@ Set them in the environment of the build, not in a `.env` file: `npm run build` 
 
 ## Budgets
 
-Spec §11 (ruling R23), checked in CI: first-load JS of `/` at most 200 kB gzip, any other route at most 240 kB, all JS of the site at most 900 kB (`size-limit`). Lighthouse mobile on `/`: Performance at least 95; Accessibility, Best Practices and SEO 100; LCP at most 1.8 s, CLS 0, TBT at most 150 ms.
+Spec §11 (ruling R23), checked in CI: first-load JS of `/` at most 200 kB gzip, any other route at most 240 kB, all JS of the site at most 900 kB (`size-limit`). `npm run size` reads `out/`; CI also measures the vercel build of `test:build` with `SIZE_OUT=test/build/.out/vercel`, since only that bundle carries the backend client. Lighthouse mobile on `/`: Performance at least 95; Accessibility, Best Practices and SEO 100; LCP at most 1.8 s, CLS 0, TBT at most 150 ms.

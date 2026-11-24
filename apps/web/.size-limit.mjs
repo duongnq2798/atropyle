@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Global Constraints of Plan 7A and spec §11: first-load JS of `/` and of every other route, and all JS of the site.
@@ -8,7 +8,12 @@ const HOME_LIMIT = '200 kB';
 const ROUTE_LIMIT = '240 kB';
 const TOTAL_LIMIT = '900 kB';
 
-const OUT = fileURLToPath(new URL('./out/', import.meta.url));
+/**
+ * The build to measure, relative to apps/web: out/ by default. CI also measures the vercel build of
+ * `npm run test:build` with SIZE_OUT=test/build/.out/vercel, since only that bundle carries the backend client.
+ */
+const DIR = process.env.SIZE_OUT?.trim() || 'out';
+const OUT = resolve(fileURLToPath(new URL('./', import.meta.url)), DIR);
 /** size-limit globs every path; staged copies get plain names, whatever characters the bundler put in its own. */
 const STAGE = fileURLToPath(new URL('./.size/', import.meta.url));
 
@@ -18,11 +23,13 @@ function walk(dir) {
   );
 }
 
+const REBUILD =
+  DIR === 'out' ? '`npm run build -w apps/web`' : '`npm run test:build -w apps/web` or the build of SIZE_OUT';
 if (!existsSync(join(OUT, 'index.html'))) {
-  throw new Error('apps/web/out holds no build: run `npm run build -w apps/web` first.');
+  throw new Error(`apps/web/${DIR} holds no build: run ${REBUILD} first.`);
 }
 if (existsSync(join(OUT, 'e2e'))) {
-  throw new Error('apps/web/out holds the e2e build: run `npm run build -w apps/web` first.');
+  throw new Error(`apps/web/${DIR} holds the e2e build: run ${REBUILD} first.`);
 }
 
 /** `/` for out/index.html, `/x/` for out/x/index.html, `/404` for out/404.html. */
