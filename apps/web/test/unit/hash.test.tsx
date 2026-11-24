@@ -52,6 +52,37 @@ function stubNavigationApi(): void {
   });
 }
 
+type NextEntry = { __NA?: boolean; _N?: boolean; __PRIVATE_NEXTJS_INTERNALS_TREE?: unknown } | null;
+
+/**
+ * Next 16.4.6's history patch (app-router.js), which AppRouter installs in its own useEffect: a write whose state has
+ * __NA or _N is Next's own and passes through; any other write gets the current entry's __NA and router tree copied
+ * in, and the router restores to its URL. Returns the URLs the router restored to.
+ */
+function patchHistoryLikeNext(): string[] {
+  const routerSaw: string[] = [];
+  wrapHistory((write, data, url) => {
+    const own = data as NextEntry;
+    if (own?.__NA || own?._N) {
+      write(data, '', url);
+      return;
+    }
+    const current = window.history.state as NextEntry;
+    const copied: Record<string, unknown> = { ...(data as object | null) };
+    if (current?.__NA) copied.__NA = current.__NA;
+    if (current?.__PRIVATE_NEXTJS_INTERNALS_TREE)
+      copied.__PRIVATE_NEXTJS_INTERNALS_TREE = current.__PRIVATE_NEXTJS_INTERNALS_TREE;
+    if (url) routerSaw.push(String(url));
+    write(copied, '', url);
+  });
+  return routerSaw;
+}
+
+/** Lets every queued microtask run. */
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+const NEXT_ENTRY = { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: 'tree' };
+
 /** Next's HistoryUpdater writes the URL in useInsertionEffect, where React forbids scheduling updates. */
 function HistoryUpdater({ url }: { url: string }) {
   useInsertionEffect(() => window.history.pushState({ __NA: true }, '', url), [url]);
@@ -142,18 +173,49 @@ describe('replaceHash', () => {
     expect(window.history.length).toBe(entries);
   });
 
-  it("goes through Next's history patch, so the router's URL keeps the new fragment", () => {
-    window.history.replaceState({ __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: 'tree' }, '', '/create/#drill');
+  it("goes through Next's history patch, so the router's URL keeps the new fragment", async () => {
+    window.history.replaceState(NEXT_ENTRY, '', '/create/#drill');
     // Next 16.4.6 (app-router.js) syncs its canonicalUrl only for writes whose state carries no __NA of its own;
     // a write with __NA is taken as Next's own and passed through.
-    const routerSaw: string[] = [];
-    wrapHistory((write, data, url) => {
-      const internal = (data as { __NA?: boolean } | null)?.__NA;
-      if (!internal && url) routerSaw.push(String(url));
-      write(data, '', url);
-    });
+    const routerSaw = patchHistoryLikeNext();
     replaceHash('real');
     expect(window.location.hash).toBe('#real');
+    expect(window.history.state).toEqual(NEXT_ENTRY);
+    await settle();
     expect(routerSaw).toEqual(['#real']);
+  });
+
+  // AppRouter patches history in its own useEffect, and React runs a parent's passive effects after its children's,
+  // so a page's mount effect (7C's useHashToken clears #t=<token>) writes before the patch is in.
+  it("keeps Next's history entry when a mount effect runs it before Next patches history", () => {
+    window.history.replaceState(NEXT_ENTRY, '', '/alerts/confirm/#t=TOKEN');
+    replaceHash('');
+    expect(window.location.hash).toBe('');
+    expect(window.location.pathname).toBe('/alerts/confirm/');
+    // Without __NA and the tree, Back to this entry gets a popstate whose state Next ignores.
+    expect(window.history.state).toEqual(NEXT_ENTRY);
+  });
+
+  it('tells the router once its patch is in, so a later router update does not write the old fragment back', async () => {
+    window.history.replaceState(NEXT_ENTRY, '', '/alerts/confirm/#t=TOKEN');
+    replaceHash('');
+    // AppRouter's effect, later in the same flush of passive effects.
+    const routerSaw = patchHistoryLikeNext();
+    expect(routerSaw).toEqual([]);
+    await settle();
+    expect(routerSaw).toEqual(['#']);
+    expect(window.location.hash).toBe('');
+    expect(window.history.state).toEqual(NEXT_ENTRY);
+  });
+
+  it('does not tell the router a fragment the URL has moved on from', async () => {
+    window.history.replaceState(NEXT_ENTRY, '', '/create/#drill');
+    replaceHash('#real');
+    replaceHash('#drill');
+    const routerSaw = patchHistoryLikeNext();
+    await settle();
+    expect(routerSaw).toEqual(['#drill']);
+    expect(window.location.hash).toBe('#drill');
+    expect(window.history.state).toEqual(NEXT_ENTRY);
   });
 });

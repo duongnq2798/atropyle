@@ -41,13 +41,36 @@ export function useLocationHash(): string {
   );
 }
 
+type NextEntry = { __NA?: unknown } | null;
+
 /**
- * Changes the fragment without a history entry (the /create/ mode switch) and notifies useLocationHash. The state is
- * null so that Next's patched replaceState takes the write as external, keeps its own history state and moves its
- * router to the new URL; a later router update would otherwise write the old fragment back.
+ * Writes the fragment with a null state, so that Next's patched replaceState takes the write as external: it copies
+ * its own entry state (`__NA` and the router tree) in and moves its router to the new URL. Until AppRouter's own
+ * useEffect installs that patch, history is unpatched and the write wipes the entry state, so Back to this entry
+ * would find nothing Next can restore; the state then goes back. Returns false in that case.
+ */
+function writeThroughRouter(next: string): boolean {
+  const prev = window.history.state as NextEntry;
+  window.history.replaceState(null, '', next);
+  if (!prev?.__NA || (window.history.state as NextEntry)?.__NA) return true;
+  window.history.replaceState(prev, '', next);
+  return false;
+}
+
+/**
+ * Changes the fragment without a history entry (the /create/ mode switch, a cleared token) and notifies
+ * useLocationHash. Next's router moves to the new URL too; a later router update would otherwise write the old
+ * fragment back. A page's mount effect runs before AppRouter's, which patches history in the same flush, so a write
+ * that missed the patch goes to the router a microtask later, unless the URL has moved on by then. Call it from an
+ * event handler or a useEffect, not during render or in a layout effect.
  */
 export function replaceHash(hash: string): void {
   const next = hash.startsWith('#') ? hash : `#${hash}`;
-  window.history.replaceState(null, '', next);
+  if (!writeThroughRouter(next)) {
+    const href = window.location.href;
+    queueMicrotask(() => {
+      if (window.location.href === href) writeThroughRouter(next);
+    });
+  }
   window.dispatchEvent(new Event('hashchange'));
 }
