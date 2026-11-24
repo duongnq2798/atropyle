@@ -88,7 +88,7 @@ describe('NavLink', () => {
     expect(nav.push).not.toHaveBeenCalled();
   });
 
-  it('navigates without a view transition when the user prefers reduced motion', () => {
+  it('keeps the view transition under reduced motion, which globals.css turns into a 120 ms crossfade', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation(
       (query: string) => ({ matches: query.includes('reduce'), media: query }) as MediaQueryList,
     );
@@ -97,7 +97,8 @@ describe('NavLink', () => {
     const click = createEvent.click(link);
     fireEvent(link, click);
     expect(click.defaultPrevented).toBe(true);
+    expect(updates).toHaveLength(1);
+    void updates[0]();
     expect(nav.push).toHaveBeenCalledWith('/proof/');
-    expect(updates).toHaveLength(0);
   });
 });

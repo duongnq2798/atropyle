@@ -77,4 +77,18 @@ describe('theme stylesheet', () => {
     expect(decls('.site-header')).toEqual({ 'view-transition-name': 'site-header' });
     expect(decls('.site-footer')).toEqual({ 'view-transition-name': 'site-footer' });
   });
+
+  it('under reduced motion a view transition is a 120 ms crossfade where nothing moves, the root included', () => {
+    const reduce = CSS.indexOf('@media (prefers-reduced-motion: reduce) {');
+    expect(reduce).toBeGreaterThan(CSS.indexOf('::view-transition-old(root),\n::view-transition-new(root) {'));
+    expect(decls('::view-transition-group(*)', reduce)).toEqual({ animation: 'none' });
+    // `(root)` outranks `(*)` (a name counts as a type selector, `*` as nothing), so the root's 240 ms is
+    // overridden by name, after it.
+    expect(
+      decls(
+        '::view-transition-old(*),\n  ::view-transition-new(*),\n  ::view-transition-old(root),\n  ::view-transition-new(root)',
+        reduce,
+      ),
+    ).toEqual({ 'animation-duration': '120ms', 'animation-timing-function': 'linear' });
+  });
 });

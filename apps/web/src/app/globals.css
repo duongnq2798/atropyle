@@ -354,13 +354,17 @@
   }
 }
 
-/* Reduced motion: every transition becomes a 120 ms crossfade and nothing moves (spec §4.4). */
+/* Reduced motion: every transition becomes a 120 ms crossfade and nothing moves (spec §4.4). The view transitions
+   still run (src/motion/view-transition.tsx): their groups stand still, and old and new crossfade. `(root)` is named
+   again because a name outranks `*`, and the 240 ms rule above names it. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) {
     animation: none;
   }
   ::view-transition-old(*),
-  ::view-transition-new(*) {
+  ::view-transition-new(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
     animation-duration: 120ms;
     animation-timing-function: linear;
   }

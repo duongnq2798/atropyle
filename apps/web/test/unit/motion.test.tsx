@@ -63,12 +63,12 @@ describe('withViewTransition', () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
-  it('skips the transition under reduced motion', () => {
+  it('runs it under reduced motion too: globals.css makes it a 120 ms crossfade where nothing moves', () => {
     stubReduced(true);
     const start = stubViewTransitions();
     const update = vi.fn();
     withViewTransition(update);
-    expect(start).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledOnce();
     expect(update).toHaveBeenCalledOnce();
   });
 });
