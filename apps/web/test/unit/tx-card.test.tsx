@@ -120,8 +120,10 @@ describe('TxCard', () => {
     expect(screen.getAllByText('Technical details')).toHaveLength(3);
     expect(screen.getByTestId('tx-progress').getAttribute('value')).toBe('1');
     expect(screen.getByText('Step 2 of 3: Confirm in your wallet')).toBeTruthy();
-    expect(sendButton().disabled).toBe(true);
-    expect(sendButton().textContent).toBe('Sending…');
+    // Busy but still focusable (aria-disabled), so a keyboard user who pressed Send keeps their place.
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
+    expect(sendButton().disabled).toBe(false);
+    expect(sendButton()).toHaveAccessibleName('Loading… Sending…');
   });
 
   it('shows warnings from the chain as text only', () => {

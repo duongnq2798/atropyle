@@ -74,13 +74,58 @@ afterEach(() => {
 });
 
 describe('Button', () => {
-  it('is a plain button by default and busy while loading', () => {
-    const { rerender } = renderWithProviders(<Button>Save</Button>);
-    const b = screen.getByRole('button', { name: 'Save' });
+  it('is a plain button by default, and busy but still focused while loading', () => {
+    const click = vi.fn();
+    const { rerender } = renderWithProviders(<Button onClick={click}>Save</Button>);
+    const b = screen.getByRole<HTMLButtonElement>('button', { name: 'Save' });
     expect(b.getAttribute('type')).toBe('button');
-    rerender(<Button loading>Save</Button>);
+    act(() => b.focus());
+    rerender(
+      <Button loading onClick={click}>
+        Save
+      </Button>,
+    );
     expect(b.getAttribute('aria-busy')).toBe('true');
-    expect((b as HTMLButtonElement).disabled).toBe(true);
+    // aria-disabled, never the native attribute: a disabled button drops a keyboard user's focus to the page.
+    // jest-dom's toBeDisabled() reads only the native one, so assert the attribute itself.
+    expect(b.getAttribute('aria-disabled')).toBe('true');
+    expect(b.disabled).toBe(false);
+    expect(document.activeElement).toBe(b);
+    // A press while it loads does nothing, and a screen reader hears why.
+    fireEvent.click(b);
+    expect(click).not.toHaveBeenCalled();
+    expect(b.querySelector('.sr-only')?.textContent).toBe('Loading…');
+    rerender(<Button onClick={click}>Save</Button>);
+    expect(b.hasAttribute('aria-disabled')).toBe(false);
+    expect(b.hasAttribute('aria-busy')).toBe(false);
+    fireEvent.click(b);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('a loading submit button does not submit its form, and its spinner takes the label it is given', () => {
+    const submit = vi.fn((e: { preventDefault(): void }) => e.preventDefault());
+    renderWithProviders(
+      <form onSubmit={submit}>
+        <Button type="submit" loading loadingLabel="Sending">
+          Send
+        </Button>
+      </form>,
+    );
+    const b = screen.getByRole('button');
+    fireEvent.click(b);
+    expect(submit).not.toHaveBeenCalled();
+    expect(b.querySelector('.sr-only')?.textContent).toBe('Sending');
+  });
+
+  it('keeps the native disabled for `disabled`', () => {
+    renderWithProviders(
+      <Button disabled loading>
+        Save
+      </Button>,
+    );
+    const b = screen.getByRole('button', { name: /Save/ });
+    expect(b).toBeDisabled();
+    expect(b.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('gives links the same look', () => {

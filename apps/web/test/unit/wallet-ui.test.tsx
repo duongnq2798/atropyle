@@ -252,6 +252,23 @@ describe('wallet focus', () => {
     await waitFor(() => expect(document.activeElement).toBe(connect));
   });
 
+  it('Escape while the wallet prompt is still open gives focus back to Connect, busy but focusable', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner] });
+    const ask = fake.provider.request.bind(fake.provider);
+    // The prompt stays open: eth_requestAccounts never answers.
+    fake.provider.request = (args) => (args.method === 'eth_requestAccounts' ? new Promise(() => {}) : ask(args));
+    realWallet(fake);
+    const connect = screen.getByRole('button', { name: 'Connect wallet' });
+    press(connect);
+    press(await screen.findByRole('button', { name: /OKX Wallet/ }, { timeout: 2000 }));
+    await waitFor(() => expect(connect.getAttribute('aria-busy')).toBe('true'));
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // A disabled Connect would leave focus on the page.
+    await waitFor(() => expect(document.activeElement).toBe(connect));
+  });
+
   it('a connection closes the sheet onto the account button, and Disconnect lands on Connect', async () => {
     realWallet();
     await connectByKeyboard();
