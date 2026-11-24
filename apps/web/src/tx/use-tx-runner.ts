@@ -33,7 +33,10 @@ export interface TxRunner {
   blocker: TxBlocker | null;
   /** The wallet is on another chain: send() asks it to switch first. */
   switchFirst: boolean;
-  /** `/sign/#p=…` for the steps still to send; null while sending, when done, or above the SDK's payload limits. */
+  /**
+   * `/sign/#p=…` for the steps still to send; null while sending, when done, for a plan a simulation blocks, or above
+   * the SDK's payload limits.
+   */
   handoffLink: string | null;
   explorer: string | null;
   send(): void;
@@ -114,14 +117,17 @@ export function useTxRunner({ plan, onDone }: TxRunnerOptions): TxRunner {
           : 'loading';
 
   const handoffLink = useMemo(() => {
-    if (!sdk || busy || result || offset >= plan.steps.length || typeof window === 'undefined') return null;
+    // A plan the card refuses to send is not offered to another device either.
+    if (!sdk || !view.canSend || busy || result || offset >= plan.steps.length || typeof window === 'undefined') {
+      return null;
+    }
     try {
       const origin = window.location.origin;
       return toSignHref(sdk.atro.handoff.link(remaining(plan, offset), `${origin}/`), origin);
     } catch {
       return null; // above PAYLOAD_LIMITS: no hand-off for this plan
     }
-  }, [sdk, busy, result, plan, offset]);
+  }, [sdk, view.canSend, busy, result, plan, offset]);
 
   const send = () => {
     if (inFlight.current || blocker !== null || !sdk) return;

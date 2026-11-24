@@ -2,6 +2,8 @@ import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { Hex, WalletClient } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHAIN_ID } from '../../src/chain/hooks';
+import { chainKeys } from '../../src/chain/keys';
 import { TxCard } from '../../src/tx/tx-card';
 import { type TxRunner, useTxRunner } from '../../src/tx/use-tx-runner';
 import { WalletContext, type WalletValue } from '../../src/wallet/provider';
@@ -62,7 +64,7 @@ function Harness({ plan, onRunner }: { plan: TxPlan; onRunner(r: TxRunner): void
   return <TxCard runner={runner} label="Send" />;
 }
 
-function setup(o: { wallet?: Partial<WalletValue> } = {}) {
+function setup(o: { wallet?: Partial<WalletValue>; plan?: TxPlan } = {}) {
   const reported: Seen[] = [];
   let latest: TxRunner | null = null;
   const value = walletValue(o.wallet);
@@ -78,7 +80,7 @@ function setup(o: { wallet?: Partial<WalletValue> } = {}) {
       <Harness plan={p} onRunner={onRunner} />
     </WalletContext>
   );
-  const utils = renderWithProviders(ui(plan));
+  const utils = renderWithProviders(ui(o.plan ?? plan));
   const runner = (): TxRunner => {
     if (!latest) throw new Error('not rendered');
     return latest;
@@ -249,6 +251,21 @@ describe('useTxRunner with TxCard', () => {
 
     fireEvent.click(sendButton());
     await screen.findByTestId('tx-done');
+    expect(screen.queryByTestId('tx-copy-link')).toBeNull();
+  });
+
+  it('offers no hand-off for a plan that would fail', async () => {
+    const blocked: TxPlan = {
+      ...plan,
+      steps: [
+        step('one'),
+        { ...step('two'), simulation: { ok: false, error: new AtropyleError('NOT_OWNER').toJSON() } },
+      ],
+    };
+    const { queryClient } = setup({ plan: blocked });
+    await waitFor(() => expect(queryClient.getQueryState(chainKeys.sdk(CHAIN_ID, false))?.status).toBe('success'));
+    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('NOT_OWNER'));
+    expect(sendButton().disabled).toBe(true);
     expect(screen.queryByTestId('tx-copy-link')).toBeNull();
   });
 
