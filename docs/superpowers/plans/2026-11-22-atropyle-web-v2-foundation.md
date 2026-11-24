@@ -10,7 +10,7 @@
 - Logic thuần đã có test của web cũ (i18n, store, format, tx-view, wallet, send-calls, verify-client, rpc, sdk, stats-view, errors-view) được port nguyên văn kèm test. Giao diện viết mới bằng React 19, Tailwind v4, Radix và `motion`.
 - E2E Playwright chạy bản build `deweb` trên anvil với ví giả (port từ web cũ), kiểm axe ở cả hai theme, kiểm mọi request (badge "100% on-chain") và mọi vi phạm CSP.
 
-**Tech Stack:** Next.js 16.4.6 (App Router, static export), React 19.3.1, TypeScript 5.9.3, Tailwind CSS 4.3.5 (`@tailwindcss/postcss`), `motion` 14.14.0, Radix (dialog 1.3.1, popover 1.3.1, tooltip 1.4.1, visually-hidden 1.2.13), lucide-react 1.73.0, @tanstack/react-query 5.107.1, uqr 0.1.3, viem 2.58.0, `@atropyle/sdk` 0.1.0, Fontsource variable 5.3.0 (Fraunces, Inter, JetBrains Mono, chỉ dùng lúc dev để chép woff2), Vitest 3.2.7 + happy-dom 21.0.4 + @testing-library/react 16.3.3, @playwright/test 1.65.1 + @axe-core/playwright 4.14.0, size-limit 14.3.0, lighthouse 13.6.0 + chrome-launcher 1.2.3, tsx 4.20.6, Biome 2.6.8.
+**Tech Stack:** Next.js 16.4.6 (App Router, static export), React 19.3.1, TypeScript 5.9.3, Tailwind CSS 4.3.5 (`@tailwindcss/postcss`), `motion` 14.14.0, Radix (dialog 1.3.1, popover 1.3.1, tooltip 1.4.1, visually-hidden 1.2.13), lucide-react 1.73.0, @tanstack/react-query 5.107.1, uqr 0.1.3, viem 2.58.0, `@atropyle/sdk` 0.1.0, Fontsource variable 5.3.0 (Fraunces, Inter, JetBrains Mono, chỉ dùng lúc dev để chép woff2), Vitest 3.2.7 + happy-dom 21.0.4 + @testing-library/react 16.3.3 + @testing-library/jest-dom 7.0.1, @playwright/test 1.65.1 + @axe-core/playwright 4.14.0, size-limit 14.3.0, lighthouse 13.6.0 + chrome-launcher 1.2.3, tsx 4.20.6, Biome 2.6.8.
 
 **Spec:**
 - `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§0–§8, §9.6, §10–§13, §16, §17). §9.6 là hợp đồng API, không được sửa.
@@ -20,13 +20,13 @@
 ## Global Constraints
 
 - Node.js 24, npm workspaces (`circuits`, `packages/*`, `apps/*`, `examples/*`), Biome 2.6.8 (`npx biome ci .`), TypeScript 5.9.3 strict, Vitest 3.2.7. Mọi dependency ghim chính xác (`npm install -E`, không `^`).
-- Phiên bản đã xác minh ngày 22/11/2026 (`npm view`, mỗi bản đã ra ít nhất 7 ngày): next 16.4.6; react, react-dom 19.3.1; @types/react, @types/react-dom 19.3.0; motion 14.14.0; tailwindcss, @tailwindcss/postcss 4.3.5; @radix-ui/react-dialog 1.3.1; @radix-ui/react-popover 1.3.1; @radix-ui/react-tooltip 1.4.1; @radix-ui/react-visually-hidden 1.2.13; lucide-react 1.73.0; @tanstack/react-query 5.107.1; uqr 0.1.3; @testing-library/react 16.3.3; @testing-library/dom 10.4.2; happy-dom 21.0.4; @fontsource-variable/fraunces, inter, jetbrains-mono 5.3.0; @playwright/test 1.65.1; @axe-core/playwright 4.14.0; size-limit, @size-limit/file 14.3.0; lighthouse 13.6.0; chrome-launcher 1.2.3. Đã có trong repo: viem 2.58.0, vitest 3.2.7, tsx 4.20.6, typescript 5.9.3, @types/node 24.19.2, yaml 2.9.1.
+- Phiên bản đã xác minh ngày 22/11/2026 (`npm view`, mỗi bản đã ra ít nhất 7 ngày): next 16.4.6; react, react-dom 19.3.1; @types/react, @types/react-dom 19.3.0; motion 14.14.0; tailwindcss, @tailwindcss/postcss 4.3.5; @radix-ui/react-dialog 1.3.1; @radix-ui/react-popover 1.3.1; @radix-ui/react-tooltip 1.4.1; @radix-ui/react-visually-hidden 1.2.13; lucide-react 1.73.0; @tanstack/react-query 5.107.1; uqr 0.1.3; @testing-library/react 16.3.3; @testing-library/dom 10.4.2; @testing-library/jest-dom 7.0.1 (8.0.0 ra ngày 19/11/2026, chưa đủ 7 ngày); happy-dom 21.0.4; @fontsource-variable/fraunces, inter, jetbrains-mono 5.3.0; @playwright/test 1.65.1; @axe-core/playwright 4.14.0; size-limit, @size-limit/file 14.3.0; lighthouse 13.6.0; chrome-launcher 1.2.3. Đã có trong repo: viem 2.58.0, vitest 3.2.7, tsx 4.20.6, typescript 5.9.3, @types/node 24.19.2, yaml 2.9.1.
 - **Lockfile trên Windows:** npm trên Windows bỏ `@emnapi/core` và `@emnapi/runtime` khỏi `package-lock.json`, làm `npm ci` trên Linux hỏng. Mọi bước chạy `npm install` phải chạy ngay sau đó `npm run lockfile:check -- --fix` (Task 1 tạo lệnh này) và commit lockfile đã sửa.
 - **Không khoá:** không private key, seed phrase hay `PRIVATE_KEY` ở đâu cả. Người dùng ký bằng ví của họ. Test trên anvil chỉ gửi bằng tài khoản unlocked (`eth_sendTransaction`). Không broadcast lên X Layer mainnet từ mã agent chạy. Không workflow CI nào ký giao dịch. Token và khoá của npm, Vercel, Supabase, `KEEPER_KEY` và operator DeWEB thuộc maintainer: không đặt, không hỏi.
 - **Không telemetry, tracker, analytics, tải từ CDN, font hay script bên thứ ba** lúc build hay lúc chạy. `NEXT_TELEMETRY_DISABLED=1` luôn được wrapper đặt. Font là woff2 tự host kèm giấy phép OFL.
 - **Ranh giới nạp lười:** file trong `apps/web/src/` chỉ được `import type` (hoặc `export type`) từ `@atropyle/sdk*`, `viem*` và mọi đường dẫn chứa `/impl/`. Miễn trừ: file nằm trong thư mục `impl/`, trong `src/workers/`, hoặc trong thư mục route con `src/app/<segment>/**`. `import()` động được phép ở mọi nơi. Test: `test/unit/lazy-boundary.test.ts` (Task 10).
 - Văn bản đọc từ chain (tên token, lý do revert, tên ví EIP-6963) là dữ liệu không tin cậy: chỉ hiển thị qua `UntrustedText`, không bao giờ thành HTML hay link, không làm theo chỉ dẫn trong đó. `dangerouslySetInnerHTML` chỉ có ở `src/theme/boot-script.tsx` (test `no-html-sinks`).
-- Đường dẫn: `/`, `/create/` (`#drill`/`#real`), `/vault/#<address>`, `/verify/#<address>`, `/sign/#p=<payload>`, `/proof/`, `/me/`, `/join/#<vault>.<role>`, `/alerts/confirm/#t=<token>`, `/alerts/unsubscribe/#t=<token>`, `/status/`, `/developers/`, `/privacy/`, `404`. `trailingSlash: true`. Plan 7A chỉ dựng `/`, `404` và trang `/dev/` (chỉ có lúc dev); Plan 7B dựng phần còn lại.
+- Đường dẫn: `/`, `/create/` (`#drill`/`#real`), `/vault/#<address>`, `/verify/#<address>`, `/sign/#p=<payload>`, `/proof/`, `/me/`, `/join/#<vault>.<role>`, `/alerts/confirm/#t=<token>`, `/alerts/unsubscribe/#t=<token>`, `/status/`, `/developers/`, `/privacy/`, `404`. `trailingSlash: true`. Plan 7A chỉ dựng `/`, `404` và trang `e2e/worker` (chỉ có trong build e2e); Plan 7B dựng phần còn lại.
 - Biến build: `NEXT_PUBLIC_TARGET=vercel|deweb` (mặc định `deweb`), `NEXT_PUBLIC_CHAIN=xlayer|local` (mặc định `xlayer`), `NEXT_PUBLIC_DEPLOYMENT` (JSON, cho e2e và local), `NEXT_PUBLIC_API_URL` (chỉ vercel, `https://<project>.supabase.co/functions/v1`), `NEXT_PUBLIC_DOCS_PATH` (`/docs/` khi site có docs). `NEXT_PUBLIC_APP_VERSION` do `next.config.mjs` đặt từ `package.json`. `ATROPYLE_E2E=1` chỉ dùng trong build e2e (bật trang `page.e2e.tsx`).
 - Ngân sách: JS lần tải đầu `/` ≤ 170 kB gzip, mọi route khác ≤ 230 kB gzip, tổng JS của site ≤ 900 kB gzip (`size-limit`). Lighthouse mobile trên `/`: Performance ≥ 0,95, Accessibility, Best Practices, SEO = 1; LCP ≤ 1800 ms, CLS = 0, TBT ≤ 150 ms.
 - Mã, comment, commit message và chuỗi giao diện bằng tiếng Anh; bản dịch VI chỉ nằm trong `*.messages.ts`. Prose của plan bằng tiếng Việt.
@@ -42,7 +42,7 @@
 Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`, `npm pack` vào thư mục nháp và đọc file, hoặc đọc mã trong repo), trừ khi ghi khác.
 
 1. **Phiên bản.** Danh sách ở Global Constraints. Hai gói có bản mới hơn nhưng chưa đủ 7 ngày nên lùi về bản trước: lucide-react 1.77.0 → **1.73.0**, @tanstack/react-query 5.108.2 → **5.107.1**. uqr 0.1.3 ra ngày 3/4/2026, MIT, không dependency, `sideEffects: false`. chrome-launcher 1.2.3. Trong lucide-react 1.73.0 (đọc `dist`): **không có** `CircleAlert`, `TriangleAlert`, `Fingerprint`; dùng `CircleExclamationPoint`, `TriangleExclamationPoint`. Lucide tự thêm `aria-hidden="true"` khi không có prop a11y; nét mặc định 2, plan luôn truyền `strokeWidth={1.5}` (spec §4.5).
-2. **`next.config.mjs`, không `.ts`.** Next 16.4.6 biên dịch `next.config.ts` bằng SWC sang CommonJS (`handleCJS`, trừ khi bật `__NEXT_NODE_NATIVE_TS_LOADER_ENABLED`), nên `import.meta.url` không dùng được. File `.mjs` là ESM thật. Config là hàm của `phase`; so với chuỗi `'phase-development-server'` thay vì import `next/constants` (gói `next` không có `exports`, import tên từ CJS dễ vỡ).
+2. **`next.config.mjs`, không `.ts`.** Next 16.4.6 biên dịch `next.config.ts` bằng SWC sang CommonJS (`handleCJS`, trừ khi bật `__NEXT_NODE_NATIVE_TS_LOADER_ENABLED`), nên `import.meta.url` không dùng được. File `.mjs` là ESM thật. Config là một hàm không tham số, để kiểm target lúc nạp và để trang `page.e2e.tsx` chỉ có khi `ATROPYLE_E2E=1`.
 3. **Bundler: Turbopack mặc định, spike quyết định.** `next build` của 16.4.6 có cờ `--webpack` (đọc `dist/bin/next`). Task 2 dựng trang `page.e2e.tsx` tạo worker bằng `new Worker(new URL(...), { type: 'module' })`, worker import `@atropyle/sdk/verify` và một `import()` động, rồi chạy trong Chromium dưới CSP `worker-src 'self'`. Đạt với Turbopack thì giữ (`BUNDLER_FLAGS = []`); hỏng thì thử `--webpack`; cả hai hỏng thì dừng và báo BLOCKED. Kết quả ghi vào spec §16 hàng 15.
 4. **tsconfig dùng `extends`.** `writeConfigurationDefaults` của Next 16.4.6 return ngay khi tsconfig có `extends` hoặc `references`, nên Next không tự sửa tsconfig lúc build. `next-env.d.ts` (Next tự sinh) bị ignore trong git và Biome, không nằm trong `include`.
 5. **Telemetry:** `dist/telemetry/storage.js` tắt telemetry khi `NEXT_TELEMETRY_DISABLED` có giá trị. Wrapper luôn đặt `1`.
@@ -54,14 +54,14 @@ Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`,
 11. **Spring CSS:** `stiffness 380, damping 32, mass 1` có ζ = 0,8208, nghiệm x(t) = 1 − e^(−16t)(cos 11,1356t + 1,43683 sin 11,1356t). Lấy mẫu 25 điểm trong 443 ms thành `linear(...)` cho CSS (test so với công thức, sai số 0,0006). `motion` dùng chính bộ số này cho animation JS.
 12. **CSP tách làm hai lớp** (spec §8 nói bản vercel đặt CSP qua header): `vercel.json` là file tĩnh trong repo nên không chứa được hash của script inline sinh ra lúc build. Vì vậy **cả hai bản** nhận `<meta http-equiv="Content-Security-Policy">` có hash từng trang (postbuild), còn header của Vercel chỉ mang những gì meta không làm được: `frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` (không có `default-src`, vì header không hash được script inline sẽ chặn chúng). `style-src` cần `'unsafe-inline'`: HTML prerender chứa thuộc tính `style` (style ban đầu của `motion`, màu avatar). Task 15 thêm spec §16 hàng 17.
 13. **Ranh giới nạp lười** (Global Constraints) để đạt 170 kB cho `/`. Bốn thứ nhỏ của SDK được chép tại chỗ để khung không phải nạp SDK: `untrusted` (`src/lib/untrusted.ts`, bản sao từng byte của `packages/sdk/src/untrusted.ts`, có test so nội dung), `formatDuration` (test so hành vi), `DOCS_BASE_URL` (test so giá trị), `sameAddress`. `stringify` của store thay bằng `jsonStringify` tại chỗ (bigint thành chuỗi thập phân).
-14. **Theme không nháy:** script inline duy nhất (`boot-script.tsx`) đặt `data-theme` trước khi vẽ, chỉ khi người dùng đã chọn `light` hoặc `dark`; chế độ `system` để CSS `@media (prefers-color-scheme: light)` lo. Cùng script chuyển hướng link cũ ở `/` (spec §3). Nguồn script là `Function.prototype.toString()` của hai hàm tự chứa, có test chạy thật trong `node:vm`.
+14. **Theme không nháy:** script inline duy nhất (`boot-script.tsx`) đặt `data-theme` trước khi vẽ, chỉ khi người dùng đã chọn vellum (`light`) hoặc match device (`system`). Night là mặc định và không cần thuộc tính (R18.1); giá trị rác là night. Cùng script chuyển hướng link cũ ở `/` (spec §3). Nguồn script là `Function.prototype.toString()` của hai hàm tự chứa, có test chạy thật trong `node:vm`, và test `leaves <html> as parseTheme reads the stored value` giữ script khớp với `parseTheme`.
 15. **Ngôn ngữ:** static export không biết ngôn ngữ người xem, nên lần vẽ đầu luôn là EN, rồi effect đọc lựa chọn đã lưu hoặc `navigator.languages` và đổi sang VI nếu cần (chấp nhận một lần nháy chữ; ghi ở rủi ro). `<html lang>` được cập nhật theo.
 16. **Link ngoài trên DeWEB:** quét tĩnh của gateway (`scripts/lib/onchain-check.ts`, regex `ATTR` trên `src|href|action|…`) tính cả `href` ra ngoài trong HTML prerender. Primitive `ExternalLink` ở bản deweb render chữ thường lúc prerender và lần vẽ đầu, chỉ thành `<a>` sau khi mount. Test build `html-purity.test.ts` (Task 15) giữ luật này.
 17. **Ví:** giữ lớp ví tự viết (spec §16 hàng 8), port nguyên văn. Deep link OKX App chưa xác minh (spec §17), nên `ConnectSheet` khi không có ví chỉ hiện hướng dẫn, nút sao chép link và mã QR (uqr: `encode(text, { ecc, border })` trả `data: boolean[][]`, đọc `dist/index.d.ts`; render thành một `<path>` SVG, không dùng `renderSVG` vì nó trả chuỗi HTML).
 18. **TanStack Query:** khoá query chỉ gồm chuỗi và số: `['atropyle', chainId, 'sdk', 'cross'|'own']`, `[..., 'vault', <địa chỉ chữ thường>]`, `[..., 'stats', 'api'|'chain']`, … Query SDK có `staleTime`/`gcTime` vô hạn, không retry, không structural sharing. Retry tối đa 2 lần, trừ mã lỗi vĩnh viễn (`NOT_VAULT`, `INVALID_ADDRESS`, `DEPLOYMENT_INVALID`, `DEPLOYMENT_MISSING`, `LINK_INVALID`, `PLAN_INVALID`, `INVALID_OPTIONS`, `USER_REJECTED`, `WRONG_CHAIN`, `WRONG_ACCOUNT`, `POLICY_MISMATCH`, `DRILL_EXPIRED`). `useVault` không dùng `placeholderData` (đổi địa chỉ sẽ hiện vault cũ).
 19. **Worker được kiểm bằng trang chỉ có trong build e2e.** Trên devnet không có circuit policy, nên proof hỏng với `POLICY_UNAVAILABLE` trước khi tới worker (đọc `apps/web/test/e2e/verify.spec.ts` của web cũ). Vì vậy trang `src/app/e2e/worker/page.e2e.tsx` (chỉ build khi `ATROPYLE_E2E=1`, qua `pageExtensions`) gửi một bundle hỏng vào worker thật và chờ lỗi SDK quay về: chứng minh chunk worker nạp được dưới CSP và SDK chạy trong worker. `npm run worker:check` (Task 2) và e2e `worker.spec.ts` (Task 15) dùng trang này; bản build production không có nó (test build).
 20. **`HoldButton`:** giữ chuột hoặc chạm 600 ms thì xác nhận; nhả sớm thì huỷ và nháy gợi ý. **Enter xác nhận ngay** (spec §4.6: "bấm phím Enter cũng được"); Space là giữ (nhả sớm thì huỷ). Click có `detail === 0` (công nghệ hỗ trợ kích hoạt) xác nhận ngay; click chuột thường bị bỏ qua. Khi reduced motion, thanh tiến độ đổi `opacity` thay vì `scaleX`.
-21. **Trang `/dev/` chỉ có lúc dev:** `pageExtensions` thêm `dev.tsx` khi `phase === 'phase-development-server'`; file `src/app/dev/page.dev.tsx` không thành route khi build production (tên `page.dev` khác `page`). Test build kiểm `out/dev/` không tồn tại.
+21. **Không có trang `/dev/`** (spec §18, cắt C7): duyệt bằng mắt dùng ảnh chụp các trang thật (`test/e2e/screens.ts`, R18.13). `pageExtensions` chỉ thêm `e2e.tsx` khi `ATROPYLE_E2E=1`. Test build vẫn kiểm `out/dev/` không tồn tại, để gallery không lặng lẽ quay lại.
 22. **Link điều hướng `prefetch={false}`** cho tới khi Plan 7B dựng route đích: prefetch tới route chưa có sinh lỗi 404 trong console, làm hỏng Lighthouse Best Practices.
 23. **Biome:** `css.parser.tailwindDirectives: true` (đọc `biome explain` 2.6.8; file mẫu có `@import "tailwindcss"`, `@theme`, `@theme inline`, `linear()`, `color-mix`, `::view-transition-*` qua `biome ci`). Chuỗi CSS dùng nháy kép (mặc định của formatter CSS). Các luật ảnh hưởng thiết kế: `useUniqueElementIds` cấm `id` là chuỗi cố định (dùng `useId()`), `noSvgWithoutTitle`, `noStaticElementInteractions`, `useSemanticElements`, `noDangerouslySetInnerHtml`, `useExhaustiveDependencies` đều là error.
 24. **Lighthouse chạy cục bộ:** `lighthouse` 13.6.0 qua `chrome-launcher` 1.2.3 với Chromium của Playwright (`chromium.executablePath()`), phục vụ `out/` bằng server tĩnh của app. Mỗi route chạy 3 lần, lấy trung vị điểm Performance. Không dịch vụ ngoài.
@@ -76,7 +76,7 @@ Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`,
 ## Review Focus
 
 1. **Link cũ do SDK, CLI và MCP in ra** (`#/sign?p=<payload dài>`, `#/sign?p=a&p=b`, `#/v/<a>/verify`, `#/create?drill=1`, hash lạ, hash trên đường dẫn khác `/`): chuyển đúng một lần, giữ payload từng byte (kể cả hai tham số `p` để trang ký từ chối), không chuyển hash lạ. Test: `legacyTarget keeps the payload byte for byte` và `legacyTarget leaves unknown hashes alone` (Task 9), `legacy links land on the new routes` (Task 15).
-2. **Bộ nhớ trình duyệt bị chặn hoặc hỏng** (cửa sổ riêng tư, `localStorage` ném lỗi, giá trị theme/lang/ví rác): trang vẫn vẽ, dùng mặc định, script boot không ném. Test: `boot survives a localStorage that throws` (Task 9), `a stored garbage theme falls back to system` (Task 5), `restore ignores a remembered wallet that is gone` (Task 11).
+2. **Bộ nhớ trình duyệt bị chặn hoặc hỏng** (cửa sổ riêng tư, `localStorage` ném lỗi, giá trị theme/lang/ví rác): trang vẫn vẽ, dùng mặc định, script boot không ném. Test: `boot survives a localStorage that throws` (Task 9), `a stored garbage theme falls back to night` (Task 9), `restore ignores a remembered wallet that is gone` (Task 11).
 3. **Ví đổi trạng thái giữa chừng** (đổi tài khoản, đổi chain, ngắt, trả mảng tài khoản rác): trạng thái cập nhật, hiện cảnh báo sai chain, không crash, không giữ tài khoản cũ. Test: `wallet events update the account and chain and drop garbage` (Task 11).
 4. **Chỉ bàn phím, công nghệ hỗ trợ và reduced motion:** `HoldButton` dùng được bằng Enter, Space và click của trình đọc màn hình; khi reduced motion không còn animation chạy lúc nghỉ. Test: `HoldButton keyboard and assistive activation` (Task 6), `reduced motion leaves no running animation` (Task 15).
 5. **Bản deweb rò URL backend hoặc link ngoài** (`NEXT_PUBLIC_API_URL` có trong môi trường lúc build deweb; footer có link GitHub): không chuỗi nào của URL API nằm trong `out/`, không thuộc tính HTML nào trỏ ra ngoài. Test: `the deweb build never contains the API url` (Task 14), `deweb HTML has no external attribute` (Task 15).
@@ -111,7 +111,6 @@ apps/web/
     lib/build-env.ts  lib/run-next.ts  lib/static-server.ts  lib/csp.ts  lib/site-headers.ts  lib/lighthouse-score.ts
   src/
     app/layout.tsx  page.tsx  not-found.tsx  globals.css  icon.svg
-    app/dev/page.dev.tsx  gallery.tsx  wallet-gallery.tsx  tx-gallery.tsx      (chỉ có lúc dev)
     app/e2e/worker/page.e2e.tsx           smoke worker (chỉ build e2e)
     config/env.ts                         target, chain, API URL, explorer
     routes.ts                             ROUTES, NAV, href builders, legacyTarget, toSdkSignLink
@@ -145,7 +144,7 @@ apps/web/
   test/helpers/render.tsx  helpers/wallet.ts
   test/unit/*.test.ts(x)  test/unit/fixtures.ts                                       (port + mới)
   test/build/global-setup.ts  paths.ts  *.test.ts                                     (hai lần next build thật, rồi đọc out/)
-  test/e2e/global-setup.ts  network.ts  fixtures.ts  helpers.ts  state.ts  wallet.ts  *.spec.ts
+  test/e2e/global-setup.ts  network.ts  fixtures.ts  helpers.ts  screens.ts  state.ts  wallet.ts  *.spec.ts
   (ignore) out/  .size/  test-results/  playwright-report/  lighthouse-report/  test/e2e/.site/  test/e2e/.state.json
 ```
 
@@ -710,43 +709,7 @@ afterEach(() => {
 
 `apps/web/next.config.mjs` (Quyết định 2, 6):
 
-```js
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const TARGETS = ['vercel', 'deweb'];
-
-/**
- * A function of the phase so that dev-only pages (`page.dev.tsx`, the /dev/ gallery) never reach a production build,
- * and e2e-only pages (`page.e2e.tsx`) exist only when ATROPYLE_E2E=1.
- * @param {string} phase
- * @returns {import('next').NextConfig}
- */
-export default function config(phase) {
-  const target = process.env.NEXT_PUBLIC_TARGET || 'deweb';
-  if (!TARGETS.includes(target)) throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
-  // The deweb build must never carry the backend URL (spec §2); scripts/lib/build-env.ts drops it too.
-  if (target !== 'vercel') delete process.env.NEXT_PUBLIC_API_URL;
-  const pageExtensions = ['tsx', 'ts'];
-  if (phase === 'phase-development-server') pageExtensions.unshift('dev.tsx');
-  if (process.env.ATROPYLE_E2E === '1') pageExtensions.unshift('e2e.tsx');
-  return {
-    output: 'export',
-    trailingSlash: true,
-    images: { unoptimized: true },
-    reactStrictMode: true,
-    poweredByHeader: false,
-    productionBrowserSourceMaps: false,
-    // `npm run typecheck` runs tsc on the whole app; the build does not type-check a second time.
-    typescript: { ignoreBuildErrors: true },
-    pageExtensions,
-    // node_modules live at the monorepo root.
-    turbopack: { root: fileURLToPath(new URL('../..', import.meta.url)) },
-    env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
-  };
-}
-```
+(Task 8 Step 4 thay file này: không còn tham số `phase` hay nhánh `dev.tsx`.)
 
 Thêm vào cuối `.gitignore` ở gốc (`out/` đã có sẵn):
 
@@ -1501,7 +1464,7 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(existsSync(join(out, '404.html'))).toBe(true);
     });
 
-    it('ships neither the dev gallery nor the e2e pages', () => {
+    it('ships no dev-only and no e2e-only pages', () => {
       expect(existsSync(join(out, 'dev'))).toBe(false);
       expect(existsSync(join(out, 'e2e'))).toBe(false);
     });
@@ -3255,99 +3218,7 @@ describe('LangProvider', () => {
 
 `apps/web/test/unit/theme.test.tsx`:
 
-```tsx
-import { act, renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KVProvider } from '../../src/lib/kv';
-import { KEYS, type KV, memoryKV } from '../../src/lib/store';
-import { ThemeProvider, useTheme } from '../../src/theme/provider';
-import { applyTheme, parseTheme, readThemeAttr } from '../../src/theme/theme';
-
-const root = document.documentElement;
-
-function wrap(kv: KV) {
-  return ({ children }: { children: ReactNode }) => (
-    <KVProvider kv={kv}>
-      <ThemeProvider>{children}</ThemeProvider>
-    </KVProvider>
-  );
-}
-
-function stubScheme(light: boolean) {
-  const listeners = new Set<() => void>();
-  const mql = {
-    matches: light,
-    addEventListener: (_: string, l: () => void) => listeners.add(l),
-    removeEventListener: (_: string, l: () => void) => listeners.delete(l),
-  };
-  vi.spyOn(window, 'matchMedia').mockImplementation(() => mql as unknown as MediaQueryList);
-  return {
-    set(next: boolean) {
-      mql.matches = next;
-      for (const l of listeners) l();
-    },
-  };
-}
-
-beforeEach(() => root.removeAttribute('data-theme'));
-afterEach(() => {
-  vi.restoreAllMocks();
-  root.removeAttribute('data-theme');
-});
-
-describe('theme', () => {
-  it('parses only light and dark; anything else is system', () => {
-    expect(parseTheme('light')).toBe('light');
-    expect(parseTheme('dark')).toBe('dark');
-    for (const raw of ['system', '', null, undefined, 'Dark', ' light', '"><script>'])
-      expect(parseTheme(raw)).toBe('system');
-  });
-
-  it('sets data-theme only for an explicit choice', () => {
-    applyTheme('light');
-    expect(root.getAttribute('data-theme')).toBe('light');
-    applyTheme('system');
-    expect(root.hasAttribute('data-theme')).toBe(false);
-    root.setAttribute('data-theme', 'purple');
-    expect(readThemeAttr()).toBe('system');
-  });
-
-  it('a stored garbage theme falls back to system', async () => {
-    stubScheme(false);
-    const kv = memoryKV();
-    kv.set(KEYS.theme, 'sepia"><img src=x>');
-    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
-    await waitFor(() => expect(result.current.choice).toBe('system'));
-    expect(root.hasAttribute('data-theme')).toBe(false);
-    expect(result.current.resolved).toBe('dark');
-  });
-
-  it('applies the stored theme, then remembers a new choice', async () => {
-    stubScheme(false);
-    const kv = memoryKV();
-    kv.set(KEYS.theme, 'light');
-    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
-    await waitFor(() => expect(result.current.choice).toBe('light'));
-    expect(root.getAttribute('data-theme')).toBe('light');
-    act(() => result.current.setChoice('dark'));
-    expect(result.current.choice).toBe('dark');
-    expect(root.getAttribute('data-theme')).toBe('dark');
-    expect(kv.get(KEYS.theme)).toBe('dark');
-    act(() => result.current.setChoice('system'));
-    expect(root.hasAttribute('data-theme')).toBe(false);
-    expect(kv.get(KEYS.theme)).toBe('system');
-  });
-
-  it('resolves system to the colour scheme of the device, live', async () => {
-    const scheme = stubScheme(true);
-    const { result } = renderHook(() => useTheme(), { wrapper: wrap(memoryKV()) });
-    await waitFor(() => expect(result.current.resolved).toBe('light'));
-    act(() => scheme.set(false));
-    expect(result.current.resolved).toBe('dark');
-  });
-});
-```
+(Task 9 Step 1 thay toàn bộ file này; test Review Focus 2 là `a stored garbage theme falls back to night`.)
 
 Run: `npm test -w apps/web -- lang theme`
 Expected: FAIL (`Cannot find module '../../src/i18n/provider'`).
@@ -3435,99 +3306,11 @@ export function useT<K extends string>(m: Messages<K>): (key: K, params?: Params
 
 `apps/web/src/theme/theme.ts`:
 
-```ts
-export type ThemeChoice = 'system' | 'light' | 'dark';
-export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
-
-/** Anything but an exact `light` or `dark` is `system` (Review Focus 2: storage may hold garbage). */
-export function parseTheme(raw: string | null | undefined): ThemeChoice {
-  return raw === 'light' || raw === 'dark' ? raw : 'system';
-}
-
-const listeners = new Set<() => void>();
-
-/** The theme in force is the `data-theme` attribute of <html>; boot-script.tsx sets it before the first paint. */
-export function readThemeAttr(): ThemeChoice {
-  return parseTheme(document.documentElement.getAttribute('data-theme'));
-}
-
-export function subscribeTheme(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
-}
-
-/** `system` removes the attribute so the CSS media query decides (Quyết định 14). */
-export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
-  if (choice === 'system') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', choice);
-  for (const l of listeners) l();
-}
-```
+(Task 9 Step 2 thay toàn bộ file này: night mặc định, `THEME_CHOICES = ['dark', 'light', 'system']`, `DEFAULT_THEME = 'dark'`, giá trị rác là night.)
 
 `apps/web/src/theme/provider.tsx`:
 
-```tsx
-'use client';
-
-import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import { useKV } from '@/lib/kv';
-import { KEYS } from '@/lib/store';
-import { applyTheme, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
-
-interface ThemeValue {
-  choice: ThemeChoice;
-  /** What the page shows now: an explicit choice, or the device's colour scheme under `system`. */
-  resolved: 'light' | 'dark';
-  setChoice(c: ThemeChoice): void;
-}
-
-const ThemeContext = createContext<ThemeValue | null>(null);
-const LIGHT = '(prefers-color-scheme: light)';
-
-function subscribeScheme(cb: () => void): () => void {
-  if (typeof window.matchMedia !== 'function') return () => {};
-  const mql = window.matchMedia(LIGHT);
-  mql.addEventListener('change', cb);
-  return () => mql.removeEventListener('change', cb);
-}
-
-function prefersLight(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(LIGHT).matches;
-}
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const kv = useKV();
-  const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => 'system' as const);
-  const light = useSyncExternalStore(subscribeScheme, prefersLight, () => false);
-
-  // The boot script already did this; doing it again keeps a page whose inline script was blocked correct.
-  useEffect(() => {
-    applyTheme(parseTheme(kv.get(KEYS.theme)));
-  }, [kv]);
-
-  const setChoice = useCallback(
-    (c: ThemeChoice) => {
-      kv.set(KEYS.theme, c);
-      applyTheme(c);
-    },
-    [kv],
-  );
-
-  const value = useMemo<ThemeValue>(
-    () => ({ choice, resolved: choice === 'system' ? (light ? 'light' : 'dark') : choice, setChoice }),
-    [choice, light, setChoice],
-  );
-  return <ThemeContext value={value}>{children}</ThemeContext>;
-}
-
-export function useTheme(): ThemeValue {
-  const v = use(ThemeContext);
-  if (!v) throw new Error('useTheme must be used inside <ThemeProvider>');
-  return v;
-}
-```
+(Task 9 Step 2 thay toàn bộ file này: lúc prerender `choice` là `DEFAULT_THEME`, tức night, không còn là `system`.)
 
 `apps/web/src/messages/ui.messages.ts` (chuỗi của primitive, khung và motion; Task 6–9 dùng):
 
@@ -4455,49 +4238,85 @@ git commit -m "feat(web): motion tokens, lazy motion provider, view transitions,
 
 ---
 
-### Task 7: Sợi chỉ (`Thread`), glyph trạng thái và `StateBadge`
+### Task 7: Sợi chỉ (`Thread`) trên compositor, có trục thời gian, glyph trạng thái và `StateBadge`
 
-Nhân vật duy nhất của ngôn ngữ hình ảnh (spec §4.1). Hình học là hàm thuần có test; component chỉ vẽ. Không đo path bằng DOM (`getPointAtLength` không có lúc prerender): sợi chỉ là đường sóng `y = 60 + 9·sin(3π·x/600)` lấy mẫu rồi nối bằng Catmull-Rom, nên vị trí nút thắt và điểm "bây giờ" tính được chính xác.
+Nhân vật duy nhất của ngôn ngữ hình ảnh (spec §4.1), dựng theo `thread-engine` của spec §18.4.1 và hai ruling R18.4 (chỉ chuyển động trên compositor), R18.5 (trục thời gian tuyến tính). Hình học là hàm thuần có test; component chỉ vẽ. Không đo path bằng DOM (`getPointAtLength` không có lúc prerender): sợi chỉ là đường sóng `y = 60 + 9·sin(3π·x/600)` lấy mẫu rồi nối bằng Catmull-Rom, nên vị trí nút, điểm "bây giờ" và cổng tính được chính xác. Có hai chế độ. Không có `axis`, phần sáng là `remaining` của chu kỳ hiện tại, như trước (các trang chưa có trục và `StateBadge` dùng). Có `axis`, mọi mốc nằm ở `courseX(t, axis)`, tuyến tính theo thời gian chain, để `Scrubber`, bản xem trước, header, lá thư và witness của Plan 7B/7C đặt được thumb, chip mốc và đường dự đoán. Không có path nào được animate: phần sáng là một path cố định, chỉ cửa sổ `RevealWindow` bên ngoài nó dịch bằng `transform`.
 
-| Trạng thái | Hình (viewBox 600 × 120) | Màu | Chuyển động (chỉ khi `motion-safe`) |
-|---|---|---|---|
-| `active` | Sóng từ 0 tới 600. Phần đã qua là vệt mờ, phần còn lại sáng; điểm "bây giờ" ở đầu phần sáng | `thread` | Quầng sáng đập nhịp 2,4 s |
-| `grace` | Như `active` nhưng dừng ở x = 556 rồi sờn thành 3 sợi | `grace` | Cả sợi rung 0,6 px, 0,9 s |
-| `recovery` | Sóng tới x = 352 rồi rẽ lên ví mới ở (588, 22); đường cũ còn lại dạng chấm mờ | `recovery` | Không |
-| `releasedInherit` | Sóng tới cánh cổng ở x = 400, qua cổng tách thành N nhánh; độ dày nhánh tỉ lệ phần thừa kế | `release` | Không |
-| `releasedRecover` | Qua cổng, một nhánh lên ví khôi phục | `release` | Không |
-| `expired` | Sóng ngắn tới x = 352 rồi cuộn lại | `ink-muted` | Không |
+**Bốn lớp trong một gốc** (`div[data-thread]`, `relative`, `overflow: clip`):
 
-Đổi `remaining` (ví dụ sau check-in) làm phần sáng co giãn bằng spring; đổi trạng thái thì vẽ lại. Reduced motion: không spring, không nhịp, không rung, chỉ đổi màu (spec §4.4).
+- Gốc mang màu của trạng thái (`THREAD_COLOR`), mọi lớp vẽ bằng `currentColor`. Mặc định tỉ lệ 5:1 (`aspect-[5/1]`); chỗ gọi đặt chiều rộng, và đặt chiều cao khi muốn tỉ lệ khác (ví dụ `h-20 w-full`). Có `label` thì gốc là `role="img"`; không có thì gốc là `aria-hidden="true"`. `shared` bọc gốc bằng `SharedThread`. Gốc có `pointer-events-none`, để sợi chỉ nằm dưới thanh kéo (7B T5) mà không chặn thao tác.
+- (a) `svg[data-layer="base"]` với `preserveAspectRatio="none"`: track, đường đi của các sợi sờn (`fiber-course`), ghost, nhánh và curl.
+- (b) `RevealWindow` (file mới `src/motion/reveal-window.tsx`): cửa sổ `[litFrom, litTo]` tính theo % chiều rộng, bên trong là quầng (c) và `svg[data-layer="lit"]` (path `lit` cùng các sợi sờn sáng). Đổi `remaining` hay `axis.now` chỉ đổi ba `translateX` của cửa sổ, không đổi `d` nào. Ref `setRange(from, to, move?)` dịch cửa sổ mà không render React (kéo từng khung ở 7B T5, nạp lại tuyến tính khi giữ ở 7B T10). Transition `transform` theo `--ease-spring` 443 ms, chỉ dưới `motion-safe`. Cửa sổ có ba hộp lồng nhau: hộp ngoài cắt mép trái, hộp giữa cắt mép phải, hộp trong dịch ngược lại để nội dung đứng yên. Với cửa sổ `[a, b]` (%), ba `translateX` là `a %`, `(b − 100 − a) %` và `(100 − b) %`, cộng lại bằng 0. Câu "ngoài dịch, trong dịch ngược" của spec §18.4.1 vì vậy được làm bằng ba hộp lồng nhau (ngoài, giữa, trong), không phải hai: một hộp `overflow: hidden` chỉ cắt được một mép.
+- (c) Quầng sáng là một `<svg data-layer="glow">` gốc riêng (chỉ ở `active`). Nhịp chỉ animate `opacity` của chính `<svg>` đó, với `data-beat`: `slow` khi còn trên 50 % (2,4 s), `mid` từ 10 tới 50 % (1,6 s), `fast` dưới 10 % (1,0 s). Cả ba dùng keyframe `thread-pulse`. Rung của `grace` nằm ở `<svg data-layer="lit">` gốc.
+- (d) Lớp HTML `div[data-layer="marks"]`: cổng (`span[data-part="gate"]`, là chỗ trống cho cột giám hộ của 7B T6, bên trong có vòm `span[data-part="arch"]`), các nút, các chấm cuối nhánh, đặt bằng `left`/`top` theo %. Điểm "bây giờ", quầng `radial-gradient` của nó và nút đang chờ (`pendingKnot`) nằm trong một `span[data-part="now-at"]` phủ cả gốc, dịch bằng `translate(x%, y%)` với cùng transition của cửa sổ. Nhờ vậy chấm đi cùng mép cửa sổ trên compositor, thay vì nhảy bằng `left` (layout) trong khi cửa sổ trượt. Không `drop-shadow`, không filter SVG, không `<circle>` trong SVG: SVG bị giãn theo khung thì hình tròn thành bầu dục. Mọi `<path>` có `vector-effect="non-scaling-stroke"`, nên độ dày nét là pixel màn hình ở mọi tỉ lệ khung.
+
+| Trạng thái | Không có `axis` (viewBox 600 × 120) | Có `axis` | Màu | Chuyển động (chỉ khi `motion-safe`) |
+|---|---|---|---|---|
+| `active` | Sóng từ 0 tới 600. Cửa sổ sáng từ `600·(1 − remaining)` tới 600; điểm "bây giờ" ở mép trái cửa sổ. Không có cổng | Track từ 0 tới 600. Cửa sổ từ `courseX(now)` tới `courseX(alarmAt)` (không có `alarmAt` thì tới cổng). Cổng ở `courseX(releaseAt)` (không có thì `GATE_X`) | `thread` | Quầng đập `slow`/`mid`/`fast` theo phần còn lại |
+| `grace` | Sóng tới x = 556 rồi sờn thành 3 sợi ngắn; cửa sổ từ `556·(1 − remaining)` tới 600 | Sóng tới `courseX(alarmAt)`, rồi 3 sợi tách ra và gặp lại ở cổng `courseX(releaseAt)`; cửa sổ từ "bây giờ" tới cổng | `grace` | `<svg>` sáng rung 0,6 px, 0,9 s |
+| `recovery` | Sóng tới x = 352 rồi rẽ lên ví mới ở (588, 22); đường cũ còn lại dạng chấm mờ | Như bên trái; nút ở `marks` | `recovery` | Không |
+| `releasedInherit` | Sóng tới cổng ở x = 400, qua cổng tách N nhánh bắt đầu ở `(gateX, waveY(gateX))`; độ dày nhánh tỉ lệ phần thừa kế | Cổng và điểm bắt đầu của nhánh ở `courseX(releaseAt)` | `release`; có `highlight` thì nhánh đó `thread`, các nhánh khác `ink-muted` 35 % | Không |
+| `releasedRecover` | Qua cổng, một nhánh lên ví khôi phục | Như bên trái, cổng theo trục | `release` | Không |
+| `expired` | Sóng ngắn tới x = 352 rồi cuộn lại | Như bên trái; nút ở `marks` | `ink-muted` | Không |
+
+Luật của chế độ trục:
+
+- `courseX(t, axis)` trừ bằng bigint rồi mới đổi phần tỉ lệ sang number, kẹp vào [0, `VIEW.w`], trả 0 khi `from = to` (hay `to < from`).
+- y của cổng luôn là `waveY(gateX)`, không bao giờ giả định bằng `mid`. Nhờ vậy 7B T6 thêm chữ ký của vault mà không phải sửa cổng.
+- `marks` nằm ngoài `[from, to]` bị bỏ, không dồn vào mép 0 hay 600 (một nút ở mép sẽ nói sai thời gian). Có `axis` thì `remaining` và `knots` bị bỏ qua.
+- Ở `releasedInherit` và `releasedRecover`, mốc có x > `gateX` cũng bị bỏ: đường đi dừng ở cổng, sau cổng là các nhánh.
+- Có `axis` thì cổng được vẽ ở `active`, `grace` và hai trạng thái release: người xem thấy sợi chỉ đang đi về đâu. Không có `axis` thì cổng chỉ có sau khi release, như trước.
+
+Ba prop mới, mỗi prop có `data-*` riêng trên gốc:
+
+- `predicted` (`data-predicted="true"`): phần sau "bây giờ" (các sợi sờn ở `grace`, các nhánh khi đã release) vẽ nét đứt `PREDICTED_DASH` ("luật dự đoán, chain chưa ghi"). Không path nào đổi, chỉ kiểu nét.
+- `pendingKnot` (`data-pending-knot="true"`): một vòng nét đứt quanh "bây giờ", là nút đang thắt (đã ký, chưa vào block). Trạng thái không có "bây giờ" thì không vẽ.
+- `highlight` (`data-highlight="<i>"`, trên gốc và trên `div[data-layer="marks"]`, ở mọi trạng thái, hễ prop có giá trị): nhánh của người đọc dùng `thread`, các nhánh khác `ink-muted` 35 %. Chỉ số không chỉ tới nhánh nào (hay trạng thái không có nhánh) thì không đổi kiểu nét nào, nhưng `data-highlight` vẫn có.
+
+Reduced motion: không transition, không nhịp, không rung, chỉ đổi màu (spec §4.4). Đổi trạng thái thì đổi màu ngay, không transition `color` (R18.4 chỉ cho `opacity` và `transform`).
+
+Không làm ở task này: chữ ký và cột giám hộ (7B T6, đặt vào `[data-part="gate"]`), glyph nối thành một nét (P1), glyph `mark` (Task 9). Glyph và `StateBadge` giữ nguyên như bản plan trước.
 
 **Files:**
-- Create: `apps/web/src/thread/geometry.ts`, `apps/web/src/thread/state.ts`, `apps/web/src/thread/glyphs.tsx`, `apps/web/src/thread/thread.tsx`, `apps/web/src/thread/state-badge.tsx`
-- Test: `apps/web/test/unit/thread-geometry.test.ts`, `apps/web/test/unit/thread.test.tsx`
+- Create: `apps/web/src/thread/geometry.ts`, `apps/web/src/thread/state.ts`, `apps/web/src/thread/glyphs.tsx`, `apps/web/src/thread/thread.tsx`, `apps/web/src/thread/state-badge.tsx`, `apps/web/src/motion/reveal-window.tsx`
+- Modify: `apps/web/src/app/globals.css` (hai animation `thread-pulse-mid`, `thread-pulse-fast`)
+- Test: `apps/web/test/unit/thread-geometry.test.ts`, `apps/web/test/unit/thread.test.tsx`, `apps/web/test/unit/thread-layers.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 3 (lớp màu, `animate-thread-pulse`, `animate-thread-tremble`), Task 5 (`useT`, `labels.messages` với `THREAD_STATE_KEY`, `cn`), Task 6 (`usePrefersReducedMotion`, `SPRING`, `DURATION`, `EASE_OUT_EXPO`, `sec`, `SharedThread`).
+- Consumes: Task 3 (lớp màu `text-*`, `stroke-*`, `bg-*`, `border-*` của token; `--ease-spring` qua lớp `ease-spring`; `--animate-thread-pulse`, `--animate-thread-tremble` và hai keyframe), Task 5 (`useT`, `messages` và `THREAD_STATE_KEY` của `labels.messages`, `cn`), Task 6 (`usePrefersReducedMotion`, `DURATION`, `EASE_OUT_EXPO`, `sec` cho `StateBadge`; `SharedThread`; `SPRING_MS` trong test).
 - Produces:
-  - `src/thread/geometry.ts`: `VIEW = { w: 600, h: 120, mid: 60, amp: 9 }`; `GATE_X = 400`; `FRAY_X = 556`; `BEND_X = 352`; `RECOVERY_END: Point = [588, 22]`; `MAIN_WIDTH = 3`; `type Point = readonly [number, number]`; `waveY(x: number): number`; `smoothPath(points: readonly Point[]): string`; `waveSegment(x0: number, x1: number, samples?: number): string`; `branchWidths(weights: readonly number[], main?: number): number[]`; `branchEnds(n: number): number[]`; `interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[] }`; `interface ThreadGeometry { track: string; lit: string; now: Point | null; knots: Point[]; gate: string | null; branches: { d: string; width: number }[]; dots: Point[]; fibers: string[]; curl: string | null; ghost: string | null }`; `threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry`.
+  - `src/thread/geometry.ts`: `type Point = readonly [number, number]`; `VIEW = { w: 600, h: 120, mid: 60, amp: 9 }`; `GATE_X = 400`; `FRAY_X = 556`; `BEND_X = 352`; `RECOVERY_END: Point = [588, 22]`; `MAIN_WIDTH = 3`; `PREDICTED_DASH = '5 5'`; `BEAT_SECONDS = { slow: 2.4, mid: 1.6, fast: 1 }`; `type ThreadBeat = 'slow' | 'mid' | 'fast'`; `waveY(x: number): number`; `smoothPath(points: readonly Point[]): string`; `waveSegment(x0: number, x1: number, samples?: number): string`; `branchWidths(weights: readonly number[], main?: number): number[]`; `branchEnds(n: number): number[]`; `interface ThreadAxis { from: bigint; to: bigint; now: bigint; alarmAt?: bigint | null; releaseAt?: bigint | null; marks?: readonly bigint[] }`; `courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): number`; `pctX(x: number): number`; `pctY(y: number): number`; `beatOf(left: number): ThreadBeat`; `interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[]; axis?: ThreadAxis; predicted?: boolean; pendingKnot?: boolean; highlight?: number }`; `type ThreadTone = 'plain' | 'highlight' | 'muted'`; `interface ThreadGeometry { track: string; lit: string; litFrom: number; litTo: number; now: Point | null; nowX: number; pending: Point | null; knots: Point[]; gate: Point | null; gateX: number; branches: { d: string; width: number; tone: ThreadTone }[]; dots: { at: Point; tone: ThreadTone }[]; fibers: string[]; curl: string | null; ghost: string | null; dash: string | null; beat: ThreadBeat | null }`; `threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry`.
   - `src/thread/state.ts`: `type ThreadState = StateName | 'expired'`; `THREAD_STATES: readonly ThreadState[]`; `threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState`; `threadRemaining(s: Pick<VaultStatus, 'state' | 'expired' | 'lastAlive' | 'lateAt' | 'alarmAt' | 'windowEndsAt'>, now: bigint): number`; `THREAD_COLOR`, `BADGE_COLOR: Record<ThreadState, string>`; `STATE_GLYPH: Record<ThreadState, GlyphName>`.
   - `src/thread/glyphs.tsx`: `type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot'`; `GLYPH_NAMES`; `StateGlyph({ name, size?, className? })` (SVG 24 × 24, nét 1,5, `aria-hidden="true"`).
-  - `src/thread/thread.tsx`: `interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; className?: string }`; `Thread(props)`. Không có `label` thì là hình trang trí (`aria-hidden`); có thì là `role="img"`. `shared` bọc `SharedThread` (chỉ một sợi mỗi trang).
+  - `src/motion/reveal-window.tsx`: `type RevealMove = 'spring' | 'instant' | { linear: number }`; `interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void }`; `interface RevealWindowProps { from: number; to: number; children: ReactNode; ref?: Ref<RevealWindowHandle>; className?: string }`; `RevealWindow(props)`; `revealTransforms(from: number, to: number): [string, string, string]`; `REVEAL_MOVE` (chuỗi lớp transition).
+  - `src/thread/thread.tsx`: `interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; revealRef?: Ref<RevealWindowHandle>; className?: string }`; `Thread(props)`. DOM: gốc `div[data-thread]` có `data-state`, `data-predicted`, `data-pending-knot`, `data-highlight`; lớp `svg[data-layer="base" | "glow" | "lit"]`, `div[data-layer="marks"]` (cũng mang `data-highlight`); phần `[data-part="lit" | "glow" | "track" | "fiber" | "fiber-course" | "ghost" | "branch" | "curl" | "gate" | "arch" | "knot" | "dot" | "now-at" | "now" | "halo" | "pending"]`.
   - `src/thread/state-badge.tsx`: `interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }`; `StateBadge(props)`.
 
-- [ ] **Step 1: Viết test hỏng cho hình học và trạng thái**
+- [ ] **Step 1: Viết test hỏng cho hình học, trục thời gian và trạng thái**
+
+Test cũ của `VIEW`, `waveY`, `smoothPath`, `waveSegment`, `branchWidths`, `branchEnds` và `state.ts` giữ nguyên. Test của `threadGeometry` đổi theo cách biểu diễn mới: `lit` là cả đường sáng, phần hiện ra là `[litFrom, litTo]`. Thêm `courseX` (kẹp, đơn điệu, không chia cho 0, chính xác với giây unix và với trục khổng lồ), chế độ trục (nút, "bây giờ", cổng, sờn nằm đúng x; đã release thì mốc sau cổng bị bỏ), `predicted` chỉ đổi kiểu nét, `highlight`, `pendingKnot` và nhịp.
 
 `apps/web/test/unit/thread-geometry.test.ts`:
 
 ```ts
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  BEAT_SECONDS,
   BEND_X,
+  beatOf,
   branchEnds,
   branchWidths,
+  courseX,
   FRAY_X,
   GATE_X,
+  PREDICTED_DASH,
   RECOVERY_END,
   smoothPath,
+  type ThreadAxis,
+  type ThreadInput,
   threadGeometry,
   VIEW,
   waveSegment,
@@ -4505,8 +4324,9 @@ import {
 } from '../../src/thread/geometry';
 import { THREAD_STATES, threadRemaining, threadStateOf } from '../../src/thread/state';
 
-/** Only path commands and numbers; never NaN, undefined or Infinity. */
-const VALID = /^M[0-9.\- ]+(?:[CcSsVvHhAaLl][0-9.\- ]+)*$/;
+/** Path commands and numbers only, one or more subpaths; never NaN, undefined or Infinity. */
+const VALID = /^M[0-9.\- ]+(?:[MCcSsVvHhAaLl][0-9.\- ]+)*$/;
+const y2 = (x: number) => Math.round(waveY(x) * 100) / 100;
 
 describe('wave', () => {
   it('stays inside the band and crosses the middle at the gate', () => {
@@ -4530,7 +4350,7 @@ describe('wave', () => {
     expect(smoothPath([])).toBe('');
   });
 
-  it('samples every segment with the same structure, so a segment can morph into another', () => {
+  it('samples every segment with the same structure', () => {
     const a = waveSegment(0, 600);
     const b = waveSegment(300, 600);
     expect(a.match(/C/g)).toHaveLength(16);
@@ -4563,14 +4383,52 @@ describe('branches', () => {
   });
 });
 
-describe('threadGeometry', () => {
-  it('active: the lit part is what is left, starting at the "now" point', () => {
+describe('courseX', () => {
+  const axis = { from: 1_000n, to: 1_600n };
+
+  it('maps chain time linearly onto the width and clamps outside the axis', () => {
+    expect(courseX(1_000n, axis)).toBe(0);
+    expect(courseX(1_300n, axis)).toBe(300);
+    expect(courseX(1_600n, axis)).toBe(VIEW.w);
+    expect(courseX(999n, axis)).toBe(0);
+    expect(courseX(-(2n ** 200n), axis)).toBe(0);
+    expect(courseX(2n ** 200n, axis)).toBe(VIEW.w);
+  });
+
+  it('never divides by zero: an empty or reversed axis puts everything at 0', () => {
+    for (const t of [0n, 999n, 1_000n, 1_001n, 2n ** 70n]) {
+      expect(courseX(t, { from: 1_000n, to: 1_000n })).toBe(0);
+      expect(courseX(t, { from: 1_600n, to: 1_000n })).toBe(0);
+    }
+  });
+
+  it('is monotonic and exact on unix seconds', () => {
+    const from = 1_795_000_000n;
+    const half = { from, to: from + 15_552_000n };
+    expect(courseX(from + 3_888_000n, half)).toBe(150);
+    let last = -1;
+    for (let t = from - 86_400n; t <= half.to + 86_400n; t += 97_001n) {
+      const x = courseX(t, half);
+      expect(Number.isFinite(x)).toBe(true);
+      expect(x).toBeGreaterThanOrEqual(last);
+      last = x;
+    }
+    // A huge axis stays finite: only the share of it becomes a number.
+    expect(courseX(2n ** 1100n, { from: 0n, to: 2n ** 1101n })).toBe(300);
+  });
+});
+
+describe('threadGeometry without an axis', () => {
+  it('active: the whole course is lit, and the window shows what is left, from "now"', () => {
     const g = threadGeometry('active', { remaining: 0.25 });
     expect(g.now?.[0]).toBe(450);
     expect(g.now?.[1]).toBeCloseTo(waveY(450), 2);
-    expect(g.lit.startsWith('M450 ')).toBe(true);
+    expect(g.nowX).toBe(450);
+    expect([g.litFrom, g.litTo]).toEqual([450, VIEW.w]);
+    expect(g.lit).toBe(waveSegment(0, VIEW.w));
     expect(g.track.startsWith('M0 60 ')).toBe(true);
     expect(g.gate).toBeNull();
+    expect(g.gateX).toBe(GATE_X);
   });
 
   it('clamps remaining to 0–1 and hides "now" when nothing is left', () => {
@@ -4585,33 +4443,35 @@ describe('threadGeometry', () => {
     for (const [x, y] of g.knots) expect(y).toBeCloseTo(waveY(x), 2);
   });
 
-  it('grace: frays into three strands before the end', () => {
+  it('grace: frays into three strands before the end, inside the window', () => {
     const g = threadGeometry('grace', { remaining: 0.5 });
     expect(g.fibers).toHaveLength(3);
     for (const f of g.fibers) expect(f.startsWith(`M${FRAY_X} `)).toBe(true);
     expect(g.now?.[0]).toBe(FRAY_X / 2);
+    expect([g.litFrom, g.litTo]).toEqual([FRAY_X / 2, VIEW.w]);
+    expect(g.beat).toBeNull();
   });
 
   it('recovery: bends to the new wallet and keeps the old course as a ghost', () => {
     const g = threadGeometry('recovery');
     expect(g.lit.endsWith(`${RECOVERY_END[0]} ${RECOVERY_END[1]}`)).toBe(true);
     expect(g.ghost?.startsWith(`M${BEND_X} `)).toBe(true);
-    expect(g.dots).toEqual([RECOVERY_END]);
+    expect(g.dots).toEqual([{ at: RECOVERY_END, tone: 'plain' }]);
   });
 
-  it('releasedInherit: through the gate, one branch per heir', () => {
+  it('releasedInherit: through the gate, one branch per heir, each starting at the gate on the wave', () => {
     const g = threadGeometry('releasedInherit', { branches: [5000, 3000, 2000] });
-    expect(g.gate).not.toBeNull();
+    expect(g.gate).toEqual([GATE_X, y2(GATE_X)]);
     expect(g.branches).toHaveLength(3);
     expect(g.dots).toHaveLength(3);
     expect(g.branches[0].width).toBeGreaterThan(g.branches[2].width);
-    for (const b of g.branches) expect(b.d.startsWith(`M${GATE_X} 60 `)).toBe(true);
+    for (const b of g.branches) expect(b.d.startsWith(`M${g.gateX} ${y2(g.gateX)} `)).toBe(true);
   });
 
   it('releasedRecover: through the gate to one wallet', () => {
     const g = threadGeometry('releasedRecover');
     expect(g.branches).toHaveLength(1);
-    expect(g.dots[0][1]).toBeLessThan(VIEW.mid);
+    expect(g.dots[0].at[1]).toBeLessThan(VIEW.mid);
   });
 
   it('expired: a short thread that curls up', () => {
@@ -4620,12 +4480,148 @@ describe('threadGeometry', () => {
     expect(g.now).toBeNull();
     expect(g.track).toBe('');
   });
+});
 
-  it('produces only well-formed paths for every state', () => {
+describe('threadGeometry on a time axis', () => {
+  const axis: ThreadAxis = { from: 1_000n, to: 1_600n, now: 1_150n, alarmAt: 1_450n, releaseAt: 1_500n };
+
+  it('active: "now", the end of the lit part and the gate sit at courseX of their times', () => {
+    const g = threadGeometry('active', { axis });
+    expect(g.nowX).toBe(150);
+    expect(g.now).toEqual([150, y2(150)]);
+    expect([g.litFrom, g.litTo]).toEqual([150, 450]);
+    expect(g.gate).toEqual([500, y2(500)]);
+    expect(g.gateX).toBe(500);
+    expect(g.lit).toBe(waveSegment(0, VIEW.w));
+  });
+
+  it('ties a knot at each mark inside the axis, once, and leaves the others out', () => {
+    const g = threadGeometry('active', { axis: { ...axis, marks: [900n, 1_000n, 1_100n, 1_100n, 1_700n] } });
+    expect(g.knots).toEqual([
+      [0, y2(0)],
+      [100, y2(100)],
+    ]);
+    // The fractions of `knots` belong to the old mode and are ignored on an axis.
+    expect(threadGeometry('active', { axis, knots: [0.5] }).knots).toEqual([]);
+  });
+
+  it('grace: frays from the alarm to the gate; the window runs from "now" to the gate', () => {
+    const g = threadGeometry('grace', { axis: { ...axis, now: 1_350n, alarmAt: 1_300n } });
+    expect(g.fibers).toHaveLength(3);
+    for (const f of g.fibers) expect(f.startsWith('M300 ')).toBe(true);
+    for (const f of g.fibers) expect(f.endsWith(` 500 ${y2(500)}`)).toBe(true);
+    expect(g.track).toBe(waveSegment(0, 300));
+    expect([g.litFrom, g.litTo]).toEqual([350, 500]);
+    expect(g.now).toEqual([350, y2(350)]);
+    expect(g.gate?.[0]).toBe(500);
+  });
+
+  it('puts the gate on the wave wherever releaseAt falls, and the branches start there', () => {
+    const g = threadGeometry('releasedInherit', { axis: { ...axis, releaseAt: 1_300n }, branches: [1, 1] });
+    expect(g.gate).toEqual([300, 51]);
+    for (const b of g.branches) expect(b.d.startsWith('M300 51 ')).toBe(true);
+  });
+
+  it('released: the course ends at the gate, so a mark past it is left out', () => {
+    const marks = [1_100n, 1_500n, 1_550n];
+    for (const s of ['releasedInherit', 'releasedRecover'] as const) {
+      expect(threadGeometry(s, { axis: { ...axis, marks } }).knots, s).toEqual([
+        [100, y2(100)],
+        [500, y2(500)],
+      ]);
+    }
+    // Active runs on past the gate, and keeps the mark.
+    expect(threadGeometry('active', { axis: { ...axis, marks } }).knots.map(([x]) => x)).toEqual([100, 500, 550]);
+  });
+
+  it('falls back to GATE_X without releaseAt, and ends the lit part of active at the gate without alarmAt', () => {
+    const g = threadGeometry('active', { axis: { from: 0n, to: 600n, now: 100n } });
+    expect(g.gateX).toBe(GATE_X);
+    expect([g.litFrom, g.litTo]).toEqual([100, GATE_X]);
+  });
+
+  it('past the alarm time the lit part is empty and the glow beats fast', () => {
+    const g = threadGeometry('active', { axis: { ...axis, now: 1_480n } });
+    expect(g.nowX).toBe(480);
+    expect([g.litFrom, g.litTo]).toEqual([450, 450]);
+    expect(g.beat).toBe('fast');
+  });
+});
+
+describe('the props of Plan 7B', () => {
+  const inputs: ThreadInput[] = [
+    { remaining: 0.3, knots: [0.1], branches: [2, 1] },
+    { axis: { from: 0n, to: 600n, now: 250n, alarmAt: 200n, releaseAt: 450n, marks: [50n] }, branches: [2, 1] },
+  ];
+
+  it('predicted changes only the stroke style, in every state, with and without an axis', () => {
     for (const s of THREAD_STATES) {
-      const g = threadGeometry(s, { remaining: 0.3, knots: [0.1], branches: [2, 1] });
-      const all = [g.track, g.lit, g.gate, g.curl, g.ghost, ...g.fibers, ...g.branches.map((b) => b.d)];
-      for (const d of all) if (d) expect(d, `${s}: ${d}`).toMatch(VALID);
+      for (const input of inputs) {
+        const plain = threadGeometry(s, input);
+        const told = threadGeometry(s, { ...input, predicted: true });
+        expect(plain.dash, s).toBeNull();
+        expect(told.dash, s).toBe(PREDICTED_DASH);
+        expect({ ...told, dash: null }, s).toEqual(plain);
+      }
+    }
+  });
+
+  it('highlight lights one branch and mutes the others; an index that names no branch changes nothing', () => {
+    const g = threadGeometry('releasedInherit', { branches: [5000, 3000, 2000], highlight: 1 });
+    expect(g.branches.map((b) => b.tone)).toEqual(['muted', 'highlight', 'muted']);
+    expect(g.dots.map((d) => d.tone)).toEqual(['muted', 'highlight', 'muted']);
+    for (const h of [3, -1, 1.5, Number.NaN]) {
+      const n = threadGeometry('releasedInherit', { branches: [5000, 3000, 2000], highlight: h });
+      expect(
+        n.branches.map((b) => b.tone),
+        String(h),
+      ).toEqual(['plain', 'plain', 'plain']);
+    }
+  });
+
+  it('pendingKnot puts a knot being tied at "now", and nowhere when there is no "now"', () => {
+    expect(threadGeometry('active', { remaining: 0.5, pendingKnot: true }).pending).toEqual([300, y2(300)]);
+    expect(threadGeometry('active', { remaining: 0.5 }).pending).toBeNull();
+    expect(threadGeometry('active', { axis: inputs[1].axis, pendingKnot: true }).pending).toEqual([250, y2(250)]);
+    expect(threadGeometry('releasedInherit', { pendingKnot: true }).pending).toBeNull();
+  });
+});
+
+describe('the beat', () => {
+  it('quickens near the deadline: above half slow, a tenth to half mid, under a tenth fast', () => {
+    expect([1, 0.51, 0.5, 0.1, 0.099, 0].map(beatOf)).toEqual(['slow', 'slow', 'mid', 'mid', 'fast', 'fast']);
+    expect(threadGeometry('active', { remaining: 0.72 }).beat).toBe('slow');
+    expect(threadGeometry('active', { remaining: 0.3 }).beat).toBe('mid');
+    expect(threadGeometry('active', { remaining: 0.05 }).beat).toBe('fast');
+    expect(threadGeometry('active', { axis: { from: 0n, to: 600n, now: 10n, alarmAt: 400n } }).beat).toBe('slow');
+    for (const s of THREAD_STATES.filter((x) => x !== 'active')) expect(threadGeometry(s).beat, s).toBeNull();
+  });
+
+  it('globals.css runs thread-pulse once per beat: 2.4 s, 1.6 s and 1 s', () => {
+    const css = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
+    const token = { slow: 'thread-pulse', mid: 'thread-pulse-mid', fast: 'thread-pulse-fast' } as const;
+    expect(BEAT_SECONDS).toEqual({ slow: 2.4, mid: 1.6, fast: 1 });
+    for (const [beat, name] of Object.entries(token) as [keyof typeof token, string][]) {
+      expect(css, beat).toMatch(new RegExp(`--animate-${name}:\\s*thread-pulse ${BEAT_SECONDS[beat]}s `));
+    }
+  });
+});
+
+describe('every path', () => {
+  it('is well formed in every state, with and without an axis', () => {
+    const axis: ThreadAxis = { from: 0n, to: 600n, now: 250n, alarmAt: 200n, releaseAt: 450n, marks: [50n] };
+    const odd: ThreadAxis = { from: 0n, to: 600n, now: 599n, alarmAt: 600n, releaseAt: 100n };
+    for (const s of THREAD_STATES) {
+      for (const input of [{ remaining: 0.3, knots: [0.1] }, { axis }, { axis: odd }] as ThreadInput[]) {
+        const g = threadGeometry(s, { ...input, branches: [2, 1] });
+        const all = [g.track, g.lit, g.curl, g.ghost, ...g.fibers, ...g.branches.map((b) => b.d)];
+        for (const d of all) if (d) expect(d, `${s}: ${d}`).toMatch(VALID);
+        for (const n of [g.litFrom, g.litTo, g.nowX, g.gateX]) {
+          expect(n, s).toBeGreaterThanOrEqual(0);
+          expect(n, s).toBeLessThanOrEqual(VIEW.w);
+        }
+        expect(g.litFrom, s).toBeLessThanOrEqual(g.litTo);
+      }
     }
   });
 });
@@ -4660,7 +4656,7 @@ describe('thread state', () => {
 Run: `npm test -w apps/web -- thread-geometry`
 Expected: FAIL (`Cannot find module '../../src/thread/geometry'`).
 
-- [ ] **Step 2: Viết `geometry.ts`, `state.ts` và `glyphs.tsx`**
+- [ ] **Step 2: Viết `geometry.ts`, `state.ts`, `glyphs.tsx` và hai nhịp trong `globals.css`**
 
 `apps/web/src/thread/geometry.ts`:
 
@@ -4669,21 +4665,33 @@ import type { ThreadState } from './state';
 
 export type Point = readonly [number, number];
 
-/** The Thread draws in this box; the SVG scales it to its width. */
+/** The Thread draws in this box; the SVG stretches it to the box of its root (preserveAspectRatio="none"). */
 export const VIEW = { w: 600, h: 120, mid: 60, amp: 9 } as const;
 /** One and a half waves across the box: the wave crosses the middle at x = 0, 200, 400, 600. */
 const CYCLES = 1.5;
-/** The gate the thread passes through on release; the wave is at the middle there. */
+/** Where the gate stands when nothing says when it opens; the wave is at the middle there. */
 export const GATE_X = 400;
-/** Where a thread in grace starts to fray. */
+/** Where a thread in grace starts to fray, without a time axis. */
 export const FRAY_X = 556;
 /** Where a recovery bends away, and where an expired Drill curls up. */
 export const BEND_X = 352;
 export const RECOVERY_END: Point = [588, 22];
+/** Stroke widths are screen pixels: every path keeps them however the box stretches (non-scaling-stroke). */
 export const MAIN_WIDTH = 3;
+/** The dash of what the rules predict and the chain has not recorded yet. */
+export const PREDICTED_DASH = '5 5';
+/** Seconds of one beat of the glow (globals.css `--animate-thread-pulse`, `-mid`, `-fast`). */
+export const BEAT_SECONDS = { slow: 2.4, mid: 1.6, fast: 1 } as const;
+export type ThreadBeat = keyof typeof BEAT_SECONDS;
 const SAMPLES = 16;
 const BRANCH_END_X = 594;
 const BAND = { top: 24, bottom: 96 } as const;
+/** How far the outer strands of a fray stand from the thread, halfway through the alarm window. */
+const FRAY_SPREAD = 7;
+/** A fray shorter than this would be a knot, not a fray: it gets this length. */
+const FRAY_MIN = 40;
+/** courseX works in millionths of the axis, in bigint, before it turns into a number. */
+const SCALE = 1_000_000n;
 
 const r = (n: number): number => Math.round(n * 100) / 100;
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1);
@@ -4710,7 +4718,7 @@ export function smoothPath(points: readonly Point[]): string {
   return d;
 }
 
-/** The wave from x0 to x1, always `samples` segments long so that two segments can morph into each other. */
+/** The wave from x0 to x1, always `samples` segments long. */
 export function waveSegment(x0: number, x1: number, samples = SAMPLES): string {
   const a = Math.min(x0, x1);
   const b = Math.max(x0, x1);
@@ -4739,64 +4747,202 @@ export function branchEnds(n: number): number[] {
   return Array.from({ length: n }, (_, i) => r(BAND.top + ((BAND.bottom - BAND.top) * i) / (n - 1)));
 }
 
+/** A linear time axis under the thread (R18.5): chain time `from` is x = 0, `to` is x = VIEW.w. */
+export interface ThreadAxis {
+  from: bigint;
+  to: bigint;
+  /** Chain time now: the "now" point. */
+  now: bigint;
+  /** When the alarm can be raised (active) or was raised (grace). The lit part of `active` ends here; `grace` frays from here. */
+  alarmAt?: bigint | null;
+  /** When the gate opens: the gate stands here, and the lit part of `grace` ends here. */
+  releaseAt?: bigint | null;
+  /**
+   * Moments tied as knots (check-ins). Marks outside [from, to] are left out, never piled up at an edge; once
+   * released, so are marks past the gate, where the branches take over.
+   */
+  marks?: readonly bigint[];
+}
+
+/**
+ * X of chain time `t` on the axis: the subtraction runs in bigint and only the share of the axis becomes a number,
+ * so unix seconds never lose a digit. Clamped to [0, VIEW.w]; an empty or reversed axis puts everything at 0.
+ */
+export function courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): number {
+  const span = axis.to - axis.from;
+  if (span <= 0n) return 0;
+  const d = t - axis.from;
+  if (d <= 0n) return 0;
+  if (d >= span) return VIEW.w;
+  return r((Number((d * SCALE) / span) / Number(SCALE)) * VIEW.w);
+}
+
+/** Percent of the box width or height, for the HTML layer and the RevealWindow. */
+export const pctX = (x: number): number => Math.round((x / VIEW.w) * 100_000) / 1000;
+export const pctY = (y: number): number => Math.round((y / VIEW.h) * 100_000) / 1000;
+
+/** The glow beats faster as the deadline nears: above half left slow, from a tenth to half mid, under a tenth fast. */
+export function beatOf(left: number): ThreadBeat {
+  if (left > 0.5) return 'slow';
+  if (left >= 0.1) return 'mid';
+  return 'fast';
+}
+
 export interface ThreadInput {
-  /** Share of the current period still left, 0–1. Read by `active` and `grace` only. */
+  /** Share of the current period still left, 0–1. Read by `active` and `grace`, and only without `axis`. */
   remaining?: number;
-  /** Where check-ins tied knots, as fractions 0–1 of the drawn wave. */
+  /** Where check-ins tied knots, as fractions 0–1 of the drawn wave. Only without `axis` (it has `marks`). */
   knots?: readonly number[];
   /** One weight per heir (for example the share in basis points). Read by `releasedInherit` only. */
   branches?: readonly number[];
+  /** Places "now", the lit part, the fray, the gate and the knots on a linear time axis. */
+  axis?: ThreadAxis;
+  /** What lies after "now" (the fray in `grace`, the branches once released) is the rules' prediction: dashed. */
+  predicted?: boolean;
+  /** A knot is being tied at "now": signed, not yet in a block. */
+  pendingKnot?: boolean;
+  /** Index of the branch of the reader (an heir): drawn in `thread`, the others in `ink-muted` at 35 %. */
+  highlight?: number;
 }
 
+/** `plain` takes the state's colour; `highlight` and `muted` come from `highlight`. */
+export type ThreadTone = 'plain' | 'highlight' | 'muted';
+
 export interface ThreadGeometry {
-  /** The whole course, drawn faint, under the lit thread. Empty when the state has no course to show. */
+  /** The course, drawn faint under the lit thread. Empty when the state has no course to show. */
   track: string;
+  /** The lit course. Only its window [litFrom, litTo] shows, so moving "now" never changes this path. */
   lit: string;
+  litFrom: number;
+  litTo: number;
+  /** The "now" point, or null when the state draws none. */
   now: Point | null;
+  /** X of "now" also when no point is drawn: courseX(axis.now), else the start of what is left (active, grace), else VIEW.w. */
+  nowX: number;
+  /** The knot being tied (at "now"), or null. */
+  pending: Point | null;
   knots: Point[];
-  gate: string | null;
-  branches: { d: string; width: number }[];
-  dots: Point[];
+  /** Where the gate arch stands, or null when the state draws no gate. */
+  gate: Point | null;
+  /** X of the gate, also when it is not drawn (the guardians' posts of Plan 7B stand here). */
+  gateX: number;
+  branches: { d: string; width: number; tone: ThreadTone }[];
+  dots: { at: Point; tone: ThreadTone }[];
   fibers: string[];
   curl: string | null;
   ghost: string | null;
+  /** Stroke dash of the fray and the branches: PREDICTED_DASH when `predicted`, else null. */
+  dash: string | null;
+  /** The glow's beat, or null when the state does not pulse (only `active` does). */
+  beat: ThreadBeat | null;
 }
-
-const GATE = `M${GATE_X - 12} 86V48a12 12 0 0 1 24 0V86`;
 
 function knotsOn(fractions: readonly number[] | undefined, end: number): Point[] {
   const xs = [...new Set((fractions ?? []).map((f) => r(clamp01(f) * end)))].sort((a, b) => a - b);
   return xs.map((x): Point => [x, r(waveY(x))]);
 }
 
-function branch(y: number): string {
-  return `M${GATE_X} ${VIEW.mid} C${GATE_X + 60} ${VIEW.mid} ${GATE_X + 106} ${y} ${BRANCH_END_X} ${y}`;
+function marksOn(axis: ThreadAxis): Point[] {
+  const inside = (axis.marks ?? []).filter((t) => t >= axis.from && t <= axis.to);
+  const xs = [...new Set(inside.map((t) => courseX(t, axis)))].sort((a, b) => a - b);
+  return xs.map((x): Point => [x, r(waveY(x))]);
+}
+
+/** From the gate (gx, gy) to the branch end; the curve keeps its shape when the gate moves along the axis. */
+function branch(gx: number, gy: number, y: number): string {
+  const k = (BRANCH_END_X - gx) / (BRANCH_END_X - GATE_X);
+  return `M${gx} ${gy} C${r(gx + 60 * k)} ${gy} ${r(gx + 106 * k)} ${y} ${BRANCH_END_X} ${y}`;
+}
+
+/** Three strands from x0 to x1 that part from the thread and meet again at the gate. */
+function frayStrands(x0: number, x1: number): string[] {
+  return [-1, 0, 1].map((side) =>
+    smoothPath(
+      Array.from({ length: SAMPLES + 1 }, (_, i): Point => {
+        const x = x0 + ((x1 - x0) * i) / SAMPLES;
+        return [x, waveY(x) + side * FRAY_SPREAD * Math.sin((Math.PI * i) / SAMPLES)];
+      }),
+    ),
+  );
 }
 
 export function threadGeometry(state: ThreadState, input: ThreadInput = {}): ThreadGeometry {
-  const empty: ThreadGeometry = {
+  const { axis } = input;
+  const gateX = axis?.releaseAt != null ? courseX(axis.releaseAt, axis) : GATE_X;
+  const gateY = r(waveY(gateX));
+  const base: ThreadGeometry = {
     track: '',
     lit: '',
+    litFrom: 0,
+    litTo: VIEW.w,
     now: null,
+    nowX: axis ? courseX(axis.now, axis) : VIEW.w,
+    pending: null,
     knots: [],
     gate: null,
+    gateX,
     branches: [],
     dots: [],
     fibers: [],
     curl: null,
     ghost: null,
+    dash: input.predicted ? PREDICTED_DASH : null,
+    beat: null,
   };
+  const knotsAt = (end: number): Point[] => (axis ? marksOn(axis) : knotsOn(input.knots, end));
+  const withPending = (g: ThreadGeometry): ThreadGeometry => ({
+    ...g,
+    pending: input.pendingKnot && g.now ? g.now : null,
+  });
+
+  if ((state === 'active' || state === 'grace') && axis) {
+    const nowX = base.nowX;
+    const now: Point = [nowX, r(waveY(nowX))];
+    const alarmX = axis.alarmAt != null ? courseX(axis.alarmAt, axis) : gateX;
+    if (state === 'active') {
+      return withPending({
+        ...base,
+        track: waveSegment(0, VIEW.w),
+        lit: waveSegment(0, VIEW.w),
+        litFrom: Math.min(nowX, alarmX),
+        litTo: alarmX,
+        now,
+        knots: knotsAt(VIEW.w),
+        gate: [gateX, gateY],
+        beat: beatOf(alarmX > 0 ? clamp01((alarmX - nowX) / alarmX) : 0),
+      });
+    }
+    // grace: the thread frays from the alarm and the strands meet again at the gate. A gate at or before the alarm
+    // (an axis cut short) still gets a short fray after the alarm.
+    const x0 = gateX > alarmX ? alarmX : Math.min(alarmX, VIEW.w - FRAY_MIN);
+    const x1 = gateX > alarmX ? gateX : x0 + FRAY_MIN;
+    return withPending({
+      ...base,
+      track: waveSegment(0, x0),
+      lit: waveSegment(0, x0),
+      litFrom: Math.min(nowX, x1),
+      litTo: x1,
+      now,
+      knots: knotsAt(x0),
+      gate: [gateX, gateY],
+      fibers: frayStrands(x0, x1),
+    });
+  }
 
   if (state === 'active' || state === 'grace') {
     const end = state === 'grace' ? FRAY_X : VIEW.w;
     const left = input.remaining === undefined ? 1 : Number.isNaN(input.remaining) ? 1 : clamp01(input.remaining);
     const xNow = r(end * (1 - left));
     const fy = r(waveY(FRAY_X));
-    return {
-      ...empty,
+    return withPending({
+      ...base,
       track: waveSegment(0, end),
-      lit: waveSegment(xNow, end),
+      lit: waveSegment(0, end),
+      litFrom: xNow,
+      // In grace the window reaches past FRAY_X, over the strands.
+      litTo: VIEW.w,
       now: left > 0 ? [xNow, r(waveY(xNow))] : null,
+      nowX: xNow,
       knots: knotsOn(input.knots, end),
       fibers:
         state === 'grace'
@@ -4806,47 +4952,52 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
               `M${FRAY_X} ${fy} c10 2 20 10 32 16`,
             ]
           : [],
-    };
+      beat: state === 'active' ? beatOf(left) : null,
+    });
   }
 
   if (state === 'recovery') {
     const by = r(waveY(BEND_X));
     const [ex, ey] = RECOVERY_END;
     return {
-      ...empty,
+      ...base,
       lit: `${waveSegment(0, BEND_X)} C${BEND_X + 90} ${by} ${ex - 70} ${ey} ${ex} ${ey}`,
-      knots: knotsOn(input.knots, BEND_X),
+      knots: knotsAt(BEND_X),
       ghost: waveSegment(BEND_X, VIEW.w),
-      dots: [RECOVERY_END],
+      dots: [{ at: RECOVERY_END, tone: 'plain' }],
     };
   }
 
   if (state === 'releasedInherit' || state === 'releasedRecover') {
     const weights = state === 'releasedRecover' || !input.branches?.length ? [1] : input.branches;
     const widths = branchWidths(weights);
-    const ys = state === 'releasedRecover' ? [24] : branchEnds(weights.length);
+    const ys = state === 'releasedRecover' ? [BAND.top] : branchEnds(weights.length);
+    const h = input.highlight;
+    const valid = h !== undefined && Number.isInteger(h) && h >= 0 && h < ys.length;
+    const tone = (i: number): ThreadTone => (!valid ? 'plain' : i === h ? 'highlight' : 'muted');
     return {
-      ...empty,
-      lit: waveSegment(0, GATE_X),
-      knots: knotsOn(input.knots, GATE_X),
-      gate: GATE,
-      branches: ys.map((y, i) => ({ d: branch(y), width: widths[i] })),
-      dots: ys.map((y): Point => [BRANCH_END_X, y]),
+      ...base,
+      lit: waveSegment(0, gateX),
+      // The course ends at the gate and the branches take over: a mark past the gate is left out.
+      knots: knotsAt(gateX).filter(([x]) => x <= gateX),
+      gate: [gateX, gateY],
+      branches: ys.map((y, i) => ({ d: branch(gateX, gateY, y), width: widths[i], tone: tone(i) })),
+      dots: ys.map((y, i) => ({ at: [BRANCH_END_X, y] as Point, tone: tone(i) })),
     };
   }
 
   // expired: a short thread that curls up.
   const ey = r(waveY(BEND_X));
   return {
-    ...empty,
+    ...base,
     lit: waveSegment(0, BEND_X),
-    knots: knotsOn(input.knots, BEND_X),
+    knots: knotsAt(BEND_X),
     curl: `M${BEND_X} ${ey} c36 0 64 -12 64 6 s-22 26 -38 12 s2 -22 18 -14 s6 10 -4 12`,
   };
 }
 ```
 
-(Trong `active`/`grace`, `remaining` là `NaN` hoặc thiếu đều coi là còn nguyên: sợi chỉ không bao giờ "đứt" vì một số đọc hỏng.)
+(Không có `axis`, `remaining` là `NaN` hoặc thiếu ở `active`/`grace` đều coi là còn nguyên: sợi chỉ không bao giờ "đứt" vì một số đọc hỏng. `courseX` tính phần tỉ lệ bằng bigint theo phần triệu của trục, nên `2n ** 1100n` cũng không thành `NaN`; độ phân giải 0,0006 đơn vị view, nhỏ hơn mọi pixel.)
 
 `apps/web/src/thread/state.ts`:
 
@@ -4995,10 +5146,19 @@ export function StateGlyph({ name, size = 16, className }: { name: GlyphName; si
 }
 ```
 
-Run: `npm test -w apps/web -- thread-geometry`
-Expected: PASS (19 test).
+`apps/web/src/app/globals.css`: trong khối `@theme`, ngay sau dòng `--animate-thread-pulse: thread-pulse 2.4s var(--ease-in-out-sine) infinite;`, thêm hai dòng để có ba nhịp của quầng (`BEAT_SECONDS`); keyframe `thread-pulse` giữ nguyên, nên e2e vẫn thấy cùng tên animation:
 
-- [ ] **Step 3: Viết test hỏng cho `Thread`, glyph và `StateBadge`**
+```css
+  --animate-thread-pulse-mid: thread-pulse 1.6s var(--ease-in-out-sine) infinite;
+  --animate-thread-pulse-fast: thread-pulse 1s var(--ease-in-out-sine) infinite;
+```
+
+Run: `npm test -w apps/web -- thread-geometry`
+Expected: PASS (34 test).
+
+- [ ] **Step 3: Viết test hỏng cho `Thread`, các lớp, `RevealWindow`, glyph và `StateBadge`**
+
+`thread.test.tsx` giữ các ca của bản trước, đọc gốc `[data-thread]` thay cho `<svg>`. `thread-layers.test.tsx` (mới) giữ R18.4: không `animate-*` trên phần tử con của SVG; đổi `remaining` hay `axis.now` không đổi `d` nào, chỉ đổi transform của `RevealWindow` (và của "bây giờ"); không filter, không `drop-shadow`, không hình tròn trong SVG; mọi path có `vector-effect`; gốc `overflow: clip`; mỗi prop mới có `data-*` riêng (`data-highlight` ở mọi trạng thái, trên gốc và trên lớp `marks`); `setRange` chỉ dịch cửa sổ, "bây giờ" và các mốc đứng yên; lần vẽ đầu (prerender) đã có cửa sổ đúng chỗ.
 
 `apps/web/test/unit/thread.test.tsx`:
 
@@ -5012,34 +5172,40 @@ import { Thread } from '../../src/thread/thread';
 import { renderWithProviders } from '../helpers/render';
 
 const parts = (c: HTMLElement, part: string) => c.querySelectorAll(`[data-part="${part}"]`);
+const root = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-thread]');
 
 describe('Thread', () => {
   it('is decorative unless it has a label', () => {
     const { container } = renderWithProviders(<Thread state="active" />);
-    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root(container)?.getAttribute('aria-hidden')).toBe('true');
     expect(screen.queryByRole('img')).toBeNull();
+    for (const svg of container.querySelectorAll('svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('carries a label as an image when given one', () => {
     renderWithProviders(<Thread state="grace" label="Vault thread: Grace period" />);
-    expect(screen.getByRole('img', { name: 'Vault thread: Grace period' })).toBeTruthy();
+    const img = screen.getByRole('img', { name: 'Vault thread: Grace period' });
+    expect(img.hasAttribute('data-thread')).toBe(true);
+    expect(img.hasAttribute('aria-hidden')).toBe(false);
   });
 
-  it('draws the lit part, the "now" point and the knots of an active vault', () => {
+  it('draws the lit part, the "now" point and the knots of an active vault, in the thread colour', () => {
     const { container } = renderWithProviders(<Thread state="active" remaining={0.5} knots={[0.1, 0.3]} />);
-    expect(container.querySelector('svg')?.getAttribute('data-state')).toBe('active');
-    expect(container.querySelector('svg')?.getAttribute('class')).toContain('text-thread');
+    expect(root(container)?.getAttribute('data-state')).toBe('active');
+    expect(root(container)?.getAttribute('class')).toContain('text-thread');
     expect(parts(container, 'lit')).toHaveLength(1);
     expect(parts(container, 'now')).toHaveLength(1);
     expect(parts(container, 'knot')).toHaveLength(2);
-    expect(parts(container, 'lit')[0].getAttribute('d')).toMatch(/^M300 /);
+    expect(parts(container, 'lit')[0].getAttribute('d')).toMatch(/^M0 60 /);
+    expect(container.querySelector<HTMLElement>('[data-reveal="outer"]')?.style.transform).toBe('translateX(50%)');
   });
 
-  it('splits into one branch per heir, thicker for a larger share', () => {
+  it('splits into one branch per heir, thicker for a larger share, through an HTML gate', () => {
     const { container } = renderWithProviders(<Thread state="releasedInherit" branches={[5000, 3000, 2000]} />);
     const b = parts(container, 'branch');
     expect(b).toHaveLength(3);
     expect(parts(container, 'gate')).toHaveLength(1);
+    expect(parts(container, 'gate')[0].tagName).toBe('SPAN');
     expect(parts(container, 'dot')).toHaveLength(3);
     const widths = [...b].map((p) => Number(p.getAttribute('stroke-width')));
     expect(widths[0]).toBeGreaterThan(widths[2]);
@@ -5049,7 +5215,7 @@ describe('Thread', () => {
     const { container } = renderWithProviders(<Thread state="expired" />);
     expect(parts(container, 'curl')).toHaveLength(1);
     expect(parts(container, 'now')).toHaveLength(0);
-    expect(container.querySelector('svg')?.getAttribute('class')).toContain('text-ink-muted');
+    expect(root(container)?.getAttribute('class')).toContain('text-ink-muted');
   });
 
   it('moves only behind motion-safe: the pulse and the tremble never run under reduced motion', () => {
@@ -5064,13 +5230,20 @@ describe('Thread', () => {
     );
     expect(classes).toContain('motion-safe:animate-thread-pulse');
     expect(classes).toContain('motion-safe:animate-thread-tremble');
-    expect(classes.filter((c) => c.startsWith('animate-'))).toEqual([]);
+    expect(classes.filter((c) => /^(?:transition|animate-|duration-|ease-)/.test(c))).toEqual([]);
+  });
+
+  it('is 5:1 unless the caller sets a height', () => {
+    const { container } = renderWithProviders(<Thread state="active" className="h-20 w-full" />);
+    const cls = root(container)?.getAttribute('class') ?? '';
+    expect(cls).toContain('aspect-[5/1]');
+    expect(cls).toContain('h-20 w-full');
   });
 
   it('renders every state', () => {
     for (const s of THREAD_STATES) {
       const { container, unmount } = renderWithProviders(<Thread state={s} remaining={0.4} branches={[1, 2]} />);
-      expect(container.querySelector(`svg[data-state="${s}"]`), s).not.toBeNull();
+      expect(container.querySelector(`[data-thread][data-state="${s}"]`), s).not.toBeNull();
       unmount();
     }
   });
@@ -5130,23 +5303,444 @@ describe('StateBadge', () => {
 });
 ```
 
-Run: `npm test -w apps/web -- thread.test`
-Expected: FAIL (`Cannot find module '../../src/thread/state-badge'`).
+`apps/web/test/unit/thread-layers.test.tsx`:
 
-- [ ] **Step 4: Viết `Thread` và `StateBadge`**
+```tsx
+import { act, render } from '@testing-library/react';
+import { createRef } from 'react';
+import { renderToString } from 'react-dom/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { REVEAL_MOVE, RevealWindow, type RevealWindowHandle, revealTransforms } from '../../src/motion/reveal-window';
+import { SPRING_MS } from '../../src/motion/tokens';
+import type { ThreadAxis } from '../../src/thread/geometry';
+import { THREAD_STATES } from '../../src/thread/state';
+import { Thread, type ThreadProps } from '../../src/thread/thread';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+const AXIS: ThreadAxis = { from: 0n, to: 600n, now: 150n, alarmAt: 450n, releaseAt: 500n, marks: [60n, 120n] };
+const ds = (c: HTMLElement) => [...c.querySelectorAll('path')].map((p) => p.getAttribute('d'));
+const reveal = (c: HTMLElement) =>
+  ['outer', 'middle', 'inner'].map((n) => c.querySelector<HTMLElement>(`[data-reveal="${n}"]`)?.style.transform);
+const placed = (c: HTMLElement) =>
+  [...c.querySelectorAll<HTMLElement>('[data-part="knot"], [data-part="gate"], [data-part="dot"]')].map(
+    (e) => `${e.style.left} ${e.style.top}`,
+  );
+/** Every state, each with all the props a page can pass. */
+const EVERY: ThreadProps[] = THREAD_STATES.flatMap((state) => [
+  { state, remaining: 0.3, knots: [0.2], branches: [2, 1], predicted: true, pendingKnot: true, highlight: 0 },
+  { state, axis: AXIS, branches: [2, 1] },
+]);
+
+let renders = 0;
+/** Counts the renders of the RevealWindow's children. */
+function Count() {
+  renders++;
+  return null;
+}
+
+function stubReduced(reduce: boolean) {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (q: string) => ({ matches: q.includes('reduce') ? reduce : false }) as unknown as MediaQueryList,
+  );
+}
+
+describe('Thread layers (R18.4)', () => {
+  it('animates only root svgs: no animate-* class on anything inside an svg', () => {
+    for (const props of EVERY) {
+      const { container, unmount } = render(<Thread {...props} />);
+      for (const el of container.querySelectorAll('svg *')) {
+        expect(el.getAttribute('class') ?? '', `${props.state} ${el.tagName}`).not.toMatch(/animate-/);
+      }
+      unmount();
+    }
+    const { container } = render(
+      <>
+        <Thread state="active" remaining={0.05} />
+        <Thread state="grace" remaining={0.5} />
+      </>,
+    );
+    const glow = container.querySelector('svg[data-layer="glow"]');
+    expect(glow?.getAttribute('class')).toContain('motion-safe:animate-thread-pulse-fast');
+    expect(glow?.parentElement?.closest('svg')).toBeNull();
+    const tremble = container.querySelector('[data-state="grace"] svg[data-layer="lit"]');
+    expect(tremble?.getAttribute('class')).toContain('motion-safe:animate-thread-tremble');
+    expect(tremble?.parentElement?.closest('svg')).toBeNull();
+  });
+
+  it('a new remaining moves the window and "now", and no path', () => {
+    const { container, rerender } = render(<Thread state="active" remaining={0.5} knots={[0.1, 0.3]} />);
+    const before = { d: ds(container), reveal: reveal(container), placed: placed(container) };
+    expect(before.reveal).toEqual(['translateX(50%)', 'translateX(-50%)', 'translateX(0%)']);
+    rerender(<Thread state="active" remaining={0.25} knots={[0.1, 0.3]} />);
+    expect(ds(container)).toEqual(before.d);
+    expect(placed(container)).toEqual(before.placed);
+    expect(reveal(container)).toEqual(['translateX(75%)', 'translateX(-75%)', 'translateX(0%)']);
+    expect(container.querySelector<HTMLElement>('[data-part="now-at"]')?.style.transform).toMatch(/^translate\(75%, /);
+  });
+
+  it('a new axis.now moves the window and "now", and no path', () => {
+    const { container, rerender } = render(<Thread state="active" axis={AXIS} />);
+    const before = { d: ds(container), reveal: reveal(container), placed: placed(container) };
+    expect(before.reveal).toEqual(['translateX(25%)', 'translateX(-50%)', 'translateX(25%)']);
+    rerender(<Thread state="active" axis={{ ...AXIS, now: 300n }} />);
+    expect(ds(container)).toEqual(before.d);
+    expect(placed(container)).toEqual(before.placed);
+    expect(reveal(container)).toEqual(['translateX(50%)', 'translateX(-75%)', 'translateX(25%)']);
+  });
+
+  it('setRange moves only the window: "now", the pending knot and the marks stay where the props put them', () => {
+    const ref = createRef<RevealWindowHandle>();
+    const { container } = render(<Thread state="active" axis={AXIS} pendingKnot revealRef={ref} />);
+    const nowAt = container.querySelector<HTMLElement>('[data-part="now-at"]');
+    const before = { now: nowAt?.style.transform, placed: placed(container) };
+    expect(before.now).toMatch(/^translate\(25%, /);
+    act(() => ref.current?.setRange(50, 75, 'instant'));
+    expect(reveal(container)).toEqual(['translateX(50%)', 'translateX(-75%)', 'translateX(25%)']);
+    expect(nowAt?.style.transform).toBe(before.now);
+    expect(nowAt?.querySelector('[data-part="pending"]')).not.toBeNull();
+    expect(placed(container)).toEqual(before.placed);
+  });
+
+  it('has no filter and no drop-shadow, and nothing round inside an svg (it would stretch)', () => {
+    for (const props of EVERY) {
+      const { container, unmount } = render(<Thread {...props} />);
+      expect(container.querySelectorAll('filter, circle, ellipse'), props.state).toHaveLength(0);
+      for (const el of container.querySelectorAll('*')) {
+        expect(el.hasAttribute('filter'), props.state).toBe(false);
+        expect(el.getAttribute('class') ?? '', props.state).not.toMatch(/drop-shadow|blur|filter/);
+        expect(el.getAttribute('style') ?? '', props.state).not.toMatch(/filter/);
+      }
+      unmount();
+    }
+  });
+
+  it('stretches every svg to the box and keeps every stroke width', () => {
+    for (const props of EVERY) {
+      const { container, unmount } = render(<Thread {...props} />);
+      expect(container.querySelectorAll('svg').length, props.state).toBeGreaterThanOrEqual(2);
+      for (const svg of container.querySelectorAll('svg')) {
+        expect(svg.getAttribute('preserveAspectRatio'), props.state).toBe('none');
+      }
+      for (const p of container.querySelectorAll('path')) {
+        expect(p.getAttribute('vector-effect'), `${props.state} ${p.getAttribute('data-part')}`).toBe(
+          'non-scaling-stroke',
+        );
+      }
+      unmount();
+    }
+  });
+
+  it('clips its layers at the root', () => {
+    const { container } = render(<Thread state="releasedInherit" branches={[1, 1]} />);
+    const root = container.querySelector('[data-thread]');
+    expect(root?.getAttribute('class')?.split(/\s+/)).toEqual(expect.arrayContaining(['relative', 'overflow-clip']));
+    expect(
+      [...(root?.children ?? [])].map((e) => e.getAttribute('data-layer') ?? e.getAttribute('data-reveal')),
+    ).toEqual(['base', 'outer', 'marks']);
+  });
+
+  it('gives predicted, pendingKnot and highlight each its own data attribute', () => {
+    const plain = render(<Thread state="releasedInherit" branches={[5000, 3000, 2000]} />).container;
+    const root = plain.querySelector('[data-thread]');
+    for (const a of ['data-predicted', 'data-pending-knot', 'data-highlight'])
+      expect(root?.hasAttribute(a), a).toBe(false);
+    expect(plain.querySelector('[data-layer="marks"]')?.hasAttribute('data-highlight')).toBe(false);
+    expect(plain.querySelector('[stroke-dasharray="5 5"]')).toBeNull();
+
+    const told = render(
+      <Thread state="releasedInherit" branches={[5000, 3000, 2000]} predicted highlight={1} />,
+    ).container;
+    const r = told.querySelector('[data-thread]');
+    expect(r?.getAttribute('data-predicted')).toBe('true');
+    expect(r?.getAttribute('data-highlight')).toBe('1');
+    expect(told.querySelector('[data-layer="marks"]')?.getAttribute('data-highlight')).toBe('1');
+    const branches = [...told.querySelectorAll('[data-part="branch"]')];
+    for (const b of branches) expect(b.getAttribute('stroke-dasharray')).toBe('5 5');
+    expect(branches[1].getAttribute('class')).toBe('stroke-thread');
+    for (const i of [0, 2]) {
+      expect(branches[i].getAttribute('class')).toBe('stroke-ink-muted');
+      expect(branches[i].getAttribute('stroke-opacity')).toBe('0.35');
+    }
+    expect([...told.querySelectorAll('[data-part="dot"]')].map((d) => d.getAttribute('data-tone'))).toEqual([
+      'muted',
+      'highlight',
+      'muted',
+    ]);
+    // The same paths: predicted and highlight change the style only.
+    expect(ds(told)).toEqual(ds(plain));
+
+    // data-highlight follows the prop in every state, on the root and on the marks; the styling needs a branch.
+    for (const props of [
+      { state: 'active', remaining: 0.5, highlight: 2 },
+      { state: 'releasedInherit', branches: [1, 1], highlight: 2 },
+    ] as ThreadProps[]) {
+      const c = render(<Thread {...props} />).container;
+      expect(c.querySelector('[data-thread]')?.getAttribute('data-highlight'), props.state).toBe('2');
+      expect(c.querySelector('[data-layer="marks"]')?.getAttribute('data-highlight'), props.state).toBe('2');
+      expect(c.querySelectorAll('[data-tone="highlight"], [data-tone="muted"]'), props.state).toHaveLength(0);
+    }
+
+    const grace = render(<Thread state="grace" remaining={0.5} predicted />).container;
+    const fibers = grace.querySelectorAll('[data-part="fiber"], [data-part="fiber-course"]');
+    expect(fibers).toHaveLength(6);
+    for (const f of fibers) expect(f.getAttribute('stroke-dasharray')).toBe('5 5');
+
+    const tying = render(<Thread state="active" remaining={0.5} pendingKnot />).container;
+    expect(tying.querySelector('[data-thread]')?.getAttribute('data-pending-knot')).toBe('true');
+    expect(tying.querySelectorAll('[data-part="now-at"] [data-part="pending"]')).toHaveLength(1);
+  });
+
+  it('beats faster as the deadline nears, and only while active', () => {
+    const beat = (props: ThreadProps) =>
+      render(<Thread {...props} />)
+        .container.querySelector('svg[data-layer="glow"]')
+        ?.getAttribute('data-beat') ?? null;
+    expect(beat({ state: 'active', remaining: 0.8 })).toBe('slow');
+    expect(beat({ state: 'active', remaining: 0.3 })).toBe('mid');
+    expect(beat({ state: 'active', remaining: 0.05 })).toBe('fast');
+    expect(beat({ state: 'grace', remaining: 0.05 })).toBeNull();
+    expect(beat({ state: 'releasedInherit' })).toBeNull();
+  });
+
+  it('places the gate, its posts slot, the knots and the dots in percent of the box', () => {
+    const { container } = render(
+      <Thread state="releasedInherit" axis={{ ...AXIS, releaseAt: 300n }} branches={[1, 1]} />,
+    );
+    const gate = container.querySelector<HTMLElement>('[data-part="gate"]');
+    expect([gate?.style.left, gate?.style.top]).toEqual(['50%', '42.5%']);
+    expect(gate?.querySelector('[data-part="arch"]')).not.toBeNull();
+    const knots = [...container.querySelectorAll<HTMLElement>('[data-part="knot"]')].map((k) => k.style.left);
+    expect(knots).toEqual(['10%', '20%']);
+    const dots = [...container.querySelectorAll<HTMLElement>('[data-part="dot"]')].map((d) => d.style.left);
+    expect(dots).toEqual(['99%', '99%']);
+  });
+
+  it('prerenders the window where it rests, so the first paint is the final layout', () => {
+    const html = renderToString(<Thread state="active" remaining={0.5} />);
+    expect(html).toContain('transform:translateX(50%)');
+    expect(html).toContain('data-beat="mid"');
+  });
+});
+
+describe('RevealWindow', () => {
+  it('shows [from, to] in place: three translations that sum to zero', () => {
+    for (const [a, b] of [
+      [0, 100],
+      [25, 75],
+      [12.5, 12.5],
+      [80, 20],
+      [-10, 140],
+    ]) {
+      const t = revealTransforms(a, b).map((s) => Number(/-?[\d.]+/.exec(s)?.[0]));
+      expect(t[0] + t[1] + t[2], `${a} ${b}`).toBeCloseTo(0, 9);
+    }
+    expect(revealTransforms(25, 75)).toEqual(['translateX(25%)', 'translateX(-50%)', 'translateX(25%)']);
+    expect(revealTransforms(80, 20)).toEqual(['translateX(80%)', 'translateX(-100%)', 'translateX(20%)']);
+    expect(revealTransforms(-10, 140)).toEqual(['translateX(0%)', 'translateX(0%)', 'translateX(0%)']);
+    expect(revealTransforms(Number.NaN, 50)).toEqual(['translateX(0%)', 'translateX(-50%)', 'translateX(50%)']);
+  });
+
+  it('moves with the spring only when motion is allowed', () => {
+    expect(REVEAL_MOVE).toContain(`motion-safe:duration-[${SPRING_MS}ms]`);
+    expect(REVEAL_MOVE.split(' ')).toEqual([
+      'motion-safe:transition-transform',
+      `motion-safe:duration-[${SPRING_MS}ms]`,
+      'motion-safe:ease-spring',
+    ]);
+    const { container } = render(
+      <RevealWindow from={10} to={90}>
+        <i />
+      </RevealWindow>,
+    );
+    for (const n of ['outer', 'middle', 'inner']) {
+      expect(container.querySelector(`[data-reveal="${n}"]`)?.getAttribute('class')).toContain(REVEAL_MOVE);
+    }
+  });
+
+  it('setRange moves the window without a React render, and the next props take it back', () => {
+    stubReduced(false);
+    const ref = createRef<RevealWindowHandle>();
+    const { container, rerender } = render(
+      <RevealWindow from={0} to={100} ref={ref}>
+        <Count />
+      </RevealWindow>,
+    );
+    const seen = renders;
+    act(() => ref.current?.setRange(30, 60, 'instant'));
+    expect(renders).toBe(seen);
+    expect(reveal(container)).toEqual(['translateX(30%)', 'translateX(-70%)', 'translateX(40%)']);
+    const outer = container.querySelector<HTMLElement>('[data-reveal="outer"]');
+    expect(outer?.style.transition).toBe('none');
+    act(() => ref.current?.setRange(30, 60, { linear: 600 }));
+    expect(outer?.style.transition).toBe('transform 600ms linear');
+    act(() => ref.current?.setRange(40, 60));
+    expect(outer?.style.transition).toBe('');
+    rerender(
+      <RevealWindow from={50} to={100} ref={ref}>
+        <Count />
+      </RevealWindow>,
+    );
+    expect(reveal(container)).toEqual(['translateX(50%)', 'translateX(-50%)', 'translateX(0%)']);
+    expect(outer?.style.transition).toBe('');
+  });
+
+  it('jumps under reduced motion, whatever the move asks', () => {
+    stubReduced(true);
+    const ref = createRef<RevealWindowHandle>();
+    const { container } = render(
+      <RevealWindow from={0} to={100} ref={ref}>
+        <i />
+      </RevealWindow>,
+    );
+    act(() => ref.current?.setRange(20, 80, { linear: 600 }));
+    expect(container.querySelector<HTMLElement>('[data-reveal="outer"]')?.style.transition).toBe('none');
+    act(() => ref.current?.setRange(20, 80));
+    expect(container.querySelector<HTMLElement>('[data-reveal="outer"]')?.style.transition).toBe('none');
+  });
+});
+```
+
+Run: `npm test -w apps/web -- thread.test thread-layers`
+Expected: FAIL (`Failed to resolve import "../../src/thread/state-badge"` và `Failed to resolve import "../../src/motion/reveal-window"`).
+
+- [ ] **Step 4: Viết `RevealWindow`, `Thread` và `StateBadge`**
+
+`apps/web/src/motion/reveal-window.tsx`:
+
+```tsx
+'use client';
+
+import { type ReactNode, type Ref, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { cn } from '@/lib/cn';
+
+/** How setRange moves the window: the spring (default), straight over `linear` ms, or at once (a drag). */
+export type RevealMove = 'spring' | 'instant' | { linear: number };
+
+export interface RevealWindowHandle {
+  /** Moves the window to [from, to] (percent of the width) without a React render. Holds until the props move. */
+  setRange(from: number, to: number, move?: RevealMove): void;
+}
+
+export interface RevealWindowProps {
+  /** Left edge of what shows, percent of the width, 0–100. */
+  from: number;
+  /** Right edge of what shows, percent of the width, 0–100; below `from` it shows nothing. */
+  to: number;
+  children: ReactNode;
+  ref?: Ref<RevealWindowHandle>;
+  className?: string;
+}
+
+const pct = (n: number): number => (Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0);
+const fix = (n: number): number => Math.round(n * 1000) / 1000;
+
+/**
+ * The three translations that show [from, to] of the content in place: the outer box clips the left edge, the
+ * middle box the right edge, the inner box puts the content back where it was. They sum to zero, so the content
+ * never moves, also halfway through a transition (all three share one curve).
+ */
+export function revealTransforms(from: number, to: number): [string, string, string] {
+  const a = pct(from);
+  const b = Math.max(a, pct(to));
+  return [`translateX(${fix(a)}%)`, `translateX(${fix(b - 100 - a)}%)`, `translateX(${fix(100 - b)}%)`];
+}
+
+/** The spring of globals.css over SPRING_MS (443 ms), only when motion is allowed; what moves with the window uses it. */
+export const REVEAL_MOVE = 'motion-safe:transition-transform motion-safe:duration-[443ms] motion-safe:ease-spring';
+
+function transitionOf(move: RevealMove): string {
+  if (move === 'instant') return 'none';
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return 'none';
+  }
+  // An empty inline value hands the transition back to the REVEAL_MOVE classes.
+  if (move === 'spring') return '';
+  return `transform ${Math.max(0, move.linear)}ms linear`;
+}
+
+/**
+ * The lit part of the Thread (R18.4): a window over its children that moves on the compositor only, by
+ * `transform`. The path inside never changes, so a moving "now" or a drag never re-renders or re-lays out SVG.
+ */
+export function RevealWindow({ from, to, children, ref, className }: RevealWindowProps) {
+  const outer = useRef<HTMLDivElement>(null);
+  const middle = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [ta, tb, tc] = revealTransforms(from, to);
+
+  // New props take the window back from setRange, with the spring again.
+  useLayoutEffect(() => {
+    const values = [ta, tb, tc];
+    [outer, middle, inner].forEach((box, i) => {
+      if (!box.current) return;
+      box.current.style.transition = '';
+      box.current.style.transform = values[i];
+    });
+  }, [ta, tb, tc]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      setRange(f, t, move = 'spring') {
+        const values = revealTransforms(f, t);
+        const transition = transitionOf(move);
+        [outer, middle, inner].forEach((box, i) => {
+          if (!box.current) return;
+          box.current.style.transition = transition;
+          box.current.style.transform = values[i];
+        });
+      },
+    }),
+    [],
+  );
+
+  return (
+    <div
+      ref={outer}
+      data-reveal="outer"
+      className={cn('absolute inset-0 overflow-hidden', REVEAL_MOVE, className)}
+      style={{ transform: ta }}
+    >
+      <div
+        ref={middle}
+        data-reveal="middle"
+        className={cn('absolute inset-0 overflow-hidden', REVEAL_MOVE)}
+        style={{ transform: tb }}
+      >
+        <div ref={inner} data-reveal="inner" className={cn('absolute inset-0', REVEAL_MOVE)} style={{ transform: tc }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+(Props đổi thì `useLayoutEffect` trả cửa sổ về cho props, kèm lại spring; `setRange` giữ vị trí của nó cho tới lúc đó. `setRange` đọc reduced motion ngay lúc gọi, vì transition inline thắng lớp `motion-safe:`.)
 
 `apps/web/src/thread/thread.tsx`:
 
 ```tsx
 'use client';
 
-import { m } from 'motion/react';
-import { useMemo } from 'react';
+import { type ReactNode, type Ref, useMemo } from 'react';
 import { cn } from '@/lib/cn';
-import { usePrefersReducedMotion } from '@/motion/provider';
-import { SPRING } from '@/motion/tokens';
+import { REVEAL_MOVE, RevealWindow, type RevealWindowHandle } from '@/motion/reveal-window';
 import { SharedThread } from '@/motion/view-transition';
-import { MAIN_WIDTH, type ThreadInput, threadGeometry, VIEW } from './geometry';
+import {
+  MAIN_WIDTH,
+  type Point,
+  pctX,
+  pctY,
+  type ThreadBeat,
+  type ThreadInput,
+  type ThreadTone,
+  threadGeometry,
+  VIEW,
+} from './geometry';
 import { THREAD_COLOR, type ThreadState } from './state';
 
 export interface ThreadProps extends ThreadInput {
@@ -5155,108 +5749,252 @@ export interface ThreadProps extends ThreadInput {
   label?: string;
   /** Morph into the next page's thread (View Transitions). At most one shared thread per page. */
   shared?: boolean;
+  /**
+   * The lit part's window, for a caller that moves it every frame (a drag) without rendering. setRange moves only
+   * the window: "now", the pending knot and every mark are props, and the caller re-renders them to move them.
+   */
+  revealRef?: Ref<RevealWindowHandle>;
+  /** Size of the box: a width, and a height to change the 5:1 ratio. */
   className?: string;
 }
 
-/** The one character of the visual language (spec §4.1): a continuous line whose shape is the vault's state. */
-export function Thread({ state, remaining, knots, branches, label, shared = false, className }: ThreadProps) {
-  const calm = usePrefersReducedMotion();
-  const g = useMemo(() => threadGeometry(state, { remaining, knots, branches }), [state, remaining, knots, branches]);
-  const morph = calm ? { duration: 0 } : SPRING;
+const BOX = `0 0 ${VIEW.w} ${VIEW.h}`;
+/** One loop of `thread-pulse` per beat (BEAT_SECONDS; globals.css has the three animations). */
+const BEAT_CLASS: Record<ThreadBeat, string> = {
+  slow: 'motion-safe:animate-thread-pulse',
+  mid: 'motion-safe:animate-thread-pulse-mid',
+  fast: 'motion-safe:animate-thread-pulse-fast',
+};
+const BRANCH_TONE: Record<ThreadTone, { stroke?: string; className?: string; opacity?: number }> = {
+  plain: { stroke: 'currentColor' },
+  highlight: { className: 'stroke-thread' },
+  muted: { className: 'stroke-ink-muted', opacity: 0.35 },
+};
+const DOT_TONE: Record<ThreadTone, string> = {
+  plain: 'bg-current',
+  highlight: 'bg-thread',
+  muted: 'bg-ink-muted/35',
+};
+const MARK = 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full';
 
-  const svg = (
+/** A point of the view as `left`/`top` percents of the box. */
+const at = ([x, y]: Point) => ({ left: `${pctX(x)}%`, top: `${pctY(y)}%` });
+
+/** A root SVG of the Thread: the view stretched to the box. Only the root itself ever animates. */
+function Svg(p: { layer: 'base' | 'glow' | 'lit'; beat?: ThreadBeat; className?: string; children: ReactNode }) {
+  return (
     <svg
       aria-hidden="true"
       focusable="false"
-      viewBox={`0 0 ${VIEW.w} ${VIEW.h}`}
+      viewBox={BOX}
+      preserveAspectRatio="none"
       fill="none"
       strokeLinecap="round"
       strokeLinejoin="round"
-      data-state={state}
-      className={cn(
-        'block h-auto w-full overflow-visible transition-colors duration-300',
-        THREAD_COLOR[state],
-        className,
-      )}
+      data-layer={p.layer}
+      data-beat={p.beat}
+      className={cn('absolute inset-0 size-full overflow-visible', p.className)}
     >
-      {g.track ? <path d={g.track} className="stroke-line" strokeWidth={2} data-part="track" /> : null}
-      {g.ghost ? (
-        <path
-          d={g.ghost}
-          stroke="currentColor"
-          strokeOpacity={0.4}
-          strokeWidth={1.5}
-          strokeDasharray="1 7"
-          data-part="ghost"
-        />
-      ) : null}
-      {state === 'active' ? (
-        <path
-          d={g.lit}
-          stroke="currentColor"
-          strokeWidth={10}
-          className="opacity-25 motion-safe:animate-thread-pulse"
-          data-part="glow"
-        />
-      ) : null}
-      <g className={state === 'grace' ? 'motion-safe:animate-thread-tremble' : undefined}>
-        <m.path
-          initial={false}
-          animate={{ d: g.lit }}
-          transition={morph}
-          stroke="currentColor"
-          strokeWidth={MAIN_WIDTH}
-          data-part="lit"
-        />
-        {g.fibers.map((d) => (
-          <path key={d} d={d} stroke="currentColor" strokeWidth={1.25} strokeOpacity={0.75} data-part="fiber" />
-        ))}
-      </g>
-      {g.gate ? <path d={g.gate} className="stroke-ink-muted" strokeWidth={2} data-part="gate" /> : null}
-      {g.branches.map((b) => (
-        <path key={b.d} d={b.d} stroke="currentColor" strokeWidth={b.width} data-part="branch" />
-      ))}
-      {g.curl ? <path d={g.curl} stroke="currentColor" strokeWidth={MAIN_WIDTH} data-part="curl" /> : null}
-      {g.dots.map(([x, y]) => (
-        <circle key={`${x}-${y}`} cx={x} cy={y} r={4} fill="currentColor" data-part="dot" />
-      ))}
-      {g.knots.map(([x, y]) => (
-        <m.circle
-          key={`${x}-${y}`}
-          cx={x}
-          cy={y}
-          r={4.5}
-          className="fill-bg"
-          stroke="currentColor"
-          strokeWidth={2}
-          initial={calm ? false : { scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={SPRING}
-          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-          data-part="knot"
-        />
-      ))}
-      {g.now ? (
-        <circle
-          cx={g.now[0]}
-          cy={g.now[1]}
-          r={5.5}
-          fill="currentColor"
-          className="drop-shadow-[0_0_6px_currentColor]"
-          data-part="now"
-        />
-      ) : null}
+      {p.children}
     </svg>
   );
+}
 
-  const body = label ? (
-    <span role="img" aria-label={label} className="block">
-      {svg}
-    </span>
-  ) : (
-    svg
+/**
+ * The one character of the visual language (spec §4.1, R18.4). Four layers in a clipped box: the course in an SVG
+ * stretched to the box (`preserveAspectRatio="none"`, every stroke `non-scaling-stroke`); the lit part and its glow
+ * in a RevealWindow; and HTML for everything round (the "now" point, knots, gate, dots), so nothing turns oval.
+ * Only `transform` and `opacity` of a root element ever move.
+ */
+export function Thread({
+  state,
+  remaining,
+  knots,
+  branches,
+  axis,
+  predicted,
+  pendingKnot,
+  highlight,
+  label,
+  shared = false,
+  revealRef,
+  className,
+}: ThreadProps) {
+  const g = useMemo(
+    () => threadGeometry(state, { remaining, knots, branches, axis, predicted, pendingKnot, highlight }),
+    [state, remaining, knots, branches, axis, predicted, pendingKnot, highlight],
   );
-  return shared ? <SharedThread>{body}</SharedThread> : body;
+  const dash = g.dash ?? undefined;
+  // Set whenever the prop is, in every state; only the branch styling needs an index that names a branch.
+  const highlighted = highlight !== undefined ? String(highlight) : undefined;
+
+  const box = {
+    'data-thread': '',
+    'data-state': state,
+    'data-predicted': predicted ? 'true' : undefined,
+    'data-pending-knot': pendingKnot ? 'true' : undefined,
+    'data-highlight': highlighted,
+    className: cn('pointer-events-none relative aspect-[5/1] overflow-clip', THREAD_COLOR[state], className),
+  };
+
+  const layers = (
+    <>
+      <Svg layer="base">
+        {g.track ? (
+          <path
+            d={g.track}
+            className="stroke-line"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            data-part="track"
+          />
+        ) : null}
+        {g.fibers.map((d) => (
+          <path
+            key={d}
+            d={d}
+            className="stroke-line"
+            strokeWidth={1.25}
+            strokeDasharray={dash}
+            vectorEffect="non-scaling-stroke"
+            data-part="fiber-course"
+          />
+        ))}
+        {g.ghost ? (
+          <path
+            d={g.ghost}
+            stroke="currentColor"
+            strokeOpacity={0.4}
+            strokeWidth={1.5}
+            strokeDasharray="1 7"
+            vectorEffect="non-scaling-stroke"
+            data-part="ghost"
+          />
+        ) : null}
+        {g.branches.map((b) => {
+          const tone = BRANCH_TONE[b.tone];
+          return (
+            <path
+              key={b.d}
+              d={b.d}
+              stroke={tone.stroke}
+              className={tone.className}
+              strokeOpacity={tone.opacity}
+              strokeWidth={b.width}
+              strokeDasharray={dash}
+              vectorEffect="non-scaling-stroke"
+              data-part="branch"
+              data-tone={b.tone}
+            />
+          );
+        })}
+        {g.curl ? (
+          <path
+            d={g.curl}
+            stroke="currentColor"
+            strokeWidth={MAIN_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            data-part="curl"
+          />
+        ) : null}
+      </Svg>
+
+      <RevealWindow from={pctX(g.litFrom)} to={pctX(g.litTo)} ref={revealRef}>
+        {g.beat ? (
+          <Svg layer="glow" beat={g.beat} className={cn('opacity-25', BEAT_CLASS[g.beat])}>
+            <path d={g.lit} stroke="currentColor" strokeWidth={10} vectorEffect="non-scaling-stroke" data-part="glow" />
+          </Svg>
+        ) : null}
+        <Svg layer="lit" className={state === 'grace' ? 'motion-safe:animate-thread-tremble' : undefined}>
+          <path
+            d={g.lit}
+            stroke="currentColor"
+            strokeWidth={MAIN_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            data-part="lit"
+          />
+          {g.fibers.map((d) => (
+            <path
+              key={d}
+              d={d}
+              stroke="currentColor"
+              strokeWidth={1.25}
+              strokeOpacity={0.75}
+              strokeDasharray={dash}
+              vectorEffect="non-scaling-stroke"
+              data-part="fiber"
+            />
+          ))}
+        </Svg>
+      </RevealWindow>
+
+      <div data-layer="marks" data-highlight={highlighted} className="absolute inset-0">
+        {g.gate ? (
+          // The slot of the guardians' posts (Plan 7B): they go inside this box, next to the arch.
+          <span
+            data-part="gate"
+            className="absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2"
+            style={at(g.gate)}
+          >
+            <span data-part="arch" className="absolute inset-0 rounded-t-full border-2 border-ink-muted border-b-0" />
+          </span>
+        ) : null}
+        {g.knots.map((k) => (
+          <span
+            key={`${k[0]}-${k[1]}`}
+            data-part="knot"
+            className={cn(MARK, 'size-2.5 border-2 border-current bg-bg')}
+            style={at(k)}
+          />
+        ))}
+        {g.dots.map((dot) => (
+          <span
+            key={`${dot.at[0]}-${dot.at[1]}`}
+            data-part="dot"
+            data-tone={dot.tone}
+            className={cn(MARK, 'size-2', DOT_TONE[dot.tone])}
+            style={at(dot.at)}
+          />
+        ))}
+        {g.now ? (
+          // "Now" rides a box as large as the root, moved by translate in percent of the root: it moves with the
+          // window, on the compositor, with the same spring.
+          <span
+            data-part="now-at"
+            className={cn('absolute inset-0', REVEAL_MOVE)}
+            style={{ transform: `translate(${pctX(g.now[0])}%, ${pctY(g.now[1])}%)` }}
+          >
+            <span
+              data-part="halo"
+              className={cn(
+                MARK,
+                'top-0 left-0 size-8 bg-[radial-gradient(closest-side,currentColor,transparent)] opacity-40',
+              )}
+            />
+            <span data-part="now" className={cn(MARK, 'top-0 left-0 size-3 bg-current')} />
+            {g.pending ? (
+              <span
+                data-part="pending"
+                className={cn(MARK, 'top-0 left-0 size-5 border-2 border-current border-dashed')}
+              />
+            ) : null}
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
+
+  // With a label the box is one image; without, it is decoration next to a text label.
+  const root = label ? (
+    <div role="img" aria-label={label} {...box}>
+      {layers}
+    </div>
+  ) : (
+    <div aria-hidden="true" {...box}>
+      {layers}
+    </div>
+  );
+  return shared ? <SharedThread>{root}</SharedThread> : root;
 }
 ```
 
@@ -5323,30 +6061,37 @@ export function StateBadge({ state, drill = false, size = 'md', live = false, cl
 
 (Badge chỉ có hiệu ứng vào khi đổi trạng thái: `key={state}` làm React gắn phần tử mới; không có hiệu ứng ra, nên không bao giờ hai nhãn chồng nhau.)
 
+Run: `npm test -w apps/web -- thread`
+Expected: PASS (thread-geometry 34, thread 13, thread-layers 15).
+
 - [ ] **Step 5: Chạy test, typecheck, Biome và commit**
 
 ```bash
 npm test -w apps/web -- thread
+npm test -w apps/web -- motion
 npm run typecheck -w apps/web
 npx biome ci .
-git add apps/web/src/thread apps/web/test/unit/thread-geometry.test.ts apps/web/test/unit/thread.test.tsx
-git commit -m "feat(web): the Thread, its state glyphs and the StateBadge" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add apps/web/src/thread/geometry.ts apps/web/src/thread/state.ts apps/web/src/thread/glyphs.tsx apps/web/src/thread/thread.tsx apps/web/src/thread/state-badge.tsx
+git add apps/web/src/motion/reveal-window.tsx apps/web/src/app/globals.css
+git add apps/web/test/unit/thread-geometry.test.ts apps/web/test/unit/thread.test.tsx apps/web/test/unit/thread-layers.test.tsx
+git commit -m "feat(web): the Thread on the compositor with a time axis, its state glyphs and the StateBadge" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: PASS (thread-geometry 19, thread 12).
+Expected: PASS (thread-geometry 34, thread 13, thread-layers 15; `motion` vẫn xanh vì `--ease-spring` và `atro-shake` không đổi). Lỗi Biome về format hay thứ tự import sửa bằng `npx biome check --write <đường dẫn>`.
+
+**Ghi chú cho Task 15 (e2e).** Task 7 không đòi sửa `motion.spec.ts`: test "without reduced motion the thread breathes" vẫn tìm animation `thread-pulse` trên `/`, giờ nằm trên `<svg data-layer="glow">` gốc của hero (`remaining={0.72}` cho nhịp `slow`), và `runningAnimations` in ra dạng `thread-pulse on svg.absolute.inset-0.size-full`. Test reduced motion vẫn phải ra mảng rỗng: mọi transition của `RevealWindow` và của "bây giờ" nằm sau `motion-safe:`, và lúc nghỉ không có transition nào chạy. Trong danh sách "Lỗi thường gặp" của Task 15, ví dụ `thread-tremble on path.…` giờ là `thread-tremble on svg.…`.
 
 ---
 
-### Task 8: Bộ primitive, `Providers` và trang xem thử `/dev/`
+### Task 8: Bộ primitive và `Providers`
 
 **Files:**
 - Create: `apps/web/src/ui/{visually-hidden,spinner,button,icon-button,tooltip,popover,dialog,copy-button,untrusted-text,external-link,address,amount,countdown,skeleton,empty-state,inline-error,banner,text-field,qr-code}.tsx`, `apps/web/src/ui/identicon.ts`, `apps/web/src/lib/use-now.ts`, `apps/web/src/shell/providers.tsx`
-- Create: `apps/web/src/app/dev/gallery.tsx`, `apps/web/src/app/dev/page.dev.tsx`
-- Test: `apps/web/test/unit/primitives.test.tsx`, `apps/web/test/unit/ssr.test.tsx`, `apps/web/test/unit/dev-gallery.test.tsx`
-- Modify: `apps/web/src/app/layout.tsx`, `apps/web/src/messages/ui.messages.ts` (khoá `copyFailed`), `apps/web/test/helpers/render.tsx`, `apps/web/package.json`, `package-lock.json`
+- Test: `apps/web/test/unit/primitives.test.tsx`, `apps/web/test/unit/ssr.test.tsx`, `apps/web/test/unit/next-config.test.ts`
+- Modify: `apps/web/src/app/layout.tsx`, `apps/web/src/messages/ui.messages.ts` (khoá `copyFailed`), `apps/web/test/helpers/render.tsx`, `apps/web/test/setup.ts` (jest-dom, R13), `apps/web/next.config.mjs` (bỏ trang chỉ có lúc dev), `apps/web/test/build/output.test.ts` (tên test), `apps/web/package.json`, `package-lock.json`
 
 **Interfaces:**
-- Consumes: Task 3 (token, `atro-*`), Task 5 (`useT`, `KVProvider`, `ThemeProvider`, `LangProvider`, `addressGroups`, `isAddressText`, `formatAmount`, `formatRemaining`, `formatTimestamp`, `chainNow`, `explorerAddress`, `explorerName`, `untrusted`, `useMounted`, `cn`), Task 6 (`MotionProvider`, `HoldButton`, token), Task 7 (`Thread`, `StateBadge`, `StateGlyph`).
+- Consumes: Task 3 (token, `atro-*`), Task 5 (`useT`, `KVProvider`, `ThemeProvider`, `LangProvider`, `addressGroups`, `isAddressText`, `formatAmount`, `formatRemaining`, `formatTimestamp`, `chainNow`, `explorerAddress`, `explorerName`, `untrusted`, `useMounted`, `cn`), Task 6 (`MotionProvider`, token), Task 7 (`StateGlyph`).
 - Produces (mọi file `'use client'`):
   - `ui/visually-hidden.tsx`: `VisuallyHidden` (Radix `Root`).
   - `ui/spinner.tsx`: `Spinner({ label?, size?, className? })`.
@@ -5354,7 +6099,7 @@ Expected: PASS (thread-geometry 19, thread 12).
   - `ui/icon-button.tsx`: `IconButton({ icon: LucideIcon, label: string, size?: 'sm' | 'md', tooltip?: boolean, ...button })`.
   - `ui/tooltip.tsx`: `TooltipProvider({ children })`; `Tooltip({ content: ReactNode, children: ReactElement, side? })`.
   - `ui/popover.tsx`: `Popover({ trigger: ReactElement, children, open?, onOpenChange?, align?, side?, label?, className? })`; `PopoverClose` (Radix `Close`).
-  - `ui/dialog.tsx`: `interface DialogProps { open?; onOpenChange?(open: boolean): void; trigger?: ReactElement; title: ReactNode; description?: ReactNode; children?: ReactNode; size?: 'sm' | 'md' | 'lg'; sheet?: boolean; className? }`; `Dialog(props)` (sheet dưới đáy màn hình hẹp, hộp giữa màn hình từ 40rem).
+  - `ui/dialog.tsx`: `interface DialogProps { open?; onOpenChange?(open: boolean): void; trigger?: ReactElement; title: ReactNode; description?: ReactNode; children?: ReactNode; size?: 'sm' | 'md' | 'lg'; sheet?: boolean; className? }`; `Dialog(props)` (sheet dưới đáy màn hình hẹp, hộp giữa màn hình từ 40rem). Overlay `atro-overlay`: dưới 48rem là `bg-bg/95`, không blur; từ 48rem là `bg-bg/70` với `backdrop-blur-[3px]` (spec §18.4.1).
   - `ui/copy-button.tsx`: `copyText(text: string): Promise<boolean>`; `CopyButton({ text, label, showText?, className? })`.
   - `ui/untrusted-text.tsx`: `isUntrusted(v: unknown): v is Untrusted`; `UntrustedText({ value: unknown, max?: number, className? })` (render trong `<bdi>`).
   - `ui/external-link.tsx`: `safeExternalHref(href: string): string | null`; `ExternalLink({ href, children, icon?, variant?: 'inline' | 'icon', className? })` (`icon`: nút tròn chỉ có mũi tên, `children` thành nhãn ẩn; deweb: chữ thường lúc prerender và hydrate, Quyết định 16).
@@ -5367,8 +6112,10 @@ Expected: PASS (thread-geometry 19, thread 12).
   - `ui/qr-code.tsx`: `qrPath(data: readonly (readonly boolean[])[]): string`; `QrCode({ value, label, size?, className? })` (màu cố định `#0B0D12` trên `#FFFDF8` ở cả hai theme để máy quét đọc chắc).
   - `shell/providers.tsx`: `Providers({ children, kv?: KV })` = KV → Lang → Theme → Motion → Tooltip. Task 10 thêm Query, Task 11 thêm Wallet.
   - `test/helpers/render.tsx` bọc KV → Lang → Theme → Tooltip (không bọc `MotionProvider`: nó nạp feature bất đồng bộ; `m.*` vẫn render đúng trạng thái đầu).
+  - `test/setup.ts` nạp `@testing-library/jest-dom/vitest` (R13), nên mọi test unit có matcher của jest-dom (`toHaveClass`, `toBeInTheDocument`, `toHaveAttribute`, `toHaveValue`, `toBeChecked`, `toBeDisabled`, `toHaveTextContent`, …), cả về kiểu lẫn lúc chạy. Bảy file test của Plan 7B dựa vào điều này.
+  - `next.config.mjs` không còn tham số `phase` và không có trang chỉ có lúc dev.
 
-- [ ] **Step 1: Cài Radix, Lucide và uqr; thêm `Providers`**
+- [ ] **Step 1: Cài Radix, Lucide, uqr và jest-dom; thêm `Providers`**
 
 ```bash
 npm install -E -w apps/web @radix-ui/react-dialog@1.3.1 @radix-ui/react-popover@1.3.1 @radix-ui/react-tooltip@1.4.1 @radix-ui/react-visually-hidden@1.2.13 lucide-react@1.73.0 uqr@0.1.3
@@ -5377,6 +6124,25 @@ npm run lockfile:check
 ```
 
 Expected: `every dependency resolves.`
+
+Ruling R13: Plan 7B có bảy file test dùng matcher của jest-dom, nhưng không plan nào cài gói này. Bản 8.0.0 ra ngày 19/11/2026, chưa đủ 7 ngày, và có peer `vitest >=5 <6` trong khi repo dùng vitest 3.2.7, nên dùng bản 7.0.1 (ra ngày 9/8/2026; peer `vitest >= 0.32`, `@testing-library/dom >=10 <11`):
+
+```bash
+npm view @testing-library/jest-dom time --json | grep '"7.0.1"'
+npm install -E -D -w apps/web @testing-library/jest-dom@7.0.1
+npm run lockfile:check -- --fix
+npm run lockfile:check
+```
+
+Expected: dòng đầu in `"7.0.1": "2026-08-09T23:44:33.598Z",`; lệnh cuối in `every dependency resolves.`; `apps/web/package.json` có `"@testing-library/jest-dom": "7.0.1"` trong `devDependencies`.
+
+Thêm dòng này làm dòng đầu tiên của `apps/web/test/setup.ts` (phần còn lại của file giữ nguyên):
+
+```ts
+import '@testing-library/jest-dom/vitest';
+```
+
+`test/setup.ts` nằm trong `include` của `tsconfig.json` (`"test"`), nên `npm run typecheck` thấy kiểu của các matcher.
 
 Thêm khoá vào `apps/web/src/messages/ui.messages.ts`: trong `en`, sau `copyText: 'Copy {what}',` thêm `copyFailed: 'Could not copy',`; trong `vi`, sau `copyText: 'Sao chép {what}',` thêm `copyFailed: 'Không sao chép được',`.
 
@@ -5736,6 +6502,20 @@ describe('Dialog', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
+
+  it('keeps the page behind a phone sheet solid and blurs it only from 48rem', async () => {
+    renderWithProviders(
+      <Dialog open title="Choose a wallet">
+        <p>Body</p>
+      </Dialog>,
+    );
+    await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    const overlay = document.querySelector('.atro-overlay');
+    // Spec §18.4.1: backdrop-filter on a full-screen layer costs a phone GPU on every frame of the sheet animation.
+    expect(overlay).toHaveClass('bg-bg/95', 'md:bg-bg/70', 'md:backdrop-blur-[3px]');
+    expect(overlay).not.toHaveClass('bg-bg/70');
+    expect(overlay).not.toHaveClass('backdrop-blur-[3px]');
+  });
 });
 
 describe('TextField', () => {
@@ -6075,7 +6855,7 @@ export function Dialog({
     <D.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <D.Trigger asChild>{trigger}</D.Trigger> : null}
       <D.Portal>
-        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/70 backdrop-blur-[3px]" />
+        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/95 md:bg-bg/70 md:backdrop-blur-[3px]" />
         <D.Content
           {...describedBy}
           className={cn(
@@ -6789,295 +7569,115 @@ export function QrCode({
 ```
 
 Run: `npm test -w apps/web -- primitives ssr`
-Expected: PASS (primitives 22, ssr 2).
+Expected: PASS (primitives 23, ssr 2).
 
-- [ ] **Step 4: Trang xem thử `/dev/` và test của nó**
+- [ ] **Step 4: Không còn trang chỉ có lúc dev**
 
-`apps/web/src/app/dev/gallery.tsx`:
+Spec §18 cắt gallery `/dev/` (C7): duyệt bằng mắt dùng ảnh chụp các trang thật (Task 15, R18.13). `next.config.mjs` vì vậy không cần đọc `phase` nữa.
 
-```tsx
-'use client';
+`apps/web/test/unit/next-config.test.ts`:
 
-import { Copy, Settings } from 'lucide-react';
-import { type ReactNode, useId, useState } from 'react';
-import { untrusted } from '@/lib/untrusted';
-import { useMounted } from '@/lib/use-mounted';
-import { useTheme } from '@/theme/provider';
-import { GLYPH_NAMES, StateGlyph } from '@/thread/glyphs';
-import { THREAD_STATES } from '@/thread/state';
-import { StateBadge } from '@/thread/state-badge';
-import { Thread } from '@/thread/thread';
-import { Address } from '@/ui/address';
-import { Amount } from '@/ui/amount';
-import { Banner } from '@/ui/banner';
-import { Button } from '@/ui/button';
-import { CopyButton } from '@/ui/copy-button';
-import { Countdown } from '@/ui/countdown';
-import { Dialog } from '@/ui/dialog';
-import { EmptyState } from '@/ui/empty-state';
-import { ExternalLink } from '@/ui/external-link';
-import { HoldButton } from '@/ui/hold-button';
-import { IconButton } from '@/ui/icon-button';
-import { InlineError } from '@/ui/inline-error';
-import { Popover } from '@/ui/popover';
-import { QrCode } from '@/ui/qr-code';
-import { Skeleton, SkeletonText } from '@/ui/skeleton';
-import { Spinner } from '@/ui/spinner';
-import { TextField } from '@/ui/text-field';
-import { Tooltip } from '@/ui/tooltip';
-import { UntrustedText } from '@/ui/untrusted-text';
+```ts
+// @vitest-environment node
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
-const COLORS = [
-  'bg',
-  'surface-1',
-  'surface-2',
-  'surface-3',
-  'ink',
-  'ink-muted',
-  'thread',
-  'on-thread',
-  'alive',
-  'grace',
-  'recovery',
-  'release',
-  'danger',
-  'on-danger',
-  'line',
-  'line-strong',
-] as const;
-// Written out in full: Tailwind only generates classes it finds whole in the source.
-const STEPS = [
-  { name: 'display', cls: 'font-display text-display' },
-  { name: 'h1', cls: 'font-display text-h1' },
-  { name: 'h2', cls: 'font-display text-h2' },
-  { name: 'title', cls: 'font-display text-title' },
-  { name: 'lead', cls: 'text-lead' },
-  { name: 'body', cls: 'text-body' },
-  { name: 'small', cls: 'text-small' },
-  { name: 'caption', cls: 'text-caption' },
-] as const;
+type NextConfigFn = (phase?: string) => { pageExtensions: string[] };
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-4 border-line border-t pt-8">
-      <h2 className="text-h2">{title}</h2>
-      {children}
-    </section>
-  );
-}
+/** next.config.mjs is plain ESM typed by JSDoc (Quyết định 2); a dynamic import keeps tsc out of it. */
+const CONFIG = '../../next.config.mjs';
+const load = async (): Promise<NextConfigFn> =>
+  ((await import(/* @vite-ignore */ CONFIG)) as { default: NextConfigFn }).default;
 
-/** Every primitive in every state (spec §6), in both themes. Dev only: page.dev.tsx is not a production route. */
-export function Gallery() {
-  const { choice, setChoice } = useTheme();
-  const [remaining, setRemaining] = useState(0.6);
-  const [confirmed, setConfirmed] = useState(0);
-  const sliderId = useId();
-  // The clock is read after mount, so the dev server's HTML and the first client render agree.
-  const mounted = useMounted();
-  const [fetchedAtMs] = useState(() => Date.now());
-  const block = BigInt(Math.floor(fetchedAtMs / 1000));
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
-  return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-12 px-6 py-16">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-h1">Atropyle primitives</h1>
-        <div className="flex gap-2">
-          {(['system', 'light', 'dark'] as const).map((c) => (
-            <Button key={c} size="sm" variant={choice === c ? 'primary' : 'secondary'} onClick={() => setChoice(c)}>
-              {c}
-            </Button>
-          ))}
-        </div>
-      </header>
+describe('next.config.mjs', () => {
+  it('has no dev-only pages, not even under next dev (spec §18, C7)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_TARGET', 'deweb');
+    vi.stubEnv('ATROPYLE_E2E', '');
+    const config = await load();
+    expect(config('phase-development-server').pageExtensions).toEqual(['tsx', 'ts']);
+    expect(config('phase-production-build').pageExtensions).toEqual(['tsx', 'ts']);
+  });
 
-      <Section title="Colour">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {COLORS.map((c) => (
-            <div key={c} className="flex items-center gap-3 rounded-xl border border-line p-3">
-              <span className="size-8 rounded-lg border border-line" style={{ background: `var(--atro-${c})` }} />
-              <code className="font-mono text-small">{c}</code>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Type">
-        {STEPS.map((s) => (
-          <p key={s.name} className={s.cls}>
-            {s.name}: Sợi chỉ không đứt, ặ ỗ ữ Ặ Ỗ Ữ
-          </p>
-        ))}
-        <p className="font-mono text-body">0x3C44 CdDd B6a9 — 1,234.567890</p>
-      </Section>
-
-      <Section title="Buttons">
-        <div className="flex flex-wrap items-center gap-3">
-          {(['primary', 'secondary', 'ghost', 'danger'] as const).map((v) => (
-            <Button key={v} variant={v}>
-              {v}
-            </Button>
-          ))}
-          <Button loading>Loading</Button>
-          <Button disabled>Disabled</Button>
-          <Button size="sm">Small</Button>
-          <Button size="lg" variant="primary">
-            Large
-          </Button>
-          <IconButton icon={Settings} label="Settings" />
-          <CopyButton text={A} label="Copy address" showText />
-        </div>
-      </Section>
-
-      <Section title="Hold to confirm">
-        <div className="flex flex-wrap items-start gap-8">
-          <HoldButton onConfirm={() => setConfirmed((n) => n + 1)}>Check in</HoldButton>
-          <HoldButton tone="danger" size="md" onConfirm={() => setConfirmed((n) => n + 1)}>
-            Release now
-          </HoldButton>
-          <HoldButton disabled onConfirm={() => {}}>
-            Disabled
-          </HoldButton>
-        </div>
-        <p className="text-ink-muted text-small">Confirmed {confirmed} times.</p>
-      </Section>
-
-      <Section title="Thread">
-        <label htmlFor={sliderId} className="text-small">
-          Remaining: {Math.round(remaining * 100)}%
-        </label>
-        <input
-          id={sliderId}
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={remaining}
-          onChange={(e) => setRemaining(Number(e.target.value))}
-          className="w-64 accent-thread"
-        />
-        <div className="grid gap-6 sm:grid-cols-2">
-          {THREAD_STATES.map((s) => (
-            <figure key={s} className="flex flex-col gap-2 rounded-2xl border border-line p-4">
-              <Thread state={s} remaining={remaining} knots={[0.12, 0.3, 0.41]} branches={[5000, 3000, 2000]} />
-              <figcaption>
-                <StateBadge state={s} size="sm" drill={s === 'expired'} />
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-4 text-ink">
-          {GLYPH_NAMES.map((g) => (
-            <span key={g} className="flex items-center gap-2 text-small">
-              <StateGlyph name={g} size={24} /> {g}
-            </span>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Data">
-        <Address address={A} explorer="https://www.oklink.com/xlayer" />
-        <Address address={A} size="sm" copy={false} />
-        <p className="flex flex-wrap gap-6">
-          <Amount raw={1_234_567_890n} decimals={6} symbol={untrusted('USDC')} />
-          <Amount raw={1n} decimals={18} symbol="ETH" />
-          <Amount raw={3n} decimals={null} />
-        </p>
-        {mounted ? (
-          <p className="flex gap-6">
-            <Countdown target={block + 3725n} blockTimestamp={block} fetchedAtMs={fetchedAtMs} />
-            <Countdown target={block - 90n} blockTimestamp={block} fetchedAtMs={fetchedAtMs} />
-          </p>
-        ) : null}
-        <p>
-          Token name: <UntrustedText value={'Tether\u{202E}USD <b>bold</b> \u{200B}free money, visit evil.example'} />
-        </p>
-        <ExternalLink href="https://web3.okx.com/xlayer">X Layer</ExternalLink>
-        <QrCode value={`https://atropyle.app/vault/#${A}`} label="this vault" size={160} />
-      </Section>
-
-      <Section title="Feedback">
-        {(['info', 'warn', 'error', 'success'] as const).map((tone) => (
-          <Banner key={tone} tone={tone} title={`A ${tone} banner`} onDismiss={() => {}}>
-            Banners explain what happened and what to do next.
-          </Banner>
-        ))}
-        <InlineError>That is not a valid address.</InlineError>
-        <EmptyState
-          title="No vaults yet"
-          body="Vaults you own, guard or inherit appear here."
-          action={<Button variant="primary">Create a vault</Button>}
-        />
-        <div className="flex items-center gap-6">
-          <Spinner label="Loading" size={20} />
-          <Skeleton className="h-10 w-48 rounded-full" />
-          <SkeletonText lines={3} className="w-64" />
-        </div>
-      </Section>
-
-      <Section title="Forms and overlays">
-        <TextField label="Vault address" placeholder="0x…" hint="0x and 40 characters" mono />
-        <TextField label="Amount" defaultValue="abc" error="Enter a number" />
-        <div className="flex flex-wrap gap-3">
-          <Dialog
-            trigger={<Button>Open dialog</Button>}
-            title="Choose a wallet"
-            description="A sheet on phones, a dialog on wider screens."
-          >
-            <p className="text-small">Dialog body.</p>
-          </Dialog>
-          <Popover trigger={<Button>Open popover</Button>} label="Example popover">
-            <p className="p-2 text-small">Popover content.</p>
-          </Popover>
-          <Tooltip content="A tooltip">
-            <Button icon={<Copy aria-hidden="true" strokeWidth={1.5} />}>Hover or focus me</Button>
-          </Tooltip>
-        </div>
-      </Section>
-    </main>
-  );
-}
-```
-
-`apps/web/src/app/dev/page.dev.tsx`:
-
-```tsx
-import { Gallery } from './gallery';
-
-// Quyết định 21: `.dev.tsx` is a page extension only under `next dev`, so this never reaches a build.
-export default function DevPage() {
-  return <Gallery />;
-}
-```
-
-`apps/web/test/unit/dev-gallery.test.tsx`:
-
-```tsx
-import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { Gallery } from '../../src/app/dev/gallery';
-import { renderWithProviders } from '../helpers/render';
-
-describe('/dev/ gallery', () => {
-  it('shows every group of primitives', () => {
-    renderWithProviders(<Gallery />);
-    for (const name of [
-      'Colour',
-      'Type',
-      'Buttons',
-      'Hold to confirm',
-      'Thread',
-      'Data',
-      'Feedback',
-      'Forms and overlays',
-    ]) {
-      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
-    }
+  it('adds the e2e pages only when ATROPYLE_E2E=1 (Quyết định 19)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_TARGET', 'deweb');
+    vi.stubEnv('ATROPYLE_E2E', '1');
+    const config = await load();
+    expect(config().pageExtensions).toEqual(['e2e.tsx', 'tsx', 'ts']);
   });
 });
 ```
 
-(Ô màu dùng `style={{ background: 'var(--atro-…)' }}` vì tên token đến từ một mảng; Tailwind chỉ sinh lớp cho tên viết đủ trong mã nguồn. Trang này chỉ có lúc dev.)
+Run: `npm test -w apps/web -- next-config`
+Expected: FAIL ở test đầu: `expected [ 'dev.tsx', 'tsx', 'ts' ] to deeply equal [ 'tsx', 'ts' ]`. Test thứ hai PASS.
+
+Lần chạy này cũng kiểm cách nạp file: test đầu phải hỏng ở `toEqual`, không hỏng lúc nạp `next.config.mjs`. Nếu nó hỏng lúc nạp (ví dụ `Failed to load url ../../next.config.mjs` hay `Cannot find module`), import động với đường dẫn tương đối không chạy trong bản vitest này. Khi đó:
+- giữ `// @vitest-environment node` ở dòng đầu;
+- thêm import này ngay trên dòng import `vitest`:
+
+  ```ts
+  import { fileURLToPath, pathToFileURL } from 'node:url';
+  ```
+
+- thay dòng `const CONFIG = '../../next.config.mjs';` bằng dòng dưới. `load` giữ nguyên: nó vẫn gọi `await import(/* @vite-ignore */ CONFIG)`, giờ với một URL `file:` tuyệt đối.
+
+  ```ts
+  const CONFIG = pathToFileURL(fileURLToPath(new URL('../../next.config.mjs', import.meta.url))).href;
+  ```
+
+Chạy lại lệnh trên. Expected không đổi. Ghi vào báo cáo task cách nạp nào đã chạy.
+
+Thay `apps/web/next.config.mjs`:
+
+```js
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const TARGETS = ['vercel', 'deweb'];
+
+/**
+ * A function, so that the target is checked at load and e2e-only pages (`page.e2e.tsx`) exist only when
+ * ATROPYLE_E2E=1. There are no dev-only pages: the design review uses screenshots of the real pages.
+ * @returns {import('next').NextConfig}
+ */
+export default function config() {
+  const target = process.env.NEXT_PUBLIC_TARGET || 'deweb';
+  if (!TARGETS.includes(target)) throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
+  // The deweb build must never carry the backend URL (spec §2); scripts/lib/build-env.ts drops it too.
+  if (target !== 'vercel') delete process.env.NEXT_PUBLIC_API_URL;
+  const pageExtensions = ['tsx', 'ts'];
+  if (process.env.ATROPYLE_E2E === '1') pageExtensions.unshift('e2e.tsx');
+  return {
+    output: 'export',
+    trailingSlash: true,
+    images: { unoptimized: true },
+    reactStrictMode: true,
+    poweredByHeader: false,
+    productionBrowserSourceMaps: false,
+    // `npm run typecheck` runs tsc on the whole app; the build does not type-check a second time.
+    typescript: { ignoreBuildErrors: true },
+    pageExtensions,
+    // node_modules live at the monorepo root.
+    turbopack: { root: fileURLToPath(new URL('../..', import.meta.url)) },
+    env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
+  };
+}
+```
+
+Đổi tên test build để nó nói đúng điều nó canh:
+
+```bash
+sed -i "s/ships neither the dev gallery nor the e2e pages/ships no dev-only and no e2e-only pages/" apps/web/test/build/output.test.ts
+grep -c "ships no dev-only and no e2e-only pages" apps/web/test/build/output.test.ts
+```
+
+Expected: `1`.
+
+Run: `npm test -w apps/web -- next-config`
+Expected: PASS (2 test).
 
 - [ ] **Step 5: Chạy toàn bộ, build và commit**
 
@@ -7086,35 +7686,660 @@ npm test -w apps/web
 npm run typecheck -w apps/web
 npx biome ci .
 npm run test:build -w apps/web
-git add apps/web/src/ui apps/web/src/lib/use-now.ts apps/web/src/shell/providers.tsx apps/web/src/app/dev apps/web/src/app/layout.tsx apps/web/src/messages/ui.messages.ts apps/web/test/helpers/render.tsx apps/web/test/unit/primitives.test.tsx apps/web/test/unit/ssr.test.tsx apps/web/test/unit/dev-gallery.test.tsx apps/web/package.json package-lock.json
-git commit -m "feat(web): primitives, app providers and the /dev/ gallery" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add apps/web/src/ui apps/web/src/lib/use-now.ts apps/web/src/shell/providers.tsx apps/web/src/app/layout.tsx apps/web/src/messages/ui.messages.ts apps/web/next.config.mjs apps/web/test/setup.ts apps/web/test/helpers/render.tsx apps/web/test/unit/primitives.test.tsx apps/web/test/unit/ssr.test.tsx apps/web/test/unit/next-config.test.ts apps/web/test/build/output.test.ts apps/web/package.json package-lock.json
+git commit -m "feat(web): primitives and app providers" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: mọi test PASS; `test:build` vẫn PASS (`out/dev` không tồn tại).
+Expected:
+- mọi test PASS;
+- `test:build` PASS (không có `out/dev`, không có `out/e2e`);
+- `git status --short apps/web/src/app` không còn gì (không có thư mục `src/app/dev/`).
 
 ---
 
-### Task 9: Khung trang, script boot, chuyển hướng link cũ và trang chủ tạm
+### Task 9: Khung trang trung thực, script boot, chuyển hướng link cũ và trang chủ tạm
 
-Khung (`Frame`) bọc mọi trang: link "Tới nội dung chính", header dính trên cùng (wordmark, điều hướng, menu cài đặt; trên màn hình hẹp là một sheet), footer (nhãn beta, link nguồn, giấy phép, phiên bản). Script boot là script inline duy nhất (Quyết định 14): nó chuyển link cũ ở `/` sang đường dẫn mới (spec §3) rồi đặt theme đã lưu, trước lần vẽ đầu.
+Khung (`Frame`) bọc mọi trang. Task này dựng nó theo `honest-frame` của spec §18.4.1 (mục 1 tới 8) và các ruling R18.1, R18.7, R18.11, R18.12. Thứ tự trong DOM:
+
+1. nút "Tới nội dung chính": đứng đầu cho bàn phím (WCAG 2.4.1), ẩn tới khi được focus;
+2. dòng bằng chứng: dải đầu tiên hiện ra trên trang, ngay sau nút bỏ qua;
+3. header dính trên cùng: wordmark với glyph `mark`, điều hướng, menu cài đặt; dưới 48rem là một sheet;
+4. nội dung trang;
+5. footer: giới hạn đã biết, trang cho người thừa kế và người giám hộ, nguồn, giấy phép, phiên bản, "No trackers · No cookies".
+
+Script boot vẫn là script inline duy nhất (Quyết định 14). Nó chuyển link cũ ở `/` sang đường dẫn mới (spec §3), rồi đặt theme đã lưu, trước lần vẽ đầu.
+
+Trang chủ tạm là cảnh đầu. Nó có câu hỏi, một lời dẫn đúng cả với vault không có người giám hộ, và lời mời diễn tập "khoảng 6 phút" kèm một câu nói rõ phí.
+
+**Theme (R18.1).**
+
+- Night là mặc định bất kể thiết bị. Night không cần thuộc tính: `:root` mang token night.
+- Vellum là `data-theme="light"`:
+  - Block token sáng khớp mọi phần tử mang thuộc tính đó. Nhờ vậy một lá thư hay một bản in có thể là vellum trên một trang night.
+  - Một luật trong `@layer base` cho phần tử đó tự tô nền và chữ.
+- "Match device" là `data-theme="system"` trên `<html>`: vellum khi thiết bị thích sáng, night khi không.
+- Giá trị rác trong bộ nhớ là night.
+- Meta `theme-color` chỉ còn `#0b0d12`, và meta `color-scheme` là `dark`. Thuộc tính CSS `color-scheme` thì theo theme, và `globals.css` đã có sẵn nó: `dark` trên `:root`, `light` trên `[data-theme="light"]` (cả vellum theo phạm vi) và trong khối match device sáng. `theme-css.test.ts` kiểm cả ba chỗ.
+
+**Dòng bằng chứng (R18.7).** Một dòng 24 px, chữ mono cỡ caption, được prerender và không tắt được.
+
+- Từ 48rem: "Rules frozen in netlist `0x7016…3864` on X Layer · unaudited · limits →".
+- Dưới 48rem: "Rules `0x7016…3864` · unaudited →" (≤ 36 ký tự).
+- Keccak trỏ tới `/proof/`. Phần giới hạn trỏ tới `/proof/#limits` (`LIMITS_HREF`). Cả hai link có `prefetch={false}` tới khi 7C T3 dựng `/proof/`.
+- Hai bản cùng nằm trong HTML, và CSS chọn bản nào hiện. Không có JS đo bề rộng.
+
+**Số liệu (nguyên tắc 3 của §18).** `src/config/facts.ts` giữ ba hằng, mỗi hằng có test đọc nguồn thật của nó:
+
+| Hằng | Nguồn mà test đọc |
+| --- | --- |
+| keccak của netlist policy | `deployments/xlayer.json` |
+| ngày lên mainnet | `factoryBlock` của deployment |
+| nhịp của keeper | lịch `pg_cron` trong `supabase/migrations` |
+
+Số phút của Drill trong `heroDrill` (EN và VI) do `drill-minutes.test.ts` tính (R18.11): `computeTimeline` của SDK trên một Drill không giám hộ, cộng hai lượt keeper. Nếu SDK cho số khác, sửa chữ, không sửa test.
+
+**Header và View Transition.**
+
+- Dưới 48rem header có nền đặc `bg-bg/95`. `backdrop-blur-md` chỉ có từ 48rem, vì blur sau một thanh dính bắt điện thoại vẽ lại ở mỗi khung cuộn.
+- Header và footer mang `view-transition-name` riêng (`site-header`, `site-footer`), nên chúng đứng yên khi trang giữa chúng đổi.
+- Sợi chỉ chung giữ chiều cao và trượt từ trái khi hai trang vẽ nó ở bề rộng khác nhau.
+
+**Từ vựng (R18.12).**
+
+- VI dùng "điểm danh" cho check-in. Footer gọi Drill là "Drill (bản diễn tập)".
+- Không chuỗi mới nào của `shell.messages` chứa "connect": Task 11 xoá các khoá ví bằng `sed`, rồi đếm chữ này.
 
 **Files:**
-- Create: `apps/web/src/theme/boot.ts`, `apps/web/src/theme/boot-script.tsx`, `apps/web/src/routes.ts`, `apps/web/src/lib/hash.ts`
-- Create: `apps/web/src/shell/{frame,header,nav-list,settings-menu,mobile-menu,footer,skip-link,lang-switch,theme-switch,haptics-switch,wordmark}.tsx`, `apps/web/src/home/hero.tsx`, `apps/web/src/app/not-found.tsx`
-- Modify: `apps/web/src/app/layout.tsx`, `apps/web/src/app/page.tsx`, `apps/web/src/messages/shell.messages.ts`, `apps/web/src/messages/home.messages.ts`
-- Test: `apps/web/test/unit/boot.test.ts`, `apps/web/test/unit/routes.test.ts`, `apps/web/test/unit/hash.test.tsx`, `apps/web/test/unit/shell.test.tsx`, `apps/web/test/unit/no-html-sinks.test.ts`, `apps/web/test/build/shell.test.ts`
+- Create: `apps/web/src/config/facts.ts`, `apps/web/src/theme/boot.ts`, `apps/web/src/theme/boot-script.tsx`, `apps/web/src/routes.ts`, `apps/web/src/lib/hash.ts`
+- Create: `apps/web/src/shell/{frame,header,proof-line,nav-list,settings-menu,mobile-menu,footer,skip-link,lang-switch,theme-switch,haptics-switch,wordmark}.tsx`, `apps/web/src/home/hero.tsx`, `apps/web/src/app/not-found.tsx`
+- Modify: `apps/web/src/theme/theme.ts`, `apps/web/src/theme/provider.tsx`, `apps/web/src/app/globals.css`, `apps/web/src/thread/glyphs.tsx` (glyph `mark`), `apps/web/src/app/layout.tsx`, `apps/web/src/app/page.tsx`, `apps/web/src/messages/shell.messages.ts`, `apps/web/src/messages/home.messages.ts`, `apps/web/src/messages/ui.messages.ts` (chỉ ba nhãn theme)
+- Test (tạo): `apps/web/test/unit/theme-css.test.ts`, `apps/web/test/unit/facts.test.ts`, `apps/web/test/unit/boot.test.ts`, `apps/web/test/unit/routes.test.ts`, `apps/web/test/unit/hash.test.tsx`, `apps/web/test/unit/drill-minutes.test.ts`, `apps/web/test/unit/proof-line.test.tsx`, `apps/web/test/unit/shell.test.tsx`, `apps/web/test/unit/no-html-sinks.test.ts`, `apps/web/test/build/shell.test.ts`
+- Test (sửa): `apps/web/test/unit/theme.test.tsx` (của Task 5, thay toàn bộ), `apps/web/test/unit/thread.test.tsx` (của Task 7, chỉ đổi tên test glyph)
 
 **Interfaces:**
-- Consumes: Task 2 (`ENV`, `IS_VERCEL`, `test/build/paths.ts`), Task 4 (`fontVariables`), Task 5 (`useT`, `useLang`, `useTheme`, `KEYS`, `REPO_URL`, `LICENSE_URL`, `XLAYER_URL`, `cn`, `useMounted`), Task 6 (`withViewTransition`, `useHaptics`), Task 7 (`Thread`), Task 8 (`Providers`, `Dialog`, `Popover`, `IconButton`, `buttonClass`, `ExternalLink`, `UntrustedText`).
+- Consumes:
+  - Task 2: `ENV`, `IS_VERCEL`, `test/build/paths.ts` (`outOf`).
+  - Task 4: `fontVariables`.
+  - Task 5: `useT`, `useLang`, `useTheme`, `ThemeProvider`, `KVProvider`, `KEYS`, `memoryKV`, `format`, `REPO_URL`, `LICENSE_URL`, `XLAYER_URL`, `cn`, `useMounted`, `theme.ts`.
+  - Task 6: `withViewTransition`, `useHaptics`, `SPRING`.
+  - Task 7: `Thread`, `StateGlyph`, `GLYPH_NAMES`, và bản ghi hình `SHAPES` của `glyphs.tsx`.
+  - Task 8: `Providers`, `Dialog`, `Popover`, `IconButton`, `buttonClass`, `ExternalLink`, `UntrustedText`, `renderWithProviders`.
+  - Chỉ trong test (code client không import `deployments/xlayer.json`):
+    - `circuits.netlistKeccak.policy` và `factoryBlock` của `deployments/xlayer.json`, và `supabase/migrations/*.sql` (job `atropyle-tick`);
+    - giá trị của SDK: `parseSignLink`, `signLink`, `type SignPayload`, `computeTimeline`, `modelEngine`, `PRESETS`, `STATE_CODES`, `type EvalState`.
 - Produces:
-  - `src/theme/boot.ts`: `legacyTarget(pathname: string, hash: string): string | null`; `boot(themeKey: string, legacy: typeof legacyTarget): void`; `BOOT_SCRIPT: string`.
-  - `src/theme/boot-script.tsx`: `BootScript()` (đặt trong `<head>` của layout).
-  - `src/routes.ts`: `ROUTES` (`home`, `create`, `vault`, `verify`, `sign`, `proof`, `me`, `join`, `alertsConfirm`, `alertsUnsubscribe`, `status`, `developers`, `privacy`, mỗi giá trị kết thúc bằng `/`); `type RouteName = keyof typeof ROUTES`; `type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers'`; `NAV: readonly { route: RouteName; key: NavKey }[]`; `createHref(mode?: 'drill' | 'real'): string`; `vaultHref(vault: string): string`; `verifyHref(vault: string): string`; `joinHref(vault: string, role: 'guardian' | 'heir'): string`; `signHref(encodedPayload: string): string`; `toSdkSignLink(hash: string): string`; `isCurrent(pathname: string, href: string): boolean`; re-export `legacyTarget`.
-  - `src/lib/hash.ts`: `useLocationHash(): string` (gồm cả `#`, chuỗi rỗng lúc prerender); `replaceHash(hash: string): void` (không thêm mục lịch sử, báo cho mọi `useLocationHash`).
-  - `src/shell/frame.tsx`: `Frame({ children })`. `src/shell/header.tsx`: `Header()`. `src/shell/nav-list.tsx`: `NavList({ layout: 'bar' | 'sheet', onNavigate?(): void })`. `src/shell/settings-menu.tsx`: `SettingsMenu()`. `src/shell/mobile-menu.tsx`: `MobileMenu()`. `src/shell/footer.tsx`: `Footer()`. `src/shell/skip-link.tsx`: `SkipLink({ targetId })`. `src/shell/lang-switch.tsx`: `LangSwitch()`. `src/shell/theme-switch.tsx`: `ThemeSwitch()`. `src/shell/haptics-switch.tsx`: `HapticsSwitch()`. `src/shell/wordmark.tsx`: `Wordmark({ className? })`.
-  - `src/home/hero.tsx`: `HomeHero()` (Plan 7B thay bằng trang chủ sáu cảnh).
+  - `src/config/facts.ts`:
+    - `POLICY_NETLIST_KECCAK = '0x70167214a030d2024e5b31d7be5f5664e5abad2d7d5323443abed76b776c3864'` (literal);
+    - `MAINNET_SINCE = '2026-11-22'`;
+    - `KEEPER_CADENCE_S = 60`.
+  - `src/theme/theme.ts` (đổi nghĩa):
+    - `type ThemeChoice = 'dark' | 'light' | 'system'`;
+    - `THEME_CHOICES = ['dark', 'light', 'system']`;
+    - `DEFAULT_THEME = 'dark'` (mới);
+    - `parseTheme(raw)`: rác là `'dark'`;
+    - `applyTheme(choice, root?)`: `'dark'` gỡ `data-theme`, `'light'` và `'system'` đặt nó; `root` có thể là phần tử bất kỳ.
+  - `src/theme/provider.tsx`: `ThemeProvider` (prerender ra `'dark'`), `useTheme()` (không đổi chữ ký).
+  - `src/theme/boot.ts`:
+    - `legacyTarget(pathname: string, hash: string): string | null`;
+    - `boot(themeKey: string, legacy: typeof legacyTarget): void` (đặt thuộc tính chỉ khi giá trị đã lưu là `light` hoặc `system`);
+    - `BOOT_SCRIPT: string`.
+  - `src/theme/boot-script.tsx`: `BootScript()`, đặt trong `<head>` của layout.
+  - `src/routes.ts`:
+    - `ROUTES`: `home`, `create`, `vault`, `verify`, `sign`, `proof`, `me`, `join`, `alertsConfirm`, `alertsUnsubscribe`, `status`, `developers`, `privacy`; mỗi giá trị kết thúc bằng `/`;
+    - `type RouteName = keyof typeof ROUTES`;
+    - `type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers'`;
+    - `NAV: readonly { route: RouteName; key: NavKey }[]`;
+    - `LIMITS_HREF = '/proof/#limits'` (mới);
+    - `createHref(mode?: 'drill' | 'real'): string`;
+    - `vaultHref(vault: string): string`;
+    - `verifyHref(vault: string): string`;
+    - `joinHref(vault: string, role: 'guardian' | 'heir'): string`;
+    - `signHref(encodedPayload: string): string`;
+    - `toSdkSignLink(hash: string): string`;
+    - `isCurrent(pathname: string, href: string): boolean`;
+    - re-export `legacyTarget`.
+  - `src/lib/hash.ts`:
+    - `useLocationHash(): string`: gồm cả `#`; chuỗi rỗng lúc prerender;
+    - `replaceHash(hash: string): void`: không thêm mục lịch sử; báo cho mọi `useLocationHash`.
+  - `src/thread/glyphs.tsx`: `GlyphName` và `GLYPH_NAMES` thêm `'mark'`.
+  - `src/shell/frame.tsx`: `Frame({ children })`, gồm SkipLink, ProofLine, Header, main, Footer.
+  - `src/shell/proof-line.tsx`: `ProofLine()` (mới).
+  - `src/shell/header.tsx`: `Header()`, có lớp `site-header`.
+  - `src/shell/nav-list.tsx`: `NavList({ layout: 'bar' | 'sheet', onNavigate?(): void })`.
+  - `src/shell/settings-menu.tsx`: `SettingsMenu()`.
+  - `src/shell/mobile-menu.tsx`: `MobileMenu()`.
+  - `src/shell/footer.tsx`: `Footer()`, có lớp `site-footer`.
+  - `src/shell/skip-link.tsx`: `SkipLink({ targetId })`.
+  - `src/shell/lang-switch.tsx`: `LangSwitch()`.
+  - `src/shell/theme-switch.tsx`: `ThemeSwitch()`, với Night / Vellum / Match device.
+  - `src/shell/haptics-switch.tsx`: `HapticsSwitch()`.
+  - `src/shell/wordmark.tsx`: `Wordmark({ className? })`.
+  - `src/home/hero.tsx`: `HomeHero()`. Plan 7B thay nó bằng trang chủ sáu cảnh.
+  - `src/app/globals.css`:
+    - selector `:root[data-theme="system"]`;
+    - luật vellum theo phạm vi;
+    - tên View Transition `site-header` và `site-footer`;
+    - hai luật cho `atropyle-thread`.
+  - Khoá chuỗi mới:
+    - `shell`: `navMe`, `navLabel`, `footerNav`, `settings`, `notFoundHint`, `knownLimits`, `forHeirs`, `noTrackers`, `proofLine`, `proofLineShort`, `proofLimits`, `proofLimitsShort`;
+    - `home`: `heroEyebrow`, `heroTitle`, `heroLead`, `heroDrill`, `heroDrillNote`, `heroProof`.
+  - Khoá chuỗi bị xoá: `home`: `drillCta` ("Try a 5-minute Drill") và `drillNote`, ở EN và VI. Chỉ trang chủ cũ dùng chúng; lời mời mới lấy số phút từ `drill-minutes.test.ts` (R18.11).
 
-- [ ] **Step 1: Viết test hỏng cho script boot và đường dẫn**
+- [ ] **Step 1: Viết test hỏng cho night mặc định**
+
+Thay toàn bộ `apps/web/test/unit/theme.test.tsx` (bản của Task 5). Tên test của Review Focus 2 đổi thành `a stored garbage theme falls back to night`.
+
+```tsx
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { KVProvider } from '../../src/lib/kv';
+import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+import { ThemeProvider, useTheme } from '../../src/theme/provider';
+import { applyTheme, DEFAULT_THEME, parseTheme, readThemeAttr, THEME_CHOICES } from '../../src/theme/theme';
+
+const root = document.documentElement;
+
+function wrap(kv: KV) {
+  return ({ children }: { children: ReactNode }) => (
+    <KVProvider kv={kv}>
+      <ThemeProvider>{children}</ThemeProvider>
+    </KVProvider>
+  );
+}
+
+function stubScheme(light: boolean) {
+  const listeners = new Set<() => void>();
+  const mql = {
+    matches: light,
+    addEventListener: (_: string, l: () => void) => listeners.add(l),
+    removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+  };
+  vi.spyOn(window, 'matchMedia').mockImplementation(() => mql as unknown as MediaQueryList);
+  return {
+    set(next: boolean) {
+      mql.matches = next;
+      for (const l of listeners) l();
+    },
+  };
+}
+
+function Shown() {
+  const { choice, resolved } = useTheme();
+  return <span>{`${choice}/${resolved}`}</span>;
+}
+
+beforeEach(() => root.removeAttribute('data-theme'));
+afterEach(() => {
+  vi.restoreAllMocks();
+  root.removeAttribute('data-theme');
+});
+
+describe('theme', () => {
+  it('parses night, vellum and match device; anything else is night', () => {
+    expect(DEFAULT_THEME).toBe('dark');
+    expect(THEME_CHOICES).toEqual(['dark', 'light', 'system']);
+    for (const c of THEME_CHOICES) expect(parseTheme(c)).toBe(c);
+    for (const raw of ['', null, undefined, 'Dark', ' light', 'auto', '"><script>'])
+      expect(parseTheme(raw)).toBe('dark');
+  });
+
+  it('night removes data-theme; vellum and match device set it', () => {
+    root.setAttribute('data-theme', 'light');
+    applyTheme('dark');
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(readThemeAttr()).toBe('dark');
+    applyTheme('light');
+    expect(root.getAttribute('data-theme')).toBe('light');
+    applyTheme('system');
+    expect(root.getAttribute('data-theme')).toBe('system');
+    expect(readThemeAttr()).toBe('system');
+    root.setAttribute('data-theme', 'purple');
+    expect(readThemeAttr()).toBe('dark');
+  });
+
+  it('vellum can be scoped to one element without touching the page', () => {
+    const letter = document.createElement('article');
+    applyTheme('light', letter);
+    expect(letter.getAttribute('data-theme')).toBe('light');
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    applyTheme('dark', letter);
+    expect(letter.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('a stored garbage theme falls back to night', async () => {
+    stubScheme(true);
+    root.setAttribute('data-theme', 'light');
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'sepia"><img src=x>');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.choice).toBe('dark'));
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(result.current.resolved).toBe('dark');
+  });
+
+  it('a device that prefers light still opens at night', async () => {
+    stubScheme(true);
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(memoryKV()) });
+    await waitFor(() => expect(result.current.choice).toBe('dark'));
+    expect(result.current.resolved).toBe('dark');
+    expect(root.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('prerenders at night', () => {
+    const html = renderToString(
+      <KVProvider kv={memoryKV()}>
+        <ThemeProvider>
+          <Shown />
+        </ThemeProvider>
+      </KVProvider>,
+    );
+    expect(html).toContain('dark/dark');
+  });
+
+  it('applies the stored theme, then remembers a new choice', async () => {
+    stubScheme(false);
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'light');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.choice).toBe('light'));
+    expect(root.getAttribute('data-theme')).toBe('light');
+    act(() => result.current.setChoice('system'));
+    expect(result.current.choice).toBe('system');
+    expect(root.getAttribute('data-theme')).toBe('system');
+    expect(kv.get(KEYS.theme)).toBe('system');
+    act(() => result.current.setChoice('dark'));
+    expect(result.current.choice).toBe('dark');
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(kv.get(KEYS.theme)).toBe('dark');
+  });
+
+  it('match device follows the colour scheme of the device, live', async () => {
+    const scheme = stubScheme(true);
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'system');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.resolved).toBe('light'));
+    expect(result.current.choice).toBe('system');
+    act(() => scheme.set(false));
+    expect(result.current.resolved).toBe('dark');
+  });
+});
+```
+
+`apps/web/test/unit/theme-css.test.ts` đọc `globals.css` như `contrast.test.ts`. Các marker `tokens:*` giữ nguyên, nên test tương phản không đổi.
+
+```ts
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+const CSS_FILE = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
+const CSS = readFileSync(CSS_FILE, 'utf8').replaceAll('\r\n', '\n');
+
+/** The declarations of the first rule written as `<selector> {`, searched from `from`. */
+function decls(selector: string, from = 0): Record<string, string> {
+  const at = CSS.indexOf(`${selector} {`, from);
+  if (at < 0) throw new Error(`no rule "${selector}" after offset ${from}`);
+  const open = at + selector.length + 2;
+  const out: Record<string, string> = {};
+  for (const d of CSS.slice(open, CSS.indexOf('}', open)).split(';')) {
+    const i = d.indexOf(':');
+    if (i > 0) out[d.slice(0, i).trim()] = d.slice(i + 1).trim();
+  }
+  return out;
+}
+
+describe('theme stylesheet', () => {
+  it('night is :root with no attribute; vellum is an attribute any element can carry', () => {
+    expect(decls('/* tokens:dark */\n:root,\n[data-theme="dark"]')['color-scheme']).toBe('dark');
+    expect(decls('/* tokens:light */\n[data-theme="light"]')['color-scheme']).toBe('light');
+    // A scoped vellum element paints its own paper and ink instead of inheriting night's.
+    expect(decls('[data-theme="light"]', CSS.indexOf('@layer base {'))).toEqual({
+      'background-color': 'var(--atro-bg)',
+      color: 'var(--atro-ink)',
+    });
+  });
+
+  it('match device turns vellum only for data-theme="system", inside the light media query', () => {
+    expect(CSS).toContain(
+      '/* tokens:light-system */\n@media (prefers-color-scheme: light) {\n  :root[data-theme="system"] {',
+    );
+    expect(decls(':root[data-theme="system"]')['color-scheme']).toBe('light');
+    expect(CSS).not.toContain(':not([data-theme])');
+  });
+
+  it('the shared thread keeps its height, and the header and the footer stay put between pages', () => {
+    expect(decls('::view-transition-old(atropyle-thread),\n::view-transition-new(atropyle-thread)')).toEqual({
+      height: '100%',
+      width: 'auto',
+      'object-fit': 'none',
+      'object-position': 'left center',
+    });
+    expect(decls('::view-transition-image-pair(atropyle-thread)')).toEqual({ overflow: 'clip' });
+    expect(decls('.site-header')).toEqual({ 'view-transition-name': 'site-header' });
+    expect(decls('.site-footer')).toEqual({ 'view-transition-name': 'site-footer' });
+  });
+});
+```
+
+Run: `npm test -w apps/web -- theme`
+
+Expected: FAIL.
+
+- `theme` có 7 test hỏng. `DEFAULT_THEME` chưa có, `parseTheme` vẫn trả `'system'`, `applyTheme('dark')` vẫn đặt thuộc tính, và prerender ra `system/dark`.
+- `match device follows the colour scheme of the device, live` qua ngay, vì Task 5 đã làm đúng phần đó.
+- `theme-css` có 3 test hỏng: chưa có luật vellum trong `@layer base`, chưa có selector `system`, chưa có luật View Transition.
+
+- [ ] **Step 2: Đổi `theme.ts`, `provider.tsx` và `globals.css` sang night mặc định**
+
+Thay toàn bộ `apps/web/src/theme/theme.ts`:
+
+```ts
+export type ThemeChoice = 'dark' | 'light' | 'system';
+/** Night, vellum, match device: the order of the theme switch (R18.1). */
+export const THEME_CHOICES: readonly ThemeChoice[] = ['dark', 'light', 'system'];
+/** Night whatever the device prefers (R18.1). It needs no attribute: `:root` carries the night tokens. */
+export const DEFAULT_THEME = 'dark' satisfies ThemeChoice;
+
+/** Only an exact choice counts; anything else is night (Review Focus 2: storage may hold garbage). */
+export function parseTheme(raw: string | null | undefined): ThemeChoice {
+  return raw === 'light' || raw === 'system' || raw === 'dark' ? raw : DEFAULT_THEME;
+}
+
+const listeners = new Set<() => void>();
+
+/** The theme in force is the `data-theme` attribute of <html>; the boot script sets it before the first paint. */
+export function readThemeAttr(): ThemeChoice {
+  return parseTheme(document.documentElement.getAttribute('data-theme'));
+}
+
+export function subscribeTheme(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+/**
+ * Night removes the attribute; vellum and match device set it (Quyết định 14). `root` may be any element:
+ * `data-theme="light"` on a letter or a print sheet makes just that element vellum. `system` means something only
+ * on <html>, where the stylesheet's media query reads it.
+ */
+export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
+  if (choice === 'dark') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', choice);
+  for (const l of listeners) l();
+}
+```
+
+Thay toàn bộ `apps/web/src/theme/provider.tsx`:
+
+```tsx
+'use client';
+
+import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useKV } from '@/lib/kv';
+import { KEYS } from '@/lib/store';
+import { applyTheme, DEFAULT_THEME, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
+
+interface ThemeValue {
+  choice: ThemeChoice;
+  /** What the page shows now: night or vellum, or under match device the device's colour scheme. */
+  resolved: 'light' | 'dark';
+  setChoice(c: ThemeChoice): void;
+}
+
+const ThemeContext = createContext<ThemeValue | null>(null);
+const LIGHT = '(prefers-color-scheme: light)';
+
+function subscribeScheme(cb: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const mql = window.matchMedia(LIGHT);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+
+function prefersLight(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(LIGHT).matches;
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const kv = useKV();
+  // The prerendered page is night: the HTML carries no theme attribute (R18.1).
+  const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => DEFAULT_THEME);
+  const light = useSyncExternalStore(subscribeScheme, prefersLight, () => false);
+
+  // The boot script already did this; doing it again keeps a page whose inline script was blocked correct.
+  useEffect(() => {
+    applyTheme(parseTheme(kv.get(KEYS.theme)));
+  }, [kv]);
+
+  const setChoice = useCallback(
+    (c: ThemeChoice) => {
+      kv.set(KEYS.theme, c);
+      applyTheme(c);
+    },
+    [kv],
+  );
+
+  const value = useMemo<ThemeValue>(
+    () => ({ choice, resolved: choice === 'system' ? (light ? 'light' : 'dark') : choice, setChoice }),
+    [choice, light, setChoice],
+  );
+  return <ThemeContext value={value}>{children}</ThemeContext>;
+}
+
+export function useTheme(): ThemeValue {
+  const v = use(ThemeContext);
+  if (!v) throw new Error('useTheme must be used inside <ThemeProvider>');
+  return v;
+}
+```
+
+Bốn chỗ sửa trong `apps/web/src/app/globals.css`. Mỗi chỗ thay đúng đoạn cũ bằng đoạn mới; các marker `tokens:*` giữ nguyên.
+
+(a) Ghi chú về theme, đặt ngay trước block token night. Đoạn cũ:
+
+```css
+/* tokens:dark */
+:root,
+[data-theme="dark"] {
+```
+
+Đoạn mới:
+
+```css
+/* Themes (R18.1). Night is the default and needs no attribute: :root carries it. Vellum is data-theme="light", on
+   <html> or on any one element (a letter, a print sheet). Match device is data-theme="system" on <html>: vellum
+   while the device prefers light, night otherwise. test/unit/contrast.test.ts reads the marker comments below. */
+/* tokens:dark */
+:root,
+[data-theme="dark"] {
+```
+
+(b) "Match device" chỉ bật vellum khi được chọn. Thay dòng:
+
+```css
+  :root:not([data-theme]) {
+```
+
+bằng:
+
+```css
+  :root[data-theme="system"] {
+```
+
+(c) Vellum theo phạm vi, trong `@layer base`, ngay sau luật `html`. Đoạn cũ:
+
+```css
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+```
+
+Đoạn mới:
+
+```css
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  /* Scoped vellum paints its own paper and ink: inherited night ink would sit on vellum paper. */
+  [data-theme="light"] {
+    background-color: var(--atro-bg);
+    color: var(--atro-ink);
+  }
+  body {
+```
+
+Luật này dùng thẳng `--atro-*`, không qua `--color-*`. `--color-bg` được khai báo trên `:root`, nên giá trị của nó tính ở `:root`, rồi phần tử con thừa hưởng giá trị đã tính đó, tức giá trị night. Các lớp tiện ích (`bg-bg`, `text-ink`) thì đúng ở mọi phần tử, vì `@theme inline` in thẳng `var(--atro-*)` vào lớp.
+
+(d) View Transition (§18.4.1 mục 6). Đoạn cũ:
+
+```css
+::view-transition-group(atropyle-thread) {
+  animation-duration: 443ms;
+  animation-timing-function: var(--ease-spring);
+}
+```
+
+Đoạn mới:
+
+```css
+::view-transition-group(atropyle-thread) {
+  animation-duration: 443ms;
+  animation-timing-function: var(--ease-spring);
+}
+/* Two pages draw the thread at different widths: it keeps its height and slides from the left, never stretches. */
+::view-transition-old(atropyle-thread),
+::view-transition-new(atropyle-thread) {
+  height: 100%;
+  width: auto;
+  object-fit: none;
+  object-position: left center;
+}
+::view-transition-image-pair(atropyle-thread) {
+  overflow: clip;
+}
+/* The header and the footer stay put while the page between them changes. */
+.site-header {
+  view-transition-name: site-header;
+}
+.site-footer {
+  view-transition-name: site-footer;
+}
+```
+
+Khối reduced motion có sẵn (`::view-transition-group(*) { animation: none; }`) đã phủ hai tên mới, nên không cần sửa thêm.
+
+Run: `npm test -w apps/web -- theme contrast`
+Expected: PASS (theme 8, theme-css 3, contrast 10).
+
+- [ ] **Step 3: `facts.ts`, mỗi hằng buộc vào nguồn thật của nó**
+
+`apps/web/test/unit/facts.test.ts`:
+
+```ts
+// @vitest-environment node
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { KEEPER_CADENCE_S, MAINNET_SINCE, POLICY_NETLIST_KECCAK } from '../../src/config/facts';
+
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const deployment = JSON.parse(readFileSync(join(ROOT, 'deployments/xlayer.json'), 'utf8')) as {
+  factoryBlock: string | number;
+  circuits: { netlistKeccak: { policy: string } };
+};
+
+/** The schedule of the `atropyle-tick` job. Migrations run in name order, and the last schedule wins. */
+function tickSchedule(): string {
+  const dir = join(ROOT, 'supabase/migrations');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  let found: string | null = null;
+  for (const file of files) {
+    const sql = readFileSync(join(dir, file), 'utf8');
+    for (const m of sql.matchAll(/cron\.schedule\(\s*'atropyle-tick'\s*,\s*'([^']+)'\s*,\s*\$\$([^$]*)\$\$/g)) {
+      expect(m[2], file).toContain("call_function('tick')");
+      found = m[1];
+    }
+  }
+  if (found === null) throw new Error('no migration schedules atropyle-tick');
+  return found;
+}
+
+/** Seconds between runs of a cron expression that fires every N minutes; any other shape is refused. */
+function cadenceSeconds(expr: string): number {
+  const f = expr.trim().split(/\s+/);
+  if (f.length !== 5 || f.slice(1).some((x) => x !== '*')) throw new Error(`not an every-N-minutes schedule: ${expr}`);
+  if (f[0] === '*') return 60;
+  const m = /^\*\/([1-9]\d*)$/.exec(f[0]);
+  if (m === null) throw new Error(`not an every-N-minutes schedule: ${expr}`);
+  return Number(m[1]) * 60;
+}
+
+describe('facts', () => {
+  it('shows the policy netlist keccak of the X Layer deployment', () => {
+    expect(POLICY_NETLIST_KECCAK).toBe(deployment.circuits.netlistKeccak.policy);
+    expect(POLICY_NETLIST_KECCAK).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it('dates mainnet from the factory block it was deployed at', () => {
+    // Block 76567034 is the factory deployment of 22 Nov 2026. A redeploy moves the block, and this test then
+    // asks for the new date as well.
+    expect(String(deployment.factoryBlock)).toBe('76567034');
+    expect(MAINNET_SINCE).toBe('2026-11-22');
+  });
+
+  it('the keeper cadence is the pg_cron schedule of atropyle-tick', () => {
+    expect(KEEPER_CADENCE_S).toBe(cadenceSeconds(tickSchedule()));
+  });
+
+  it('reads only every-N-minutes schedules', () => {
+    expect(cadenceSeconds('* * * * *')).toBe(60);
+    expect(cadenceSeconds('*/10 * * * *')).toBe(600);
+    expect(() => cadenceSeconds('17 3 * * *')).toThrow();
+    expect(() => cadenceSeconds('*/5 2 * * *')).toThrow();
+    expect(() => cadenceSeconds('* * * *')).toThrow();
+  });
+});
+```
+
+Run: `npm test -w apps/web -- facts`
+Expected: FAIL, không tìm thấy `../../src/config/facts`.
+
+`apps/web/src/config/facts.ts`:
+
+```ts
+/*
+ * Facts the pages state as hashes, dates or numbers (spec §18, principle 3: no such value is typed by hand twice).
+ * test/unit/facts.test.ts ties each one to its source of truth. They are literals: client code never imports
+ * deployments/xlayer.json, which would put the whole file into the first load of every page (R16).
+ */
+
+/** The keccak of the policy netlist frozen on X Layer: what the proof line shows and /proof/ proves. */
+export const POLICY_NETLIST_KECCAK = '0x70167214a030d2024e5b31d7be5f5664e5abad2d7d5323443abed76b776c3864';
+
+/**
+ * The day the contracts went live on X Layer mainnet: block 76567034, timestamp 1795336070 = 2026-11-22T08:27:50Z
+ * (read from rpc.xlayer.tech on 24 Nov 2026). The test ties it to `factoryBlock`, so a redeploy breaks it.
+ */
+export const MAINNET_SINCE = '2026-11-22';
+
+/** Seconds between keeper runs: the `atropyle-tick` pg_cron job in supabase/migrations. */
+export const KEEPER_CADENCE_S = 60;
+```
+
+Ba hằng là literal. Code client không import `deployments/xlayer.json`: file đó sẽ vào JS lần tải đầu của mọi trang, mà ngân sách của `/` là 170 kB (R16). `facts.test.ts` đọc file đó bằng `node:fs`, nên literal keccak lệch khỏi `circuits.netlistKeccak.policy`, hay `factoryBlock` đổi sau một lần deploy lại, đều làm test hỏng.
+
+Run: `npm test -w apps/web -- facts`
+Expected: PASS (4 test).
+
+- [ ] **Step 4: Viết test hỏng cho script boot và đường dẫn**
 
 `apps/web/test/unit/boot.test.ts`:
 
@@ -7123,13 +8348,18 @@ Khung (`Frame`) bọc mọi trang: link "Tới nội dung chính", header dính 
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 import { BOOT_SCRIPT, legacyTarget } from '../../src/theme/boot';
+import { parseTheme, THEME_CHOICES } from '../../src/theme/theme';
 
 /** 4 kB of every character base64url uses: the shape of a long signing payload. */
 const PAYLOAD = Array.from({ length: 4096 }, (_, i) => 'ABYZabyz0189-_'[i % 14]).join('');
 
+/** Runs the real inline script against a fake page; `theme` is the data-theme it left on <html>, or null. */
 function page(o: { pathname?: string; hash?: string; stored?: string | null; storageThrows?: boolean } = {}) {
   const replace = vi.fn();
-  const setAttribute = vi.fn();
+  const attrs = new Map<string, string>();
+  const setAttribute = vi.fn((name: string, value: string) => {
+    attrs.set(name, value);
+  });
   const ctx: Record<string, unknown> = {
     location: { pathname: o.pathname ?? '/', hash: o.hash ?? '', replace },
     document: { documentElement: { setAttribute } },
@@ -7141,7 +8371,7 @@ function page(o: { pathname?: string; hash?: string; stored?: string | null; sto
     },
   });
   runInNewContext(BOOT_SCRIPT, ctx);
-  return { replace, setAttribute };
+  return { replace, setAttribute, theme: attrs.get('data-theme') ?? null };
 }
 
 describe('legacyTarget', () => {
@@ -7190,19 +8420,27 @@ describe('legacyTarget', () => {
 
 describe('boot script', () => {
   it('redirects a legacy link before it touches the theme', () => {
-    const { replace, setAttribute } = page({ hash: '#/v/0xabc/verify', stored: 'dark' });
+    const { replace, setAttribute } = page({ hash: '#/v/0xabc/verify', stored: 'light' });
     expect(replace).toHaveBeenCalledWith('/verify/#0xabc');
     expect(setAttribute).not.toHaveBeenCalled();
   });
 
-  it('applies a stored light or dark theme and leaves the rest to the system', () => {
+  it('applies a stored vellum or match-device choice and leaves night to the stylesheet', () => {
     expect(page({ stored: 'light' }).setAttribute).toHaveBeenCalledWith('data-theme', 'light');
-    expect(page({ stored: 'dark' }).setAttribute).toHaveBeenCalledWith('data-theme', 'dark');
-    for (const stored of ['system', 'blue', '', null]) expect(page({ stored }).setAttribute).not.toHaveBeenCalled();
+    expect(page({ stored: 'system' }).setAttribute).toHaveBeenCalledWith('data-theme', 'system');
+    for (const stored of ['dark', 'blue', '', null]) expect(page({ stored }).setAttribute).not.toHaveBeenCalled();
+  });
+
+  it('leaves <html> as parseTheme reads the stored value', () => {
+    // The inline script cannot import parseTheme; this keeps the two in step.
+    for (const stored of [...THEME_CHOICES, 'blue', '', null, 'Dark', ' light']) {
+      expect(parseTheme(page({ stored }).theme), String(stored)).toBe(parseTheme(stored));
+    }
   });
 
   it('boot survives a localStorage that throws', () => {
     expect(() => page({ storageThrows: true })).not.toThrow();
+    expect(page({ storageThrows: true }).theme).toBeNull();
     expect(page({ storageThrows: true, hash: '#/proof' }).replace).toHaveBeenCalledWith('/proof/');
   });
 });
@@ -7218,6 +8456,7 @@ import {
   createHref,
   isCurrent,
   joinHref,
+  LIMITS_HREF,
   legacyTarget,
   NAV,
   ROUTES,
@@ -7238,6 +8477,7 @@ describe('routes', () => {
     expect(verifyHref(A)).toBe(`/verify/#${A}`);
     expect(joinHref(A, 'heir')).toBe(`/join/#${A}.heir`);
     expect(signHref('AQID')).toBe('/sign/#p=AQID');
+    expect(LIMITS_HREF).toBe('/proof/#limits');
     for (const path of Object.values(ROUTES)) expect(path.endsWith('/'), path).toBe(true);
   });
 
@@ -7279,7 +8519,7 @@ describe('routes', () => {
 Run: `npm test -w apps/web -- boot routes`
 Expected: FAIL, không tìm thấy `../../src/theme/boot` và `../../src/routes`.
 
-- [ ] **Step 2: Viết `boot.ts`, `boot-script.tsx` và `routes.ts`**
+- [ ] **Step 5: Viết `boot.ts`, `boot-script.tsx` và `routes.ts`**
 
 `apps/web/src/theme/boot.ts`:
 
@@ -7310,7 +8550,11 @@ export function legacyTarget(pathname: string, hash: string): string | null {
   return null;
 }
 
-/** Runs before the first paint. Self-contained like legacyTarget, which it receives as an argument. */
+/**
+ * Runs before the first paint. Self-contained like legacyTarget, which it receives as an argument. Night needs no
+ * attribute (R18.1), so only a stored vellum (`light`) or match device (`system`) sets one; anything else stays
+ * night, exactly as parseTheme reads it (test/unit/boot.test.ts checks the two agree).
+ */
 export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void {
   try {
     const target = legacy(location.pathname, location.hash);
@@ -7323,9 +8567,9 @@ export function boot(themeKey: string, legacy: (pathname: string, hash: string) 
   }
   try {
     const stored = localStorage.getItem(themeKey);
-    if (stored === 'light' || stored === 'dark') document.documentElement.setAttribute('data-theme', stored);
+    if (stored === 'light' || stored === 'system') document.documentElement.setAttribute('data-theme', stored);
   } catch {
-    // Storage is blocked (private window, sandboxed frame): the system theme applies.
+    // Storage is blocked (private window, sandboxed frame): the page stays at night.
   }
 }
 
@@ -7377,6 +8621,9 @@ export const NAV: readonly { route: RouteName; key: NavKey }[] = [
   { route: 'developers', key: 'navDevelopers' },
 ];
 
+/** What the proof does not check, written next to the proof (R18.7); /proof/ gives the section `id="limits"`. */
+export const LIMITS_HREF = `${ROUTES.proof}#limits`;
+
 export function createHref(mode: 'drill' | 'real' = 'drill'): string {
   return `${ROUTES.create}#${mode}`;
 }
@@ -7410,9 +8657,9 @@ export function isCurrent(pathname: string, href: string): boolean {
 ```
 
 Run: `npm test -w apps/web -- boot routes`
-Expected: PASS (boot 6, routes 5).
+Expected: PASS (boot 7, routes 5).
 
-- [ ] **Step 3: `useLocationHash` và `replaceHash`**
+- [ ] **Step 6: `useLocationHash` và `replaceHash`**
 
 `apps/web/test/unit/hash.test.tsx`:
 
@@ -7447,6 +8694,9 @@ describe('useLocationHash', () => {
 });
 ```
 
+Run: `npm test -w apps/web -- hash.test`
+Expected: FAIL, không tìm thấy `../../src/lib/hash`.
+
 `apps/web/src/lib/hash.ts`:
 
 ```ts
@@ -7479,9 +8729,73 @@ export function replaceHash(hash: string): void {
 Run: `npm test -w apps/web -- hash.test`
 Expected: PASS (2 test).
 
-- [ ] **Step 4: Thêm chuỗi của khung và trang chủ tạm**
+- [ ] **Step 7: Chuỗi của khung và trang chủ tạm, với số phút của Drill do test tính**
 
-Thay toàn bộ `apps/web/src/messages/shell.messages.ts` (giữ mọi khoá cũ, thêm `navMe`, `navLabel`, `footerNav`, `settings`, `betaBadge`, `notFoundHint`):
+`apps/web/test/unit/drill-minutes.test.ts`:
+
+```ts
+// @vitest-environment node
+import { computeTimeline, type EvalState, modelEngine, PRESETS, STATE_CODES } from '@atropyle/sdk';
+import { describe, expect, it } from 'vitest';
+import { KEEPER_CADENCE_S } from '../../src/config/facts';
+import { messages as home } from '../../src/messages/home.messages';
+
+/** A Drill with no guardians, checked in at t = 0: the vault that "Rehearse it" on the home page starts. */
+const DRILL: EvalState = {
+  state: STATE_CODES.active,
+  owner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  lastAlive: 0n,
+  alarmAt: 0n,
+  timing: PRESETS.drill,
+  k: 0,
+  recoveryEnabled: false,
+  guardians: [],
+  inhVotes: 0,
+  recVotes: [],
+  recoveryTarget: null,
+};
+
+const timeline = computeTimeline(modelEngine(), DRILL, 0n, null);
+
+/** Release at the earliest, plus two keeper runs (one raises the alarm, one releases), in whole minutes (R18.11). */
+function drillMinutes(): number {
+  if (timeline.earliestRelease === null) throw new Error('a silent Drill never releases');
+  return Math.ceil(Number(timeline.earliestRelease + 2n * BigInt(KEEPER_CADENCE_S)) / 60);
+}
+
+describe('the Drill on the home page', () => {
+  it('a silent Drill raises the alarm, then releases', () => {
+    expect(timeline.events.map((e) => e.kind)).toEqual(['alarm', 'release']);
+    expect(timeline.earliestRelease).not.toBeNull();
+  });
+
+  it('promises the minutes the rules give, in both languages', () => {
+    // If the SDK gives another number, change the copy, never this test (spec §18.4.1 item 4).
+    for (const lang of ['en', 'vi'] as const) {
+      const numbers = [...home[lang].heroDrill.matchAll(/\d+/g)].map((m) => Number(m[0]));
+      expect(numbers, lang).toEqual([drillMinutes()]);
+    }
+  });
+
+  it('the fee note states no number of its own', () => {
+    for (const lang of ['en', 'vi'] as const) expect(home[lang].heroDrillNote, lang).not.toMatch(/\d/);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- drill-minutes`
+
+Expected: FAIL.
+
+- 2 test hỏng, vì `heroDrill` và `heroDrillNote` chưa có trong `home.messages`.
+- `a silent Drill raises the alarm, then releases` đã qua: SDK cho báo động ở 120 s, release ở 240 s, và 240 + 2 · 60 = 360 s, tức 6 phút.
+
+Thay toàn bộ `apps/web/src/messages/shell.messages.ts`:
+
+- Giữ mọi khoá cũ.
+- Thêm `navMe`, `navLabel`, `footerNav`, `settings`, `notFoundHint`, `knownLimits`, `forHeirs`, `noTrackers`, `proofLine`, `proofLineShort`, `proofLimits`, `proofLimitsShort`.
+- Không có nhãn beta: footer có link "Known limits" thay cho nó.
+- Bảy khoá ví của Task 11 mỗi khoá nằm trên một dòng.
 
 ```ts
 import { defineMessages } from '@/i18n/core';
@@ -7510,8 +8824,14 @@ export const messages = defineMessages(
     goHome: 'Go to the home page',
     badAddressTitle: 'Not a valid address',
     badAddressBody: 'This link does not contain a valid vault address:',
-    betaBadge: 'Beta — unaudited',
     footer: 'Atropyle is beta software and has not been audited. Practise with a Drill or small amounts first.',
+    knownLimits: 'Known limits',
+    forHeirs: 'For heirs and guardians',
+    noTrackers: 'No trackers · No cookies',
+    proofLine: 'Rules frozen in netlist {keccak} on X Layer · unaudited · {limits}',
+    proofLineShort: 'Rules {keccak} · {limits}',
+    proofLimits: 'limits →',
+    proofLimitsShort: 'unaudited →',
   },
   {
     navCreate: 'Tạo vault',
@@ -7536,53 +8856,269 @@ export const messages = defineMessages(
     goHome: 'Về trang chủ',
     badAddressTitle: 'Địa chỉ không hợp lệ',
     badAddressBody: 'Link này không chứa địa chỉ vault hợp lệ:',
-    betaBadge: 'Beta — chưa kiểm toán',
-    footer: 'Atropyle là phần mềm beta, chưa được kiểm toán. Hãy tập bằng Drill hoặc số tiền nhỏ trước.',
+    footer: 'Atropyle là phần mềm beta, chưa được kiểm toán. Hãy tập bằng Drill (bản diễn tập) hoặc số tiền nhỏ trước.',
+    knownLimits: 'Giới hạn đã biết',
+    forHeirs: 'Cho người thừa kế và người giám hộ',
+    noTrackers: 'Không tracker · Không cookie',
+    proofLine: 'Luật đóng băng trong netlist {keccak} trên X Layer · chưa kiểm toán · {limits}',
+    proofLineShort: 'Luật {keccak} · {limits}',
+    proofLimits: 'giới hạn →',
+    proofLimitsShort: 'chưa kiểm toán →',
   },
 );
 ```
 
-Trong `apps/web/src/messages/home.messages.ts`: ở object `en`, ngay sau dòng `title: 'Atropyle',` thêm:
+Hai chỗ sửa trong `apps/web/src/messages/home.messages.ts`, một ở object `en`, một ở object `vi`. Mỗi chỗ có neo riêng: bốn dòng cũ cộng dòng `openTitle` ngay sau chúng. Khoá kề đó có giá trị chỉ object của nó có (`'Open a vault'` ở `en`, `'Mở một vault'` ở `vi`), nên mỗi neo khớp đúng một lần trong file, và neo của `en` không khớp ở `vi`. Mỗi chỗ xoá `drillCta` và `drillNote` (lời mời cũ "Try a 5-minute Drill" và "free practice vault" trái với R18.11), giữ `createCta`, `proofCta` và `openTitle`, rồi thêm sáu khoá `hero*` trước `openTitle`.
+
+(a) Object `en`. Đoạn cũ:
 
 ```ts
+    drillCta: 'Try a 5-minute Drill',
+    createCta: 'Create a vault',
+    proofCta: 'Check the proof',
+    drillNote: 'A Drill is a free practice vault with timings in minutes. It runs the same rules as a real vault.',
+    openTitle: 'Open a vault',
+```
+
+Đoạn mới:
+
+```ts
+    createCta: 'Create a vault',
+    proofCta: 'Check the proof',
     heroEyebrow: 'Inheritance and wallet recovery on X Layer',
     heroTitle: 'What happens to your crypto when you can no longer sign?',
     heroLead:
-      'Atropyle is a vault on X Layer. Check in now and then. If you stop, your guardians confirm and your heirs receive what you left them. A circuit decides every step, and anyone can prove it.',
-    heroDrill: 'Try a 7-day Drill, free',
+      'Nothing, unless you plan for it. Atropyle watches over your wallet on X Layer. Check in now and then. If you go quiet, the people you chose receive what you left them. Your tokens stay in your wallet until that day.',
+    heroDrill: 'Rehearse it in about 6 minutes',
+    heroDrillNote: 'No Atropyle fee. You pay only X Layer network gas, in OKB.',
     heroProof: 'See the proof',
+    openTitle: 'Open a vault',
 ```
 
-và ở object `vi`, ngay sau dòng `title: 'Atropyle',` thêm:
+(b) Object `vi`. Đoạn cũ:
 
 ```ts
+    drillCta: 'Thử Drill 5 phút',
+    createCta: 'Tạo vault',
+    proofCta: 'Xem chứng minh',
+    drillNote: 'Drill là vault tập miễn phí, thời gian tính bằng phút. Drill chạy đúng luật như vault thật.',
+    openTitle: 'Mở một vault',
+```
+
+Đoạn mới:
+
+```ts
+    createCta: 'Tạo vault',
+    proofCta: 'Xem chứng minh',
     heroEyebrow: 'Thừa kế và khôi phục ví trên X Layer',
     heroTitle: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
     heroLead:
-      'Atropyle là một vault trên X Layer. Thỉnh thoảng bạn điểm danh. Nếu bạn ngừng, người giám hộ xác nhận và người thừa kế nhận phần bạn để lại. Một circuit quyết định mọi bước, và ai cũng kiểm chứng được.',
-    heroDrill: 'Thử Drill 7 ngày, miễn phí',
+      'Không có gì cả, trừ khi bạn chuẩn bị trước. Atropyle trông chừng ví của bạn trên X Layer. Thỉnh thoảng bạn điểm danh. Nếu bạn im lặng, những người bạn đã chọn sẽ nhận phần bạn để lại. Token của bạn nằm yên trong ví cho tới ngày đó.',
+    heroDrill: 'Diễn tập trong khoảng 6 phút',
+    heroDrillNote: 'Atropyle không thu phí. Bạn chỉ trả gas của mạng X Layer, bằng OKB.',
     heroProof: 'Xem bằng chứng',
+    openTitle: 'Mở một vault',
 ```
 
-- [ ] **Step 5: Viết test hỏng cho khung**
+Chỉ trang chủ cũ dùng `drillCta` và `drillNote`; 7A, 7B và 7C không gọi tên chúng. Kiểm không còn file nào của `apps/web` gọi hai khoá (`apps/web-legacy` giữ bản của nó):
+
+```bash
+git grep -nE "drillCta|drillNote" -- apps/web
+```
+
+Expected: không in gì.
+
+Trong `apps/web/src/messages/ui.messages.ts`, chỉ đổi giá trị của ba nhãn theme, không đổi khoá:
+
+- Ở object `en`, thay ba dòng `themeSystem: 'System',`, `themeLight: 'Light',`, `themeDark: 'Dark',` bằng:
+
+  ```ts
+      themeSystem: 'Match device',
+      themeLight: 'Vellum',
+      themeDark: 'Night',
+  ```
+
+- Ở object `vi`, thay `themeSystem: 'Theo hệ thống',`, `themeLight: 'Sáng',`, `themeDark: 'Tối',` bằng:
+
+  ```ts
+      themeSystem: 'Theo thiết bị',
+      themeLight: 'Giấy da',
+      themeDark: 'Đêm',
+  ```
+
+Run: `npm test -w apps/web -- drill-minutes i18n`
+Expected: PASS (drill-minutes 3, i18n 5). Test i18n kiểm EN và VI có cùng khoá và cùng placeholder: `proofLine` và `proofLineShort` đều có `{keccak}` và `{limits}`, và `home` mất `drillCta`, `drillNote` ở cả hai ngôn ngữ.
+
+- [ ] **Step 8: Dòng bằng chứng**
+
+`apps/web/test/unit/proof-line.test.tsx`:
+
+```tsx
+import { screen, waitFor } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import deployment from '../../../../deployments/xlayer.json';
+import { ProofLine } from '../../src/shell/proof-line';
+import { renderWithProviders } from '../helpers/render';
+
+const KECCAK = deployment.circuits.netlistKeccak.policy;
+const SHORT = `${KECCAK.slice(0, 6)}…${KECCAK.slice(-4)}`;
+
+/** Characters as a reader counts them: `…`, `→` and each Vietnamese letter are one. */
+const length = (s: string | null) => Array.from((s ?? '').normalize('NFC')).length;
+
+function variants() {
+  const line = screen.getByTestId('proof-line');
+  const wide = line.querySelector<HTMLElement>('[data-variant="wide"]');
+  const narrow = line.querySelector<HTMLElement>('[data-variant="narrow"]');
+  if (wide === null || narrow === null) throw new Error('the proof line needs a wide and a narrow variant');
+  return { line, wide, narrow };
+}
+
+describe('ProofLine', () => {
+  it('states the frozen netlist and links it to the proof and its limits', () => {
+    renderWithProviders(<ProofLine />);
+    const { line, wide, narrow } = variants();
+    expect(line.tagName).toBe('P');
+    expect(line.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-6', 'font-mono', 'text-caption']));
+    expect(wide.textContent).toBe(`Rules frozen in netlist ${SHORT} on X Layer · unaudited · limits →`);
+    expect(narrow.textContent).toBe(`Rules ${SHORT} · unaudited →`);
+    expect(wide.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'md:inline']));
+    expect(narrow.className.split(/\s+/)).toContain('md:hidden');
+    for (const v of [wide, narrow]) {
+      const links = Array.from(v.querySelectorAll('a'));
+      expect(links).toHaveLength(2);
+      expect(links[0].textContent).toBe(SHORT);
+      expect(links[0].getAttribute('href')).toBe('/proof/');
+      expect(links[0].getAttribute('title')).toBe(KECCAK);
+      expect(links[1].getAttribute('href')).toBe('/proof/#limits');
+    }
+  });
+
+  it('speaks Vietnamese in sentence case', async () => {
+    renderWithProviders(<ProofLine />, { lang: 'vi' });
+    await waitFor(() => expect(variants().narrow.textContent).toBe(`Luật ${SHORT} · chưa kiểm toán →`));
+    expect(variants().wide.textContent).toBe(
+      `Luật đóng băng trong netlist ${SHORT} trên X Layer · chưa kiểm toán · giới hạn →`,
+    );
+  });
+
+  it('fits one line: 36 characters on a phone, 96 from 48rem', async () => {
+    // 12 px mono is about 7.2 px a character: 36 fit a 320 px phone inside 16 px gutters, 96 fit 48rem.
+    for (const lang of ['en', 'vi'] as const) {
+      const { unmount } = renderWithProviders(<ProofLine />, { lang });
+      await waitFor(() => expect(variants().narrow.textContent).toContain(lang === 'vi' ? 'Luật' : 'Rules'));
+      const { wide, narrow } = variants();
+      expect(length(narrow.textContent), `${lang} narrow`).toBeLessThanOrEqual(36);
+      expect(length(wide.textContent), `${lang} wide`).toBeLessThanOrEqual(96);
+      unmount();
+    }
+  });
+});
+```
+
+Run: `npm test -w apps/web -- proof-line`
+Expected: FAIL, không tìm thấy `../../src/shell/proof-line`.
+
+`apps/web/src/shell/proof-line.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { POLICY_NETLIST_KECCAK } from '@/config/facts';
+import { useT } from '@/i18n/provider';
+import { messages as shell } from '@/messages/shell.messages';
+import { LIMITS_HREF, ROUTES } from '@/routes';
+
+/** `0x7016…3864`: the first four and the last four hex digits; the full hash is the link's title. */
+const SHORT = `${POLICY_NETLIST_KECCAK.slice(0, 6)}…${POLICY_NETLIST_KECCAK.slice(-4)}`;
+const LINK =
+  'rounded-sm text-thread underline decoration-thread/40 underline-offset-2 transition-colors duration-150 hover:decoration-thread';
+
+/**
+ * Splits a template at `{keccak}` and `{limits}`, so both links sit inside one translated sentence. A template
+ * without both, in that order, is a bug; test/unit/proof-line.test.tsx renders both languages, so it fails there.
+ */
+function around(template: string): [string, string, string] {
+  const k = template.indexOf('{keccak}');
+  const l = template.indexOf('{limits}');
+  if (k < 0 || l < k) throw new Error(`the proof line needs {keccak} before {limits}: ${template}`);
+  return [template.slice(0, k), template.slice(k + '{keccak}'.length, l), template.slice(l + '{limits}'.length)];
+}
+
+function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; template: string; limits: string }) {
+  const [before, between, after] = around(template);
+  return (
+    <span data-variant={variant} className={variant === 'wide' ? 'hidden md:inline' : 'md:hidden'}>
+      {before}
+      {/* prefetch stays off until /proof/ exists (Quyết định 22; 7C T3 turns it on). */}
+      <Link href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={LINK}>
+        {SHORT}
+      </Link>
+      {between}
+      <Link href={LIMITS_HREF} prefetch={false} className={LINK}>
+        {limits}
+      </Link>
+      {after}
+    </span>
+  );
+}
+
+/**
+ * The first line every page shows (R18.7): where the guarantee lives (the netlist frozen on X Layer) and where it
+ * stops (unaudited, the known limits). Prerendered, one 24 px line, never dismissable. Both variants are in the
+ * HTML and CSS picks one, so nothing measures the width in JS.
+ */
+export function ProofLine() {
+  const t = useT(shell);
+  return (
+    <p
+      data-testid="proof-line"
+      className="h-6 whitespace-nowrap border-line/60 border-b bg-surface-1 px-4 text-center font-mono text-caption text-ink-muted leading-6"
+    >
+      <Variant variant="wide" template={t('proofLine')} limits={t('proofLimits')} />
+      <Variant variant="narrow" template={t('proofLineShort')} limits={t('proofLimitsShort')} />
+    </p>
+  );
+}
+```
+
+`t('proofLine')` không truyền tham số, nên `format` giữ nguyên `{keccak}` và `{limits}`, và `around` cắt chuỗi tại hai chỗ đó. Dòng này không có `overflow-hidden`, để vòng focus của hai link không bị cắt.
+
+Run: `npm test -w apps/web -- proof-line`
+Expected: PASS (3 test). Độ dài đo được:
+
+| Bản | EN | VI |
+| --- | --- | --- |
+| hẹp | 31 | 35 |
+| rộng | 69 | 83 |
+
+- [ ] **Step 9: Viết test hỏng cho khung**
 
 `apps/web/test/unit/shell.test.tsx`:
 
 ```tsx
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import NotFound from '../../src/app/not-found';
 import { HomeHero } from '../../src/home/hero';
 import { REPO_URL } from '../../src/lib/links';
 import { KEYS } from '../../src/lib/store';
+import { messages as home } from '../../src/messages/home.messages';
 import { Footer } from '../../src/shell/footer';
 import { Frame } from '../../src/shell/frame';
+import { Header } from '../../src/shell/header';
 import { LangSwitch } from '../../src/shell/lang-switch';
 import { MobileMenu } from '../../src/shell/mobile-menu';
 import { ThemeSwitch } from '../../src/shell/theme-switch';
+import { Wordmark } from '../../src/shell/wordmark';
+import { GLYPH_NAMES } from '../../src/thread/glyphs';
 import { renderWithProviders } from '../helpers/render';
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/create/' }));
+
+const root = document.documentElement;
+afterEach(() => root.removeAttribute('data-theme'));
 
 describe('Frame', () => {
   it('skips to the main content without touching the hash', () => {
@@ -7610,6 +9146,45 @@ describe('Frame', () => {
     expect(nav.querySelector('a[href="/proof/"]')?.getAttribute('aria-current')).toBeNull();
     expect(screen.getByRole('link', { name: 'Atropyle home' }).getAttribute('href')).toBe('/');
   });
+
+  it('opens with the skip button for the keyboard, then the proof line, then the header', () => {
+    renderWithProviders(
+      <Frame>
+        <p>Body</p>
+      </Frame>,
+    );
+    // Found by role and test id, never by child index: the proof line is the first visible band, right after the skip
+    // link, whatever later tasks put around the three.
+    const skip = screen.getByRole('button', { name: 'Skip to content' });
+    const proof = screen.getByTestId('proof-line');
+    const header = screen.getByRole('banner');
+    expect(skip.compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(proof.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(proof.contains(screen.getAllByRole('link')[0])).toBe(true);
+  });
+});
+
+describe('Header', () => {
+  it('is solid below 48rem, blurs only from 48rem, and wears the mark', () => {
+    renderWithProviders(<Header />);
+    const cls = screen.getByRole('banner').className.split(/\s+/);
+    expect(cls).toEqual(expect.arrayContaining(['site-header', 'sticky', 'bg-bg/95', 'md:bg-bg/80']));
+    expect(cls.filter((c) => c.includes('backdrop-blur'))).toEqual(['md:backdrop-blur-md']);
+    const homeLink = screen.getByRole('link', { name: 'Atropyle home' });
+    expect(homeLink.querySelector('svg[data-glyph="mark"]')).not.toBeNull();
+  });
+});
+
+describe('Wordmark', () => {
+  it('draws the mark in one stroke, in the thread colour, before the name', () => {
+    expect(GLYPH_NAMES).toContain('mark');
+    const { container } = renderWithProviders(<Wordmark />);
+    const mark = container.querySelector('svg[data-glyph="mark"]');
+    expect(mark?.querySelectorAll('path')).toHaveLength(1);
+    expect(mark?.getAttribute('class')).toContain('text-thread');
+    expect(mark?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.textContent).toBe('Atropyle');
+  });
 });
 
 describe('settings', () => {
@@ -7622,13 +9197,27 @@ describe('settings', () => {
     expect((screen.getByRole('radio', { name: 'Tiếng Việt' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('switches theme and returns to the system theme', () => {
+  it('opens at night, then switches to vellum, to match device and back to night', async () => {
     const { kv } = renderWithProviders(<ThemeSwitch />);
-    fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    const radio = (name: string) => screen.getByRole('radio', { name }) as HTMLInputElement;
+    await waitFor(() => expect(radio('Night').checked).toBe(true));
+    expect(screen.getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['dark', 'light', 'system']);
+    fireEvent.click(radio('Vellum'));
+    await waitFor(() => expect(root.getAttribute('data-theme')).toBe('light'));
+    expect(kv.get(KEYS.theme)).toBe('light');
+    fireEvent.click(radio('Match device'));
+    await waitFor(() => expect(root.getAttribute('data-theme')).toBe('system'));
+    fireEvent.click(radio('Night'));
+    await waitFor(() => expect(root.hasAttribute('data-theme')).toBe(false));
     expect(kv.get(KEYS.theme)).toBe('dark');
-    fireEvent.click(screen.getByRole('radio', { name: 'System' }));
-    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+    expect(radio('Night').checked).toBe(true);
+  });
+
+  it('names the three themes in Vietnamese', async () => {
+    renderWithProviders(<ThemeSwitch />, { lang: 'vi' });
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Đêm' })).toBeTruthy());
+    expect(screen.getByRole('radio', { name: 'Giấy da' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Theo thiết bị' })).toBeTruthy();
   });
 
   it('opens the navigation as a sheet on narrow screens', async () => {
@@ -7641,14 +9230,18 @@ describe('settings', () => {
 });
 
 describe('Footer', () => {
-  it('links out in a new tab and says which version and build this is', () => {
+  it('names its limits, the page for heirs and what it never collects, and links out in a new tab', () => {
     renderWithProviders(<Footer />);
+    expect(screen.getByRole('contentinfo').classList.contains('site-footer')).toBe(true);
+    expect(screen.getByRole('link', { name: 'Known limits' }).getAttribute('href')).toBe('/proof/#limits');
+    expect(screen.getByRole('link', { name: 'For heirs and guardians' }).getAttribute('href')).toBe('/verify/');
+    expect(screen.getByText('No trackers · No cookies')).toBeTruthy();
     const source = screen.getByRole('link', { name: /Source code/ });
     expect(source.getAttribute('href')).toBe(REPO_URL);
     expect(source.getAttribute('target')).toBe('_blank');
     expect(screen.getByText('Version 0.0.0-test')).toBeTruthy();
-    expect(screen.getByText('Beta — unaudited')).toBeTruthy();
     expect(screen.getByText('100% on-chain')).toBeTruthy();
+    expect(screen.queryByText(/Beta —/)).toBeNull();
   });
 });
 
@@ -7663,13 +9256,33 @@ describe('pages', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('the home page asks its question and offers a Drill', () => {
+  it('the home page asks its question, offers a Drill that says what it costs, and the proof', () => {
     renderWithProviders(<HomeHero />);
     expect(
       screen.getByRole('heading', { level: 1, name: 'What happens to your crypto when you can no longer sign?' }),
     ).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Try a 7-day Drill, free' }).getAttribute('href')).toBe('/create/#drill');
+    // The number in heroDrill is pinned by drill-minutes.test.ts.
+    const drill = screen.getByRole('link', { name: home.en.heroDrill });
+    expect(drill.getAttribute('href')).toBe('/create/#drill');
+    const note = document.getElementById(drill.getAttribute('aria-describedby') ?? '');
+    expect(note?.textContent).toBe('No Atropyle fee. You pay only X Layer network gas, in OKB.');
     expect(screen.getByRole('link', { name: 'See the proof' }).getAttribute('href')).toBe('/proof/');
+    const lead = screen.getByText(/^Nothing, unless you plan for it\./);
+    // True for a vault without guardians too (spec §18.4.1 item 4).
+    expect(lead.textContent).toContain('the people you chose receive');
+    expect(lead.textContent).not.toContain('guardians confirm');
+  });
+
+  it('the home page speaks Vietnamese', async () => {
+    renderWithProviders(<HomeHero />, { lang: 'vi' });
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: home.vi.heroDrill }).getAttribute('href')).toBe('/create/#drill');
+    expect(screen.getByText(home.vi.heroDrillNote)).toBeTruthy();
   });
 });
 ```
@@ -7704,36 +9317,51 @@ it('no file writes HTML from a string, except the boot script', () => {
 ```
 
 Run: `npm test -w apps/web -- shell no-html-sinks`
-Expected: FAIL, không tìm thấy `../../src/app/not-found` và các module `src/shell/*`.
 
-- [ ] **Step 6: Viết các thành phần của khung**
+Expected: FAIL, vì `shell` không tìm thấy `../../src/app/not-found` và các module `src/shell/*`. `no-html-sinks` qua ngay: nó là lưới cho các bước sau, và `boot-script.tsx` nằm trong `ALLOWED`.
+
+- [ ] **Step 10: Glyph `mark` và các thành phần của khung**
+
+`apps/web/src/thread/glyphs.tsx` (của Task 7) có bốn chỗ sửa. Bản ghi hình tên là `SHAPES` trong văn bản của Task 7. Nếu bản đã commit đặt tên khác, thêm vào bản ghi đó.
+
+- Trong union `GlyphName`, thay dòng cuối `  | 'knot';` bằng:
+
+  ```ts
+    | 'knot'
+    | 'mark';
+  ```
+
+- Trong mảng `GLYPH_NAMES`, thêm `'mark',` ngay sau `'knot',`.
+- Đổi chú thích `/** Eight glyphs in the thread's own line (spec §4.5): …` thành `/** Nine glyphs in the thread's own line (spec §4.5): …`. Phần còn lại của dòng giữ nguyên.
+- Trong `SHAPES`, thêm ngay sau mục `knot: { … },`:
+
+  ```ts
+    // The mark: the thread rises into the gate's arch and goes on beyond it, in one stroke (§18.4.1 item 8).
+    mark: { d: ['M2 18c2.5 0 4.5-1 4.5-4v-3a5.5 5.5 0 0 1 11 0v3c0 3 2 4 4.5 4'] },
+  ```
+
+Path này không có dấu phẩy, nên vẫn khớp regex `/^M[0-9.\- a-zA-Z]+$/` của test glyph.
+
+Test glyph của Task 7 duyệt `GLYPH_NAMES`, nên giờ nó kiểm cả `mark`: `aria-hidden`, nét `currentColor` 1,5, và hình khác mọi glyph còn lại. Đổi tên của test đó cho đúng số glyph:
+
+```bash
+sed -i "s/it('draws eight distinct glyphs,/it('draws nine distinct glyphs,/" apps/web/test/unit/thread.test.tsx
+grep -c "draws nine distinct glyphs" apps/web/test/unit/thread.test.tsx
+```
+
+Expected: `1`.
 
 `apps/web/src/shell/wordmark.tsx`:
 
 ```tsx
 import { cn } from '@/lib/cn';
+import { StateGlyph } from '@/thread/glyphs';
 
-/** A thread that ties one knot, then the name. */
+/** The mark (the thread rises into the gate's arch and goes on beyond it), then the name. */
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2 font-display text-ink text-title tracking-tight', className)}>
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        viewBox="0 0 32 32"
-        width={28}
-        height={28}
-        fill="none"
-        className="text-thread"
-      >
-        <path
-          d="M2 20c6 0 7.5-8 13-8 4 0 5 4 2.5 6s-5.5-.5-3.5-3.5S21 12 23.5 15s3.5 5 6.5 5"
-          stroke="currentColor"
-          strokeWidth={2.25}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <StateGlyph name="mark" size={28} className="text-thread" />
       <span>Atropyle</span>
     </span>
   );
@@ -7750,7 +9378,7 @@ import { messages as ui } from '@/messages/ui.messages';
 
 /**
  * A button, not `<a href="#main">`: the hash carries page parameters (the vault address, the signing payload), and
- * a fragment link would overwrite them.
+ * a fragment link would overwrite them. It is the first element of every page (WCAG 2.4.1).
  */
 export function SkipLink({ targetId }: { targetId: string }) {
   const t = useT(ui);
@@ -7824,16 +9452,19 @@ import { useT } from '@/i18n/provider';
 import { messages as ui } from '@/messages/ui.messages';
 import { withViewTransition } from '@/motion/view-transition';
 import { useTheme } from '@/theme/provider';
-import type { ThemeChoice } from '@/theme/theme';
+import { THEME_CHOICES, type ThemeChoice } from '@/theme/theme';
 
-const OPTIONS: readonly { value: ThemeChoice; label: 'themeSystem' | 'themeLight' | 'themeDark'; Icon: LucideIcon }[] =
-  [
-    { value: 'system', label: 'themeSystem', Icon: Monitor },
-    { value: 'light', label: 'themeLight', Icon: Sun },
-    { value: 'dark', label: 'themeDark', Icon: Moon },
-  ];
+const OPTION: Record<ThemeChoice, { label: 'themeDark' | 'themeLight' | 'themeSystem'; Icon: LucideIcon }> = {
+  dark: { label: 'themeDark', Icon: Moon },
+  light: { label: 'themeLight', Icon: Sun },
+  system: { label: 'themeSystem', Icon: Monitor },
+};
 
-/** The new theme crossfades in through a View Transition where the browser has one (reduced motion: instant). */
+/**
+ * Night, Vellum, Match device (R18.1), in the order of THEME_CHOICES. Icon above the word, so "Match device" fits
+ * the 18rem popover in both languages. The new theme crossfades in through a View Transition where the browser has
+ * one (reduced motion: instant).
+ */
 export function ThemeSwitch() {
   const { choice, setChoice } = useTheme();
   const t = useT(ui);
@@ -7841,24 +9472,27 @@ export function ThemeSwitch() {
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 text-caption text-ink-muted">{t('theme')}</legend>
-      <div className="grid grid-cols-3 gap-1 rounded-full border border-line bg-surface-2 p-1">
-        {OPTIONS.map(({ value, label, Icon }) => (
-          <label
-            key={value}
-            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-ink-muted text-small transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
-          >
-            <input
-              type="radio"
-              name={name}
-              value={value}
-              checked={choice === value}
-              onChange={() => withViewTransition(() => setChoice(value))}
-              className="sr-only"
-            />
-            <Icon aria-hidden="true" size={15} strokeWidth={1.5} />
-            {t(label)}
-          </label>
-        ))}
+      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-line bg-surface-2 p-1">
+        {THEME_CHOICES.map((value) => {
+          const { label, Icon } = OPTION[value];
+          return (
+            <label
+              key={value}
+              className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center text-caption text-ink-muted leading-tight transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
+            >
+              <input
+                type="radio"
+                name={name}
+                value={value}
+                checked={choice === value}
+                onChange={() => withViewTransition(() => setChoice(value))}
+                className="sr-only"
+              />
+              <Icon aria-hidden="true" size={16} strokeWidth={1.5} />
+              {t(label)}
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );
@@ -8043,11 +9677,15 @@ import { NavList } from './nav-list';
 import { SettingsMenu } from './settings-menu';
 import { Wordmark } from './wordmark';
 
+/**
+ * Sticky at the top. Solid below 48rem: a blur behind a sticky bar repaints every scrolled frame on a phone
+ * (spec §18.4.1 item 7). `site-header` names it for View Transitions, so it stays put between pages.
+ */
 export function Header() {
   const t = useT(shell);
   const u = useT(ui);
   return (
-    <header className="sticky top-0 z-40 border-line/70 border-b bg-bg/80 backdrop-blur-md">
+    <header className="site-header sticky top-0 z-40 border-line/70 border-b bg-bg/95 md:bg-bg/80 md:backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
         <Link href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
           <Wordmark />
@@ -8080,31 +9718,39 @@ import { useT } from '@/i18n/provider';
 import { LICENSE_URL, REPO_URL, XLAYER_URL } from '@/lib/links';
 import { messages as shell } from '@/messages/shell.messages';
 import { messages as ui } from '@/messages/ui.messages';
-import { ROUTES } from '@/routes';
+import { LIMITS_HREF, ROUTES } from '@/routes';
 import { ExternalLink } from '@/ui/external-link';
 import { Wordmark } from './wordmark';
 
 const LINK = 'text-ink-muted transition-colors duration-150 hover:text-ink';
 
+/**
+ * The known limits instead of a beta badge (R18.7), the page for heirs and guardians, and what the site never
+ * collects. Task 15's e2e blocks every third-party request, which keeps "No trackers · No cookies" true.
+ */
 export function Footer() {
   const t = useT(shell);
   const u = useT(ui);
   return (
-    <footer className="border-line border-t">
+    <footer className="site-footer border-line border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6">
         <div className="flex flex-col gap-8 md:flex-row md:justify-between">
           <div className="flex max-w-md flex-col items-start gap-3">
             <Wordmark />
             <p className="text-ink-muted text-small">{t('footer')}</p>
-            <span className="rounded-full border border-grace/45 px-2.5 py-0.5 font-medium text-caption text-grace">
-              {t('betaBadge')}
-            </span>
+            <Link
+              href={LIMITS_HREF}
+              prefetch={false}
+              className="rounded-sm font-medium text-small text-thread underline decoration-thread/40 underline-offset-4 transition-colors duration-150 hover:decoration-thread"
+            >
+              {t('knownLimits')}
+            </Link>
           </div>
           <nav aria-label={t('footerNav')}>
             <ul className="grid grid-cols-2 gap-x-10 gap-y-3 text-small">
               <li>
-                <Link href={ROUTES.status} prefetch={false} className={LINK}>
-                  {t('navStatus')}
+                <Link href={ROUTES.verify} prefetch={false} className={LINK}>
+                  {t('forHeirs')}
                 </Link>
               </li>
               <li>
@@ -8113,8 +9759,8 @@ export function Footer() {
                 </ExternalLink>
               </li>
               <li>
-                <Link href={ROUTES.privacy} prefetch={false} className={LINK}>
-                  {u('footerPrivacy')}
+                <Link href={ROUTES.status} prefetch={false} className={LINK}>
+                  {t('navStatus')}
                 </Link>
               </li>
               <li>
@@ -8132,11 +9778,17 @@ export function Footer() {
                   {u('footerLicense')}
                 </ExternalLink>
               </li>
+              <li>
+                <Link href={ROUTES.privacy} prefetch={false} className={LINK}>
+                  {u('footerPrivacy')}
+                </Link>
+              </li>
             </ul>
           </nav>
         </div>
-        <div className="flex flex-wrap items-center gap-3 border-line border-t pt-6 text-caption text-ink-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-line border-t pt-6 text-caption text-ink-muted">
           <span className="font-mono">{u('footerVersion', { version: ENV.version })}</span>
+          <span>{t('noTrackers')}</span>
           {IS_VERCEL ? null : (
             <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-ink">{u('onchainBadge')}</span>
           )}
@@ -8155,13 +9807,19 @@ export function Footer() {
 import { type ReactNode, useId } from 'react';
 import { Footer } from './footer';
 import { Header } from './header';
+import { ProofLine } from './proof-line';
 import { SkipLink } from './skip-link';
 
+/**
+ * Every page. The skip button comes first for the keyboard (WCAG 2.4.1; hidden until focused), then the proof line,
+ * the first thing anyone sees (R18.7), then the sticky header, the page and the footer.
+ */
 export function Frame({ children }: { children: ReactNode }) {
   const mainId = useId();
   return (
     <div className="flex min-h-dvh flex-col">
       <SkipLink targetId={mainId} />
+      <ProofLine />
       <Header />
       <main id={mainId} tabIndex={-1} className="flex flex-1 flex-col outline-none">
         {children}
@@ -8178,28 +9836,43 @@ export function Frame({ children }: { children: ReactNode }) {
 'use client';
 
 import Link from 'next/link';
+import { useId } from 'react';
 import { useT } from '@/i18n/provider';
 import { messages as home } from '@/messages/home.messages';
 import { createHref, ROUTES } from '@/routes';
 import { Thread } from '@/thread/thread';
 import { buttonClass } from '@/ui/button';
 
-/** The first scene of the home page (spec §5.1). Plan 7B adds the other five. */
+/**
+ * The first scene of the home page (spec §5.1). Plan 7B adds the other five. The Drill offer carries its cost in a
+ * note right under it, linked with aria-describedby, so no reader hears "6 minutes" without "network gas" (R18.11).
+ */
 export function HomeHero() {
   const t = useT(home);
+  const noteId = useId();
   return (
     <section className="relative isolate flex flex-col gap-12 overflow-hidden pt-16 pb-20 md:pt-28">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 sm:px-6">
         <p className="font-medium text-caption text-thread uppercase tracking-[0.16em]">{t('heroEyebrow')}</p>
         <h1 className="max-w-4xl text-balance font-display text-display">{t('heroTitle')}</h1>
         <p className="max-w-2xl text-pretty text-ink-muted text-lead">{t('heroLead')}</p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Link href={createHref('drill')} prefetch={false} className={buttonClass({ variant: 'primary', size: 'lg' })}>
-            {t('heroDrill')}
-          </Link>
-          <Link href={ROUTES.proof} prefetch={false} className={buttonClass({ variant: 'secondary', size: 'lg' })}>
-            {t('heroProof')}
-          </Link>
+        <div className="flex flex-col gap-3 pt-2">
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={createHref('drill')}
+              prefetch={false}
+              aria-describedby={noteId}
+              className={buttonClass({ variant: 'primary', size: 'lg' })}
+            >
+              {t('heroDrill')}
+            </Link>
+            <Link href={ROUTES.proof} prefetch={false} className={buttonClass({ variant: 'secondary', size: 'lg' })}>
+              {t('heroProof')}
+            </Link>
+          </div>
+          <p id={noteId} className="text-ink-muted text-small">
+            {t('heroDrillNote')}
+          </p>
         </div>
       </div>
       <Thread state="active" remaining={0.72} knots={[0.16, 0.34, 0.52]} shared className="w-full" />
@@ -8207,6 +9880,8 @@ export function HomeHero() {
   );
 }
 ```
+
+(`Thread` của Task 7 mặc định tỉ lệ 5:1; chỗ gọi chỉ đặt chiều rộng. `remaining={0.72}` cho nhịp `slow`, đúng chỗ e2e `motion.spec.ts` của Task 15 tìm `thread-pulse`.)
 
 `apps/web/src/app/not-found.tsx`:
 
@@ -8276,12 +9951,11 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false, address: false, email: false },
 };
 
+// Night whatever the device prefers (R18.1). The stylesheet sets color-scheme per theme; this meta only decides the
+// canvas before the stylesheet applies, and the browser bar keeps the night colour under every theme.
 export const viewport: Viewport = {
-  colorScheme: 'dark light',
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0b0d12' },
-    { media: '(prefers-color-scheme: light)', color: '#f6f1e7' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#0b0d12',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -8300,20 +9974,34 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-(`suppressHydrationWarning` chỉ có hiệu lực cho thuộc tính của chính `<html>`: script boot đặt `data-theme`, `LangProvider` đổi `lang`.)
+`suppressHydrationWarning` chỉ có hiệu lực cho thuộc tính của chính `<html>`. Ở đây có hai thuộc tính như vậy: script boot đặt `data-theme` khi người dùng đã chọn vellum hay "match device", và `LangProvider` đổi `lang`.
 
-Run: `npm test -w apps/web -- shell no-html-sinks hash boot routes`
-Expected: PASS (shell 8, no-html-sinks 1, hash 2, boot 6, routes 5).
+Run: `npm test -w apps/web -- shell no-html-sinks proof-line thread`
+Expected: PASS (shell 13, no-html-sinks 1, proof-line 3, thread 13, thread-geometry 33, thread-layers 14). Lỗi Biome về format hay thứ tự import thì sửa bằng `npx biome check --write <đường dẫn>` trên đúng các file của task.
 
-- [ ] **Step 7: Test build cho khung**
+- [ ] **Step 11: Test build cho khung**
 
 `apps/web/test/build/shell.test.ts`:
 
 ```ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { format } from '../../src/i18n/core';
+import { messages as home } from '../../src/messages/home.messages';
+import { messages as shell } from '../../src/messages/shell.messages';
 import { outOf } from './paths';
+
+const deployment = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../../../deployments/xlayer.json', import.meta.url)), 'utf8'),
+) as { circuits: { netlistKeccak: { policy: string } } };
+const KECCAK = deployment.circuits.netlistKeccak.policy;
+const SHORT = `${KECCAK.slice(0, 6)}…${KECCAK.slice(-4)}`;
+
+/** The text a reader sees: tags and React's `<!-- -->` separators removed. */
+const textOf = (html: string) => html.replace(/<[^>]*>/g, '');
+const metas = (html: string, name: string) => html.match(new RegExp(`<meta[^>]*name="${name}"[^>]*>`, 'g')) ?? [];
 
 for (const target of ['vercel', 'deweb'] as const) {
   describe(`${target} shell`, () => {
@@ -8327,26 +10015,87 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(html).toMatch(/<html lang="en"/);
     });
 
-    it('prerenders the 404 page and the home page text', () => {
-      expect(read('404.html')).toContain('Page not found');
-      expect(read('index.html')).toContain('What happens to your crypto when you can no longer sign?');
+    it('opens at night: no theme attribute, one night theme colour, a dark colour scheme', () => {
+      const html = read('index.html');
+      expect(html.match(/<html[^>]*>/)?.[0]).not.toContain('data-theme');
+      const colours = metas(html, 'theme-color');
+      expect(colours).toHaveLength(1);
+      expect(colours[0]).toContain('content="#0b0d12"');
+      expect(colours[0]).not.toContain('media=');
+      expect(metas(html, 'color-scheme')).toEqual([expect.stringContaining('content="dark"')]);
+    });
+
+    it('prerenders the proof line and the footer on every page, and the home and 404 text', () => {
+      const proof = format(shell.en.proofLine, { keccak: SHORT, limits: shell.en.proofLimits });
+      for (const file of ['index.html', '404.html']) {
+        const html = read(file);
+        expect(textOf(html), file).toContain(proof);
+        expect(html, file).toContain('href="/proof/#limits"');
+        expect(html, file).toContain('href="/verify/"');
+        expect(textOf(html), file).toContain(shell.en.noTrackers);
+      }
+      expect(textOf(read('404.html'))).toContain(shell.en.notFoundTitle);
+      const index = textOf(read('index.html'));
+      expect(index).toContain(home.en.heroTitle);
+      expect(index).toContain(home.en.heroDrill);
     });
   });
 }
 ```
 
 Run: `npm run test:build -w apps/web`
-Expected: PASS (thêm 4 test). Nếu `head` không chứa `"atropyle:theme"`: mở `out/index.html`, tìm script boot; bundler đã đổi cách in hằng chuỗi thì so bằng `atropyle:theme` không kèm nháy.
 
-- [ ] **Step 8: Chạy toàn bộ và commit**
+Expected: PASS (thêm 6 test). Nếu một test hỏng, kiểm theo bảng dưới:
+
+| Test hỏng | Kiểm gì |
+| --- | --- |
+| `head` không chứa `"atropyle:theme"` | Mở `out/index.html` và tìm script boot. Nếu bundler đã đổi cách in hằng chuỗi, so bằng `atropyle:theme` không kèm nháy. |
+| test meta | In `metas(html, 'theme-color')` và xem Next 16.4.6 đã in gì từ `viewport`. Sửa `layout.tsx`, không sửa test. |
+
+- [ ] **Step 12: Chạy toàn bộ và commit**
 
 ```bash
 npm test -w apps/web
 npm run typecheck -w apps/web
 npx biome ci .
-git add apps/web/src/theme/boot.ts apps/web/src/theme/boot-script.tsx apps/web/src/routes.ts apps/web/src/lib/hash.ts apps/web/src/shell apps/web/src/home apps/web/src/app/not-found.tsx apps/web/src/app/page.tsx apps/web/src/app/layout.tsx apps/web/src/messages/shell.messages.ts apps/web/src/messages/home.messages.ts apps/web/test/unit/boot.test.ts apps/web/test/unit/routes.test.ts apps/web/test/unit/hash.test.tsx apps/web/test/unit/shell.test.tsx apps/web/test/unit/no-html-sinks.test.ts apps/web/test/build/shell.test.ts
-git commit -m "feat(web): app shell, boot script with legacy link redirect, and the first home scene" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add apps/web/src/config/facts.ts apps/web/src/theme/theme.ts apps/web/src/theme/provider.tsx apps/web/src/theme/boot.ts apps/web/src/theme/boot-script.tsx
+git add apps/web/src/routes.ts apps/web/src/lib/hash.ts apps/web/src/app/globals.css apps/web/src/app/layout.tsx apps/web/src/app/page.tsx apps/web/src/app/not-found.tsx
+git add apps/web/src/shell/frame.tsx apps/web/src/shell/header.tsx apps/web/src/shell/proof-line.tsx apps/web/src/shell/nav-list.tsx apps/web/src/shell/settings-menu.tsx apps/web/src/shell/mobile-menu.tsx
+git add apps/web/src/shell/footer.tsx apps/web/src/shell/skip-link.tsx apps/web/src/shell/lang-switch.tsx apps/web/src/shell/theme-switch.tsx apps/web/src/shell/haptics-switch.tsx apps/web/src/shell/wordmark.tsx
+git add apps/web/src/home/hero.tsx apps/web/src/thread/glyphs.tsx apps/web/src/messages/shell.messages.ts apps/web/src/messages/home.messages.ts apps/web/src/messages/ui.messages.ts
+git add apps/web/test/unit/theme.test.tsx apps/web/test/unit/theme-css.test.ts apps/web/test/unit/facts.test.ts apps/web/test/unit/boot.test.ts apps/web/test/unit/routes.test.ts apps/web/test/unit/hash.test.tsx
+git add apps/web/test/unit/drill-minutes.test.ts apps/web/test/unit/proof-line.test.tsx apps/web/test/unit/shell.test.tsx apps/web/test/unit/no-html-sinks.test.ts apps/web/test/unit/thread.test.tsx apps/web/test/build/shell.test.ts
+git status --porcelain
+git commit -m "feat(web): honest frame: night by default, the proof line, legacy link redirect and the first home scene" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
+
+Expected:
+
+- Mọi test unit qua, kể cả `contrast`, `i18n` và `motion` của các task trước.
+- `typecheck` và `biome ci` không báo lỗi.
+- `git status --porcelain` trước commit không còn dòng nào ngoài các file vừa add. Nếu `deployments/local.json` hiện ra là đã đổi, không add nó.
+
+**Ghi chú cho Task 11.** Task 11 Step 7 sửa `header.tsx` và `frame.tsx` bằng các lệnh `sed` có neo, không thay cả file.
+
+**Ghi chú cho Task 15.**
+
+- `expectAccessibleInBothThemes` và `captureScreens` không đổi được theme bằng `emulateMedia` nữa, vì night là mặc định bất kể thiết bị. Chúng đổi bằng `KEYS.theme` trong `localStorage` rồi tải lại, như §18.4.1 (Task 15) đã ghi.
+- `nojs.spec.ts` (mới theo §18.4.1) tìm dòng bằng chứng bằng `page.getByTestId('proof-line')`. Với `javaScriptEnabled: false`, bản hiện ra là bản do CSS chọn theo bề rộng.
+- Test nút bỏ qua (`Tab` một lần rồi chờ nút `Skip to content` được focus) vẫn đúng, vì `SkipLink` đứng đầu DOM, trước hai link của dòng bằng chứng.
+- `apps/web/src/app/icon.svg` vẽ glyph `mark` thay cho sợi chỉ cũ của wordmark:
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="6" fill="#0b0d12"/>
+  <path d="M2 18c2.5 0 4.5-1 4.5-4v-3a5.5 5.5 0 0 1 11 0v3c0 3 2 4 4.5 4" fill="none" stroke="#e8b65a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+```
+
+**Ghi chú cho Plan 7B và 7C.**
+
+- 7C T4 giữ `heroDrillNote` ngay dưới nút Drill, nối bằng `aria-describedby`, và không gõ lại số phút: số đó nằm trong `heroDrill`, do `drill-minutes.test.ts` khoá.
+- Task 9 đã xoá hai khoá cũ `drillCta` ("Try a 5-minute Drill") và `drillNote` ("free practice vault") của `home.messages`, ở EN và VI, vì chúng trái với R18.11. 7B và 7C không dựng lại chúng: lời mời Drill là `heroDrill` và `heroDrillNote`.
+- `/proof/` (7C T3) phải có phần tử `id="limits"`, vì dòng bằng chứng và footer đều trỏ tới `LIMITS_HREF`.
 
 ---
 
@@ -9254,8 +11003,8 @@ Lớp ví tự viết của web cũ được giữ (Quyết định 17) và chuy
 
 **Files:**
 - Create (port): `apps/web/src/wallet/impl/wallet.ts`, `apps/web/src/wallet/impl/send-calls.ts`, `apps/web/test/unit/wallet.test.ts`, `apps/web/test/unit/send-calls.test.ts`
-- Create (mới): `apps/web/src/wallet/impl/{session,index}.ts`, `apps/web/src/wallet/{types,load,remember,network,use-vault-roles}.ts`, `apps/web/src/wallet/{provider,connect-sheet,wallet-button,wallet-menu,network-banner}.tsx`, `apps/web/src/messages/wallet.messages.ts`, `apps/web/src/app/dev/wallet-gallery.tsx`, `apps/web/test/helpers/wallet.ts`
-- Modify: `apps/web/src/ui/dialog.tsx` (thêm `onCloseAutoFocus`), `apps/web/src/messages/shell.messages.ts` (bỏ 7 khoá ví), `apps/web/src/shell/{providers,header,frame}.tsx`, `apps/web/src/app/dev/gallery.tsx`, `apps/web/test/helpers/render.tsx`, `apps/web/test/unit/dev-gallery.test.tsx`
+- Create (mới): `apps/web/src/wallet/impl/{session,index}.ts`, `apps/web/src/wallet/{types,load,remember,network,use-vault-roles}.ts`, `apps/web/src/wallet/{provider,connect-sheet,wallet-button,wallet-menu,network-banner}.tsx`, `apps/web/src/messages/wallet.messages.ts`, `apps/web/test/helpers/wallet.ts`
+- Modify: `apps/web/src/ui/dialog.tsx` (thêm `onCloseAutoFocus`), `apps/web/src/messages/shell.messages.ts` (bỏ 7 khoá ví), `apps/web/src/shell/providers.tsx`, `apps/web/src/shell/header.tsx` (thêm `WalletButton`, chỉ sửa), `apps/web/src/shell/frame.tsx` (thêm `NetworkBanner`, `ConnectSheet`, chỉ sửa), `apps/web/test/helpers/render.tsx`
 - Test: `apps/web/test/unit/wallet-session.test.ts`, `apps/web/test/unit/wallet-provider.test.tsx`, `apps/web/test/unit/wallet-ui.test.tsx`
 
 **Interfaces:**
@@ -9269,7 +11018,7 @@ Lớp ví tự viết của web cũ được giữ (Quyết định 17) và chuy
   - `src/wallet/provider.tsx`: `interface WalletValue { status; wallet: ConnectedWallet | null; expectedChainId: number; wrongChain: boolean; wallets: WalletOption[] | null; discovering: boolean; discover(): Promise<WalletOption[]>; connect(option): Promise<ConnectedWallet>; disconnect(): void; switchChain(): Promise<void>; walletClient(): Promise<WalletClient>; sheetOpen: boolean; openSheet(): void; setSheetOpen(open: boolean): void; sheetOpener: RefObject<HTMLElement | null> }`; `WalletContext`; `WalletProvider({ children, win?: WalletWindow })`; `useWallet(): WalletValue`.
   - `src/wallet/connect-sheet.tsx`: `QR_MAX_CHARS = 512`; `type PickerError = 'rejected' | 'requestPending' | 'connectFailed' | 'searchFailed'`; `connectErrorKey(e: unknown): Exclude<PickerError, 'searchFailed'>`; `isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean`; `interface WalletPickerProps`; `WalletPicker(props)`; `ConnectSheet()`.
   - `src/wallet/wallet-button.tsx`: `WalletButton()`. `src/wallet/wallet-menu.tsx`: `WalletMenu()`. `src/wallet/network-banner.tsx`: `SwitchNetworkButton({ className? })`, `NetworkBanner()`. `src/wallet/use-vault-roles.ts`: `useVaultRoles(loaded: LoadedVault | undefined): readonly Role[] | null`.
-  - `src/ui/dialog.tsx`: `DialogProps` thêm `onCloseAutoFocus?(event: Event): void`.
+  - `src/ui/dialog.tsx`: `DialogProps` thêm `onCloseAutoFocus?(event: Event): void`. Overlay giữ nguyên lớp của Task 8 (`bg-bg/95`, blur chỉ từ 48rem).
   - `test/helpers/wallet.ts`: `interface FakeWalletState`, `interface FakeWallet`, `fakeWallet(o?)`, `interface Announced`, `walletWindow(announced?, globals?)`. `test/helpers/render.tsx`: `ProviderOptions` thêm `win?: WalletWindow`.
 
 - [ ] **Step 1: Port lớp ví và test của nó**
@@ -10386,7 +12135,7 @@ export function Dialog({
     <D.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <D.Trigger asChild>{trigger}</D.Trigger> : null}
       <D.Portal>
-        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/70 backdrop-blur-[3px]" />
+        <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/95 md:bg-bg/70 md:backdrop-blur-[3px]" />
         <D.Content
           {...describedBy}
           onCloseAutoFocus={onCloseAutoFocus}
@@ -10419,7 +12168,7 @@ export function Dialog({
 ```
 
 Run: `npm test -w apps/web -- primitives i18n`
-Expected: PASS (Dialog cũ không đổi hành vi; test i18n kiểm `wallet.messages.ts` có cùng khoá và cùng placeholder ở hai ngôn ngữ).
+Expected: PASS. Hai test `Dialog` của Task 8 vẫn đạt, kể cả test overlay (`bg-bg/95`, blur chỉ từ 48rem). Test i18n kiểm `wallet.messages.ts` có cùng khoá và cùng placeholder ở hai ngôn ngữ.
 
 - [ ] **Step 6: Test hỏng cho giao diện ví**
 
@@ -10765,7 +12514,7 @@ function NoWallet({ pageUrl, searching, onSearch }: Pick<WalletPickerProps, 'pag
   );
 }
 
-/** The body of the sheet in each of its states; pure, so the /dev/ gallery shows them all. */
+/** The body of the sheet in each of its states; pure, so a test renders each one without a wallet. */
 export function WalletPicker({
   wallets,
   searching,
@@ -11158,263 +12907,72 @@ export function useVaultRoles(loaded: LoadedVault | undefined): readonly Role[] 
 }
 ```
 
-Thay `apps/web/src/shell/header.tsx`:
+`header.tsx` và `frame.tsx` đã mang các thay đổi §18 của Task 9:
+- header đặc dưới 48rem (`bg-bg/95`), blur chỉ từ 48rem;
+- `view-transition-name`;
+- dòng bằng chứng là dải đầu tiên hiện ra trên trang, ngay sau nút bỏ qua.
 
-```tsx
-'use client';
+Task này chỉ thêm ba thành phần ví. Mọi thứ khác giữ nguyên từng ký tự.
 
-import Link from 'next/link';
-import { useT } from '@/i18n/provider';
-import { messages as shell } from '@/messages/shell.messages';
-import { messages as ui } from '@/messages/ui.messages';
-import { ROUTES } from '@/routes';
-import { WalletButton } from '@/wallet/wallet-button';
-import { MobileMenu } from './mobile-menu';
-import { NavList } from './nav-list';
-import { SettingsMenu } from './settings-menu';
-import { Wordmark } from './wordmark';
+Header: `WalletButton` đứng đầu khối nút bên phải; khoảng cách của khối từ `gap-1` thành `gap-2`.
 
-export function Header() {
-  const t = useT(shell);
-  const u = useT(ui);
-  return (
-    <header className="sticky top-0 z-40 border-line/70 border-b bg-bg/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
-        <Link href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
-          <Wordmark />
-        </Link>
-        <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
-          <NavList layout="bar" />
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <WalletButton />
-          <div className="hidden md:block">
-            <SettingsMenu />
-          </div>
-          <div className="md:hidden">
-            <MobileMenu />
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
+```bash
+sed -i "s#^import { MobileMenu } from './mobile-menu';#import { WalletButton } from '@/wallet/wallet-button';\nimport { MobileMenu } from './mobile-menu';#" apps/web/src/shell/header.tsx
+sed -i 's#^\(\s*\)<div className="ml-auto flex items-center gap-1">$#\1<div className="ml-auto flex items-center gap-2">\n\1  <WalletButton />#' apps/web/src/shell/header.tsx
+npx biome check --write apps/web/src/shell/header.tsx
+grep -c "WalletButton" apps/web/src/shell/header.tsx
+git diff --numstat apps/web/src/shell/header.tsx
+grep -o 'className="site-header[^"]*"' apps/web/src/shell/header.tsx
 ```
 
-Thay `apps/web/src/shell/frame.tsx`:
+Expected:
+- `grep -c` in `2`;
+- `git diff --numstat` in `3	1	apps/web/src/shell/header.tsx`: thêm import, thêm `<WalletButton />`, đổi `gap-1` thành `gap-2`;
+- `grep -o` in đúng một dòng, là lớp của `<header>` mà Task 9 viết, không đổi ký tự nào: `className="site-header sticky top-0 z-40 border-line/70 border-b bg-bg/95 md:bg-bg/80 md:backdrop-blur-md"`. Nếu lệnh không in gì, hoặc in dòng khác, thì sed đã chạm vào `<header>`: chạy `git checkout -- apps/web/src/shell/header.tsx` rồi làm lại từ lệnh sed đầu.
 
-```tsx
-'use client';
+Nếu Task 9 đã đổi dòng `ml-auto` hay dòng import `MobileMenu`, `sed` sẽ không khớp và `grep -c` ra số khác `2`. Khi đó sửa tay đúng hai chỗ đó, rồi chạy lại ba lệnh kiểm.
 
-import { type ReactNode, useId } from 'react';
-import { ConnectSheet } from '@/wallet/connect-sheet';
-import { NetworkBanner } from '@/wallet/network-banner';
-import { Footer } from './footer';
-import { Header } from './header';
-import { SkipLink } from './skip-link';
+Khung: `NetworkBanner` ngay dưới `Header`, `ConnectSheet` ngay sau `Footer`.
 
-export function Frame({ children }: { children: ReactNode }) {
-  const mainId = useId();
-  return (
-    <div className="flex min-h-dvh flex-col">
-      <SkipLink targetId={mainId} />
-      <Header />
-      <NetworkBanner />
-      <main id={mainId} tabIndex={-1} className="flex flex-1 flex-col outline-none">
-        {children}
-      </main>
-      <Footer />
-      <ConnectSheet />
-    </div>
-  );
-}
+```bash
+sed -i "s#^import { Footer } from './footer';#import { ConnectSheet } from '@/wallet/connect-sheet';\nimport { NetworkBanner } from '@/wallet/network-banner';\nimport { Footer } from './footer';#" apps/web/src/shell/frame.tsx
+sed -i 's#^\(\s*\)<Header />$#\1<Header />\n\1<NetworkBanner />#' apps/web/src/shell/frame.tsx
+sed -i 's#^\(\s*\)<Footer />$#\1<Footer />\n\1<ConnectSheet />#' apps/web/src/shell/frame.tsx
+npx biome check --write apps/web/src/shell/frame.tsx
+grep -c "NetworkBanner\|ConnectSheet" apps/web/src/shell/frame.tsx
+git diff --numstat apps/web/src/shell/frame.tsx
 ```
+
+Expected: `grep -c` in `4`; `git diff --numstat` in `4	0	apps/web/src/shell/frame.tsx`. Dòng bằng chứng của Task 9 vẫn là dải đầu tiên hiện ra trên trang, ngay sau nút bỏ qua: `NetworkBanner` đứng sau `Header`, `ConnectSheet` sau `Footer`. Test của Task 9 tìm dòng đó bằng role và `data-testid`, không theo thứ tự con, nên vẫn đạt.
 
 Run: `npm test -w apps/web -- wallet-ui shell`
-Expected: PASS (wallet-ui 9, shell 8).
+Expected: PASS. `wallet-ui` có 9 test. `shell` có đúng số test của Task 9 (bản đã viết lại); Task này không thêm test shell.
 
-- [ ] **Step 8: Thêm mục ví vào `/dev/`**
-
-`apps/web/src/app/dev/wallet-gallery.tsx`:
-
-```tsx
-'use client';
-
-import type { ReactNode } from 'react';
-import { WalletPicker, type WalletPickerProps } from '@/wallet/connect-sheet';
-import { NetworkBanner } from '@/wallet/network-banner';
-import { WalletContext, type WalletValue } from '@/wallet/provider';
-import type { ConnectedWallet, Eip1193, WalletOption } from '@/wallet/types';
-import { WalletButton } from '@/wallet/wallet-button';
-
-const PROVIDER: Eip1193 = { request: async () => null };
-const OKX: WalletOption = {
-  id: 'okx',
-  name: 'OKX Wallet',
-  icon: null,
-  rdns: 'com.okex.wallet',
-  provider: PROVIDER,
-  source: 'eip6963',
-};
-const OPTIONS: WalletOption[] = [
-  OKX,
-  {
-    id: 'other',
-    name: 'Another wallet',
-    icon: null,
-    rdns: 'org.example.wallet',
-    provider: PROVIDER,
-    source: 'eip6963',
-  },
-  {
-    id: 'long',
-    name: 'A wallet whose name is far too long to fit',
-    icon: null,
-    rdns: 'org.example.long',
-    provider: PROVIDER,
-    source: 'eip6963',
-  },
-];
-const ON_X_LAYER: ConnectedWallet = {
-  option: OKX,
-  account: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-  chainId: 196,
-};
-const noop = () => undefined;
-
-function fake(over: Partial<WalletValue>): WalletValue {
-  return {
-    status: 'idle',
-    wallet: null,
-    expectedChainId: 196,
-    wrongChain: false,
-    wallets: null,
-    discovering: false,
-    discover: async () => [],
-    connect: async () => ON_X_LAYER,
-    disconnect: noop,
-    switchChain: async () => undefined,
-    walletClient: () => Promise.reject(new Error('The gallery has no wallet.')),
-    sheetOpen: false,
-    openSheet: noop,
-    setSheetOpen: noop,
-    sheetOpener: { current: null },
-    ...over,
-  };
-}
-
-const WRONG_CHAIN = fake({ status: 'connected', wallet: { ...ON_X_LAYER, chainId: 1 }, wrongChain: true });
-const BUTTONS: { label: string; value: WalletValue }[] = [
-  { label: 'idle', value: fake({}) },
-  { label: 'restoring', value: fake({ status: 'restoring' }) },
-  { label: 'connecting', value: fake({ status: 'connecting' }) },
-  { label: 'connected', value: fake({ status: 'connected', wallet: ON_X_LAYER }) },
-  { label: 'wrong network', value: WRONG_CHAIN },
-];
-
-const PICKER: Omit<WalletPickerProps, 'onPick' | 'onSearch'> = {
-  wallets: OPTIONS,
-  searching: false,
-  connectingId: null,
-  error: null,
-  pageUrl: '',
-};
-const PICKERS: { label: string; props: Omit<WalletPickerProps, 'onPick' | 'onSearch'> }[] = [
-  { label: 'searching', props: { ...PICKER, wallets: null, searching: true } },
-  { label: 'wallets', props: PICKER },
-  { label: 'connecting', props: { ...PICKER, connectingId: 'okx' } },
-  { label: 'declined', props: { ...PICKER, wallets: [OKX], error: 'rejected' } },
-  { label: 'no wallet', props: { ...PICKER, wallets: [], pageUrl: 'http://localhost:3000/sign/#p=example' } },
-  { label: 'search failed', props: { ...PICKER, wallets: null, error: 'searchFailed' } },
-];
-
-function Labelled({ label, boxed = false, children }: { label: string; boxed?: boolean; children: ReactNode }) {
-  return (
-    <div
-      className={boxed ? 'flex flex-col gap-3 rounded-3xl border border-line p-4' : 'flex flex-col items-start gap-2'}
-    >
-      <span className="text-caption text-ink-muted">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-/** The wallet button, the network banner and the sheet body in every state, without a wallet. */
-export function WalletGallery() {
-  return (
-    <section className="flex flex-col gap-4 border-line border-t pt-8">
-      <h2 className="text-h2">Wallet</h2>
-      <div className="flex flex-wrap items-end gap-6">
-        {BUTTONS.map((b) => (
-          <Labelled key={b.label} label={b.label}>
-            <WalletContext value={b.value}>
-              <WalletButton />
-            </WalletContext>
-          </Labelled>
-        ))}
-      </div>
-      <WalletContext value={WRONG_CHAIN}>
-        <NetworkBanner />
-      </WalletContext>
-      <div className="grid gap-4 md:grid-cols-2">
-        {PICKERS.map((p) => (
-          <Labelled key={p.label} label={p.label} boxed>
-            <WalletPicker {...p.props} onPick={noop} onSearch={noop} />
-          </Labelled>
-        ))}
-      </div>
-    </section>
-  );
-}
-```
-
-Trong `apps/web/src/app/dev/gallery.tsx`: thêm `import { WalletGallery } from './wallet-gallery';` ngay sau dòng `import { UntrustedText } from '@/ui/untrusted-text';`, và thêm `      <WalletGallery />` ngay trước dòng `    </main>`.
-
-Thay `apps/web/test/unit/dev-gallery.test.tsx`:
-
-```tsx
-import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { Gallery } from '../../src/app/dev/gallery';
-import { renderWithProviders } from '../helpers/render';
-
-describe('/dev/ gallery', () => {
-  it('shows every group of primitives', () => {
-    renderWithProviders(<Gallery />);
-    for (const name of [
-      'Colour',
-      'Type',
-      'Buttons',
-      'Hold to confirm',
-      'Thread',
-      'Data',
-      'Feedback',
-      'Forms and overlays',
-      'Wallet',
-    ]) {
-      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
-    }
-  });
-});
-```
-
-Run: `npm test -w apps/web -- dev-gallery`
-Expected: PASS (1 test).
-
-Kiểm bằng mắt: `npm run dev -w apps/web`, mở `http://localhost:3000/dev/`, xem mục Wallet ở cả hai theme và ở 360 px; mở `/`, bấm Connect wallet: trên trình duyệt không có ví, sheet hiện hướng dẫn, nút sao chép link và mã QR.
-
-- [ ] **Step 9: Chạy toàn bộ, kiểm bundle và commit**
+- [ ] **Step 8: Chạy toàn bộ, kiểm bundle, kiểm bằng mắt và commit**
 
 ```bash
 npm test -w apps/web
 npm run typecheck -w apps/web
 npx biome ci .
 npm run test:build -w apps/web
-git add apps/web/src/wallet apps/web/src/messages/wallet.messages.ts apps/web/src/messages/shell.messages.ts apps/web/src/ui/dialog.tsx apps/web/src/shell/providers.tsx apps/web/src/shell/header.tsx apps/web/src/shell/frame.tsx apps/web/src/app/dev/gallery.tsx apps/web/src/app/dev/wallet-gallery.tsx apps/web/test/helpers/render.tsx apps/web/test/helpers/wallet.ts apps/web/test/unit/wallet.test.ts apps/web/test/unit/send-calls.test.ts apps/web/test/unit/wallet-session.test.ts apps/web/test/unit/wallet-provider.test.tsx apps/web/test/unit/wallet-ui.test.tsx apps/web/test/unit/dev-gallery.test.tsx
+```
+
+Kiểm bằng mắt bằng `npm run dev -w apps/web`, mở `http://localhost:3000/`, ở 360 px và ở 1440 px:
+- bấm Connect wallet: trên trình duyệt không có ví, sheet hiện hướng dẫn, nút sao chép link và mã QR;
+- dưới 48rem, nền sau sheet đặc, không nhoè; từ 48rem, nền mờ và nhoè nhẹ;
+- lặp lại ở theme Vellum (Settings, hoặc Menu trên màn hình hẹp).
+
+Dừng server.
+
+```bash
+git add apps/web/src/wallet apps/web/src/messages/wallet.messages.ts apps/web/src/messages/shell.messages.ts apps/web/src/ui/dialog.tsx apps/web/src/shell/providers.tsx apps/web/src/shell/header.tsx apps/web/src/shell/frame.tsx apps/web/test/helpers/render.tsx apps/web/test/helpers/wallet.ts apps/web/test/unit/wallet.test.ts apps/web/test/unit/send-calls.test.ts apps/web/test/unit/wallet-session.test.ts apps/web/test/unit/wallet-provider.test.tsx apps/web/test/unit/wallet-ui.test.tsx
 git commit -m "feat(web): wallet session, connect sheet and wallet button" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-Expected: mọi test PASS; `lazy-boundary` vẫn PASS (mọi file ngoài `wallet/impl/` chỉ `import type` từ viem, SDK và `impl`). `test:build` vẫn PASS: HTML prerender của `/` có nút "Connect wallet" và không có `href` ra ngoài.
+Expected:
+- mọi test PASS;
+- `lazy-boundary` vẫn PASS: mọi file ngoài `wallet/impl/` chỉ `import type` từ viem, SDK và `impl`;
+- `test:build` vẫn PASS: HTML prerender của `/` có nút "Connect wallet" và không có `href` ra ngoài.
 
 ---
 
@@ -11959,14 +13517,16 @@ Expected: mọi test PASS; `test:build` xác nhận `out/e2e/` không có trong 
 ### Task 13: Engine giao dịch: `useTxRunner`, `TxCard`, `TxProgress` và `ErrorBox`
 
 Hành vi gửi của web cũ được giữ nguyên: ký lần lượt từng bước, "Tiếp tục từ bước N" sau khi gián đoạn mà không ký lại bước đã xác nhận, link ký trên máy khác chỉ chở các bước còn lại, hỏi trước khi đóng tab khi ví đã nhận một phần. Khác web cũ ở ba chỗ (Quyết định 29):
-- `useTxRunner` là hook trả một object `TxRunner`; trang giữ object đó và đưa cho `TxCard`. Trang đọc thẳng `runner.committed`, `runner.result` thay cho callback `onProgress` của web cũ; `/dev/` vẽ `TxCard` ở mọi trạng thái bằng runner giả, không cần ví.
+- `useTxRunner` là hook trả một object `TxRunner`; trang giữ object đó và đưa cho `TxCard`. Trang đọc thẳng `runner.committed`, `runner.result` thay cho callback `onProgress` của web cũ. `tx-card.test.tsx` vẽ `TxCard` ở mọi trạng thái bằng runner giả (`runnerOf`), không cần ví.
 - Link ký trên máy khác là `/sign/#p=…` của chính site (`toSignHref`), không còn `#/sign?p=…` qua chuyển hướng. Không có link khi đang gửi hoặc khi mọi bước đã xong (web cũ vẫn cho chép link chở các bước đã xác nhận).
 - `ErrorBox` không import SDK: bộ giải mã lỗi nằm trong chunk `tx/impl`, nạp cùng thẻ giao dịch.
 
+Mirror (thẻ giao dịch soi lại sợi chỉ) và Receipt (biên nhận sau khi xong) của spec §18 không thuộc task này: Plan 7B Task 3 làm cả hai. Trạng thái xong của `TxCard` ở đây (`${testId}-done`) giữ nguyên như dưới.
+
 **Files:**
 - Create (port): `apps/web/src/tx/tx-view.ts`, `apps/web/src/tx/impl/errors-view.ts`, `apps/web/src/tx/use-leave-guard.ts`, `apps/web/test/unit/{tx-view,errors-view}.test.ts`
-- Create (mới): `apps/web/src/tx/impl/{decode,describe,index}.ts`, `apps/web/src/tx/{load,sign-href,use-error-view,use-tx-runner}.ts`, `apps/web/src/tx/{error-box,tx-progress,tx-card}.tsx`, `apps/web/src/app/dev/tx-gallery.tsx`
-- Modify: `apps/web/src/messages/tx.messages.ts` (thay toàn bộ), `apps/web/src/app/dev/gallery.tsx`, `apps/web/test/helpers/wallet.ts` (thêm `walletValue`), `apps/web/test/unit/dev-gallery.test.tsx`
+- Create (mới): `apps/web/src/tx/impl/{decode,describe,index}.ts`, `apps/web/src/tx/{load,sign-href,use-error-view,use-tx-runner}.ts`, `apps/web/src/tx/{error-box,tx-progress,tx-card}.tsx`
+- Modify: `apps/web/src/messages/tx.messages.ts` (thay toàn bộ), `apps/web/test/helpers/wallet.ts` (thêm `walletValue`)
 - Test: `apps/web/test/unit/tx-impl.test.ts`, `apps/web/test/unit/error-box.test.tsx`, `apps/web/test/unit/tx-card.test.tsx`, `apps/web/test/unit/tx-runner.test.tsx`
 
 **Interfaces:**
@@ -13644,246 +15204,13 @@ Expected: PASS (error-box 3, tx-card 6, tx-runner 10, tx-impl 5, tx-view 5, erro
 
 Nếu `tx-runner` hỏng ở `ready()` (nút không bao giờ bật): kiểm mock của `../../src/chain/load` có `createSdk` trả `atro.send` và `handoff.link`, và `walletValue` mặc định đã kết nối đúng `TEST_ACCOUNT` (trùng `plan.from`).
 
-- [ ] **Step 6: Thêm `TxCard` vào trang `/dev/`**
-
-`apps/web/src/app/dev/tx-gallery.tsx`:
-
-```tsx
-'use client';
-
-import type { AtropyleErrorJson, PreparedTx, TxPlan } from '@atropyle/sdk';
-import type { ReactNode } from 'react';
-import { ErrorBox } from '@/tx/error-box';
-import { TxCard, type TxCardProps } from '@/tx/tx-card';
-import { applyStep, failStep, txView } from '@/tx/tx-view';
-import type { TxRunner } from '@/tx/use-tx-runner';
-
-const OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-const VAULT = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
-const HASH = `0x${'ab'.repeat(32)}` as const;
-const EXPLORER = 'https://www.oklink.com/xlayer';
-const DOCS = 'https://duongnq2798.github.io/atropyle/docs/reference/errors.html';
-const noop = () => undefined;
-
-function step(summary: string, action: PreparedTx['action'], gas: bigint): PreparedTx {
-  return {
-    chainId: 196,
-    from: OWNER,
-    to: VAULT,
-    data: '0x',
-    value: 0n,
-    action,
-    summary,
-    warnings: [],
-    simulation: { ok: true, gas },
-  };
-}
-
-function errorJson(
-  code: AtropyleErrorJson['code'],
-  message: string,
-  hint: string,
-  details?: Record<string, unknown>,
-): AtropyleErrorJson {
-  return { code, message, hint, docsUrl: `${DOCS}#${code.toLowerCase()}`, ...(details ? { details } : {}) };
-}
-
-const REJECTED = errorJson(
-  'USER_REJECTED',
-  'The request was rejected in the wallet.',
-  'Nothing was sent. Start again when ready.',
-  { index: 1, completed: 1 },
-);
-const NOT_OWNER = errorJson(
-  'NOT_OWNER',
-  'Only the vault owner can do this.',
-  'Sign with the owner wallet shown by `atropyle status`.',
-);
-const REVERT = errorJson(
-  'UNKNOWN',
-  'The call reverted with a reason this SDK does not recognize.',
-  'Run again with --verbose and report the output.',
-  { reason: { untrusted: true, value: 'ERC20: transfer amount exceeds balance', truncated: false } },
-);
-
-const CREATE: TxPlan = {
-  chainId: 196,
-  from: OWNER,
-  vault: VAULT,
-  steps: [
-    step('Allow the factory to take the creation fee', 'approve', 46_120n),
-    step('Create the vault', 'createVault', 1_284_300n),
-    step('Allow the vault to move the first asset', 'approve', 46_120n),
-  ],
-  summary: 'Create a vault',
-  warnings: [{ code: 'UNLIMITED_APPROVAL', message: 'The vault may move every unit of this token the wallet holds.' }],
-};
-const CHECK_IN: TxPlan = {
-  ...CREATE,
-  steps: [step('Check in: the countdown starts again', 'checkIn', 52_400n)],
-  summary: 'Check in',
-  warnings: [],
-};
-const BLOCKED: TxPlan = {
-  ...CREATE,
-  warnings: [],
-  steps: [
-    CREATE.steps[0],
-    { ...CREATE.steps[1], simulation: { ok: false, error: NOT_OWNER } },
-    { ...CREATE.steps[2], simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } },
-  ],
-};
-
-function runner(plan: TxPlan, over: Partial<TxRunner> = {}): TxRunner {
-  return {
-    plan,
-    view: txView(plan),
-    busy: false,
-    error: null,
-    result: null,
-    offset: 0,
-    confirmed: 0,
-    committed: false,
-    blocker: null,
-    switchFirst: false,
-    handoffLink: 'http://localhost:3000/sign/#p=example',
-    explorer: EXPLORER,
-    send: noop,
-    connect: noop,
-    reload: noop,
-    ...over,
-  };
-}
-
-const FIRST = applyStep(txView(CREATE), { index: 0, phase: 'confirmed', hash: HASH });
-const ALL = [1, 2].reduce((v, index) => applyStep(v, { index, phase: 'confirmed', hash: HASH }), FIRST);
-
-const CARDS: { label: string; props: TxCardProps }[] = [
-  { label: 'ready', props: { runner: runner(CREATE), label: 'Create vault' } },
-  {
-    label: 'signing step 2',
-    props: {
-      runner: runner(CREATE, {
-        view: applyStep(FIRST, { index: 1, phase: 'signing' }),
-        busy: true,
-        confirmed: 1,
-        committed: true,
-        handoffLink: null,
-      }),
-      label: 'Create vault',
-    },
-  },
-  {
-    label: 'resume after a rejection',
-    props: {
-      runner: runner(CREATE, {
-        view: failStep(FIRST, 1, REJECTED),
-        offset: 1,
-        error: REJECTED,
-        confirmed: 1,
-        committed: true,
-      }),
-      label: 'Create vault',
-    },
-  },
-  {
-    label: 'blocked by the simulation',
-    props: { runner: runner(BLOCKED, { blocker: 'blocked' }), label: 'Create vault' },
-  },
-  { label: 'connect first', props: { runner: runner(CREATE, { blocker: 'connect' }), label: 'Create vault' } },
-  { label: 'wrong account', props: { runner: runner(CREATE, { blocker: 'wrongAccount' }), label: 'Create vault' } },
-  {
-    label: 'all confirmed',
-    props: {
-      runner: runner(CREATE, {
-        view: ALL,
-        result: { vault: VAULT, steps: [] },
-        confirmed: 3,
-        committed: true,
-        handoffLink: null,
-      }),
-      label: 'Create vault',
-    },
-  },
-  {
-    label: 'hold to confirm, wallet on another chain',
-    props: { runner: runner(CHECK_IN, { switchFirst: true }), label: 'Check in', confirm: 'hold' },
-  },
-];
-
-function Labelled({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-caption text-ink-muted">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-/** TxCard in every state, from fake runners: nothing here can reach a wallet. */
-export function TxGallery() {
-  return (
-    <section className="flex flex-col gap-4 border-line border-t pt-8">
-      <h2 className="text-h2">Transactions</h2>
-      <div className="grid gap-6 lg:grid-cols-2">
-        {CARDS.map((c) => (
-          <Labelled key={c.label} label={c.label}>
-            <TxCard {...c.props} testId={`gallery-tx-${c.label.replaceAll(' ', '-')}`} />
-          </Labelled>
-        ))}
-      </div>
-      <Labelled label="error with a revert reason">
-        <ErrorBox error={REVERT} onRetry={noop} testId="gallery-error" />
-      </Labelled>
-    </section>
-  );
-}
-```
-
-Trong `apps/web/src/app/dev/gallery.tsx`: thêm `import { TxGallery } from './tx-gallery';` ngay trước dòng `import { WalletGallery } from './wallet-gallery';`, và thêm `      <TxGallery />` ngay sau dòng `      <WalletGallery />`.
-
-Thay `apps/web/test/unit/dev-gallery.test.tsx`:
-
-```tsx
-import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { Gallery } from '../../src/app/dev/gallery';
-import { renderWithProviders } from '../helpers/render';
-
-describe('/dev/ gallery', () => {
-  it('shows every group of primitives', () => {
-    renderWithProviders(<Gallery />);
-    for (const name of [
-      'Colour',
-      'Type',
-      'Buttons',
-      'Hold to confirm',
-      'Thread',
-      'Data',
-      'Feedback',
-      'Forms and overlays',
-      'Wallet',
-      'Transactions',
-    ]) {
-      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy();
-    }
-  });
-});
-```
-
-Run: `npm test -w apps/web -- dev-gallery`
-Expected: PASS (1).
-
-Run: `npm run dev -w apps/web`, mở `http://localhost:3000/dev/`, cuộn tới "Transactions".
-Expected: tám thẻ; ở "signing step 2" nút bước 2 quay và đoạn thứ hai của thanh tiến độ ánh lên; ở "resume after a rejection" nút ghi "Resume from step 2" và hộp lỗi `USER_REJECTED`; bật reduced motion của hệ điều hành thì không còn gì chuyển động. Dừng server.
-
-- [ ] **Step 7: Chạy toàn bộ và commit**
+- [ ] **Step 6: Chạy toàn bộ và commit**
 
 ```bash
 npm test -w apps/web
 npm run typecheck -w apps/web
 npx biome ci .
-git add apps/web/src/tx apps/web/src/messages/tx.messages.ts apps/web/src/app/dev/gallery.tsx apps/web/src/app/dev/tx-gallery.tsx apps/web/test/helpers/wallet.ts apps/web/test/unit/tx-view.test.ts apps/web/test/unit/errors-view.test.ts apps/web/test/unit/tx-impl.test.ts apps/web/test/unit/error-box.test.tsx apps/web/test/unit/tx-card.test.tsx apps/web/test/unit/tx-runner.test.tsx apps/web/test/unit/dev-gallery.test.tsx
+git add apps/web/src/tx apps/web/src/messages/tx.messages.ts apps/web/test/helpers/wallet.ts apps/web/test/unit/tx-view.test.ts apps/web/test/unit/errors-view.test.ts apps/web/test/unit/tx-impl.test.ts apps/web/test/unit/error-box.test.tsx apps/web/test/unit/tx-card.test.tsx apps/web/test/unit/tx-runner.test.tsx
 git commit -m "feat(web): transaction engine with resume, hand-off to the sign page, TxCard and ErrorBox" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -15123,23 +16450,78 @@ Expected: mọi test PASS; typecheck và Biome sạch; `git status` không còn 
 
 Task cuối biến các cổng chất lượng của spec §8 và §11 thành lệnh chạy được trong CI. `buildApp` thêm bước postbuild: mỗi trang nhận một thẻ `<meta>` CSP chứa SHA-256 của từng script inline của chính trang đó (Quyết định 12), còn `vercel.json` gửi kèm những directive mà thẻ meta không mang được. E2E chạy bản build deweb trên anvil với ví giả của web cũ, phục vụ bằng đúng header của Vercel; mỗi test tự fail khi trang gọi ra ngoài (badge "100% on-chain"), khi có vi phạm CSP hoặc khi trang ném lỗi. `size-limit` đo JS lần tải đầu của từng route, Lighthouse chạy cục bộ trên bản production (Quyết định 24 và 31).
 
+Theo spec §18:
+- e2e và axe đổi theme bằng lựa chọn đã lưu (R18.17);
+- ảnh duyệt thiết kế theo ma trận ba ảnh mỗi màn hình (R18.13);
+- một spec tắt JavaScript giữ lời hứa "lần vẽ đầu là bố cục cuối";
+- Lighthouse có cổng request bị cấm cho Plan 7C (R18.18).
+
 **Files:**
 - Create: `apps/web/scripts/lib/csp.ts`, `apps/web/scripts/lib/site-headers.ts`, `apps/web/scripts/lib/lighthouse-score.ts`, `apps/web/scripts/lighthouse.ts`, `apps/web/vercel.json`, `apps/web/.size-limit.mjs`, `apps/web/playwright.config.ts`, `apps/web/public/robots.txt`, `apps/web/src/app/icon.svg`, `apps/web/README.md`
-- Create (e2e mới): `apps/web/test/e2e/{global-setup,network,fixtures,helpers}.ts`, `apps/web/test/e2e/{shell,legacy,wallet,motion,csp,worker}.spec.ts`
+- Create (e2e mới): `apps/web/test/e2e/{global-setup,network,fixtures,helpers,screens}.ts`, `apps/web/test/e2e/{shell,legacy,wallet,motion,csp,worker,nojs}.spec.ts`
 - Create (chép nguyên văn từ `apps/web-legacy/test/e2e/`): `apps/web/test/e2e/state.ts`, `apps/web/test/e2e/wallet.ts`, `apps/web/test/e2e/offchain.spec.ts`
 - Modify: `apps/web/scripts/lib/run-next.ts` (bước CSP trong `buildApp`), `apps/web/scripts/lib/static-server.ts` (nén gzip), `apps/web/test/unit/static-server.test.ts`, `apps/web/package.json`, `package-lock.json`, `.gitignore`, `biome.json`, `.github/workflows/ci.yml` (thay job `web-next`), `scripts/test/site/ci-web-next.test.ts` (thay toàn bộ), `AGENTS.md`, `docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md` (§16 hàng 17)
-- Test: `apps/web/test/unit/csp.test.ts`, `apps/web/test/unit/vercel-config.test.ts`, `apps/web/test/unit/lighthouse-score.test.ts`, `apps/web/test/build/csp.test.ts`, `apps/web/test/build/html-purity.test.ts`, các file `apps/web/test/e2e/*.spec.ts`
+- Test: `apps/web/test/unit/csp.test.ts`, `apps/web/test/unit/vercel-config.test.ts`, `apps/web/test/unit/lighthouse-score.test.ts`, `apps/web/test/unit/icon.test.tsx`, `apps/web/test/build/csp.test.ts`, `apps/web/test/build/html-purity.test.ts`, các file `apps/web/test/e2e/*.spec.ts`
+- Chỉ khi Step 7 ra Kết quả B: Create `apps/web/src/shell/nav-link.tsx`, `apps/web/test/unit/nav-link.test.tsx`; Modify `apps/web/src/motion/view-transition.tsx` (thêm `withPendingViewTransition`), `apps/web/src/shell/{nav-list,footer,header}.tsx` (`Link` thành `NavLink`), `apps/web/test/unit/shell.test.tsx` (mock `useRouter`)
 
 **Interfaces:**
-- Consumes: Task 2 (`buildApp`, `runNext`, `APP_DIR`, `OUT_DIR`, `NEXT_BIN`, `BUNDLER_FLAGS`, `RunOptions`, `buildEnvFor`, `startStaticServer`, `outOf`, trang `e2e/worker`, job CI `web-next`), Task 9 (nút `Skip to content`, `Settings`, `Menu`, tiêu đề hero và 404, `legacyTarget`), Task 11 (nhãn ví: `Connect wallet`, `Choose a wallet`, `Wallet {account}`, `Disconnect`, `network-banner`, `Switch to {expected}`), Task 12 (hàng `worker-smoke` và `worker-verify`), Task 14 (`build-env` không để file `.env` đặt URL API). Từ gốc repo: `scripts/lib/anvil.ts` (`startAnvil`, `ANVIL_ACCOUNTS`, `rpc`), `scripts/lib/onchain-check.ts` (`RPC_HOSTS`, `scanSite`), `scripts/lib/site-files.ts` (`walkSite`, `contentTypeOf`), `scripts/e2e-devnet-prep.ts`.
+- Consumes:
+  - Task 2: `buildApp`, `runNext`, `APP_DIR`, `OUT_DIR`, `NEXT_BIN`, `BUNDLER_FLAGS`, `RunOptions`, `buildEnvFor`, `startStaticServer`, `outOf`, trang `e2e/worker`, job CI `web-next`.
+  - Task 3: marker `/* tokens:dark */` của `globals.css` (`--atro-bg`, `--atro-thread`), mà `icon.test.tsx` đọc (Step 4).
+  - Task 5: `KEYS` của `src/lib/store.ts`.
+  - Task 6: `withViewTransition` và `SharedThread`.
+  - Task 7: quầng `<svg data-layer="glow">` có `thread-pulse`.
+  - Task 9 (bản viết lại theo §18.4.1):
+    - nút `Skip to content`, `Settings`, `Menu`, link `Atropyle home`;
+    - nhãn theme `Night`/`Vellum`/`Match device`;
+    - night không có thuộc tính `data-theme`, vellum là `data-theme="light"`;
+    - tiêu đề hero và 404;
+    - trang 404 chỉ in đường dẫn trong `<code>` sau khi mount;
+    - CTA `/create/#drill` và `/proof/`;
+    - dòng bằng chứng `data-testid="proof-line"`, có keccak rút gọn trỏ tới `/proof/` và chữ "unaudited" ở cả hai bề rộng;
+    - footer có "No trackers", link `/proof/#limits` và `/verify/`;
+    - glyph `mark` (`StateGlyph name="mark"`), mà `icon.svg` vẽ lại (Step 4);
+    - `legacyTarget`.
+  - Task 11: nhãn ví `Connect wallet`, `Choose a wallet`, `Wallet {account}`, `Disconnect`, `network-banner`, `Switch to {expected}`.
+  - Task 12: hàng `worker-smoke` và `worker-verify`.
+  - Task 14: `build-env` không để file `.env` đặt URL API.
+  - Từ gốc repo:
+    - `scripts/lib/anvil.ts`: `startAnvil`, `ANVIL_ACCOUNTS`, `rpc`;
+    - `scripts/lib/onchain-check.ts`: `RPC_HOSTS`, `scanSite`;
+    - `scripts/lib/site-files.ts`: `walkSite`, `contentTypeOf`;
+    - `scripts/e2e-devnet-prep.ts`;
+    - `deployments/xlayer.json` (`circuits.netlistKeccak.policy`).
 - Produces:
   - `scripts/lib/csp.ts`: `XLAYER_RPC_ORIGINS`, `LOCAL_RPC_ORIGINS`, `interface CspEnv`, `rpcOrigins(chain, deploymentJson): string[]`, `apiOrigin(target, apiUrl): string | null`, `connectOrigins(env: CspEnv): string[]`, `inlineScripts(html: string): string[]`, `scriptHash(text: string): string`, `buildCsp(o: { scriptHashes: readonly string[]; connect: readonly string[] }): string`, `withCsp(html: string, csp: string): string`, `applyCsp(outDir: string, env: CspEnv): number`.
   - `scripts/lib/run-next.ts`: `buildApp` chèn CSP sau `next build` (trả `code: 1` khi `out/` không có trang HTML).
   - `scripts/lib/static-server.ts`: chữ ký giữ nguyên; text (HTML, JS, CSS, JSON, SVG) được gzip khi request có `accept-encoding: gzip`, mọi response có `vary: accept-encoding`.
   - `scripts/lib/site-headers.ts`: `VERCEL_JSON`, `siteHeaders(json?: string): Record<string, string>`.
-  - `scripts/lib/lighthouse-score.ts`: `LIGHTHOUSE_ROUTES: readonly string[]` (`['/']`, Plan 7B thêm `/create/`, `/proof/`), `CATEGORIES`, `THRESHOLDS`, `interface Run`, `interface LhrLike`, `runOf(lhr: LhrLike): Run`, `medianRun(runs: readonly Run[]): Run`, `failures(r: Run): string[]`.
+  - `scripts/lib/lighthouse-score.ts`:
+    - `LIGHTHOUSE_ROUTES: readonly string[]` (`['/']`; 7B thêm `/create/`, 7C T3 thêm `/proof/`, không ghi đè mảng);
+    - `CATEGORIES`, `THRESHOLDS`, `interface Run`;
+    - `interface LhrLike` (audit có thêm `details?: unknown`);
+    - `FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>>` (rỗng ở 7A; 7C T6 điền cho `/`, R18.18);
+    - `runOf(lhr: LhrLike): Run`, `medianRun(runs: readonly Run[]): Run`, `failures(r: Run): string[]`;
+    - `forbiddenRequests(lhr: LhrLike, patterns: readonly (string | RegExp)[]): string[]`.
   - `test/e2e/fixtures.ts`: `test` (fixture `state`, `requests`, `cspViolations`, `deployment`, `atro`, `wallet`, `page` có ba lưới chặn), `expect`, `ANVIL`, `interface CspViolation`.
-  - `test/e2e/helpers.ts`: `AXE_TAGS`, `settle(page)`, `runningAnimations(page): Promise<string[]>`, `expectAccessible(page)`, `expectAccessibleInBothThemes(page)`, `openSettings(page): Promise<Locator>`, `connectWallet(page, name?)`.
+  - `test/e2e/helpers.ts`:
+    - `AXE_TAGS`;
+    - `type E2ETheme = 'dark' | 'light'`, `type E2ELang = 'en' | 'vi'`;
+    - `settle(page)` (bỏ qua animation theo cuộn, R15);
+    - `runningAnimations(page): Promise<string[]>`;
+    - `expectAccessible(page)`;
+    - `setStoredTheme(page, theme: E2ETheme)`, `setStoredLang(page, lang: E2ELang)`;
+    - `expectAccessibleInBothThemes(page, ready?: Locator)` (vellum rồi night, mỗi theme một lần tải lại, R18.17);
+    - `openSettings(page): Promise<Locator>`, `connectWallet(page, name?)`.
+  - `test/e2e/screens.ts`:
+    - `interface Shot { theme: E2ETheme; lang: E2ELang; width: number }`;
+    - `SCREEN_MATRIX`, `VELLUM_MATRIX` (R18.13);
+    - `shouldCapture(projectName: string): boolean`;
+    - `captureScreens(page, name, o?: { vellum?: boolean }): Promise<void>`.
+  - `test/e2e/nojs.spec.ts`: mảng `PAGES` gồm `{ path, content(page) }`, kèm `expectFrame(page)` chung cho mọi trang. 7B T12 thêm `verify/`, 7C T3 thêm `proof/`.
+  - Chỉ khi ra Kết quả B:
+    - `src/shell/nav-link.tsx`: `NavLink(props: Omit<ComponentProps<typeof Link>, 'href'> & { href: string })`;
+    - `src/motion/view-transition.tsx` thêm `withPendingViewTransition(update: () => void, committed: Promise<void>, maxMs?: number): void`.
   - Lệnh: `npm run e2e|size|lighthouse -w apps/web`.
 
 - [ ] **Step 1: Cài gói, thêm lệnh và bỏ qua thư mục đo kích thước**
@@ -15557,17 +16939,73 @@ User-agent: *
 Allow: /
 ```
 
-`apps/web/src/app/icon.svg` (cùng sợi chỉ của `Wordmark`, màu `thread` và `bg` của theme tối; không có icon thì Chrome xin `/favicon.ico` và nhận 404 trong console, làm hỏng Best Practices):
+`apps/web/test/unit/icon.test.tsx`:
+
+```tsx
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { renderToString } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { StateGlyph } from '../../src/thread/glyphs';
+
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+const ICON = read('../../src/app/icon.svg');
+
+/** The `d` of every `<path>`, in document order. */
+const paths = (svg: string) => [...svg.matchAll(/<path\b[^>]*?\sd="([^"]*)"/g)].map((m) => m[1]);
+
+/** The attribute `name` of the first `<tag>`. */
+const attr = (svg: string, tag: string, name: string) =>
+  svg.match(new RegExp(`<${tag}\\b[^>]*?\\s${name}="([^"]*)"`))?.[1];
+
+/** A night colour: the first rule after the `tokens:dark` marker of globals.css, read as contrast.test.ts reads it. */
+function night(token: string): string {
+  const css = read('../../src/app/globals.css');
+  const at = css.indexOf('/* tokens:dark */');
+  if (at < 0) throw new Error('marker tokens:dark not found');
+  const first = css.indexOf('--atro-', at);
+  const block = css.slice(first, css.indexOf('}', first));
+  const value = block.match(new RegExp(`--atro-${token}:\\s*(#[0-9a-fA-F]{6})\\s*;`))?.[1];
+  if (!value) throw new Error(`--atro-${token} not found after tokens:dark`);
+  return value.toLowerCase();
+}
+
+describe('icon.svg', () => {
+  it('draws the mark of the Wordmark: one stroke, the same path, the same 24 × 24 box', () => {
+    const glyph = renderToString(<StateGlyph name="mark" />);
+    expect(paths(ICON)).toHaveLength(1);
+    expect(paths(ICON)).toEqual(paths(glyph));
+    expect(attr(ICON, 'svg', 'viewBox')).toBe(attr(glyph, 'svg', 'viewBox'));
+  });
+
+  it('paints the night colours itself and refers to nothing outside the file', () => {
+    // A favicon has no page around it: currentColor would be black, and any reference would be a request.
+    expect(attr(ICON, 'rect', 'fill')?.toLowerCase()).toBe(night('bg'));
+    expect(attr(ICON, 'path', 'stroke')?.toLowerCase()).toBe(night('thread'));
+    expect(ICON).not.toMatch(/currentColor|href|url\(|<(image|use|script|style|foreignObject)\b/i);
+    expect(ICON.match(/[a-z]+:\/\/[^\s"']+/gi)).toEqual(['http://www.w3.org/2000/svg']);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- icon`
+Expected: FAIL, `ENOENT: no such file or directory` cho `src/app/icon.svg`: file chưa có.
+
+`apps/web/src/app/icon.svg` (glyph `mark` của `Wordmark`, Task 9, trong cùng hộp 24 × 24; màu `bg` và `thread` của night; không có icon thì Chrome xin `/favicon.ico` và nhận 404 trong console, làm hỏng Best Practices):
 
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#0b0d12"/>
-  <path d="M2 20c6 0 7.5-8 13-8 4 0 5 4 2.5 6s-5.5-.5-3.5-3.5S21 12 23.5 15s3.5 5 6.5 5" fill="none" stroke="#e8b65a" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="6" fill="#0b0d12"/>
+  <path d="M2 18c2.5 0 4.5-1 4.5-4v-3a5.5 5.5 0 0 1 11 0v3c0 3 2 4 4.5 4" fill="none" stroke="#e8b65a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 ```
 
+Run: `npm test -w apps/web -- icon`
+Expected: PASS (2 test).
+
 Run: `npm run build && npm test -w apps/web && npm run test:build -w apps/web`
-Expected: PASS. Output của `test:build` có `csp.test.ts` (6 test), `html-purity.test.ts` (1 test) cùng các test của Task 2 đến Task 14. Nếu `deweb HTML has no external attribute` FAIL, dòng lỗi chỉ ra file và URL: một `<a href="https://…">` lọt vào HTML prerender nghĩa là có chỗ dùng thẳng `<a>` thay cho `ExternalLink` (Quyết định 16); sửa chỗ đó, không nới test.
+Expected: PASS. Output của `npm test` có `icon.test.tsx` (2 test); output của `test:build` có `csp.test.ts` (6 test), `html-purity.test.ts` (1 test) cùng các test của Task 2 đến Task 14. Nếu `deweb HTML has no external attribute` FAIL, dòng lỗi chỉ ra file và URL: một `<a href="https://…">` lọt vào HTML prerender nghĩa là có chỗ dùng thẳng `<a>` thay cho `ExternalLink` (Quyết định 16); sửa chỗ đó, không nới test.
 
 - [ ] **Step 5: Test hỏng cho `vercel.json`, rồi viết nó cùng `site-headers.ts`**
 
@@ -15878,17 +17316,30 @@ export { expect };
 ```ts
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, type Locator, type Page } from '@playwright/test';
+import { KEYS } from '../../src/lib/store.ts';
 
 /** WCAG 2.2 AA, the bar of spec §11. */
 export const AXE_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
-/** Waits until every animation that can end has ended; loops (the thread pulse) never end and are let through. */
+/** The stored theme choices the tests use: `dark` is night (the default), `light` is vellum (spec §18.4.1). */
+export type E2ETheme = 'dark' | 'light';
+export type E2ELang = 'en' | 'vi';
+
+/**
+ * Waits until every animation that can end has ended. Loops (the thread pulse) never end, and an animation on a
+ * scroll or view timeline ends only when the page scrolls (Ruling R15): both are let through.
+ */
 export async function settle(page: Page): Promise<void> {
   await page.waitForFunction(
     () =>
       document
         .getAnimations()
-        .every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().endTime === Number.POSITIVE_INFINITY),
+        .every(
+          (a) =>
+            a.playState !== 'running' ||
+            a.timeline !== document.timeline ||
+            a.effect?.getComputedTiming().endTime === Number.POSITIVE_INFINITY,
+        ),
     undefined,
     { timeout: 10_000 },
   );
@@ -15923,10 +17374,35 @@ export async function expectAccessible(page: Page): Promise<void> {
   );
 }
 
-/** The same check in the dark theme (the default) and in the light one, through the system preference. */
-export async function expectAccessibleInBothThemes(page: Page): Promise<void> {
-  for (const colorScheme of ['dark', 'light'] as const) {
-    await page.emulateMedia({ colorScheme });
+/**
+ * Ruling R18.17: switches the theme the way a person's choice does, through the stored choice and a reload. Night
+ * does not follow the system preference, so emulateMedia({ colorScheme }) cannot change the theme. The reload restarts
+ * the page from its URL: state in the hash or in session storage survives, an open dialog does not.
+ */
+export async function setStoredTheme(page: Page, theme: E2ETheme): Promise<void> {
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [KEYS.theme, theme] as const);
+  await page.reload();
+  // The boot script applies the stored choice before the first paint: vellum sets the attribute, night removes it.
+  if (theme === 'light') await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  else await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+}
+
+/** The language, the same way; it applies after hydration, so this waits for <html lang>. */
+export async function setStoredLang(page: Page, lang: E2ELang): Promise<void> {
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [KEYS.lang, lang] as const);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', lang);
+}
+
+/**
+ * No axe violation in vellum, then in night, each set through the stored choice (setStoredTheme); the page ends in
+ * night, the default. Each theme reloads the page: pass `ready` when the page fills in after load (a vault read from
+ * the chain), and use expectAccessible instead while a dialog is open.
+ */
+export async function expectAccessibleInBothThemes(page: Page, ready?: Locator): Promise<void> {
+  for (const theme of ['light', 'dark'] as const) {
+    await setStoredTheme(page, theme);
+    if (ready) await expect(ready).toBeVisible();
     await expectAccessible(page);
   }
 }
@@ -15949,6 +17425,67 @@ export async function connectWallet(page: Page, name = 'Test Wallet'): Promise<v
   await sheet.getByRole('button', { name }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole('button', { name: /^Wallet 0x/ })).toBeVisible();
+}
+```
+
+`apps/web/test/e2e/screens.ts` (harness ảnh chụp của R18.13; 7B T4 không tạo file này nữa):
+
+```ts
+import type { Page } from '@playwright/test';
+import { type E2ELang, type E2ETheme, setStoredLang, setStoredTheme, settle } from './helpers.ts';
+
+export interface Shot {
+  theme: E2ETheme;
+  lang: E2ELang;
+  width: number;
+}
+
+/** Ruling R18.13: three shots per screen, all in night: English at 1440 and 390 px, Vietnamese at 390 px. */
+export const SCREEN_MATRIX: readonly Shot[] = [
+  { theme: 'dark', lang: 'en', width: 1440 },
+  { theme: 'dark', lang: 'en', width: 390 },
+  { theme: 'dark', lang: 'vi', width: 390 },
+];
+
+/** The same three in vellum, only for a vellum surface (the heir letter, a printed page). */
+export const VELLUM_MATRIX: readonly Shot[] = SCREEN_MATRIX.map((s): Shot => ({ ...s, theme: 'light' }));
+
+/** Screens are taken only on demand (SCREENS=1) and once, on the desktop project; the 390 px shots stand for phones. */
+export function shouldCapture(projectName: string): boolean {
+  return process.env.SCREENS === '1' && projectName === 'desktop';
+}
+
+/**
+ * Full-page screenshots for the design review, into test-results/screens/<name>/<night|vellum>-<lang>-<width>.png
+ * (ignored by git, never compared). The theme and the language change through the stored choice and a reload
+ * (Ruling R18.17), so the screen must survive a reload: its state lives in the hash or in session storage. Ends in
+ * night and English, at the viewport it started with.
+ */
+export async function captureScreens(page: Page, name: string, o: { vellum?: boolean } = {}): Promise<void> {
+  const start = page.viewportSize();
+  const shots = o.vellum ? [...SCREEN_MATRIX, ...VELLUM_MATRIX] : SCREEN_MATRIX;
+  let theme: E2ETheme | null = null;
+  let lang: E2ELang | null = null;
+  for (const shot of shots) {
+    if (shot.theme !== theme) {
+      await setStoredTheme(page, shot.theme);
+      theme = shot.theme;
+    }
+    if (shot.lang !== lang) {
+      await setStoredLang(page, shot.lang);
+      lang = shot.lang;
+    }
+    await page.setViewportSize({ width: shot.width, height: 900 });
+    await settle(page);
+    const scheme = shot.theme === 'dark' ? 'night' : 'vellum';
+    await page.screenshot({
+      path: `test-results/screens/${name}/${scheme}-${shot.lang}-${shot.width}.png`,
+      fullPage: true,
+    });
+  }
+  await setStoredLang(page, 'en');
+  await setStoredTheme(page, 'dark');
+  if (start) await page.setViewportSize(start);
 }
 ```
 
@@ -16032,10 +17569,14 @@ Expected: không lỗi. (`wallet.ts` và `state.ts` chép nguyên văn đã qua 
 
 ```ts
 import { expect, test } from './fixtures.ts';
-import { expectAccessibleInBothThemes, openSettings } from './helpers.ts';
+import { expectAccessibleInBothThemes, openSettings, setStoredTheme } from './helpers.ts';
+import { captureScreens, shouldCapture } from './screens.ts';
 
 const HERO = 'What happens to your crypto when you can no longer sign?';
 const HERO_VI = 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?';
+/** --atro-bg of globals.css (Task 3): night #0b0d12, vellum #f6f1e7. */
+const NIGHT_BG = 'rgb(11, 13, 18)';
+const VELLUM_BG = 'rgb(246, 241, 231)';
 
 test('the home page and the 404 page pass axe in both themes', async ({ page, state }) => {
   await page.goto(state.siteUrl);
@@ -16044,6 +17585,22 @@ test('the home page and the 404 page pass axe in both themes', async ({ page, st
   await page.goto(new URL('no-such-page/', state.siteUrl).href);
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
   await expectAccessibleInBothThemes(page);
+});
+
+test('the stored theme changes the palette axe checks, and the system preference does not', async ({
+  page,
+  state,
+}) => {
+  const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  // Night is not the system theme (spec §18.4.1): emulateMedia leaves it alone, which is why R18.17 exists.
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(background).toBe(NIGHT_BG);
+  await setStoredTheme(page, 'light');
+  await expect.poll(background).toBe(VELLUM_BG);
+  await setStoredTheme(page, 'dark');
+  await expect.poll(background).toBe(NIGHT_BG);
 });
 
 test('the skip button moves focus to the main content and keeps the hash', async ({ page, state }) => {
@@ -16062,8 +17619,10 @@ test('the skip button moves focus to the main content and keeps the hash', async
 test('the theme and the language persist across a reload', async ({ page, state }) => {
   await page.goto(state.siteUrl);
   await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  // Night is the default and carries no attribute.
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme');
   const settings = await openSettings(page);
-  await settings.getByText('Light', { exact: true }).click();
+  await settings.getByText('Vellum', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await settings.getByText('Tiếng Việt', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
@@ -16072,6 +17631,17 @@ test('the theme and the language persist across a reload', async ({ page, state 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.getByRole('heading', { level: 1, name: HERO_VI })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+});
+
+test('screens of the home page and the 404 page, for the design review', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
+  test.setTimeout(300_000);
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  await captureScreens(page, 'home');
+  await page.goto(new URL('no-such-page/', state.siteUrl).href);
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  await captureScreens(page, '404');
 });
 ```
 
@@ -16245,6 +17815,38 @@ test('without reduced motion the thread breathes, so the test above can fail', a
   await page.goto(state.siteUrl);
   await expect.poll(async () => (await runningAnimations(page)).some((a) => a.startsWith('thread-pulse '))).toBe(true);
 });
+
+/**
+ * Plan 7A Quyết định 6: React's ViewTransition starts a view transition when a client navigation commits, so Next
+ * needs no viewTransition key. In 7A only `/` and the 404 page exist, and a Link to a missing route reloads the
+ * document, so the only client navigation is from the 404 page to `/`.
+ */
+test('a client navigation runs inside a view transition', async ({ page, state }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(new URL('no-such-page/', state.siteUrl).href);
+  // The 404 page prints the missing path only once it has mounted: from here on, the header's Link is live.
+  await expect(page.getByRole('main').locator('code')).toContainText('/no-such-page/');
+  await page.evaluate(() => {
+    const w = window as unknown as { __vtCalls: number; __sameDocument: boolean };
+    w.__vtCalls = 0;
+    w.__sameDocument = true;
+    const start = document.startViewTransition?.bind(document);
+    if (!start) return;
+    document.startViewTransition = ((arg?: Parameters<typeof start>[0]) => {
+      w.__vtCalls += 1;
+      return start(arg);
+    }) as typeof document.startViewTransition;
+  });
+  await page.getByRole('link', { name: 'Atropyle home' }).click();
+  await page.waitForURL(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { __vtCalls?: number; __sameDocument?: boolean };
+    return { sameDocument: w.__sameDocument === true, calls: w.__vtCalls ?? 0 };
+  });
+  expect(seen.sameDocument, 'the click loaded a new document instead of navigating on the client').toBe(true);
+  expect(seen.calls, 'document.startViewTransition was never called during the navigation').toBeGreaterThan(0);
+});
 ```
 
 `apps/web/test/e2e/csp.spec.ts`:
@@ -16291,6 +17893,74 @@ test('the proof worker loads and runs under the page policy', async ({ page, sta
 });
 ```
 
+`apps/web/test/e2e/nojs.spec.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import type { Locator, Page } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
+
+// Spec §18 principle 6: the first paint is the final layout, so a reader without JavaScript loses nothing to read.
+test.use({ javaScriptEnabled: false });
+
+const XLAYER = JSON.parse(readFileSync(new URL('../../../../deployments/xlayer.json', import.meta.url), 'utf8')) as {
+  circuits: { netlistKeccak: { policy: string } };
+};
+/** The policy netlist keccak; the proof line names it in short form, 0x7016…3864 (Task 9, src/config/facts.ts). */
+const KECCAK = XLAYER.circuits.netlistKeccak.policy;
+
+/**
+ * Seen by a reader: visible to Playwright, and no ancestor left at opacity 0. toBeVisible counts opacity 0 as visible,
+ * and an `m.*` element prerenders its initial style, which only JavaScript would lift.
+ */
+async function expectSeen(target: Locator): Promise<void> {
+  await expect(target).toBeVisible();
+  const chain = target.locator('xpath=ancestor-or-self::*');
+  const n = await chain.count();
+  for (let i = 0; i < n; i++) await expect(chain.nth(i)).not.toHaveCSS('opacity', '0');
+}
+
+/**
+ * What every page shows before any script runs: the proof line, then the footer and its promise (Task 9). The proof
+ * line is found by its test id, never by position: it is the first visible band, right after the skip link.
+ */
+async function expectFrame(page: Page): Promise<void> {
+  const line = page.getByTestId('proof-line');
+  // Both variants are in the HTML and CSS shows one; each links the short keccak to the proof.
+  const keccak = line
+    .locator('a[href="/proof/"]')
+    .filter({ hasText: KECCAK.slice(0, 6) })
+    .filter({ hasText: KECCAK.slice(-4) })
+    .filter({ visible: true })
+    .first();
+  await expectSeen(keccak);
+  await expectSeen(line.getByText('unaudited').filter({ visible: true }).first());
+  const footer = page.getByRole('contentinfo');
+  await expectSeen(footer.getByText('No trackers'));
+  await expectSeen(footer.locator('a[href="/proof/#limits"]'));
+  await expectSeen(footer.locator('a[href="/verify/"]'));
+}
+
+/** `/`: the question, and the two ways in (rehearse it, see the proof). */
+async function expectHome(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1 }));
+  const main = page.getByRole('main');
+  await expectSeen(main.locator('a[href="/create/#drill"]').first());
+  await expectSeen(main.locator('a[href="/proof/"]').first());
+}
+
+/** Every page that must read without JavaScript. Plan 7B Task 12 adds 'verify/', Plan 7C Task 3 adds 'proof/'. */
+const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [{ path: '', content: expectHome }];
+
+for (const { path, content } of PAGES) {
+  test(`/${path} reads without JavaScript`, async ({ page, state }) => {
+    await page.goto(new URL(path, state.siteUrl).href);
+    await content(page);
+    await expectFrame(page);
+  });
+}
+```
+
 Run:
 
 ```bash
@@ -16300,10 +17970,271 @@ npm run playwright:install -w apps/web
 npm run e2e -w apps/web
 ```
 
-Expected: PASS, 14 test × 2 project (`desktop`, `mobile`) = 28 test. Global setup mất vài phút (anvil, triển khai hợp đồng, một lần `next build`). Lỗi thường gặp và cách đọc:
-- `requests that would break the 100% on-chain badge`: trang gọi một origin ngoài; tìm nguồn trong mảng in ra, không thêm origin vào `offchain`.
-- `Content Security Policy violations` với `script-src-elem` và `sample` là đoạn đầu của một script inline: script đó sinh ra sau bước postbuild hoặc có `\r` lạ; xem `inlineScripts`. Với `worker-src`: Turbopack tạo worker qua `blob:`, đổi `BUNDLER_FLAGS` sang `--webpack` (Quyết định 3).
-- `reduced motion leaves no running animation` in tên animation và phần tử (ví dụ `thread-tremble on path.…`): class đó thiếu tiền tố `motion-safe:`.
+Expected: `34 passed`, `2 skipped`. Đó là 18 test × 2 project (`desktop`, `mobile`) = 36 kết quả: 34 passed, 2 skipped. 18 test gồm `shell` 5, `legacy` 2, `wallet` 3, `motion` 3, `csp` 2, `worker` 1, `nojs` 1 (một mục trong `PAGES`) và `offchain` 1 (chép nguyên từ bản cũ, chạy ở cả hai project). Hai kết quả bị bỏ là một test chụp màn hình của `shell.spec.ts`, bị bỏ ở cả hai project vì không có `SCREENS=1`. Global setup mất vài phút (anvil, triển khai hợp đồng, một lần `next build`).
+
+Kết quả của test `a client navigation runs inside a view transition` quyết định bước sau. Ghi kết quả vào báo cáo task.
+- **Kết quả A:** test PASS. Quyết định 6 đúng; bỏ Step 7b, không có `nav-link.tsx`.
+- **Kết quả B:** test hỏng ở `document.startViewTransition was never called during the navigation`. Điều hướng chạy trên client, nhưng React không mở view transition. Làm Step 7b.
+- **Kết quả C:** test hỏng ở `the click loaded a new document instead of navigating on the client`. Đây không phải lỗi view transition: `Link` chưa hydrate, hoặc payload RSC `index.txt` của `/` thiếu trong `out/`. Dừng và báo BLOCKED, kèm trace (`npx playwright show-trace`); không viết `nav-link.tsx`.
+
+Lỗi thường gặp và cách đọc:
+- `requests that would break the 100% on-chain badge`: trang gọi một origin ngoài. Tìm nguồn trong mảng in ra; không thêm origin vào `offchain`.
+- `Content Security Policy violations` với `script-src-elem` và `sample` là đoạn đầu của một script inline: script đó sinh ra sau bước postbuild, hoặc có `\r` lạ; xem `inlineScripts`. Với `worker-src`: Turbopack tạo worker qua `blob:`; đổi `BUNDLER_FLAGS` sang `--webpack` (Quyết định 3).
+- `reduced motion leaves no running animation` in tên animation và phần tử, ví dụ `thread-tremble on svg.…`: class đó thiếu tiền tố `motion-safe:`.
+- `nojs.spec.ts` hỏng ở `not.toHaveCSS('opacity', '0')`: một phần tử `m.*` prerender với `initial` có `opacity: 0`, nên không có JS thì chữ không bao giờ hiện. Sửa phần tử đó (`initial={false}`, hoặc animation CSS sau `motion-safe:`), không bỏ kiểm tra.
+- `expectAccessibleInBothThemes` hỏng ở `toHaveAttribute('data-theme', 'light')` sau khi tải lại: script boot không áp lựa chọn đã lưu (Task 9). Không chuyển về `emulateMedia` (R18.17).
+
+- [ ] **Step 7b: Chỉ khi Kết quả B: `NavLink` mở view transition cho điều hướng trên client**
+
+Không làm bước này khi ra Kết quả A.
+
+`withViewTransition(() => router.push(href))` (câu chữ của §18.4.1) không đủ. `withViewTransition` chạy `update` trong `flushSync`, mà `router.push` chỉ commit sau khi tải payload RSC. Vì vậy trình duyệt chụp ảnh "mới" khi DOM chưa đổi, rồi trang đổi mà không có chuyển cảnh. `NavLink` giữ ảnh cũ cho tới khi pathname mới đã commit, tối đa 1 giây.
+
+**Lệch có chủ ý khỏi §18.4.1** (controller đã chấp nhận, A-Q2). Bước này khác câu chữ của spec ở hai chỗ:
+- `NavLink` gọi `withPendingViewTransition(() => router.push(href), committed)`, không gọi `withViewTransition(() => router.push(href))`: `flushSync` không chờ được một lần `push` bất đồng bộ, như đoạn trên giải thích. `withViewTransition` giữ nguyên cho việc đổi theme, nơi cập nhật là đồng bộ.
+- §18.4.1 chỉ nêu `nav-list.tsx` và `footer.tsx`. Bước này đổi cả link `Atropyle home` của `header.tsx` sang `NavLink`, vì spy của e2e bấm chính link đó.
+
+Hai chỗ này là quyết định, không phải sai sót: đừng đưa mã về câu chữ của spec.
+
+`apps/web/test/unit/nav-link.test.tsx`:
+
+```tsx
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NavLink } from '../../src/shell/nav-link';
+
+const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn<(href: string) => void>() }));
+vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ push: nav.push }) }));
+
+/** The update callbacks handed to the fake document.startViewTransition, in call order. */
+const updates: (() => Promise<void>)[] = [];
+
+beforeEach(() => {
+  nav.pathname = '/';
+  nav.push.mockClear();
+  updates.length = 0;
+  Object.defineProperty(document, 'startViewTransition', {
+    configurable: true,
+    value: (update: () => Promise<void>) => {
+      updates.push(update);
+      return {};
+    },
+  });
+});
+
+afterEach(() => {
+  Reflect.deleteProperty(document, 'startViewTransition');
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+describe('NavLink', () => {
+  it('runs a plain click as a client navigation in a view transition that waits for the new route', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const { rerender } = render(<NavLink href="/proof/">Proof</NavLink>);
+    const link = screen.getByRole('link', { name: 'Proof' });
+    const click = createEvent.click(link);
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(updates).toHaveLength(1);
+    let done = false;
+    const finished = updates[0]().then(() => {
+      done = true;
+    });
+    expect(nav.push).toHaveBeenCalledWith('/proof/');
+    await Promise.resolve();
+    expect(done).toBe(false);
+    // usePathname may report the route without its trailing slash; it is the same page.
+    nav.pathname = '/proof';
+    rerender(<NavLink href="/proof/">Proof</NavLink>);
+    await finished;
+    expect(done).toBe(true);
+  });
+
+  it('stops holding the old picture after one second, so a failed navigation never freezes the page', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    render(<NavLink href="/proof/">Proof</NavLink>);
+    fireEvent.click(screen.getByRole('link', { name: 'Proof' }));
+    let done = false;
+    const finished = updates[0]().then(() => {
+      done = true;
+    });
+    vi.advanceTimersByTime(999);
+    await Promise.resolve();
+    expect(done).toBe(false);
+    vi.advanceTimersByTime(1);
+    await finished;
+    expect(done).toBe(true);
+  });
+
+  it('leaves modified clicks and links to the current page to the browser and next/link', () => {
+    render(
+      <>
+        <NavLink href="/proof/">Proof</NavLink>
+        <NavLink href="/">Home</NavLink>
+      </>,
+    );
+    const prevented: boolean[] = [];
+    // React handles the click at its root; this listener on window runs after it and stops happy-dom navigating.
+    const guard = (e: Event) => {
+      prevented.push(e.defaultPrevented);
+      e.preventDefault();
+    };
+    window.addEventListener('click', guard);
+    fireEvent.click(screen.getByRole('link', { name: 'Proof' }), { ctrlKey: true });
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    window.removeEventListener('click', guard);
+    expect(prevented).toEqual([false, false]);
+    expect(updates).toHaveLength(0);
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it('navigates without a view transition when the user prefers reduced motion', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({ matches: query.includes('reduce'), media: query }) as MediaQueryList,
+    );
+    render(<NavLink href="/proof/">Proof</NavLink>);
+    const link = screen.getByRole('link', { name: 'Proof' });
+    const click = createEvent.click(link);
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(nav.push).toHaveBeenCalledWith('/proof/');
+    expect(updates).toHaveLength(0);
+  });
+});
+```
+
+Run: `npm test -w apps/web -- nav-link`
+Expected: FAIL, không tìm thấy `../../src/shell/nav-link`.
+
+Thêm vào cuối `apps/web/src/motion/view-transition.tsx` (phần còn lại của file giữ nguyên):
+
+```tsx
+type StartPendingViewTransition = (update: () => Promise<void>) => unknown;
+
+/**
+ * A crossfade around an update that commits later, such as a client route change: the browser keeps the old picture
+ * until `committed` resolves or `maxMs` has passed, then animates to the new one. Without the API, or when the user
+ * prefers reduced motion, the update simply runs.
+ */
+export function withPendingViewTransition(update: () => void, committed: Promise<void>, maxMs = 1_000): void {
+  const start = (document as { startViewTransition?: StartPendingViewTransition }).startViewTransition;
+  const reduce =
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (typeof start !== 'function' || reduce) {
+    update();
+    return;
+  }
+  start.call(document, () => {
+    update();
+    return Promise.race([committed, new Promise<void>((resolve) => setTimeout(resolve, maxMs))]);
+  });
+}
+```
+
+`apps/web/src/shell/nav-link.tsx`:
+
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { type ComponentProps, type MouseEvent, useEffect, useRef } from 'react';
+import { withPendingViewTransition } from '@/motion/view-transition';
+
+type NavLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & { href: string };
+
+/** `/proof` and `/proof/` are the same page (trailingSlash: true). */
+function samePath(a: string, b: string): boolean {
+  return (a.replace(/\/+$/, '') || '/') === (b.replace(/\/+$/, '') || '/');
+}
+
+/** A click the browser keeps for itself: another button, a modifier key, another tab. */
+function isPlainClick(e: MouseEvent<HTMLAnchorElement>): boolean {
+  const target = e.currentTarget.getAttribute('target');
+  return (
+    e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && (target === null || target === '_self')
+  );
+}
+
+/**
+ * next/link whose client navigation runs inside a view transition, because React did not start one for a navigation
+ * in this Next version (the spy in test/e2e/motion.spec.ts). The old picture stays until the new pathname has
+ * committed, at most one second.
+ */
+export function NavLink({ href, onClick, ...rest }: NavLinkProps) {
+  const router = useRouter();
+  const pathname = usePathname() ?? '/';
+  const pending = useRef<{ path: string; resolve(): void } | null>(null);
+  useEffect(() => {
+    const p = pending.current;
+    if (p && samePath(p.path, pathname)) {
+      pending.current = null;
+      p.resolve();
+    }
+  }, [pathname]);
+  return (
+    <Link
+      {...rest}
+      href={href}
+      onClick={(e) => {
+        onClick?.(e);
+        if (e.defaultPrevented || !isPlainClick(e)) return;
+        const to = new URL(href, window.location.href);
+        // Another site, or the same page (a hash change): next/link and the browser handle it.
+        if (to.origin !== window.location.origin || samePath(to.pathname, window.location.pathname)) return;
+        e.preventDefault();
+        const committed = new Promise<void>((resolve) => {
+          pending.current = { path: to.pathname, resolve };
+        });
+        withPendingViewTransition(() => router.push(href), committed);
+      }}
+    />
+  );
+}
+```
+
+Run: `npm test -w apps/web -- nav-link`
+Expected: PASS (4 test).
+
+Đổi `Link` thành `NavLink` trong ba file khung. Spy của e2e bấm link `Atropyle home` của header, nên header cũng đổi. Dòng bằng chứng (link `/proof/`) giữ `Link` cho tới khi 7C T3 dựng `/proof/`.
+
+```bash
+sed -i -e "s#^import Link from 'next/link';#import { NavLink } from './nav-link';#" -e 's#<Link\b#<NavLink#g' -e 's#</Link>#</NavLink>#g' apps/web/src/shell/nav-list.tsx apps/web/src/shell/footer.tsx apps/web/src/shell/header.tsx
+npx biome check --write apps/web/src/shell/nav-list.tsx apps/web/src/shell/footer.tsx apps/web/src/shell/header.tsx
+grep -c "next/link" apps/web/src/shell/nav-list.tsx apps/web/src/shell/footer.tsx apps/web/src/shell/header.tsx
+grep -ln "shell/header\|shell/footer\|shell/frame\|shell/nav-list\|shell/mobile-menu" apps/web/test/unit
+```
+
+Expected:
+- `grep -c` in `:0` cho cả ba file. `ExternalLink` không bị đổi, vì mẫu cần `<` đứng ngay trước `Link`.
+- Lệnh cuối liệt kê các file test unit vẽ một thành phần của khung; với Task 9 là `apps/web/test/unit/shell.test.tsx`.
+
+`sed` đổi mọi `Link` của ba file, kể cả link tới route mà 7A chưa dựng (7B và 7C dựng sau) và link "Known limits" của footer. Như thế là đúng, đừng thu hẹp `sed`. Route chưa có thì không có payload RSC; Next khi đó tải lại cả trang, y như với `Link` thường. Khác biệt duy nhất: `NavLink` giữ ảnh cũ cho tới khi trang mới tải xong, tối đa 1 giây (`maxMs`). Khoảng chờ này hết khi route có thật. Ghi một dòng về nó vào báo cáo task.
+
+Trong factory `vi.mock('next/navigation', () => ({ … }))` của **mỗi** file vừa liệt kê, thêm khoá `useRouter: () => ({ push: () => undefined }),` cạnh `usePathname`. Ví dụ, dòng của Task 9 thành:
+
+```tsx
+vi.mock('next/navigation', () => ({ usePathname: () => '/create/', useRouter: () => ({ push: () => undefined }) }));
+```
+
+Run:
+
+```bash
+npm test -w apps/web -- nav-link shell
+npm run e2e -w apps/web -- motion.spec.ts
+```
+
+Expected:
+- unit: PASS; số test của `shell` không đổi;
+- e2e: `6 passed`. Test spy thấy `startViewTransition` được gọi từ `NavLink`, và điều hướng vẫn chạy trên client.
+
+Ghi vào báo cáo task:
+- "Kết quả B";
+- dòng lỗi của spy trước khi sửa;
+- link của khung tới route chưa có trong 7A tải lại cả trang sau tối đa 1 giây giữ ảnh cũ, cho tới khi 7B và 7C dựng route đó.
+
+Controller sửa Quyết định 6 và spec §16 theo kết quả này, và ghi hai chỗ lệch §18.4.1 ở đầu bước vào spec.
 
 - [ ] **Step 8: Ngân sách kích thước theo route**
 
@@ -16395,6 +18326,20 @@ export default [
 Run: `npm run build -w apps/web && npm run size -w apps/web`
 Expected: mỗi dòng `first load of /`, `first load of /404`, … và `all JavaScript of the site` có `Size limit` và `Size` (gzip), lệnh thoát 0. Nếu `/` vượt 170 kB: chạy `npx size-limit --why` không giúp được (plugin `file` không phân tích bundle); thay vào đó tìm module nặng bằng cách so tên chunk trong `out/index.html` với `out/_next/static/chunks/`, rồi kiểm luật nạp lười (`npm test -w apps/web -- lazy-boundary`). Không nâng ngân sách trong task này: ngân sách là của spec §11.
 
+Ruling R16: ghi số đo JS lần tải đầu của `/` và phần còn dư dưới 170 kB. Lần đo trên khung trần của Task 2 (Next 16 + React 19) đã khoảng 132 kB; Plan 7B và 7C cần biết còn bao nhiêu.
+
+```bash
+npm run build -w apps/web
+OUT="$(mktemp)"
+npm run size --silent -w apps/web -- --json > "$OUT"
+node -e "const r=JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8')).find((x)=>x.name==='first load of /');console.log('first load of /: '+r.size+' B gzip = '+(r.size/1000).toFixed(1)+' kB; headroom '+((170000-r.size)/1000).toFixed(1)+' kB under 170 kB')" "$OUT"
+rm -f "$OUT"
+```
+
+Expected: một dòng `first load of /: <byte> B gzip = <x> kB; headroom <y> kB under 170 kB` với `<y>` dương. `size-limit` đọc `170 kB` là 170 000 byte, cùng đơn vị với dòng `Size` mà `npm run size -w apps/web` in ra.
+
+Chép nguyên dòng đó vào báo cáo task, dưới tiêu đề "R16". Controller chép hai số vào mục "Interfaces for Plan 7B" (mục "Kích thước").
+
 - [ ] **Step 9: Lighthouse: server nén như host thật, phần chấm điểm thuần có test, rồi script**
 
 Lighthouse giả lập mạng 4G chậm từ số byte thật trên đường truyền. Server tĩnh của Task 2 gửi text không nén, nên JS 170 kB gzip sẽ thành khoảng 3 lần số byte và LCP, TBT bị đo tệ hơn bản thật trên Vercel (Vercel luôn nén). Server được nén gzip khi trình duyệt chấp nhận; e2e và `worker:check` dùng cùng server nên cũng chạy với nội dung nén.
@@ -16468,9 +18413,24 @@ Expected: PASS (5 test). Các test cũ vẫn đạt: `fetch` của Node tự g�
 ```ts
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { failures, medianRun, type Run, runOf, THRESHOLDS } from '../../scripts/lib/lighthouse-score';
+import {
+  failures,
+  forbiddenRequests,
+  type LhrLike,
+  medianRun,
+  type Run,
+  runOf,
+  THRESHOLDS,
+} from '../../scripts/lib/lighthouse-score';
 
 const PASS: Run = { performance: 0.97, accessibility: 1, bestPractices: 1, seo: 1, lcpMs: 1500, cls: 0, tbtMs: 90 };
+
+const SITE = 'http://127.0.0.1:4000';
+
+/** A result whose network-requests audit lists these rows, as Lighthouse 13 writes them. */
+function withRequests(items: readonly unknown[]): LhrLike {
+  return { categories: {}, audits: { 'network-requests': { details: { type: 'table', headings: [], items } } } };
+}
 
 describe('lighthouse score', () => {
   it('reads the four categories and three metrics; a missing one counts as a failure', () => {
@@ -16538,6 +18498,37 @@ describe('lighthouse score', () => {
     expect(failures({ ...PASS, cls: 0.0004 })).toEqual([]);
     expect(failures({ ...PASS, cls: 0.0006 })).toEqual(['CLS 0.001 > 0']);
   });
+
+  it('lists each request that matches a forbidden pattern once, in load order', () => {
+    const lhr = withRequests([
+      { url: `${SITE}/` },
+      { url: `${SITE}/_next/static/chunks/sdk-1a2b.js` },
+      { url: `${SITE}/_next/static/chunks/app-3c4d.js` },
+      { url: `${SITE}/_next/static/chunks/circuits-5e6f.js` },
+      { url: `${SITE}/_next/static/chunks/sdk-1a2b.js` },
+      { url: `${SITE}/_next/static/chunks/circuits-7a8b.js` },
+    ]);
+    // A global RegExp keeps state between test() calls; the gate must not depend on it.
+    expect(forbiddenRequests(lhr, ['/chunks/sdk-', /circuits-[0-9a-f]+\.js$/g])).toEqual([
+      `${SITE}/_next/static/chunks/sdk-1a2b.js`,
+      `${SITE}/_next/static/chunks/circuits-5e6f.js`,
+      `${SITE}/_next/static/chunks/circuits-7a8b.js`,
+    ]);
+  });
+
+  it('is empty when nothing matches or no pattern is given, and skips rows without a URL', () => {
+    const lhr = withRequests([{ url: `${SITE}/` }, { url: 42 }, 'row', null, {}]);
+    expect(forbiddenRequests(lhr, ['/chunks/sdk-'])).toEqual([]);
+    expect(forbiddenRequests(lhr, [])).toEqual([]);
+  });
+
+  it('fails closed when the run has no network-requests table', () => {
+    expect(() => forbiddenRequests({ categories: {}, audits: {} }, ['/chunks/sdk-'])).toThrow(
+      /no network-requests table/,
+    );
+    const noTable: LhrLike = { categories: {}, audits: { 'network-requests': { details: { type: 'opportunity' } } } };
+    expect(() => forbiddenRequests(noTable, [])).toThrow(/no network-requests table/);
+  });
 });
 ```
 
@@ -16547,7 +18538,7 @@ Expected: FAIL, không tìm thấy `../../scripts/lib/lighthouse-score`.
 `apps/web/scripts/lib/lighthouse-score.ts`:
 
 ```ts
-/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7B adds the other two when those routes exist. */
+/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7B adds `/create/`, Plan 7C Task 3 adds `/proof/`. */
 export const LIGHTHOUSE_ROUTES: readonly string[] = ['/'];
 
 export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
@@ -16563,6 +18554,12 @@ export const THRESHOLDS = {
   tbtMs: 150,
 } as const;
 
+/**
+ * Requests that must not happen while Lighthouse loads a route (spec §18, R18.18), as a substring of the URL or a
+ * RegExp. Empty in Plan 7A; Plan 7C Task 6 adds the SDK, circuits and time-machine chunks of `/`.
+ */
+export const FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>> = {};
+
 export interface Run {
   performance: number;
   accessibility: number;
@@ -16576,7 +18573,7 @@ export interface Run {
 /** The part of a Lighthouse result the gate reads; the real `Result` type fits it. */
 export interface LhrLike {
   categories: Record<string, { score: number | null } | undefined>;
-  audits: Record<string, { numericValue?: number } | undefined>;
+  audits: Record<string, { numericValue?: number; details?: unknown } | undefined>;
 }
 
 const score = (lhr: LhrLike, id: string): number => lhr.categories[id]?.score ?? 0;
@@ -16620,10 +18617,31 @@ export function failures(r: Run): string[] {
   atMost('TBT', Math.round(r.tbtMs), THRESHOLDS.tbtMs, ' ms');
   return out;
 }
+
+function hasItems(details: unknown): details is { items: readonly unknown[] } {
+  return typeof details === 'object' && details !== null && Array.isArray((details as { items?: unknown }).items);
+}
+
+/**
+ * The URL of every request in the run that matches a pattern, each once, in load order. Reads the table of the
+ * `network-requests` audit; a run without that table throws, so the gate can never pass by reading nothing.
+ */
+export function forbiddenRequests(lhr: LhrLike, patterns: readonly (string | RegExp)[]): string[] {
+  const details = lhr.audits['network-requests']?.details;
+  if (!hasItems(details)) throw new Error('Lighthouse result has no network-requests table');
+  const out: string[] = [];
+  for (const item of details.items) {
+    const url = typeof item === 'object' && item !== null ? (item as { url?: unknown }).url : undefined;
+    if (typeof url !== 'string' || out.includes(url)) continue;
+    // String#search ignores lastIndex, so a global RegExp matches the same way on every URL.
+    if (patterns.some((p) => (typeof p === 'string' ? url.includes(p) : url.search(p) !== -1))) out.push(url);
+  }
+  return out;
+}
 ```
 
 Run: `npm test -w apps/web -- lighthouse-score`
-Expected: PASS (5 test).
+Expected: PASS (8 test).
 
 `apps/web/scripts/lighthouse.ts`:
 
@@ -16633,7 +18651,16 @@ import { join } from 'node:path';
 import { chromium } from '@playwright/test';
 import { launch } from 'chrome-launcher';
 import lighthouse from 'lighthouse';
-import { CATEGORIES, failures, LIGHTHOUSE_ROUTES, medianRun, type Run, runOf } from './lib/lighthouse-score';
+import {
+  CATEGORIES,
+  failures,
+  FORBIDDEN_REQUESTS,
+  forbiddenRequests,
+  LIGHTHOUSE_ROUTES,
+  medianRun,
+  type Run,
+  runOf,
+} from './lib/lighthouse-score';
 import { APP_DIR, OUT_DIR } from './lib/run-next';
 import { siteHeaders } from './lib/site-headers';
 import { startStaticServer } from './lib/static-server';
@@ -16656,6 +18683,7 @@ let failed = false;
 try {
   for (const route of LIGHTHOUSE_ROUTES) {
     const runs: Run[] = [];
+    const forbidden = new Set<string>();
     for (let i = 1; i <= RUNS; i++) {
       const result = await lighthouse(`${server.url}${route}`, {
         port: chrome.port,
@@ -16668,9 +18696,11 @@ try {
       const report = typeof result.report === 'string' ? result.report : result.report.join('\n');
       writeFileSync(join(REPORTS, `${name}-${i}.html`), report);
       runs.push(runOf(result.lhr));
+      // R18.18: a chunk that must wait for intent fails the route when any of the runs loaded it.
+      for (const url of forbiddenRequests(result.lhr, FORBIDDEN_REQUESTS[route] ?? [])) forbidden.add(url);
     }
     const median = medianRun(runs);
-    const missed = failures(median);
+    const missed = [...failures(median), ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`)];
     console.log(`${route}: ${JSON.stringify(median)}`);
     for (const m of missed) console.error(`  ${route}: ${m}`);
     if (missed.length > 0) failed = true;
@@ -16683,8 +18713,12 @@ console.log(failed ? 'lighthouse: FAIL (reports in apps/web/lighthouse-report/)'
 process.exit(failed ? 1 : 0);
 ```
 
+Biome xếp tên trong import theo thứ tự không phân biệt hoa thường. Nếu `npx biome ci .` báo thứ tự import của hai file trên, chạy `npx biome check --write apps/web/scripts/lighthouse.ts apps/web/test/unit/lighthouse-score.test.ts`.
+
 Run: `npm run build -w apps/web && npm run lighthouse -w apps/web`
 Expected: in `/: {"performance":…,"accessibility":1,"bestPractices":1,"seo":1,…}` rồi `lighthouse: PASS`. Mỗi lần chạy để lại `apps/web/lighthouse-report/home-{1,2,3}.html` (bị ignore). Nếu FAIL: mở báo cáo trung vị, sửa nguyên nhân (thường là LCP của tiêu đề Fraunces hoặc một lỗi console), không nới ngưỡng.
+
+Mỗi lần chạy, `forbiddenRequests` đọc bảng của audit `network-requests`. Ở 7A, `FORBIDDEN_REQUESTS` rỗng nên không URL nào bị cấm, nhưng bảng vẫn phải có. Nếu script dừng với `Lighthouse result has no network-requests table`, nghĩa là `onlyCategories` của bản 13.6.0 đã bỏ audit đó. Khi đó thêm `onlyAudits: ['network-requests']` vào options: Lighthouse lấy hợp của hai bộ lọc. Không bỏ lời gọi `forbiddenRequests`.
 
 - [ ] **Step 10: CI chạy e2e, kích thước và Lighthouse**
 
@@ -16879,12 +18913,13 @@ Build the circuits and the SDK first (`npm run build` at the repository root): t
 ## Commands
 
 ```bash
-npm run dev -w apps/web            # next dev, with the /dev/ gallery of every component
+npm run dev -w apps/web            # next dev
 npm test -w apps/web               # unit tests (Vitest, happy-dom)
 npm run typecheck -w apps/web
 npm run test:build -w apps/web     # two real production builds, then checks on their output
 npm run worker:check -w apps/web   # the proof worker under a strict CSP in Chromium
 npm run e2e -w apps/web            # Playwright on a local anvil with a test wallet; needs `forge build` in contracts/
+SCREENS=1 npm run e2e -w apps/web -- --project=desktop   # design-review screenshots into test-results/screens/
 npm run build -w apps/web && npm run size -w apps/web
 npm run lighthouse -w apps/web     # after a production build; reports in lighthouse-report/
 ```
@@ -16909,6 +18944,7 @@ Set them in the environment of the build, not in a `.env` file. The CSP of every
 - **No telemetry, no third parties.** The build sets `NEXT_TELEMETRY_DISABLED=1`. Fonts are self-hosted with their OFL licences in `public/licenses/fonts/`. Lighthouse runs on this machine against the local build.
 - **Zero keys.** The app never asks for a key or a seed phrase; people sign in their own wallet. The e2e wallet holds no key either: it sends from unlocked accounts of a local anvil.
 - **Untrusted text.** Token names, revert reasons and wallet names are shown through `UntrustedText`, never as HTML or as a link.
+- **Readable without JavaScript.** Every page prerenders its text, links and footer; `test/e2e/nojs.spec.ts` opens them with JavaScript off.
 
 ## Budgets
 
@@ -16961,12 +18997,31 @@ git status --short
 
 Expected: mọi lệnh PASS; `git status` không liệt kê `apps/web/.size/`, `apps/web/out/`, `apps/web/test/e2e/.site/`, `apps/web/test/e2e/.state.json`, `apps/web/test-results/`, `apps/web/playwright-report/` hay `apps/web/lighthouse-report/`.
 
+Báo cáo task có ba mục:
+- "R16": dòng đo của Step 8;
+- "Quyết định 6": Kết quả A hoặc B, với Kết quả B kèm dòng lỗi của spy;
+- danh sách ảnh nếu đã chạy `SCREENS=1`.
+
 ```bash
 git add apps/web/scripts/lib/csp.ts apps/web/scripts/lib/site-headers.ts apps/web/scripts/lib/lighthouse-score.ts apps/web/scripts/lib/run-next.ts apps/web/scripts/lib/static-server.ts apps/web/scripts/lighthouse.ts apps/web/vercel.json apps/web/.size-limit.mjs apps/web/playwright.config.ts apps/web/public/robots.txt apps/web/src/app/icon.svg apps/web/README.md apps/web/package.json package-lock.json
-git add apps/web/test/unit/csp.test.ts apps/web/test/unit/vercel-config.test.ts apps/web/test/unit/lighthouse-score.test.ts apps/web/test/unit/static-server.test.ts apps/web/test/build/csp.test.ts apps/web/test/build/html-purity.test.ts
-git add apps/web/test/e2e/global-setup.ts apps/web/test/e2e/network.ts apps/web/test/e2e/fixtures.ts apps/web/test/e2e/helpers.ts apps/web/test/e2e/state.ts apps/web/test/e2e/wallet.ts apps/web/test/e2e/offchain.spec.ts apps/web/test/e2e/shell.spec.ts apps/web/test/e2e/legacy.spec.ts apps/web/test/e2e/wallet.spec.ts apps/web/test/e2e/motion.spec.ts apps/web/test/e2e/csp.spec.ts apps/web/test/e2e/worker.spec.ts
+git add apps/web/test/unit/csp.test.ts apps/web/test/unit/vercel-config.test.ts apps/web/test/unit/lighthouse-score.test.ts apps/web/test/unit/icon.test.tsx apps/web/test/unit/static-server.test.ts apps/web/test/build/csp.test.ts apps/web/test/build/html-purity.test.ts
+git add apps/web/test/e2e/global-setup.ts apps/web/test/e2e/network.ts apps/web/test/e2e/fixtures.ts apps/web/test/e2e/helpers.ts apps/web/test/e2e/screens.ts apps/web/test/e2e/state.ts apps/web/test/e2e/wallet.ts apps/web/test/e2e/offchain.spec.ts apps/web/test/e2e/shell.spec.ts apps/web/test/e2e/legacy.spec.ts apps/web/test/e2e/wallet.spec.ts apps/web/test/e2e/motion.spec.ts apps/web/test/e2e/csp.spec.ts apps/web/test/e2e/worker.spec.ts apps/web/test/e2e/nojs.spec.ts
 git add .gitignore biome.json .github/workflows/ci.yml scripts/test/site/ci-web-next.test.ts AGENTS.md docs/superpowers/specs/2026-11-22-atropyle-web-v2-design.md
 git commit -m "feat(web): hashed page CSP, Vercel headers, e2e with axe on anvil, size and Lighthouse budgets" -m "Ruling 17 of the spec records the CSP split between the meta tag and the Vercel header." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Chỉ khi ra Kết quả B, thêm ngay trước `git commit`:
+
+```bash
+git add apps/web/src/shell/nav-link.tsx apps/web/src/motion/view-transition.tsx apps/web/src/shell/nav-list.tsx apps/web/src/shell/footer.tsx apps/web/src/shell/header.tsx apps/web/test/unit/nav-link.test.tsx apps/web/test/unit/shell.test.tsx
+```
+
+Nếu lệnh `grep -ln` ở Step 7b liệt kê thêm file test nào, `git add` cả file đó, theo đường dẫn.
+
+Khi ra Kết quả B, lệnh commit có thêm một `-m` ngay trước dòng `Co-Authored-By`:
+
+```bash
+-m "NavLink starts the view transition of a client navigation: React did not start one in this Next version."
 ```
 
 ---
@@ -16979,14 +19034,57 @@ Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cù
 
 1. **Route mới** là `src/app/<segment>/page.tsx`. Tham số động nằm sau `#` và đọc bằng `useLocationHash()`; đổi tham số mà không thêm mục lịch sử bằng `replaceHash()`. Link tới route dùng `ROUTES` và các hàm `*Href` của `src/routes.ts`. Khi route đích đã có, bỏ `prefetch={false}` ở link trỏ tới nó (Quyết định 22).
 2. **Ranh giới nạp lười** (Global Constraints, test `lazy-boundary`): mã dùng chung trong `src/` chỉ `import type` từ `@atropyle/sdk*`, `viem*` và `**/impl/**`. Thư mục route con `src/app/<segment>/**` được import giá trị SDK trực tiếp, nhưng JS lần tải đầu của route vẫn ≤ 230 kB gzip. `.size-limit.mjs` tự thêm mọi trang HTML mới vào phép đo, không cần sửa.
-3. **Lighthouse:** thêm `'/create/'` và `'/proof/'` vào `LIGHTHOUSE_ROUTES` (`scripts/lib/lighthouse-score.ts`) khi hai route đó có (spec §11).
+3. **Lighthouse:**
+   - thêm `'/create/'` (7B) và `'/proof/'` (7C T3) vào `LIGHTHOUSE_ROUTES` (`scripts/lib/lighthouse-score.ts`) khi route đó có, bằng cách thêm vào mảng đang có, không ghi đè (spec §11);
+   - request bị cấm theo route nằm trong `FORBIDDEN_REQUESTS`: 7C T6 điền cho `/` các chunk SDK, circuits và time-machine (R18.18);
+   - `npm run lighthouse` hỏng khi một lần chạy bất kỳ tải một URL khớp mẫu (`forbiddenRequests`).
 4. **Văn bản không tin cậy** (tên token, lý do revert, tên ví, `state` của `MeVault`) chỉ hiển thị qua `UntrustedText`, `Amount` (với `symbol: Untrusted`) hoặc `ErrorBox`. Link ra ngoài chỉ qua `ExternalLink` (bản deweb: chữ thường lúc prerender, test `html-purity`). Không `dangerouslySetInnerHTML` (test `no-html-sinks`).
 5. **Giao dịch:** trang dựng `TxPlan` bằng SDK trong thư mục route con, rồi `const runner = useTxRunner({ plan, onDone })` và `<TxCard runner={runner} label=… />`. Nghi thức (check-in) dùng `confirm="hold"`; plan không hoàn tác được dùng `tone="danger"`. Sau `onDone`, làm mới dữ liệu bằng `useInvalidateVault()`.
 6. **Chuỗi giao diện** nằm trong `src/messages/<trang>.messages.ts` (`defineMessages(en, vi)`, VI đủ khoá) và đọc bằng `useT(messages)`. Tên ngôn ngữ, mã lỗi và địa chỉ không dịch.
 7. **Backend** chỉ qua `src/api/hooks.ts`. Bản deweb không có backend: query đứng yên (`fetchStatus === 'idle'`), mutation hỏng với `ApiError` mã `UNAVAILABLE`; trang phải có cách hiển thị trạng thái đó (ví dụ `/me/` đọc chain bằng `useVaultsOf`).
 8. **CSP:** không thêm `<script>` inline, `eval`, iframe hay origin mới. `connect-src` của mỗi trang sinh từ `connectOrigins(env)`: RPC của deployment, cộng backend ở bản vercel. Một origin mới phải vào `scripts/lib/csp.ts` kèm test.
-9. **E2E** (`test/e2e/`): import `test`, `expect`, `ANVIL` từ `./fixtures.ts`; ba lưới chặn (request off-chain, vi phạm CSP, lỗi trang) tự chạy sau mỗi test. Mỗi trang mới có một test `expectAccessibleInBothThemes(page)`. Ví giả: `await wallet({ account: ANVIL[1], sendCalls?: true, chainId?, knownChains? })`; tua thời gian bằng `warp(state, seconds)` của `./state.ts`. Vault mẫu đã seed ở `state.seeded.{simple,guarded,grace}`.
+9. **E2E** (`test/e2e/`):
+   - Import `test`, `expect`, `ANVIL` từ `./fixtures.ts`. Ba lưới chặn (request off-chain, vi phạm CSP, lỗi trang) tự chạy sau mỗi test.
+   - Mỗi trang mới có một test `expectAccessibleInBothThemes(page, ready?)`:
+     - Helper đổi theme bằng lựa chọn đã lưu rồi tải lại: vellum trước, night sau, và kết thúc ở night (R18.17).
+     - Sau mỗi lần tải lại, trang chạy lại từ URL. Truyền `ready` khi nội dung đến sau lúc tải (vault đọc từ chain).
+     - Không gọi helper khi một dialog đang mở: khi đó dùng `expectAccessible`.
+   - Không bao giờ đổi theme bằng `page.emulateMedia({ colorScheme })`, vì night không theo hệ điều hành. Dùng `setStoredTheme(page, 'dark' | 'light')` và `setStoredLang(page, 'en' | 'vi')`.
+   - `emulateMedia({ reducedMotion })` vẫn dùng được.
+   - Ví giả: `await wallet({ account: ANVIL[1], sendCalls?: true, chainId?, knownChains? })`.
+   - Tua thời gian bằng `warp(state, seconds)` của `./state.ts`.
+   - Vault mẫu đã seed ở `state.seeded.{simple,guarded,grace}`.
+   - `settle(page)` bỏ qua animation lặp và animation theo cuộn (R15). 7C T7 Step 7 không còn.
 10. **Test id ổn định** mà e2e của Plan 7B dựa vào: `TxCard` (`tx`, `tx-progress`, `tx-step-<i>` với `data-phase`, `tx-send`, `tx-connect`, `tx-wrong-account`, `tx-done`, `tx-copy-link`, `warning-<code>`), `ErrorBox` (`error`, `data-code`), `network-banner`, ví giả tên `Test Wallet`.
+11. **Theme** (R18.1).
+    - Night là mặc định và không có thuộc tính.
+    - Vellum theo phạm vi là `data-theme="light"` trên chính phần tử đó (lá thư người thừa kế, bản in). Phần tử đó tự tô nền `--atro-bg` và chữ `--atro-ink`; lớp tiện ích bên trong dùng token vellum.
+    - `data-theme="system"` chỉ có nghĩa trên `<html>`.
+    - Không trang nào đọc `prefers-color-scheme` để chọn theme. Ảnh chụp và axe đổi theme bằng `KEYS.theme` trong `localStorage` rồi tải lại.
+12. **Dòng bằng chứng** (R18.7).
+    - `Frame` đã vẽ nó trên mọi trang. Trang không vẽ lại, không che, không lặp các fact của nó trong hero.
+    - `/proof/` (7C T3) có phần tử `id="limits"`, và khi đó bỏ `prefetch={false}` ở hai link của dòng này và ở link "Known limits" của footer.
+13. **Tên View Transition** `site-header`, `site-footer` và `atropyle-thread` đã có chủ. Không trang nào đặt chúng cho phần tử khác.
+14. **Số liệu.**
+    - Keccak, ngày mainnet và nhịp keeper import từ `src/config/facts.ts`.
+    - Số phút, số ngày hay số trường hợp mới phải do test tính từ SDK hoặc từ một hằng sinh ra, như `drill-minutes.test.ts`.
+    - Footer hứa "No trackers · No cookies", nên không trang nào được thêm cookie hay request tới bên thứ ba.
+15. **Không có trang `/dev/`** (spec §18, cắt C7): không gallery, không specimen. Duyệt bằng mắt bằng ảnh chụp các trang thật (luật 16). `next.config.mjs` không còn trang chỉ có lúc dev, và test build kiểm `out/dev/` không tồn tại.
+16. **Ảnh duyệt thiết kế** (R18.13), qua `test/e2e/screens.ts` của 7A (7B T4 không tạo file này):
+    - Gọi `captureScreens(page, name)` trong một test có `test.skip(!shouldCapture(info.project.name), …)`. Lệnh chạy: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
+    - Mỗi màn hình có 3 ảnh: night EN 1440, night EN 390, night VI 390, vào `test-results/screens/<name>/<night|vellum>-<lang>-<width>.png`.
+    - `captureScreens(page, name, { vellum: true })` chỉ dùng cho bề mặt vellum (lá thư người thừa kế, bản in). Lượt đủ hai theme nằm ở 7C T12.
+    - Màn hình phải sống qua một lần tải lại: trạng thái nằm trong hash hoặc `sessionStorage`.
+    - Đính đường dẫn ảnh vào báo cáo task.
+17. **Không có JavaScript** (`test/e2e/nojs.spec.ts`):
+    - Mỗi trang đọc được mà không cần JS thì thêm một mục `{ path, content(page) }` vào `PAGES`. `expectFrame` (dòng bằng chứng, footer) tự chạy cho mọi mục.
+    - 7B T12 thêm `{ path: 'verify/', content }`: `content` kiểm `<noscript>` trỏ tới `npx atropyle verify`.
+    - 7C T3 thêm `{ path: 'proof/', content }`.
+    - Kiểm bằng `expectSeen`: hiện ra, và không phần tử cha nào có `opacity: 0`.
+18. **View transition khi điều hướng** (`test/e2e/motion.spec.ts`): spy `document.startViewTransition` khi bấm link `Atropyle home` từ trang 404.
+    - Kết quả A: React tự mở view transition; link nội bộ dùng `Link` của Next như thường.
+    - Kết quả B: link nội bộ của khung và của trang dùng `NavLink` (`src/shell/nav-link.tsx`, cùng prop với `Link`, `href` là chuỗi).
+    - Báo cáo Task 15 ghi kết quả nào xảy ra. Khi một route của nav đã có, 7B có thể thêm vào test spy một ca bấm nav từ `/`.
 
 ### Cấu hình, route và môi trường
 
@@ -17005,11 +19103,17 @@ export const XLAYER_EXPLORER = 'https://www.oklink.com/xlayer';
 export const ENV: AppEnv;
 export const IS_VERCEL: boolean;
 
+// src/config/facts.ts (mỗi hằng có test đọc nguồn thật của nó: test/unit/facts.test.ts)
+export const POLICY_NETLIST_KECCAK: string; // deployments/xlayer.json circuits.netlistKeccak.policy; hiển thị '0x7016…3864'
+export const MAINNET_SINCE = '2026-11-22';  // test buộc factoryBlock === '76567034'
+export const KEEPER_CADENCE_S = 60;         // lịch pg_cron 'atropyle-tick' trong supabase/migrations
+
 // src/routes.ts
 export const ROUTES: { home: '/'; create: '/create/'; vault: '/vault/'; verify: '/verify/'; sign: '/sign/'; proof: '/proof/'; me: '/me/'; join: '/join/'; alertsConfirm: '/alerts/confirm/'; alertsUnsubscribe: '/alerts/unsubscribe/'; status: '/status/'; developers: '/developers/'; privacy: '/privacy/' };
 export type RouteName = keyof typeof ROUTES;
 export type NavKey = 'navCreate' | 'navMe' | 'navProof' | 'navDevelopers';
 export const NAV: readonly { route: RouteName; key: NavKey }[];
+export const LIMITS_HREF: string;                                       // '/proof/#limits'
 export function createHref(mode?: 'drill' | 'real'): string;            // '/create/#drill' (mặc định) | '/create/#real'
 export function vaultHref(vault: string): string;                       // '/vault/#<vault>'
 export function verifyHref(vault: string): string;                      // '/verify/#<vault>'
@@ -17054,16 +19158,17 @@ export function KVProvider(p: { kv?: KV; children: ReactNode }): JSX.Element;
 export function useKV(): KV;
 
 // src/theme/theme.ts, src/theme/provider.tsx, src/theme/boot.ts, src/theme/boot-script.tsx
-export type ThemeChoice = 'system' | 'light' | 'dark';
-export const THEME_CHOICES: readonly ThemeChoice[];
-export function parseTheme(raw: string | null | undefined): ThemeChoice;
-export function readThemeAttr(): ThemeChoice;
+export type ThemeChoice = 'dark' | 'light' | 'system';                // night | vellum | match device (R18.1)
+export const THEME_CHOICES: readonly ThemeChoice[];                    // ['dark', 'light', 'system'], thứ tự của ThemeSwitch
+export const DEFAULT_THEME: 'dark';                                    // night, bất kể thiết bị
+export function parseTheme(raw: string | null | undefined): ThemeChoice; // đúng một trong ba; mọi giá trị khác là 'dark'
+export function readThemeAttr(): ThemeChoice;                          // data-theme của <html>; không có thuộc tính là 'dark'
 export function subscribeTheme(cb: () => void): () => void;
-export function applyTheme(choice: ThemeChoice, root?: HTMLElement): void;
-export function ThemeProvider(p: { children: ReactNode }): JSX.Element;
-export function useTheme(): { choice: ThemeChoice; resolved: 'light' | 'dark'; setChoice(c: ThemeChoice): void };
+export function applyTheme(choice: ThemeChoice, root?: HTMLElement): void; // 'dark' gỡ data-theme; 'light' | 'system' đặt nó; root có thể là phần tử bất kỳ (vellum theo phạm vi)
+export function ThemeProvider(p: { children: ReactNode }): JSX.Element;    // prerender: choice 'dark'
+export function useTheme(): { choice: ThemeChoice; resolved: 'light' | 'dark'; setChoice(c: ThemeChoice): void }; // resolved: 'system' theo thiết bị
 export function legacyTarget(pathname: string, hash: string): string | null;
-export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void;
+export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void; // đặt data-theme chỉ khi đã lưu 'light' hoặc 'system'
 export const BOOT_SCRIPT: string;
 export function BootScript(): JSX.Element; // server component, trong <head> của layout
 
@@ -17107,6 +19212,16 @@ export const THREAD_STATE_KEY: Record<StateName | 'expired', LabelKey>;
 
 `src/messages/` đã có (port từ web cũ ở Task 5, thêm mới ở các task sau): `labels`, `common`, `shell`, `ui`, `tx`, `wallet`, `home`, `create`, `developers`, `guardian`, `heir`, `owner`, `sign`, `status`, `vault`, `verify`, `action-runner`, `editors`. Plan 7B sửa nội dung các file trang, giữ khoá mà test đang đọc.
 
+Selector CSS mà Plan 7B được dựa vào:
+
+| Selector | Nghĩa |
+| --- | --- |
+| `:root` | night |
+| `[data-theme="light"]` | vellum, ở `<html>` hay ở bất kỳ phần tử nào |
+| `:root[data-theme="system"]` trong `@media (prefers-color-scheme: light)` | match device |
+
+Meta `theme-color` là `#0b0d12` và meta `color-scheme` là `dark` dưới mọi theme. Thuộc tính CSS `color-scheme` thì theo theme: `dark` trên `:root`, `light` trên `[data-theme="light"]` (cả vellum theo phạm vi) và trên `:root[data-theme="system"]` khi thiết bị thích sáng.
+
 ### Motion, sợi chỉ, trạng thái
 
 ```ts
@@ -17134,7 +19249,15 @@ export interface HoldOptions { duration?: number; disabled?: boolean; onConfirm(
 export interface HoldBind { onPointerDown(e: PointerEvent<HTMLElement>): void; onPointerUp(): void; onPointerLeave(): void; onPointerCancel(): void; onKeyDown(e: KeyboardEvent<HTMLElement>): void; onKeyUp(e: KeyboardEvent<HTMLElement>): void; onClick(e: MouseEvent<HTMLElement>): void; onContextMenu(e: MouseEvent<HTMLElement>): void; onBlur(): void }
 export function useHold(o: HoldOptions): { phase: HoldPhase; bind: HoldBind };
 
-// src/thread/state.ts, geometry.ts, glyphs.tsx, thread.tsx, state-badge.tsx
+// src/motion/reveal-window.tsx
+export type RevealMove = 'spring' | 'instant' | { linear: number };
+export interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void } // % chiều rộng 0–100; không render React; giữ cho tới khi props đổi; reduced motion: luôn nhảy ngay
+export interface RevealWindowProps { from: number; to: number; children: ReactNode; ref?: Ref<RevealWindowHandle>; className?: string }
+export function RevealWindow(p: RevealWindowProps): JSX.Element;       // chỉ transform; spring --ease-spring 443 ms dưới motion-safe
+export function revealTransforms(from: number, to: number): [string, string, string];
+export const REVEAL_MOVE: string;                                       // lớp transition của cửa sổ, dùng cho thứ phải đi cùng nó
+
+// src/thread/state.ts
 export type ThreadState = StateName | 'expired';
 export const THREAD_STATES: readonly ThreadState[];
 export function threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState;
@@ -17142,16 +19265,62 @@ export function threadRemaining(s: Pick<VaultStatus, 'state' | 'expired' | 'last
 export const THREAD_COLOR: Record<ThreadState, string>;
 export const BADGE_COLOR: Record<ThreadState, string>;
 export const STATE_GLYPH: Record<ThreadState, GlyphName>;
-export interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[] }
-export function threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry; // cùng VIEW, GATE_X, FRAY_X, BEND_X, RECOVERY_END, MAIN_WIDTH, waveY, smoothPath, waveSegment, branchWidths, branchEnds
-export type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot';
-export const GLYPH_NAMES: readonly GlyphName[];
+
+// src/thread/geometry.ts
+export type Point = readonly [number, number];
+export const VIEW: { w: 600; h: 120; mid: 60; amp: 9 };
+export const GATE_X = 400; export const FRAY_X = 556; export const BEND_X = 352; export const RECOVERY_END: Point; export const MAIN_WIDTH = 3;
+export const PREDICTED_DASH = '5 5';
+export const BEAT_SECONDS: { slow: 2.4; mid: 1.6; fast: 1 };
+export type ThreadBeat = 'slow' | 'mid' | 'fast';
+export function waveY(x: number): number;
+export function smoothPath(points: readonly Point[]): string;
+export function waveSegment(x0: number, x1: number, samples?: number): string;
+export function branchWidths(weights: readonly number[], main?: number): number[];
+export function branchEnds(n: number): number[];
+export interface ThreadAxis { from: bigint; to: bigint; now: bigint; alarmAt?: bigint | null; releaseAt?: bigint | null; marks?: readonly bigint[] }
+export function courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): number; // trừ bằng bigint; kẹp [0, VIEW.w]; from >= to thì 0
+export function pctX(x: number): number; export function pctY(y: number): number; // % của khung, cho lớp HTML và RevealWindow
+export function beatOf(left: number): ThreadBeat;                   // > 0,5 slow; 0,1–0,5 mid; < 0,1 fast
+export interface ThreadInput {
+  remaining?: number; knots?: readonly number[];                    // chế độ cũ, bị bỏ qua khi có axis
+  branches?: readonly number[];
+  axis?: ThreadAxis;
+  predicted?: boolean;                                              // nét đứt cho sợi sờn (grace) và nhánh (đã release); không đổi path
+  pendingKnot?: boolean;                                            // vòng nét đứt ở "bây giờ"
+  highlight?: number;                                               // nhánh của người đọc: thread; nhánh khác ink-muted 35 %
+}
+export type ThreadTone = 'plain' | 'highlight' | 'muted';
+export interface ThreadGeometry {
+  track: string; lit: string; litFrom: number; litTo: number;       // lit là cả đường sáng; phần hiện ra là [litFrom, litTo]
+  now: Point | null; nowX: number; pending: Point | null; knots: Point[];
+  gate: Point | null; gateX: number;                                // y của cổng = waveY(gateX)
+  branches: { d: string; width: number; tone: ThreadTone }[]; dots: { at: Point; tone: ThreadTone }[];
+  fibers: string[]; curl: string | null; ghost: string | null; dash: string | null; beat: ThreadBeat | null;
+}
+export function threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry;
+
+// src/thread/glyphs.tsx
+export type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot' | 'mark';
+export const GLYPH_NAMES: readonly GlyphName[]; // chín tên; 'mark' là dấu của Wordmark và icon.svg, không là trạng thái nào (STATE_GLYPH không dùng nó)
 export function StateGlyph(p: { name: GlyphName; size?: number; className?: string }): JSX.Element; // aria-hidden
-export interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; className?: string }
-export function Thread(p: ThreadProps): JSX.Element;        // có label: role="img"; shared: tối đa một sợi mỗi trang
+
+// src/thread/thread.tsx
+export interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; revealRef?: Ref<RevealWindowHandle>; className?: string }
+export function Thread(p: ThreadProps): JSX.Element;        // có label: role="img"; shared: tối đa một sợi mỗi trang; mặc định 5:1, chỗ gọi đặt chiều cao để đổi tỉ lệ
+
+// src/thread/state-badge.tsx
 export interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }
 export function StateBadge(p: StateBadgeProps): JSX.Element;
 ```
+
+Luật dùng `Thread` cho Plan 7B (R18.4, R18.5):
+
+- **Chỉ compositor.** Không animate `d`, không filter SVG, không `drop-shadow`, không hình tròn trong SVG của sợi chỉ. Thứ gì phải đi cùng phần sáng thì dịch bằng `transform` với lớp `REVEAL_MOVE`.
+- **Trục.** Trang có thời gian thật dùng `axis`: `from` là x = 0, `to` là x = `VIEW.w`, `now` là thời gian chain (`useChainNow`). Phần sáng của `active` dừng ở `alarmAt`, của `grace` ở `releaseAt`; cổng ở `releaseAt`; nút ở `marks` (đã release thì mốc sau cổng bị bỏ). Header của vault không truyền `marks` (không vẽ nút `CheckedIn`); `HistoryThread` có trục riêng. Cột sống của trang chủ là đường CSS, không phải `Thread`.
+- **Kéo.** `setRange` chỉ dịch cửa sổ. Điểm "bây giờ", nút đang chờ và mọi mốc là props: chúng đứng yên khi `setRange` chạy, và chỗ gọi render lại `Thread` với props mới khi muốn dời chúng. Thanh kéo của cỗ máy thời gian (7B T5) giữ `axis` của lần render cuối và gọi `revealRef.current?.setRange(pctX(courseX(t, axis)), pctX(litTo), 'instant')` trong rAF, với `litTo` lấy từ `threadGeometry(state, { axis })`; thả tay thì render lại bằng props (cửa sổ về lại spring). Nút giữ của nghi thức (7B T10) gọi `setRange(from, 100, { linear: HOLD_MS })` khi `holding` và để props kéo về khi thả sớm.
+- **Cột giám hộ** (7B T6) đặt vào `[data-part="gate"]`, hộp của vòm cổng, đã đứng ở `(gateX, waveY(gateX))` theo %.
+- **DOM ổn định** cho test của Plan 7B: gốc `[data-thread]` có `data-state`, `data-predicted`, `data-pending-knot`, `data-highlight` (`data-highlight` có ở mọi trạng thái hễ truyền `highlight`, cả trên `[data-layer="marks"]`); quầng là `svg[data-layer="glow"][data-beat]`; phần sáng là `[data-part="lit"]`; cửa sổ là `[data-reveal="outer" | "middle" | "inner"]`.
 
 ### Primitive (`src/ui/`)
 
@@ -17204,19 +19373,30 @@ Lớp Tailwind (Task 3): màu `bg`, `surface-1|2|3`, `ink`, `ink-muted`, `thread
 ```ts
 // src/shell/*.tsx, src/home/hero.tsx
 export function Providers(p: { children: ReactNode; kv?: KV }): JSX.Element; // KV → Lang → Theme → Chain (Query) → Wallet → Motion → Tooltip
-export function Frame(p: { children: ReactNode }): JSX.Element;               // SkipLink, Header, NetworkBanner, <main tabIndex={-1}>, Footer, ConnectSheet
-export function Header(): JSX.Element;
+export function Frame(p: { children: ReactNode }): JSX.Element;               // SkipLink, ProofLine, Header, NetworkBanner, <main tabIndex={-1}>, Footer, ConnectSheet
+export function ProofLine(): JSX.Element;     // <p data-testid="proof-line">, một dòng 24 px, mono cỡ caption, prerender, không tắt được;
+                                              // [data-variant="wide"] từ md: "Rules frozen in netlist 0x7016…3864 on X Layer · unaudited · limits →";
+                                              // [data-variant="narrow"] dưới md, ≤ 36 ký tự: "Rules 0x7016…3864 · unaudited →";
+                                              // link keccak → ROUTES.proof (title = keccak đầy đủ), link giới hạn → LIMITS_HREF
+export function Header(): JSX.Element;        // .site-header, dính trên cùng; bg-bg/95 dưới md, md:bg-bg/80 md:backdrop-blur-md
 export function NavList(p: { layout: 'bar' | 'sheet'; onNavigate?(): void }): JSX.Element;
 export function SettingsMenu(): JSX.Element;  // popover "Settings" (md trở lên)
 export function MobileMenu(): JSX.Element;    // dialog "Menu" (dưới md)
-export function Footer(): JSX.Element;
-export function SkipLink(p: { targetId: string }): JSX.Element; // một <button>, giữ nguyên hash
+export function Footer(): JSX.Element;        // .site-footer; "Known limits" → LIMITS_HREF; "For heirs and guardians" → ROUTES.verify;
+                                              // nguồn, X Layer, giấy phép, trạng thái, nhà phát triển, quyền riêng tư; phiên bản; "No trackers · No cookies"
+export function SkipLink(p: { targetId: string }): JSX.Element; // một <button>, giữ nguyên hash; luôn là phần tử đầu của trang
 export function LangSwitch(): JSX.Element;
-export function ThemeSwitch(): JSX.Element;
+export function ThemeSwitch(): JSX.Element;   // Night | Vellum | Match device (VI: Đêm | Giấy da | Theo thiết bị), radio gốc
 export function HapticsSwitch(): JSX.Element;
-export function Wordmark(p: { className?: string }): JSX.Element;
-export function HomeHero(): JSX.Element;      // Plan 7B thay bằng trang chủ sáu cảnh
+export function Wordmark(p: { className?: string }): JSX.Element; // StateGlyph 'mark' (text-thread) + "Atropyle"
+export function HomeHero(): JSX.Element;      // Plan 7B thay bằng trang chủ sáu cảnh; giữ heroDrillNote dưới nút Drill, nối bằng aria-describedby
 ```
+
+Khoá chuỗi mà Plan 7B và 7C dùng lại:
+
+- `shell`: `notFoundTitle`, `notFoundBody`, `notFoundHint`, `goHome`, `knownLimits`, `forHeirs`, `noTrackers`, `proofLine`, `proofLineShort`, `proofLimits`, `proofLimitsShort`.
+- `home`: `heroEyebrow`, `heroTitle`, `heroLead`, `heroDrill`, `heroDrillNote`, `heroProof`.
+- `ui`: `themeDark` = "Night", `themeLight` = "Vellum", `themeSystem` = "Match device".
 
 ### Dữ liệu chain
 
@@ -17476,14 +19656,21 @@ export function withCsp(html: string, csp: string): string;
 export function applyCsp(outDir: string, env: CspEnv): number;
 export const VERCEL_JSON: string;
 export function siteHeaders(json?: string): Record<string, string>;
-export const LIGHTHOUSE_ROUTES: readonly string[]; // ['/']; Plan 7B thêm '/create/', '/proof/'
+export const LIGHTHOUSE_ROUTES: readonly string[]; // ['/']; 7B thêm '/create/', 7C T3 thêm '/proof/' (thêm vào mảng, không ghi đè)
 export const CATEGORIES: readonly ['performance', 'accessibility', 'best-practices', 'seo'];
 export const THRESHOLDS: { performance: 0.95; accessibility: 1; bestPractices: 1; seo: 1; lcpMs: 1800; cls: 0; tbtMs: 150 };
+export const FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>>; // {} ở 7A; 7C T6 điền '/' (R18.18)
 export interface Run { performance: number; accessibility: number; bestPractices: number; seo: number; lcpMs: number; cls: number; tbtMs: number }
+export interface LhrLike { categories: Record<string, { score: number | null } | undefined>; audits: Record<string, { numericValue?: number; details?: unknown } | undefined> }
 export function runOf(lhr: LhrLike): Run;
 export function medianRun(runs: readonly Run[]): Run;
 export function failures(r: Run): string[];
+export function forbiddenRequests(lhr: LhrLike, patterns: readonly (string | RegExp)[]): string[]; // chuỗi con hoặc RegExp của URL; mỗi URL một lần, theo thứ tự tải; không có bảng network-requests thì ném lỗi
 
+// next.config.mjs
+export default function config(): NextConfig; // không tham số; pageExtensions = ['tsx', 'ts'], thêm 'e2e.tsx' khi ATROPYLE_E2E=1; không có trang chỉ có lúc dev
+
+// test/setup.ts (Vitest): nạp '@testing-library/jest-dom/vitest' (7.0.1, R13), nên mọi test unit có matcher của jest-dom
 // test/helpers/render.tsx, test/helpers/wallet.ts, test/unit/fixtures.ts (Vitest)
 export interface ProviderOptions { kv?: KV; lang?: Lang; queryClient?: QueryClient; win?: WalletWindow }
 export function testQueryClient(): QueryClient;
@@ -17498,19 +19685,29 @@ export function walletWindow(announced?: Announced[], globals?: { okxwallet?: un
 export const TEST_ACCOUNT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 export function walletValue(over?: Partial<WalletValue>): WalletValue; // mặc định: đã kết nối TEST_ACCOUNT trên chain 196
 export function fixtureDeployment(): Deployment;
+// test/unit/tx-card.test.tsx: runnerOf(plan, over?) là object literal TxRunner duy nhất của 7A; 7B T3 thêm `bundle: null,` vào đó, ngay sau `explorer: null,`, và liệt kê file này trong Files và git add (nếu không, typecheck hỏng với TS2741)
 
-// test/e2e/fixtures.ts, helpers.ts, state.ts, wallet.ts, network.ts (Playwright)
+// test/e2e/fixtures.ts, helpers.ts, screens.ts, state.ts, wallet.ts, network.ts (Playwright)
 export const test: TestType<{ state: E2EState; requests: string[]; cspViolations: CspViolation[]; deployment: Deployment; atro: AtropyleClient; wallet(o: Omit<WalletOptions, 'rpcUrl'>): Promise<TestWallet> }>;
 export { expect };
 export const ANVIL: readonly Address[];
 export interface CspViolation { directive: string; blocked: string; sample: string }
 export const AXE_TAGS: readonly string[]; // wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa
-export function settle(page: Page): Promise<void>;
+export type E2ETheme = 'dark' | 'light'; // giá trị đã lưu: 'dark' là night (mặc định, không có data-theme), 'light' là vellum
+export type E2ELang = 'en' | 'vi';
+export function settle(page: Page): Promise<void>; // chờ mọi animation hữu hạn trên document.timeline; bỏ qua vòng lặp và animation theo cuộn (R15)
 export function runningAnimations(page: Page): Promise<string[]>;
 export function expectAccessible(page: Page): Promise<void>;
-export function expectAccessibleInBothThemes(page: Page): Promise<void>;
+export function setStoredTheme(page: Page, theme: E2ETheme): Promise<void>; // KEYS.theme trong localStorage, tải lại, chờ data-theme (R18.17)
+export function setStoredLang(page: Page, lang: E2ELang): Promise<void>; // KEYS.lang trong localStorage, tải lại, chờ <html lang>
+export function expectAccessibleInBothThemes(page: Page, ready?: Locator): Promise<void>; // vellum rồi night, mỗi theme một lần tải lại; kết thúc ở night
 export function openSettings(page: Page): Promise<Locator>;
 export function connectWallet(page: Page, name?: string): Promise<void>;
+export interface Shot { theme: E2ETheme; lang: E2ELang; width: number }
+export const SCREEN_MATRIX: readonly Shot[]; // R18.13: night EN 1440, night EN 390, night VI 390
+export const VELLUM_MATRIX: readonly Shot[]; // cùng ba ảnh ở vellum, chỉ cho bề mặt vellum
+export function shouldCapture(projectName: string): boolean; // SCREENS=1 và project 'desktop'
+export function captureScreens(page: Page, name: string, o?: { vellum?: boolean }): Promise<void>; // test-results/screens/<name>/<night|vellum>-<lang>-<width>.png; kết thúc ở night, EN, viewport ban đầu
 export interface E2EState { rpcUrl: string; siteUrl: string; snapshot: string; deployment: Record<string, unknown>; seeded: { simple: Address; guarded: Address; grace: Address } }
 export function readState(): E2EState;
 export function resetChain(s: E2EState): Promise<E2EState>;
@@ -17522,6 +19719,20 @@ export function installWallet(page: Page, o: WalletOptions): Promise<TestWallet>
 export const OKX_ORIGINS: readonly string[];
 export function routeRpcToAnvil(page: Page, rpcUrl: string): Promise<void>;
 export function offchain(urls: readonly string[], siteOrigin: string): string[];
+
+// test/e2e/nojs.spec.ts (mở rộng bằng cách thêm mục, không export)
+const PAGES: readonly { path: string; content(page: Page): Promise<void> }[]; // [{ path: '', content: expectHome }]; 7B T12 thêm 'verify/', 7C T3 thêm 'proof/'
+async function expectSeen(target: Locator): Promise<void>; // toBeVisible và không phần tử cha nào có opacity 0
+async function expectFrame(page: Page): Promise<void>; // dòng bằng chứng (data-testid "proof-line": keccak rút gọn → /proof/, "unaudited"), footer ("No trackers", /proof/#limits, /verify/)
+
+// Chỉ khi Task 15 ra Kết quả B (báo cáo Task 15 nói kết quả nào):
+export function NavLink(props: Omit<ComponentProps<typeof Link>, 'href'> & { href: string }): JSX.Element; // src/shell/nav-link.tsx
+export function withPendingViewTransition(update: () => void, committed: Promise<void>, maxMs?: number): void; // src/motion/view-transition.tsx
 ```
 
-Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|lighthouse|playwright:install -w apps/web`. `size` và `lighthouse` đọc `out/` của một bản production mới build; `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
+Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|lighthouse|playwright:install -w apps/web`.
+- `size` và `lighthouse` đọc `out/` của một bản production mới build.
+- `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
+- Ảnh duyệt thiết kế: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
+
+**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `{số đo của Task 15 Step 8} kB` gzip, dưới ngân sách 170 kB, còn dư `{170 − số đo} kB`. Controller chép hai số từ dòng "R16" của báo cáo Task 15 vào đây khi merge. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).
