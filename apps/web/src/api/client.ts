@@ -136,6 +136,16 @@ function problemOf(v: unknown): ProblemCode | null {
   return isObj(v) && isProblemCode(v.code) ? v.code : null;
 }
 
+/**
+ * The code of an error answer that carries no problem of the contract: a gateway's own throttle or timeout (Supabase
+ * answers with its own JSON) is worded as what it is, and retried or not as that; any other 4xx breaks the contract.
+ */
+function statusCode(status: number): ApiErrorCode {
+  if (status === 429) return 'RATE_LIMITED';
+  if (status === 408 || status === 504) return 'TIMEOUT';
+  return status >= 500 ? 'INTERNAL' : 'BAD_RESPONSE';
+}
+
 function jsonOf(text: string): unknown {
   if (text === '') return null;
   try {
@@ -202,7 +212,7 @@ export function createApiClient(base: string, o: ApiClientOptions = {}): ApiClie
     if (!res.ok) {
       const code = problemOf(json);
       if (code) throw new ApiError(code, res.status, `${what}: ${code} (HTTP ${res.status})`);
-      throw new ApiError(res.status >= 500 ? 'INTERNAL' : 'BAD_RESPONSE', res.status, `${what}: HTTP ${res.status}`);
+      throw new ApiError(statusCode(res.status), res.status, `${what}: HTTP ${res.status}`);
     }
     const value = parse(json);
     if (value === null)

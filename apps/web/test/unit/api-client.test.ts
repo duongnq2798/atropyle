@@ -120,13 +120,34 @@ describe('api client', () => {
     expect((e as Error).message).toBe('GET /stats: INTERNAL (HTTP 500)');
   });
 
-  it('maps an error without a known problem to INTERNAL on 5xx and BAD_RESPONSE otherwise', async () => {
+  it('maps an error without a known problem to INTERNAL on 5xx and BAD_RESPONSE on another 4xx', async () => {
     const { client } = backend(
       new Response('<html>Bad gateway</html>', { status: 502 }),
       json(418, { code: 'TEAPOT' }),
     );
     await expect(client.stats()).rejects.toMatchObject({ code: 'INTERNAL', status: 502 });
     await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE', status: 418 });
+  });
+
+  it('reads a throttle without a problem body as RATE_LIMITED, never as an answer it cannot read', async () => {
+    const { client } = backend(
+      json(429, { message: 'API rate limit exceeded' }),
+      new Response('Too Many Requests', { status: 429 }),
+    );
+    await expect(client.stats()).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+    await expect(client.subscribe(REQUEST)).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+  });
+
+  it('reads a request or gateway timeout without a problem body as TIMEOUT', async () => {
+    const { client } = backend(
+      new Response('Request Timeout', { status: 408 }),
+      json(504, { msg: 'upstream request timeout' }),
+      json(404, { message: 'Function not found' }),
+    );
+    await expect(client.stats()).rejects.toMatchObject({ code: 'TIMEOUT', status: 408 });
+    await expect(client.health()).rejects.toMatchObject({ code: 'TIMEOUT', status: 504 });
+    // Any other 4xx without a problem body still breaks the contract.
+    await expect(client.stats()).rejects.toMatchObject({ code: 'BAD_RESPONSE', status: 404 });
   });
 
   it('refuses an answer that breaks the contract and keeps only the fields of the contract', async () => {
