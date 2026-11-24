@@ -1,5 +1,7 @@
+import { QueryClient } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { ChainProvider } from '@/chain/provider';
 import type { Lang } from '@/i18n/core';
 import { LangProvider } from '@/i18n/provider';
 import { KVProvider } from '@/lib/kv';
@@ -7,22 +9,59 @@ import { KEYS, type KV, memoryKV } from '@/lib/store';
 import { ThemeProvider } from '@/theme/provider';
 import { TooltipProvider } from '@/ui/tooltip';
 
+export interface ProviderOptions {
+  kv?: KV;
+  lang?: Lang;
+  queryClient?: QueryClient;
+}
+
+/** No retries and no background refetch, so a test sees exactly the requests it makes. */
+export function testQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false }, mutations: { retry: false } },
+  });
+}
+
 /**
  * The providers of every page except MotionProvider, which loads its features asynchronously; `m.*` elements still
- * render their first state without it. `rerender` keeps the providers.
+ * render their first state without it.
  */
-export function renderWithProviders(ui: ReactElement, o: { kv?: KV; lang?: Lang } = {}) {
-  const kv = o.kv ?? memoryKV();
-  if (o.lang) kv.set(KEYS.lang, o.lang);
-  const wrap = (node: ReactElement) => (
+export function TestProviders({
+  kv,
+  queryClient,
+  children,
+}: {
+  kv: KV;
+  queryClient: QueryClient;
+  children: ReactNode;
+}) {
+  return (
     <KVProvider kv={kv}>
       <LangProvider>
         <ThemeProvider>
-          <TooltipProvider>{node}</TooltipProvider>
+          <ChainProvider client={queryClient}>
+            <TooltipProvider>{children}</TooltipProvider>
+          </ChainProvider>
         </ThemeProvider>
       </LangProvider>
     </KVProvider>
   );
-  const r = render(wrap(ui));
-  return { ...r, kv, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
+
+/** For `render` and `renderHook`: `{ wrapper }` plus the storage and the query client the test can inspect. */
+export function makeWrapper(o: ProviderOptions = {}) {
+  const kv = o.kv ?? memoryKV();
+  if (o.lang) kv.set(KEYS.lang, o.lang);
+  const queryClient = o.queryClient ?? testQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <TestProviders kv={kv} queryClient={queryClient}>
+      {children}
+    </TestProviders>
+  );
+  return { wrapper, kv, queryClient };
+}
+
+export function renderWithProviders(ui: ReactElement, o: ProviderOptions = {}) {
+  const { wrapper, kv, queryClient } = makeWrapper(o);
+  return { ...render(ui, { wrapper }), kv, queryClient };
 }
