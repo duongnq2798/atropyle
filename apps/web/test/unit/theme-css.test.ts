@@ -78,6 +78,14 @@ describe('theme stylesheet', () => {
     expect(decls('.site-footer')).toEqual({ 'view-transition-name': 'site-footer' });
   });
 
+  it('while an overlay or a popover is on screen, the header and the footer stay in the root picture, under it', () => {
+    // A named group paints above the root, and the open sheet, its dimming and the popover are in the root. Mounted
+    // is enough: a sheet that is closing stays until the transition has run (its exit animation waits for it).
+    expect(decls(':root:has(:is(.atro-overlay, .atro-pop)) :is(.site-header, .site-footer)')).toEqual({
+      'view-transition-name': 'none',
+    });
+  });
+
   it('under reduced motion a view transition is a 120 ms crossfade where nothing moves, the root included', () => {
     const reduce = CSS.indexOf('@media (prefers-reduced-motion: reduce) {');
     expect(reduce).toBeGreaterThan(CSS.indexOf('::view-transition-old(root),\n::view-transition-new(root) {'));

@@ -322,6 +322,11 @@
 .site-footer {
   view-transition-name: site-footer;
 }
+/* A named group paints above the root picture, and an open sheet, its dimming and a popover are in the root: while
+   one is mounted (a closing one too, which waits for the transition), the header and the footer stay in the root. */
+:root:has(:is(.atro-overlay, .atro-pop)) :is(.site-header, .site-footer) {
+  view-transition-name: none;
+}
 
 /* Radix overlays animate on `data-state` (tooltips open as `delayed-open` or `instant-open`); Radix waits for the
    closing animation before it unmounts. */

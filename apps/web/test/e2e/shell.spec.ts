@@ -60,6 +60,41 @@ test('the theme and the language persist across a reload', async ({ page, state 
   await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
 });
 
+/**
+ * A view-transition group paints above the root picture, and the open settings (the Menu sheet on a phone, its
+ * dimming, the popover on a desktop) are in the root. So while they are on screen, the header and the footer drop
+ * their names and crossfade with the root, instead of showing undimmed above the sheet.
+ */
+test('a theme change from the open settings keeps the header and the footer under them', async ({ page, state }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  const settings = await openSettings(page);
+  await expect(settings).toBeVisible();
+  await page.evaluate(() => {
+    const w = window as unknown as { __parts?: string[] };
+    const start = document.startViewTransition?.bind(document);
+    if (!start) return;
+    document.startViewTransition = ((arg?: Parameters<typeof start>[0]) => {
+      const t = start(arg);
+      void t.ready.then(() => {
+        w.__parts = document
+          .getAnimations()
+          .map((a) => (a.effect as KeyframeEffect | null)?.pseudoElement ?? '')
+          .filter((p) => p.startsWith('::view-transition'));
+      });
+      return t;
+    }) as typeof document.startViewTransition;
+  });
+  await settings.getByText('Vellum', { exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  const parts = () => page.evaluate(() => (window as unknown as { __parts?: string[] }).__parts);
+  await expect.poll(parts).toBeDefined();
+  const seen = (await parts()) ?? [];
+  expect(seen).toContain('::view-transition-new(root)');
+  expect(seen.filter((p) => /site-(header|footer)/.test(p))).toEqual([]);
+});
+
 test('screens of the home page and the 404 page, for the design review', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
   test.setTimeout(300_000);
