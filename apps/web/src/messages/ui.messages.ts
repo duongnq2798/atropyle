@@ -33,6 +33,7 @@ export const messages = defineMessages(
     footerPrivacy: 'Privacy',
     footerVersion: 'Version {version}',
     onchainBadge: '100% on-chain',
+    loading: 'Loading…',
   },
   {
     skip: 'Tới nội dung chính',
@@ -66,5 +67,6 @@ export const messages = defineMessages(
     footerPrivacy: 'Quyền riêng tư',
     footerVersion: 'Phiên bản {version}',
     onchainBadge: '100% on-chain',
+    loading: 'Đang tải…',
   },
 );
