@@ -114,7 +114,7 @@ describe('Thread', () => {
 });
 
 describe('StateGlyph', () => {
-  it('draws eight distinct glyphs, hidden from assistive technology, in the current colour', () => {
+  it('draws nine distinct glyphs, hidden from assistive technology, in the current colour', () => {
     const seen = new Set<string>();
     for (const name of GLYPH_NAMES) {
       const { container, unmount } = renderWithProviders(<StateGlyph name={name} />);

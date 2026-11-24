@@ -171,6 +171,9 @@
   size-adjust: 99.98%;
 }
 
+/* Themes (R18.1). Night is the default and needs no attribute: :root carries it. Vellum is data-theme="light", on
+   <html> or on any one element (a letter, a print sheet). Match device is data-theme="system" on <html>: vellum
+   while the device prefers light, night otherwise. test/unit/contrast.test.ts reads the marker comments below. */
 /* tokens:dark */
 :root,
 [data-theme="dark"] {
@@ -218,7 +221,7 @@
 
 /* tokens:light-system */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
+  :root[data-theme="system"] {
     color-scheme: light;
     --atro-bg: #f6f1e7;
     --atro-surface-1: #fffdf8;
@@ -254,6 +257,11 @@
     color: var(--color-ink);
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+  }
+  /* Scoped vellum paints its own paper and ink: inherited night ink would sit on vellum paper. */
+  [data-theme="light"] {
+    background-color: var(--atro-bg);
+    color: var(--atro-ink);
   }
   body {
     min-height: 100dvh;
@@ -293,6 +301,24 @@
 ::view-transition-group(atropyle-thread) {
   animation-duration: 443ms;
   animation-timing-function: var(--ease-spring);
+}
+/* Two pages draw the thread at different widths: it keeps its height and slides from the left, never stretches. */
+::view-transition-old(atropyle-thread),
+::view-transition-new(atropyle-thread) {
+  height: 100%;
+  width: auto;
+  object-fit: none;
+  object-position: left center;
+}
+::view-transition-image-pair(atropyle-thread) {
+  overflow: clip;
+}
+/* The header and the footer stay put while the page between them changes. */
+.site-header {
+  view-transition-name: site-header;
+}
+.site-footer {
+  view-transition-name: site-footer;
 }
 
 /* Radix overlays animate on `data-state` (tooltips open as `delayed-open` or `instant-open`); Radix waits for the

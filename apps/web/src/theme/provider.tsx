@@ -3,11 +3,11 @@
 import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useKV } from '@/lib/kv';
 import { KEYS } from '@/lib/store';
-import { applyTheme, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
+import { applyTheme, DEFAULT_THEME, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
 
 interface ThemeValue {
   choice: ThemeChoice;
-  /** What the page shows now: an explicit choice, or the device's colour scheme under `system`. */
+  /** What the page shows now: night or vellum, or under match device the device's colour scheme. */
   resolved: 'light' | 'dark';
   setChoice(c: ThemeChoice): void;
 }
@@ -28,7 +28,8 @@ function prefersLight(): boolean {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const kv = useKV();
-  const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => 'system' as const);
+  // The prerendered page is night: the HTML carries no theme attribute (R18.1).
+  const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => DEFAULT_THEME);
   const light = useSyncExternalStore(subscribeScheme, prefersLight, () => false);
 
   // The boot script already did this; doing it again keeps a page whose inline script was blocked correct.

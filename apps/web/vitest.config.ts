@@ -10,6 +10,8 @@ export default defineConfig({
     include: ['test/unit/**/*.test.{ts,tsx}'],
     environment: 'happy-dom',
     setupFiles: ['./test/setup.ts'],
-    env: { NEXT_PUBLIC_APP_VERSION: '0.0.0-test' },
+    // next build defines __NEXT_TRAILING_SLASH from `trailingSlash: true` (next.config.mjs); without it next/link
+    // would print `/proof` for `/proof/` in unit tests.
+    env: { NEXT_PUBLIC_APP_VERSION: '0.0.0-test', __NEXT_TRAILING_SLASH: 'true' },
   },
 });

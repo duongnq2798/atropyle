@@ -1,14 +1,17 @@
-export type ThemeChoice = 'system' | 'light' | 'dark';
-export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
+export type ThemeChoice = 'dark' | 'light' | 'system';
+/** Night, vellum, match device: the order of the theme switch (R18.1). */
+export const THEME_CHOICES: readonly ThemeChoice[] = ['dark', 'light', 'system'];
+/** Night whatever the device prefers (R18.1). It needs no attribute: `:root` carries the night tokens. */
+export const DEFAULT_THEME = 'dark' as const satisfies ThemeChoice;
 
-/** Anything but an exact `light` or `dark` is `system` (Review Focus 2: storage may hold garbage). */
+/** Only an exact choice counts; anything else is night (Review Focus 2: storage may hold garbage). */
 export function parseTheme(raw: string | null | undefined): ThemeChoice {
-  return raw === 'light' || raw === 'dark' ? raw : 'system';
+  return raw === 'light' || raw === 'system' || raw === 'dark' ? raw : DEFAULT_THEME;
 }
 
 const listeners = new Set<() => void>();
 
-/** The theme in force is the `data-theme` attribute of <html>; boot-script.tsx sets it before the first paint. */
+/** The theme in force is the `data-theme` attribute of <html>; the boot script sets it before the first paint. */
 export function readThemeAttr(): ThemeChoice {
   return parseTheme(document.documentElement.getAttribute('data-theme'));
 }
@@ -20,9 +23,13 @@ export function subscribeTheme(cb: () => void): () => void {
   };
 }
 
-/** `system` removes the attribute so the CSS media query decides (Quyết định 14). */
+/**
+ * Night removes the attribute; vellum and match device set it (Quyết định 14). `root` may be any element:
+ * `data-theme="light"` on a letter or a print sheet makes just that element vellum. `system` means something only
+ * on <html>, where the stylesheet's media query reads it.
+ */
 export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
-  if (choice === 'system') root.removeAttribute('data-theme');
+  if (choice === 'dark') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', choice);
   for (const l of listeners) l();
 }
