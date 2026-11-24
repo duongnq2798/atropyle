@@ -88,7 +88,7 @@ export const messages = defineMessages(
     coverageLow: 'Vault chỉ chuyển được một phần của vài tài sản. Người thừa kế sẽ nhận ít hơn số chủ đang giữ.',
     noAssets: 'Không có tài sản.',
     nftId: 'id {id}',
-    goesTo: 'Thuộc về',
+    goesTo: 'Sẽ giao cho',
     verify: 'Kiểm tra vault này',
     refresh: 'Làm mới',
     asOf: 'Tính đến block {block}.',
