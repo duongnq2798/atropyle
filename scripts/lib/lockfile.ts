@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import semver from 'semver';
 
 export interface LockEntry {
   version?: string;
@@ -13,6 +14,9 @@ export interface LockEntry {
   dependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean } | undefined>;
+  bundleDependencies?: string[];
   [key: string]: unknown;
 }
 
@@ -29,11 +33,46 @@ export interface Missing {
   range: string;
   /** The lockfile path of the package that depends on it. */
   from: string;
-  /** Where npm puts it: a missing package has no copy anywhere on the resolution path, so the top level is free. */
+  /**
+   * Where the fix puts it. A missing package has no copy anywhere on the resolution path, so the top level is free;
+   * a copy of the wrong version goes under `from`, a bundled one always lives there, and a peer goes next to `from`.
+   */
   at: string;
+  /** The copy that resolves but does not satisfy the range, as `<path>@<version>`. */
+  found?: string;
+  /** `from` bundles it: it comes in the tarball of `from`, so only that tarball knows its version. */
+  bundled?: boolean;
+  /** A peer dependency of `from` that is not optional. */
+  peer?: boolean;
 }
 
 const isWorkspace = (path: string): boolean => path === '' || !path.includes('node_modules/');
+
+/** The lockfile path of `name` inside the node_modules of `path`. */
+const inside = (path: string, name: string): string => `${path === '' ? '' : `${path}/`}node_modules/${name}`;
+
+/** The lockfile path of `name` next to `path`: in the node_modules that holds `path` (the top level for a workspace). */
+function nextTo(path: string, name: string): string {
+  const i = path.lastIndexOf('/node_modules/');
+  return inside(i >= 0 ? path.slice(0, i) : '', name);
+}
+
+/** The version at a lockfile path; a workspace link has the version of the workspace it points to. */
+function versionAt(packages: Record<string, LockEntry>, path: string): string | undefined {
+  const e = packages[path];
+  if (e?.link && typeof e.resolved === 'string') return packages[e.resolved]?.version;
+  return e?.version;
+}
+
+/**
+ * npm's rule (@npmcli/arborist, dep-valid.js): '' and '*' take any version, a semver range is matched loosely, and
+ * any other spec (a tag, an alias, a file or a git URL) is not checked by version.
+ */
+export function satisfiesRange(version: string, range: string): boolean {
+  const spec = range.trim();
+  if (spec === '' || spec === '*' || semver.validRange(spec, true) === null) return true;
+  return semver.satisfies(version, spec, true);
+}
 
 /** Node's lookup: the package's own node_modules, then every parent's, then the root's. */
 export function resolveIn(packages: Record<string, LockEntry>, from: string, name: string): string | null {
@@ -47,23 +86,44 @@ export function resolveIn(packages: Record<string, LockEntry>, from: string, nam
   }
 }
 
-/** Every dependency (and every devDependency of a workspace) that no entry of the lockfile satisfies. */
+/**
+ * Every dependency, devDependency of a workspace and required peer that no entry of the lockfile satisfies, as
+ * `npm ci` judges it: missing, or present only in a version outside the range.
+ */
 export function missingDeps(lock: Lockfile): Missing[] {
   const out: Missing[] = [];
   const seen = new Set<string>();
   for (const [path, entry] of Object.entries(lock.packages)) {
     if (entry.link) continue;
-    const deps: Record<string, string> = {
+    const wanted = new Map<string, { range: string; peer: boolean }>();
+    for (const [name, range] of Object.entries(entry.peerDependencies ?? {})) {
+      if (!entry.peerDependenciesMeta?.[name]?.optional) wanted.set(name, { range, peer: true });
+    }
+    const deps = {
       ...entry.dependencies,
       ...entry.optionalDependencies,
       ...(isWorkspace(path) ? entry.devDependencies : {}),
     };
-    for (const [name, range] of Object.entries(deps)) {
-      if (resolveIn(lock.packages, path, name)) continue;
-      const key = `${name}@${range}`;
+    for (const [name, range] of Object.entries(deps)) wanted.set(name, { range, peer: false });
+    for (const [name, { range, peer }] of wanted) {
+      const bundled = Array.isArray(entry.bundleDependencies) && entry.bundleDependencies.includes(name);
+      const own = inside(path, name);
+      const hit = bundled ? (lock.packages[own] ? own : null) : resolveIn(lock.packages, path, name);
+      const version = hit === null ? undefined : versionAt(lock.packages, hit);
+      if (hit !== null && (version === undefined || satisfiesRange(version, range))) continue;
+      const at = bundled ? own : peer ? nextTo(path, name) : hit === null ? `node_modules/${name}` : own;
+      const key = `${at} ${range}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ name, range, from: path, at: `node_modules/${name}` });
+      out.push({
+        name,
+        range,
+        from: path,
+        at,
+        ...(hit === null ? {} : { found: `${hit}@${version}` }),
+        ...(bundled ? { bundled: true } : {}),
+        ...(peer ? { peer: true } : {}),
+      });
     }
   }
   return out;
@@ -146,24 +206,47 @@ ${r.stderr}`);
   return JSON.parse(r.stdout) as unknown;
 };
 
+export interface FixOptions {
+  rounds?: number;
+  /**
+   * The last committed lockfile: an entry it holds at the same place, in a version that fits, is copied as npm wrote
+   * it. The only source for a bundled package, whose entry npm view cannot rebuild.
+   */
+  previous?: Lockfile;
+}
+
 export function fixLock(
   lock: Lockfile,
   view: NpmView,
-  rounds = 5,
+  o: FixOptions = {},
 ): { lock: Lockfile; added: string[]; missing: Missing[] } {
   let current = lock;
   const added: string[] = [];
-  for (let i = 0; i < rounds; i++) {
+  for (let i = 0; i < (o.rounds ?? 5); i++) {
     const missing = missingDeps(current);
     if (missing.length === 0) return { lock: current, added, missing };
+    // A bundled package's place belongs to the version in its bundler's tarball, which npm view cannot tell.
+    const bundledAt = new Set(missing.filter((m) => m.bundled).map((m) => m.at));
     const add: Record<string, LockEntry> = {};
-    for (const m of missing) {
+    // Dependencies before peers: a peer takes what its neighbours install (rolldown pins emnapi 2.0.0-beta.2, which
+    // @napi-rs/wasm-runtime accepts as a peer), so it fills a place only when no dependency asks for that place.
+    for (const m of [...missing.filter((n) => !n.peer), ...missing.filter((n) => n.peer)]) {
+      // One entry per place in a round; the next round checks every other need against it.
+      if (add[m.at]) continue;
+      const kept = o.previous?.packages[m.at];
+      if (kept?.version !== undefined && !kept.link && satisfiesRange(kept.version, m.range)) {
+        add[m.at] = structuredClone(kept);
+        added.push(m.at);
+        continue;
+      }
+      if (bundledAt.has(m.at)) continue;
       const parent = current.packages[m.from] ?? {};
       const dev = parent.dev === true || (isWorkspace(m.from) && !!parent.devDependencies?.[m.name]);
       const optional = parent.optional === true || !!parent.optionalDependencies?.[m.name];
       add[m.at] = entryFrom(view(`${m.name}@${m.range}`), dev, optional);
       added.push(m.at);
     }
+    if (Object.keys(add).length === 0) break;
     current = withEntries(current, add);
   }
   return { lock: current, added, missing: missingDeps(current) };
