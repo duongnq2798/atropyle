@@ -35,7 +35,7 @@ export const messages = defineMessages(
     chooseWallet: 'Chọn ví',
     chooseWalletHint: 'Atropyle không bao giờ hỏi cụm từ khôi phục. Ví của bạn hiện từng bước trước khi bạn ký.',
     searching: 'Đang tìm ví trong trình duyệt này…',
-    searchFailed: 'Không tìm được ví. Hãy kiểm tra kết nối mạng rồi thử lại.',
+    searchFailed: 'Chưa dò được ví trong trình duyệt này. Hãy kiểm tra kết nối mạng rồi thử lại.',
     searchAgain: 'Tìm lại',
     recommended: 'Khuyên dùng trên X Layer',
     noWalletTitle: 'Trình duyệt này chưa có ví',

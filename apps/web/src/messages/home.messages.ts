@@ -51,7 +51,7 @@ export const messages = defineMessages(
       'Không có gì cả, trừ khi bạn chuẩn bị trước. Atropyle trông chừng ví của bạn trên X Layer. Thỉnh thoảng bạn điểm danh. Nếu bạn im lặng, những người bạn đã chọn sẽ nhận phần bạn để lại. Token của bạn nằm yên trong ví cho tới ngày đó.',
     heroDrill: 'Diễn tập trong khoảng 6 phút',
     heroDrillNote: 'Atropyle không thu phí. Bạn chỉ trả gas của mạng X Layer, bằng OKB.',
-    heroProof: 'Xem bằng chứng',
+    heroProof: 'Xem chứng minh',
     openTitle: 'Mở một vault',
     openLabel: 'Địa chỉ vault',
     openButton: 'Mở',
