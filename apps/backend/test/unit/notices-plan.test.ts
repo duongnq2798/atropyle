@@ -1,8 +1,10 @@
 import { zeroAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { COPY } from '../../src/email/copy';
 import type { StoredEvent } from '../../src/store/notices';
 import type { VaultRow } from '../../src/store/vaults';
 import { dueReminder, planEventNotices, transferOf } from '../../src/tick/notices';
+import { LANGS } from '../../src/types';
 import { GUARDIAN, HEIR, OWNER, T0, TARGET, TOKEN, txh, VAULT } from '../helpers/fixtures';
 
 const TX = txh(77);
@@ -102,6 +104,27 @@ describe('planEventNotices', () => {
       },
     ]);
     expect(route(planEventNotices(group[0], row({ state: 'releasedRecover' }), group))).toEqual(['owner:distributed']);
+  });
+
+  it('the released email promises the payout email only to those who get it', () => {
+    const roles = (ns: ReturnType<typeof planEventNotices>) => ns.map((n) => n.role);
+    const group = [ev('Distributed', { assetIndex: '0', to: HEIR, amountOrId: '1' }, 1)];
+    const left = (
+      [
+        [5, zeroAddress, 'releasedInherit'],
+        [7, TARGET, 'releasedRecover'],
+      ] as const
+    ).flatMap(([state, target, after]) => {
+      const paid = roles(planEventNotices(group[0], row({ state: after }), group));
+      return roles(planEventNotices(ev('Released', { state, target }), row(), [])).filter((r) => !paid.includes(r));
+    });
+    // A guardian gets the released email but never the payout email, in either outcome.
+    expect(left).toEqual(['guardian', 'guardian']);
+    // So the released email cannot tell its reader "you get another email": it says who does.
+    for (const lang of LANGS) {
+      const promise = COPY[lang].kinds.released.body.filter((s) => /\b(you|bạn)\b[^.]*\bemail\b/iu.test(s));
+      expect(promise, `${lang} released body`).toEqual([]);
+    }
   });
 
   it('ignores events that need no email', () => {

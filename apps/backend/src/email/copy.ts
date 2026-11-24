@@ -145,7 +145,7 @@ const en: Copy = {
       heading: 'This vault was released',
       body: [
         '{{outcome}}',
-        'Assets are paid out by distribute, which anyone can call, our keeper included. You get another email when a payout lands.',
+        'Assets are paid out by distribute, which anyone can call, our keeper included. Whoever receives the assets gets another email when a payout lands.',
       ],
       cta: 'Open the vault',
     },
@@ -225,7 +225,7 @@ const vi: Copy = {
       eyebrow: 'Đã đăng ký',
       heading: 'Chúng tôi sẽ báo khi có việc quan trọng',
       body: [
-        'Thông báo đã bật cho vault này, với vai trò {{roleLabel}} của bạn.',
+        'Thông báo đã bật cho vault này, dành cho bạn với vai trò {{roleLabel}}.',
         'Chúng tôi viết khi sắp tới hạn điểm danh, khi có báo động, khi người giám hộ bỏ phiếu, và khi vault trao hoặc chi trả tài sản. Ngoài ra không có gì khác.',
       ],
       cta: 'Mở vault',
@@ -282,7 +282,7 @@ const vi: Copy = {
       heading: 'Vault bạn giám hộ đang báo động',
       body: [
         '{{reason}}',
-        'Chủ vault vẫn có thể huỷ bằng cách điểm danh trước {{deadline}}. Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.',
+        'Chủ vault vẫn có thể huỷ báo động bằng cách điểm danh trước {{deadline}}. Hãy thử liên lạc với họ, rồi mở trang vault để xem bạn có thể làm gì với vai trò giám hộ.',
       ],
       cta: 'Mở vault',
     },
@@ -315,7 +315,7 @@ const vi: Copy = {
       heading: 'Đã tới lúc vault này trao tài sản',
       body: [
         '{{outcome}}',
-        'Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Bạn sẽ nhận thêm một email khi khoản chi trả về tới.',
+        'Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Người nhận tài sản sẽ có thêm một email khi khoản chi trả về tới.',
       ],
       cta: 'Mở vault',
     },
@@ -370,7 +370,7 @@ const vi: Copy = {
     releasedRecovery: 'Cửa sổ khôi phục đã đóng, nên vault giờ chi trả cho ví khôi phục.',
     summaryReleased: 'Vault đã đi hết hành trình: báo động, cửa sổ chờ và bước trao tài sản.',
     summaryNotReleased:
-      'Vault chưa từng tới bước trao tài sản: các lần điểm danh của bạn đã giữ cho vault luôn hoạt động.',
+      'Vault chưa từng tới bước trao tài sản: các lần điểm danh của bạn đã giữ cho vault tiếp tục sống.',
     transferErc20: '{{amount}} token {{token}} cho {{to}}',
     transferErc721: 'Token #{{id}} của {{token}} cho {{to}}',
     transferErc1155: '{{amount}} token #{{id}} của {{token}} cho {{to}}',

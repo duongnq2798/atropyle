@@ -2,7 +2,7 @@ Subject: Drill của bạn đã chạy thế nào, vault 0x5FbD…0aa3
 
 Drill của bạn đã kết thúc
 
-Vault Drill đã chạy đủ 7 ngày và giờ đã hết hạn. Vault chưa từng tới bước trao tài sản: các lần điểm danh của bạn đã giữ cho vault luôn hoạt động.
+Vault Drill đã chạy đủ 7 ngày và giờ đã hết hạn. Vault chưa từng tới bước trao tài sản: các lần điểm danh của bạn đã giữ cho vault tiếp tục sống.
 
 Trang vault giữ toàn bộ hồ sơ. Khi sẵn sàng, hãy tạo một vault thật: luật vẫn như cũ, chỉ có nhịp thời gian là do bạn chọn.
 

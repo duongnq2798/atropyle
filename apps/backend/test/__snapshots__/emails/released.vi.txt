@@ -4,7 +4,7 @@ Subject: Đã tới lúc vault 0x5FbD…0aa3 trao tài sản
 
 Cửa sổ thừa kế đã đóng mà không có lần điểm danh nào, nên vault giờ thuộc về người thừa kế.
 
-Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Bạn sẽ nhận thêm một email khi khoản chi trả về tới.
+Tài sản được chi trả bằng lệnh distribute, ai cũng gọi được, kể cả keeper của chúng tôi. Người nhận tài sản sẽ có thêm một email khi khoản chi trả về tới.
 
 Giao dịch: 0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12
 
