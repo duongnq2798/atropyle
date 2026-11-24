@@ -1,4 +1,6 @@
-import type { Eip1193, WalletWindow } from '@/wallet/types';
+import type { WalletClient } from 'viem';
+import type { WalletValue } from '@/wallet/provider';
+import type { ConnectedWallet, Eip1193, WalletOption, WalletWindow } from '@/wallet/types';
 
 type Listener = (...args: unknown[]) => void;
 
@@ -77,4 +79,38 @@ export function walletWindow(
     for (const detail of announced) win.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail }));
   });
   return Object.assign(win, globals);
+}
+
+/** The account `walletValue` connects by default (anvil account 1). */
+export const TEST_ACCOUNT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
+
+/** A wallet context for components under test: connected as TEST_ACCOUNT on chain 196 unless `over` says otherwise. */
+export function walletValue(over: Partial<WalletValue> = {}): WalletValue {
+  const option: WalletOption = {
+    id: 'test',
+    name: 'Test Wallet',
+    icon: null,
+    rdns: 'org.example.test',
+    provider: fakeWallet().provider,
+    source: 'eip6963',
+  };
+  const wallet: ConnectedWallet = { option, account: TEST_ACCOUNT, chainId: 196 };
+  return {
+    status: 'connected',
+    wallet,
+    expectedChainId: 196,
+    wrongChain: false,
+    wallets: [option],
+    discovering: false,
+    discover: async () => [option],
+    connect: async () => wallet,
+    disconnect: () => undefined,
+    switchChain: async () => undefined,
+    walletClient: async () => ({}) as WalletClient,
+    sheetOpen: false,
+    openSheet: () => undefined,
+    setSheetOpen: () => undefined,
+    sheetOpener: { current: null },
+    ...over,
+  };
 }
