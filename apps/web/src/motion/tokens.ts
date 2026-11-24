@@ -32,3 +32,6 @@ export function springStops(samples = 25): number[] {
     i === samples - 1 ? 1 : Math.round(springAt((i * SPRING_MS) / 1000 / (samples - 1)) * 1e4) / 1e4,
   );
 }
+
+/** globals.css `--ease-spring` as a value for the Web Animations API, which cannot read a CSS variable. */
+export const SPRING_EASING = `linear(${springStops().join(', ')})`;

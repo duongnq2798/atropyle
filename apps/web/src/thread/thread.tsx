@@ -2,7 +2,7 @@
 
 import { type ReactNode, type Ref, useMemo } from 'react';
 import { cn } from '@/lib/cn';
-import { REVEAL_MOVE, RevealWindow, type RevealWindowHandle } from '@/motion/reveal-window';
+import { RevealWindow, type RevealWindowHandle, useMoveWith } from '@/motion/reveal-window';
 import { SharedThread } from '@/motion/view-transition';
 import {
   MAIN_WIDTH,
@@ -53,6 +53,31 @@ const MARK = 'absolute -translate-x-1/2 -translate-y-1/2 rounded-full';
 
 /** A point of the view as `left`/`top` percents of the box. */
 const at = ([x, y]: Point) => ({ left: `${pctX(x)}%`, top: `${pctY(y)}%` });
+
+/**
+ * "Now" rides a box as large as the root, moved by translate in percent of the root: it moves with the window, on
+ * the compositor, on the window's clock (useMoveWith). It moves along the chord between two points, not along the
+ * wave: on the small steps of a ticking chain clock the two cannot be told apart, and a long jump (a Scrubber
+ * release) cuts across the wave for one spring.
+ */
+function NowAt({ at: [x, y], pending }: { at: Point; pending: boolean }) {
+  const move = useMoveWith<HTMLSpanElement>(`translate(${pctX(x)}%, ${pctY(y)}%)`);
+  return (
+    <span data-part="now-at" className="absolute inset-0" {...move}>
+      <span
+        data-part="halo"
+        className={cn(
+          MARK,
+          'top-0 left-0 size-8 bg-[radial-gradient(closest-side,currentColor,transparent)] opacity-40',
+        )}
+      />
+      <span data-part="now" className={cn(MARK, 'top-0 left-0 size-3 bg-current')} />
+      {pending ? (
+        <span data-part="pending" className={cn(MARK, 'top-0 left-0 size-5 border-2 border-current border-dashed')} />
+      ) : null}
+    </span>
+  );
+}
 
 /** A root SVG of the Thread: the view stretched to the box. Only the root itself ever animates. */
 function Svg(p: { layer: 'base' | 'glow' | 'lit'; beat?: ThreadBeat; className?: string; children: ReactNode }) {
@@ -175,7 +200,8 @@ export function Thread({
 
       <RevealWindow from={pctX(g.litFrom)} to={pctX(g.litTo)} ref={revealRef}>
         {g.beat ? (
-          <Svg layer="glow" beat={g.beat} className={cn('opacity-25', BEAT_CLASS[g.beat])}>
+          // Keyed on the beat: a new beat starts a fresh loop instead of cutting into the running one.
+          <Svg key={g.beat} layer="glow" beat={g.beat} className={cn('opacity-25', BEAT_CLASS[g.beat])}>
             <path d={g.lit} stroke="currentColor" strokeWidth={10} vectorEffect="non-scaling-stroke" data-part="glow" />
           </Svg>
         ) : null}
@@ -230,30 +256,7 @@ export function Thread({
             style={at(dot.at)}
           />
         ))}
-        {g.now ? (
-          // "Now" rides a box as large as the root, moved by translate in percent of the root: it moves with the
-          // window, on the compositor, with the same spring.
-          <span
-            data-part="now-at"
-            className={cn('absolute inset-0', REVEAL_MOVE)}
-            style={{ transform: `translate(${pctX(g.now[0])}%, ${pctY(g.now[1])}%)` }}
-          >
-            <span
-              data-part="halo"
-              className={cn(
-                MARK,
-                'top-0 left-0 size-8 bg-[radial-gradient(closest-side,currentColor,transparent)] opacity-40',
-              )}
-            />
-            <span data-part="now" className={cn(MARK, 'top-0 left-0 size-3 bg-current')} />
-            {g.pending ? (
-              <span
-                data-part="pending"
-                className={cn(MARK, 'top-0 left-0 size-5 border-2 border-current border-dashed')}
-              />
-            ) : null}
-          </span>
-        ) : null}
+        {g.now ? <NowAt at={g.now} pending={g.pending !== null} /> : null}
       </div>
     </>
   );

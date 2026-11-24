@@ -1,6 +1,7 @@
 'use client';
 
 import { m } from 'motion/react';
+import { useEffect, useRef } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { messages as labels, THREAD_STATE_KEY } from '@/messages/labels.messages';
@@ -23,6 +24,12 @@ export interface StateBadgeProps {
 export function StateBadge({ state, drill = false, size = 'md', live = false, className }: StateBadgeProps) {
   const t = useT(labels);
   const calm = usePrefersReducedMotion();
+  // Only a change of state enters: the first label is there from the first paint, also without JS (§18.2, 6).
+  const settled = useRef(false);
+  useEffect(() => {
+    settled.current = true;
+  }, []);
+  const entry = calm ? { opacity: 0 } : { opacity: 0, y: 5 };
   return (
     <span
       data-state={state}
@@ -38,7 +45,7 @@ export function StateBadge({ state, drill = false, size = 'md', live = false, cl
       <m.span
         key={state}
         className="inline-flex items-center gap-1.5"
-        initial={calm ? { opacity: 0 } : { opacity: 0, y: 5 }}
+        initial={settled.current ? entry : false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: sec(calm ? 120 : DURATION.base), ease: EASE_OUT_EXPO }}
       >

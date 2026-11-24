@@ -19235,6 +19235,7 @@ export const SPRING: { type: 'spring'; stiffness: 380; damping: 32; mass: 1 };
 export const SPRING_MS = 443; export const HOLD_MS = 600; export const REDUCED_MS = 120;
 export function springAt(t: number): number;
 export function springStops(samples?: number): number[];
+export const SPRING_EASING: string;                                     // --ease-spring dạng linear() cho Web Animations API
 
 // src/motion/provider.tsx, view-transition.tsx, haptics.ts, use-hold.ts
 export function MotionProvider(p: { children: ReactNode }): JSX.Element; // MotionConfig reducedMotion="user" + LazyMotion strict
@@ -19249,13 +19250,19 @@ export interface HoldOptions { duration?: number; disabled?: boolean; onConfirm(
 export interface HoldBind { onPointerDown(e: PointerEvent<HTMLElement>): void; onPointerUp(): void; onPointerLeave(): void; onPointerCancel(): void; onKeyDown(e: KeyboardEvent<HTMLElement>): void; onKeyUp(e: KeyboardEvent<HTMLElement>): void; onClick(e: MouseEvent<HTMLElement>): void; onContextMenu(e: MouseEvent<HTMLElement>): void; onBlur(): void }
 export function useHold(o: HoldOptions): { phase: HoldPhase; bind: HoldBind };
 
+// src/motion/move.ts
+export type RevealMove = 'spring' | 'instant' | { linear: number };    // reveal-window.tsx export lại
+export type Move = readonly [element: HTMLElement | null | undefined, transform: string];
+export function moveTiming(move: RevealMove): { duration: number; easing: string } | null; // null: instant, reduced motion, linear không hữu hạn hoặc ≤ 0
+export function moveTogether(moves: readonly Move[], move?: RevealMove): void; // Web Animations API: mọi phần tử đi từ chỗ đang đứng (cả giữa một lần dời), cùng một đồng hồ, một đường cong
+
 // src/motion/reveal-window.tsx
-export type RevealMove = 'spring' | 'instant' | { linear: number };
-export interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void } // % chiều rộng 0–100; không render React; giữ cho tới khi props đổi; reduced motion: luôn nhảy ngay
+export interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void; reset(move?: RevealMove): void } // % chiều rộng 0–100; không render React; setRange giữ cho tới khi from/to của props đổi hoặc tới reset() (render lại với cùng props không kéo về); reset() về range của props, mặc định spring; reduced motion: luôn nhảy ngay
 export interface RevealWindowProps { from: number; to: number; children: ReactNode; ref?: Ref<RevealWindowHandle>; className?: string }
-export function RevealWindow(p: RevealWindowProps): JSX.Element;       // chỉ transform; spring --ease-spring 443 ms dưới motion-safe
+export function RevealWindow(p: RevealWindowProps): JSX.Element;       // chỉ transform, qua moveTogether; spring SPRING_EASING 443 ms; không lớp transition CSS nào
 export function revealTransforms(from: number, to: number): [string, string, string];
-export const REVEAL_MOVE: string;                                       // lớp transition của cửa sổ, dùng cho thứ phải đi cùng nó
+export interface MoveWith<T extends HTMLElement> { ref: RefObject<T | null>; style: CSSProperties }
+export function useMoveWith<T extends HTMLElement>(transform: string): MoveWith<T>; // cho thứ phải đi cùng cửa sổ: trải { ref, style } lên phần tử; render đầu đặt chỗ, các lần sau dời bằng moveTogether
 
 // src/thread/state.ts
 export type ThreadState = StateName | 'expired';
@@ -19269,7 +19276,7 @@ export const STATE_GLYPH: Record<ThreadState, GlyphName>;
 // src/thread/geometry.ts
 export type Point = readonly [number, number];
 export const VIEW: { w: 600; h: 120; mid: 60; amp: 9 };
-export const GATE_X = 400; export const FRAY_X = 556; export const BEND_X = 352; export const RECOVERY_END: Point; export const MAIN_WIDTH = 3;
+export const GATE_X = 400; export const GATE_MAX_X = 500; export const FRAY_X = 556; export const BEND_X = 352; export const RECOVERY_END: Point; export const MAIN_WIDTH = 3;
 export const PREDICTED_DASH = '5 5';
 export const BEAT_SECONDS: { slow: 2.4; mid: 1.6; fast: 1 };
 export type ThreadBeat = 'slow' | 'mid' | 'fast';
@@ -19280,6 +19287,7 @@ export function branchWidths(weights: readonly number[], main?: number): number[
 export function branchEnds(n: number): number[];
 export interface ThreadAxis { from: bigint; to: bigint; now: bigint; alarmAt?: bigint | null; releaseAt?: bigint | null; marks?: readonly bigint[] }
 export function courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): number; // trừ bằng bigint; kẹp [0, VIEW.w]; from >= to thì 0
+export function drawnAxis(axis: ThreadAxis): ThreadAxis;           // trục sợi chỉ vẽ: cổng sau GATE_MAX_X thì to kéo dài tới khi cổng đứng ở GATE_MAX_X; còn lại trả nguyên axis
 export function pctX(x: number): number; export function pctY(y: number): number; // % của khung, cho lớp HTML và RevealWindow
 export function beatOf(left: number): ThreadBeat;                   // > 0,5 slow; 0,1–0,5 mid; < 0,1 fast
 export interface ThreadInput {
@@ -19316,9 +19324,13 @@ export function StateBadge(p: StateBadgeProps): JSX.Element;
 
 Luật dùng `Thread` cho Plan 7B (R18.4, R18.5):
 
-- **Chỉ compositor.** Không animate `d`, không filter SVG, không `drop-shadow`, không hình tròn trong SVG của sợi chỉ. Thứ gì phải đi cùng phần sáng thì dịch bằng `transform` với lớp `REVEAL_MOVE`.
-- **Trục.** Trang có thời gian thật dùng `axis`: `from` là x = 0, `to` là x = `VIEW.w`, `now` là thời gian chain (`useChainNow`). Phần sáng của `active` dừng ở `alarmAt`, của `grace` ở `releaseAt`; cổng ở `releaseAt`; nút ở `marks` (đã release thì mốc sau cổng bị bỏ). Header của vault không truyền `marks` (không vẽ nút `CheckedIn`); `HistoryThread` có trục riêng. Cột sống của trang chủ là đường CSS, không phải `Thread`.
-- **Kéo.** `setRange` chỉ dịch cửa sổ. Điểm "bây giờ", nút đang chờ và mọi mốc là props: chúng đứng yên khi `setRange` chạy, và chỗ gọi render lại `Thread` với props mới khi muốn dời chúng. Thanh kéo của cỗ máy thời gian (7B T5) giữ `axis` của lần render cuối và gọi `revealRef.current?.setRange(pctX(courseX(t, axis)), pctX(litTo), 'instant')` trong rAF, với `litTo` lấy từ `threadGeometry(state, { axis })`; thả tay thì render lại bằng props (cửa sổ về lại spring). Nút giữ của nghi thức (7B T10) gọi `setRange(from, 100, { linear: HOLD_MS })` khi `holding` và để props kéo về khi thả sớm.
+- **Chỉ compositor.** Không animate `d`, không filter SVG, không `drop-shadow`, không hình tròn trong SVG của sợi chỉ. Thứ gì phải đi cùng phần sáng thì dịch bằng `useMoveWith` (hay `moveTogether` trong cùng lượt với cửa sổ), không bằng transition CSS: mỗi transition CSS chạy một đồng hồ riêng, nên khi một lần dời cắt ngang lần trước, nó lệch khỏi cửa sổ (đo trên Chromium: tới 50 px trên sợi 1000 px). Điểm "bây giờ" đi theo dây cung giữa hai điểm, không theo sóng; với bước nhỏ của đồng hồ chain thì không thấy khác.
+- **Trục.** Trang có thời gian thật dùng `axis`: `from` là x = 0, `to` là x = `VIEW.w`, `now` là thời gian chain (`useChainNow`). Phần sáng của `active` dừng ở `alarmAt`, của `grace` ở `releaseAt`; cổng ở `releaseAt`; nút ở `marks` (đã release thì mốc sau cổng bị bỏ; recovery và expired bỏ mốc sau `BEND_X`). "Bây giờ" ngoài `[from, to]` không được vẽ, như mốc. Header của vault không truyền `marks` (không vẽ nút `CheckedIn`); `HistoryThread` có trục riêng. Cột sống của trang chủ là đường CSS, không phải `Thread`.
+  - Sợi chỉ vẽ trên `drawnAxis(axis)`. Khi cổng rơi sau `GATE_MAX_X` (trục kết thúc ở `releaseAt` hay vài phút sau đó, như header kết thúc ở mốc nhận), `to` được kéo dài tới khi cổng đứng ở `GATE_MAX_X`: nhánh còn ít nhất 94 đơn vị, vòm cổng không bị cắt, mọi thứ giữ thứ tự và tỉ lệ thời gian. Thứ đặt tay lên sợi chỉ (thumb và mốc của Scrubber) dùng `courseX(t, drawnAxis(axis))`, và thanh kéo chạy trên `[from, drawnAxis(axis).to]`.
+  - Nhịp quầng đo phần còn lại của `[from, alarmAt]` sau "bây giờ". Vậy ở mọi nơi trạng thái có thể là `active`, `from` phải là đầu kỳ hiện tại (`lastAlive`). Trục bắt đầu sớm hơn (Scrubber từ lúc tạo vault, witness) sẽ đập nhanh quá ngay sau một lần điểm danh: chỗ đó truyền `from: lastAlive` khi trạng thái là `active`, hoặc chấp nhận nhịp theo trục.
+- **Kéo.** `setRange` chỉ dịch cửa sổ. Điểm "bây giờ", nút đang chờ và mọi mốc là props: chúng đứng yên khi `setRange` chạy, và chỗ gọi render lại `Thread` với props mới khi muốn dời chúng. Cửa sổ giữ chỗ `setRange` đặt cho tới khi `litFrom` hay `litTo` của props đổi, hoặc tới khi gọi `reset()`. Một lần render lại với cùng props (một nhịp `useChainNow`) không kéo nó về, nên không cắt ngang một lần kéo. Ngược lại, props không đổi thì cũng không có gì kéo nó về, nên chỗ gọi luôn gọi `reset()` khi xong.
+  - Thanh kéo của cỗ máy thời gian (7B T5) giữ `axis` của lần render cuối và gọi `revealRef.current?.setRange(pctX(courseX(t, drawnAxis(axis))), pctX(litTo), 'instant')` trong rAF, với `litTo` lấy từ `threadGeometry(state, { axis })`. Khi `pointerup` hay `pointercancel`: render lại với mốc mới rồi gọi `revealRef.current?.reset()`. Props đổi thì cửa sổ đi theo props; không đổi (thả trong detent 2 % về đúng mốc cũ) thì `reset()` đưa nó về bằng spring.
+  - Nút giữ của nghi thức (7B T10) gọi `setRange(from, 100, { linear: HOLD_MS })` khi `holding`, và gọi `reset()` khi thả sớm hay khi ví từ chối: chưa có nút nào được thắt, nên sợi chỉ về đúng như trước (nguyên tắc 8, R18.16).
 - **Cột giám hộ** (7B T6) đặt vào `[data-part="gate"]`, hộp của vòm cổng, đã đứng ở `(gateX, waveY(gateX))` theo %.
 - **DOM ổn định** cho test của Plan 7B: gốc `[data-thread]` có `data-state`, `data-predicted`, `data-pending-knot`, `data-highlight` (`data-highlight` có ở mọi trạng thái hễ truyền `highlight`, cả trên `[data-layer="marks"]`); quầng là `svg[data-layer="glow"][data-beat]`; phần sáng là `[data-part="lit"]`; cửa sổ là `[data-reveal="outer" | "middle" | "inner"]`.
 

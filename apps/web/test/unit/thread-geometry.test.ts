@@ -9,7 +9,9 @@ import {
   branchEnds,
   branchWidths,
   courseX,
+  drawnAxis,
   FRAY_X,
+  GATE_MAX_X,
   GATE_X,
   PREDICTED_DASH,
   RECOVERY_END,
@@ -231,6 +233,67 @@ describe('threadGeometry on a time axis', () => {
     }
     // Active runs on past the gate, and keeps the mark.
     expect(threadGeometry('active', { axis: { ...axis, marks } }).knots.map(([x]) => x)).toEqual([100, 500, 550]);
+  });
+
+  it('keeps room after the gate wherever releaseAt falls, up to and past the end of the axis', () => {
+    // The vault header's axis ends when the heirs can claim, a few minutes after releaseAt (spec §18.4.2 Task 9).
+    const span = 30n * 86_400n;
+    const from = 1_795_000_000n;
+    const ats = [
+      from - 60n,
+      from,
+      from + span / 2n,
+      from + (span * 5n) / 6n,
+      from + span - 300n,
+      from + span,
+      from + 2n * span,
+    ];
+    // The arch is h-[42%] high and 12/25 as wide: at 5:1 half of it is 0.42 · 12/25 / 5 / 2 of the width.
+    const halfArch = VIEW.w * ((0.42 * 12) / 25 / 5 / 2);
+    for (const releaseAt of ats) {
+      const a: ThreadAxis = { from, to: from + span, now: from + 60n, alarmAt: releaseAt - 3_600n, releaseAt };
+      for (const s of THREAD_STATES) {
+        const g = threadGeometry(s, { axis: a, branches: [5000, 3000, 2000] });
+        const at = `${s} at ${releaseAt - from}`;
+        if (g.gate) {
+          expect(g.gateX, at).toBeLessThanOrEqual(GATE_MAX_X);
+          expect(g.gateX + halfArch, at).toBeLessThan(VIEW.w);
+        }
+        for (const b of g.branches) {
+          const n = b.d.match(/-?[\d.]+/g)?.map(Number) ?? [];
+          // M gx gy C c1x c1y c2x c2y ex ey: the branch runs right, never back, and ends well past the gate.
+          expect(n[2], at).toBeGreaterThanOrEqual(g.gateX);
+          expect(n[4], at).toBeGreaterThanOrEqual(n[2]);
+          expect(n[6] - g.gateX, at).toBeGreaterThanOrEqual(90);
+        }
+        for (const d of g.dots) if (g.branches.length) expect(d.at[0] - g.gateX, at).toBeGreaterThanOrEqual(90);
+      }
+    }
+    // Only the scale changes: "now", the alarm and the gate keep their order and their shares of the time.
+    const late: ThreadAxis = { from: 0n, to: 600n, now: 300n, alarmAt: 540n, releaseAt: 600n };
+    const g = threadGeometry('active', { axis: late });
+    expect([g.nowX, g.litTo, g.gateX]).toEqual([250, 450, GATE_MAX_X]);
+    expect(drawnAxis(late)).toEqual({ ...late, to: 720n });
+    expect(courseX(late.now, drawnAxis(late))).toBe(g.nowX);
+    // An axis with room after the gate is drawn as it is.
+    expect(drawnAxis(axis)).toBe(axis);
+    expect(drawnAxis({ from: 0n, to: 600n, now: 0n })).toEqual({ from: 0n, to: 600n, now: 0n });
+  });
+
+  it('shows "now" only inside the axis, and no knot past the bend of a recovery or the curl of an expired Drill', () => {
+    for (const now of [900n, 1_700n]) {
+      const g = threadGeometry('active', { axis: { ...axis, now }, pendingKnot: true });
+      expect(g.now, String(now)).toBeNull();
+      expect(g.pending, String(now)).toBeNull();
+    }
+    expect(threadGeometry('grace', { axis: { ...axis, now: 1_700n } }).now).toBeNull();
+    const marks = [1_100n, 1_352n, 1_500n];
+    for (const s of ['recovery', 'expired'] as const) {
+      expect(
+        threadGeometry(s, { axis: { ...axis, marks } }).knots.map(([x]) => x),
+        s,
+      ).toEqual([100, BEND_X]);
+    }
   });
 
   it('falls back to GATE_X without releaseAt, and ends the lit part of active at the gate without alarmAt', () => {

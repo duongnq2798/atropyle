@@ -8,6 +8,11 @@ export const VIEW = { w: 600, h: 120, mid: 60, amp: 9 } as const;
 const CYCLES = 1.5;
 /** Where the gate stands when nothing says when it opens; the wave is at the middle there. */
 export const GATE_X = 400;
+/**
+ * The latest the gate stands on a time axis (drawnAxis): the branches after it keep a run of at least
+ * BRANCH_END_X − GATE_MAX_X, and its arch stays inside the box.
+ */
+export const GATE_MAX_X = 500;
 /** Where a thread in grace starts to fray, without a time axis. */
 export const FRAY_X = 556;
 /** Where a recovery bends away, and where an expired Drill curls up. */
@@ -84,19 +89,26 @@ export function branchEnds(n: number): number[] {
   return Array.from({ length: n }, (_, i) => r(BAND.top + ((BAND.bottom - BAND.top) * i) / (n - 1)));
 }
 
-/** A linear time axis under the thread (R18.5): chain time `from` is x = 0, `to` is x = VIEW.w. */
+/**
+ * A linear time axis under the thread (R18.5): chain time `from` is x = 0, `to` is x = VIEW.w. The Thread draws on
+ * drawnAxis(axis), which reaches past `to` when the gate would stand too close to the end.
+ */
 export interface ThreadAxis {
+  /**
+   * The start of the current period (lastAlive) wherever the state can be `active`: the glow beats by the share of
+   * [from, alarmAt] still left after "now", so an axis that starts earlier beats too fast.
+   */
   from: bigint;
   to: bigint;
-  /** Chain time now: the "now" point. */
+  /** Chain time now: the "now" point, drawn only inside [from, to]. */
   now: bigint;
   /** When the alarm can be raised (active) or was raised (grace). The lit part of `active` ends here; `grace` frays from here. */
   alarmAt?: bigint | null;
   /** When the gate opens: the gate stands here, and the lit part of `grace` ends here. */
   releaseAt?: bigint | null;
   /**
-   * Moments tied as knots (check-ins). Marks outside [from, to] are left out, never piled up at an edge; once
-   * released, so are marks past the gate, where the branches take over.
+   * Moments tied as knots (check-ins). Marks outside [from, to] are left out, never piled up at an edge; so are
+   * marks past the gate once released (the branches take over), and past the bend of a recovery or an expired Drill.
    */
   marks?: readonly bigint[];
 }
@@ -112,6 +124,22 @@ export function courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): numbe
   if (d <= 0n) return 0;
   if (d >= span) return VIEW.w;
   return r((Number((d * SCALE) / span) / Number(SCALE)) * VIEW.w);
+}
+
+/**
+ * The axis the Thread draws on. When the gate would stand past GATE_MAX_X (an axis that ends at releaseAt or a few
+ * minutes after it, like the vault header's, which ends when the heirs can claim), `to` moves later until the
+ * gate stands at GATE_MAX_X: only the scale changes, and everything keeps its order and its share of the time.
+ * Whatever is laid over a Thread by hand (the Scrubber's thumb and moments) is placed at courseX(t, drawnAxis(axis)).
+ */
+export function drawnAxis(axis: ThreadAxis): ThreadAxis {
+  const { from, to, releaseAt } = axis;
+  if (releaseAt == null || to <= from || releaseAt <= from) return axis;
+  const w = BigInt(VIEW.w);
+  const max = BigInt(GATE_MAX_X);
+  // Rounded up, so that the gate never stands past GATE_MAX_X.
+  const end = from + ((releaseAt - from) * w + max - 1n) / max;
+  return end > to ? { ...axis, to: end } : axis;
 }
 
 /** Percent of the box width or height, for the HTML layer and the RevealWindow. */
@@ -204,7 +232,7 @@ function frayStrands(x0: number, x1: number): string[] {
 }
 
 export function threadGeometry(state: ThreadState, input: ThreadInput = {}): ThreadGeometry {
-  const { axis } = input;
+  const axis = input.axis ? drawnAxis(input.axis) : undefined;
   const gateX = axis?.releaseAt != null ? courseX(axis.releaseAt, axis) : GATE_X;
   const gateY = r(waveY(gateX));
   const base: ThreadGeometry = {
@@ -234,7 +262,8 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
 
   if ((state === 'active' || state === 'grace') && axis) {
     const nowX = base.nowX;
-    const now: Point = [nowX, r(waveY(nowX))];
+    // Outside the axis "now" would stand at an edge and tell the wrong time: it is left out, like a mark.
+    const now: Point | null = axis.now >= axis.from && axis.now <= axis.to ? [nowX, r(waveY(nowX))] : null;
     const alarmX = axis.alarmAt != null ? courseX(axis.alarmAt, axis) : gateX;
     if (state === 'active') {
       return withPending({
@@ -299,7 +328,8 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     return {
       ...base,
       lit: `${waveSegment(0, BEND_X)} C${BEND_X + 90} ${by} ${ex - 70} ${ey} ${ex} ${ey}`,
-      knots: knotsAt(BEND_X),
+      // Past the bend the course is a ghost: a mark there is left out.
+      knots: knotsAt(BEND_X).filter(([x]) => x <= BEND_X),
       ghost: waveSegment(BEND_X, VIEW.w),
       dots: [{ at: RECOVERY_END, tone: 'plain' }],
     };
@@ -328,7 +358,8 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
   return {
     ...base,
     lit: waveSegment(0, BEND_X),
-    knots: knotsAt(BEND_X),
+    // The thread ends in the curl: a mark past it is left out.
+    knots: knotsAt(BEND_X).filter(([x]) => x <= BEND_X),
     curl: `M${BEND_X} ${ey} c36 0 64 -12 64 6 s-22 26 -38 12 s2 -22 18 -14 s6 10 -4 12`,
   };
 }

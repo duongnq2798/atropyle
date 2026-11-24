@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DURATION, HOLD_MS, SPRING, SPRING_MS, springAt, springStops } from '../../src/motion/tokens';
+import { DURATION, HOLD_MS, SPRING, SPRING_EASING, SPRING_MS, springAt, springStops } from '../../src/motion/tokens';
 
 const css = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
 
@@ -31,5 +31,7 @@ describe('motion tokens (spec §4.4)', () => {
       expect(Math.abs(stops[i] - springAt((i * SPRING_MS) / 1000 / 24)), `stop ${i}`).toBeLessThan(0.0006);
     }
     expect(stops[24]).toBe(1);
+    // The same curve for the Web Animations API (src/motion/move.ts), stop for stop.
+    expect(SPRING_EASING).toBe(`linear(${stops.join(', ')})`);
   });
 });

@@ -1,10 +1,29 @@
 import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import { LangProvider } from '../../src/i18n/provider';
+import { KVProvider } from '../../src/lib/kv';
+import { memoryKV } from '../../src/lib/store';
+import { MotionProvider } from '../../src/motion/provider';
 import { GLYPH_NAMES, StateGlyph } from '../../src/thread/glyphs';
 import { THREAD_STATES } from '../../src/thread/state';
 import { StateBadge } from '../../src/thread/state-badge';
 import { Thread } from '../../src/thread/thread';
 import { renderWithProviders } from '../helpers/render';
+
+// The real SharedThread, inside a marker: React's ViewTransition itself leaves nothing in the DOM to look for.
+vi.mock('../../src/motion/view-transition', async (load) => {
+  const real = await load<typeof import('../../src/motion/view-transition')>();
+  return {
+    ...real,
+    SharedThread: ({ children }: { children: ReactNode }) => (
+      <div data-testid="shared-thread">
+        <real.SharedThread>{children}</real.SharedThread>
+      </div>
+    ),
+  };
+});
 
 const parts = (c: HTMLElement, part: string) => c.querySelectorAll(`[data-part="${part}"]`);
 const root = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-thread]');
@@ -15,6 +34,16 @@ describe('Thread', () => {
     expect(root(container)?.getAttribute('aria-hidden')).toBe('true');
     expect(screen.queryByRole('img')).toBeNull();
     for (const svg of container.querySelectorAll('svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
+    // It never takes a pointer: a drag handle laid over it (the Scrubber of Plan 7B) gets every event.
+    expect(root(container)?.getAttribute('class')?.split(/\s+/)).toContain('pointer-events-none');
+  });
+
+  it('morphs into the next page only when shared', () => {
+    const { container, unmount } = renderWithProviders(<Thread state="active" />);
+    expect(container.querySelector('[data-testid="shared-thread"]')).toBeNull();
+    unmount();
+    const shared = renderWithProviders(<Thread state="active" shared />).container;
+    expect(shared.querySelector('[data-testid="shared-thread"] > [data-thread]')).not.toBeNull();
   });
 
   it('carries a label as an image when given one', () => {
@@ -120,9 +149,27 @@ describe('StateBadge', () => {
     }
   });
 
-  it('uses the alive colour for an active vault', () => {
+  it('uses the alive colour for an active vault, in two sizes', () => {
     const { container } = renderWithProviders(<StateBadge state="active" />);
     expect(container.querySelector('[data-state="active"]')?.getAttribute('class')).toContain('text-alive');
+    expect(container.querySelector('[data-state="active"]')?.getAttribute('class')).toContain('h-8');
+    const sm = renderWithProviders(<StateBadge state="grace" size="sm" />).container;
+    expect(sm.querySelector('[data-state="grace"]')?.getAttribute('class')?.split(/\s+/)).toContain('h-6');
+  });
+
+  it('prerenders its words visible: only a later change of state enters', () => {
+    const html = renderToString(
+      <KVProvider kv={memoryKV()}>
+        <LangProvider>
+          <MotionProvider>
+            <StateBadge state="grace" />
+          </MotionProvider>
+        </LangProvider>
+      </KVProvider>,
+    );
+    expect(html).toContain('Grace period');
+    expect(html).not.toMatch(/opacity:\s*0[;"]/);
+    expect(html).not.toMatch(/translateY\(5px\)/);
   });
 
   it('speaks Vietnamese', async () => {
