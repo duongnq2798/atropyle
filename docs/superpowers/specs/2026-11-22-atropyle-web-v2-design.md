@@ -1350,8 +1350,9 @@ Mỗi ruling có dạng "Ruling: … — vì sao — giá nếu sai".
 - **R18.12 Ruling:** từ vựng VI là:
   - "điểm danh" cho check-in;
   - "Drill" là tên riêng, lần đầu kèm "(bản diễn tập)";
-  - "trao" cho release ("Đã trao cho người thừa kế").
-  - *Vì sao:* bản VI đang lệch từ, và "giải phóng" nghe lạnh với người có tang.
+  - "trao" cho release. Nhãn trạng thái sau release nói vault giờ thuộc về ai: "Thuộc về người thừa kế", "Thuộc về ví khôi phục". Sự kiện release và lời nhắc người thừa kế nói "Đã tới lúc vault … trao tài sản";
+  - "đã trao" và "đã chuyển" chỉ dùng cho dòng hiện sau một biên nhận Distributed.
+  - *Vì sao:* bản VI đang lệch từ, và "giải phóng" nghe lạnh với người có tang. Trước khi `distribute` chạy, tài sản vẫn nằm trong ví chủ, nên một nhãn hay tiêu đề nói tài sản "đã trao" làm người thừa kế hiểu sai.
   - *Giá nếu sai:* maintainer chọn từ khác trước 25/11 thì chỉ sửa `labels.messages` và các file chưa viết.
 - **R18.13 Ruling:** mỗi màn hình 3 ảnh chụp (night EN 1440, night EN 390, night VI 390). Vellum chỉ chụp ở bề mặt vellum, cộng một lượt đủ ở 7C T12.
   - *Vì sao:* bớt thời gian review mà axe vẫn chạy cả hai theme tự động.
