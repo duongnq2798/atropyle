@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 
 /**
  * While `active`, closing or reloading the tab asks the browser's own "Leave site?" question. Used while a plan has
- * steps the wallet accepted and steps still to send: the page holds the only copy of the remaining steps.
+ * steps the wallet accepted and steps still to send: the page holds the only copy of the remaining steps. Only the
+ * tab: a link inside the site leaves without asking, and useTxRunner then opens no further wallet prompt for the plan.
  */
 export function useLeaveGuard(active: boolean): void {
   useEffect(() => {

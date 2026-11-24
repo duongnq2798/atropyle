@@ -1,4 +1,4 @@
-import { type AtropyleErrorJson, decodeError } from '@atropyle/sdk';
+import { AtropyleError, type AtropyleErrorJson, decodeError } from '@atropyle/sdk';
 
 export interface SendFailure {
   error: AtropyleErrorJson;
@@ -16,4 +16,12 @@ function count(v: unknown): number | null {
 export function decodeSendFailure(e: unknown): SendFailure {
   const err = decodeError(e);
   return { error: err.toJSON(), index: count(err.details?.index), completed: count(err.details?.completed) ?? 0 };
+}
+
+/**
+ * What the wallet gets in place of the next step once the page that started the plan is gone (useTxRunner): the
+ * send stops there, as it does when the user declines.
+ */
+export function pageGone(): AtropyleError {
+  return new AtropyleError('USER_REJECTED', { message: 'The page that started this plan is gone.' });
 }

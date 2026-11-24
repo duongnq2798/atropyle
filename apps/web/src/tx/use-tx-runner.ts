@@ -2,6 +2,7 @@
 
 import type { SendResult, TxPlan } from '@atropyle/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { WalletClient } from 'viem';
 import { useSdk } from '@/chain/hooks';
 import { sameAddress } from '@/lib/address';
 import { useHaptics } from '@/motion/haptics';
@@ -68,6 +69,14 @@ export function useTxRunner({ plan, onDone }: TxRunnerOptions): TxRunner {
   const [offset, setOffset] = useState(0);
   const inFlight = useRef(false);
   const live = useRef(plan);
+  // False once the card is gone: a link in the header unmounts it without a beforeunload, and the send goes on.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   // A different plan starts clean, in the same render (no frame shows the old rows under the new plan).
   if (shown !== plan) {
@@ -127,11 +136,22 @@ export function useTxRunner({ plan, onDone }: TxRunnerOptions): TxRunner {
         tx = await loadTxImpl();
         if (wallet.wrongChain) await wallet.switchChain();
         const client = await wallet.walletClient();
-        const r = await sdk.atro.send(remaining(sent, base), client, {
-          onStep: (e) => {
-            if (live.current === sent) setView((v) => applyStep(v, { ...e, index: e.index + base }));
+        const impl = tx;
+        // No wallet prompt for a plan the page no longer shows (unmounted, or swapped): the send stops at that step,
+        // as on a rejection. A prompt that is already open still lands; the user sees it in the wallet.
+        const sendTransaction = ((args) =>
+          alive.current && live.current === sent
+            ? client.sendTransaction(args)
+            : Promise.reject(impl.pageGone())) as WalletClient['sendTransaction'];
+        const r = await sdk.atro.send(
+          remaining(sent, base),
+          { ...client, sendTransaction },
+          {
+            onStep: (e) => {
+              if (live.current === sent) setView((v) => applyStep(v, { ...e, index: e.index + base }));
+            },
           },
-        });
+        );
         if (live.current !== sent) return;
         setResult(r);
         pulse();

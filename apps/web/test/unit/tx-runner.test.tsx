@@ -1,6 +1,6 @@
 import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import type { WalletClient } from 'viem';
+import type { Hex, WalletClient } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TxCard } from '../../src/tx/tx-card';
 import { type TxRunner, useTxRunner } from '../../src/tx/use-tx-runner';
@@ -180,6 +180,47 @@ describe('useTxRunner with TxCard', () => {
     await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
     unmount();
     expect(leaving()).toBe(false);
+  });
+
+  it('opens no further wallet prompt once its card is gone', async () => {
+    const prompts: Array<(hash: Hex) => void> = [];
+    const sendTransaction = vi.fn(
+      () =>
+        new Promise<Hex>((resolve) => {
+          prompts.push(resolve);
+        }),
+    );
+    let sending: Promise<unknown> = Promise.resolve();
+    // Shaped like the SDK's sendPlan: one wallet prompt per step, through the client it is given.
+    fake.send.mockImplementation((p: TxPlan, w: WalletClient, o: Options) => {
+      sending = (async () => {
+        const total = p.steps.length;
+        for (const [index, s] of p.steps.entries()) {
+          o.onStep?.({ index, total, step: s, phase: 'signing' });
+          const hash = await w.sendTransaction({ index } as never);
+          o.onStep?.({ index, total, step: s, phase: 'confirmed', hash });
+        }
+        return { vault: V, steps: [] };
+      })();
+      return sending;
+    });
+    const { unmount } = setup({
+      wallet: { walletClient: async () => ({ sendTransaction }) as unknown as WalletClient },
+    });
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendTransaction).toHaveBeenCalledTimes(1));
+    await act(async () => prompts[0]?.(H));
+    await waitFor(() => expect(sendTransaction).toHaveBeenCalledTimes(2));
+    expect(phase(0)).toBe('confirmed');
+
+    // A link in the header: the page unmounts with step 2's prompt open, and no beforeunload fires.
+    unmount();
+    // The prompt that was already open is approved; step 3 must not open one for a page that is gone.
+    prompts[1]?.(H);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sendTransaction).toHaveBeenCalledTimes(2);
+    await expect(sending).rejects.toMatchObject({ code: 'USER_REJECTED' });
   });
 
   it('hands off only the steps that are not confirmed yet, on the sign page, and nothing once all are', async () => {
