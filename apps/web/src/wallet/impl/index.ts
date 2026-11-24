@@ -13,8 +13,10 @@ export {
   notConnected,
   parseAccountsEvent,
   parseChainEvent,
+  type RestoreResult,
   restoreWallet,
   silentAccount,
+  type WalletEvents,
   watchWallet,
 } from './session';
 export {

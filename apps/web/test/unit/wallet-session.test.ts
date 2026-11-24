@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { KEYS, memoryKV } from '../../src/lib/store';
+import type { RestoreResult, WalletEvents } from '../../src/wallet/impl';
 import {
   findRemembered,
   isTransientDisconnect,
@@ -64,6 +65,14 @@ describe('wallet events', () => {
 
     stop();
     for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) expect(fake.listenerCount(event)).toBe(0);
+  });
+
+  it('takes its handler and restore types from the impl barrel, as code that loads the chunk does', () => {
+    // A type check: npm run typecheck fails here if src/wallet/impl/index.ts stops exporting them.
+    const handlers: WalletEvents = { account: () => undefined, chain: () => undefined, gone: () => undefined };
+    const results: RestoreResult[] = [{ kind: 'gone' }, { kind: 'locked' }];
+    expect(Object.keys(handlers)).toEqual(['account', 'chain', 'gone']);
+    expect(results.map((r) => r.kind)).toEqual(['gone', 'locked']);
   });
 });
 
