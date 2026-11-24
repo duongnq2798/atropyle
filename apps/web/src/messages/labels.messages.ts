@@ -4,7 +4,7 @@ import { defineMessages } from '@/i18n/core';
 export const messages = defineMessages(
   {
     stateActive: 'Active',
-    stateGrace: 'Grace period',
+    stateGrace: 'Alarm window',
     stateRecovery: 'Recovery pending',
     stateReleasedInherit: 'Released to heirs',
     stateReleasedRecover: 'Released to the recovery wallet',
@@ -17,12 +17,12 @@ export const messages = defineMessages(
   },
   {
     stateActive: 'Đang hoạt động',
-    stateGrace: 'Thời gian ân hạn',
+    stateGrace: 'Thời gian báo động',
     stateRecovery: 'Đang chờ khôi phục',
     stateReleasedInherit: 'Thuộc về người thừa kế',
     stateReleasedRecover: 'Thuộc về ví khôi phục',
     stateExpired: 'Drill đã hết hạn',
-    roleOwner: 'Chủ',
+    roleOwner: 'Chủ vault',
     roleHeir: 'Người thừa kế',
     roleGuardian: 'Người giám hộ',
     roleRecoveryTarget: 'Đích khôi phục',

@@ -42,8 +42,8 @@ describe('Thread', () => {
   });
 
   it('carries a label as an image when given one', () => {
-    renderWithProviders(<Thread state="grace" label="Vault thread: Grace period" />);
-    const img = screen.getByRole('img', { name: 'Vault thread: Grace period' });
+    renderWithProviders(<Thread state="grace" label="Vault thread: Alarm window" />);
+    const img = screen.getByRole('img', { name: 'Vault thread: Alarm window' });
     expect(img.hasAttribute('data-thread')).toBe(true);
     expect(img.hasAttribute('aria-hidden')).toBe(false);
   });
@@ -130,7 +130,7 @@ describe('StateBadge', () => {
   it('names every state in words next to its glyph (colour is never the only signal)', () => {
     const want = {
       active: 'Active',
-      grace: 'Grace period',
+      grace: 'Alarm window',
       recovery: 'Recovery pending',
       releasedInherit: 'Released to heirs',
       releasedRecover: 'Released to the recovery wallet',
@@ -162,14 +162,14 @@ describe('StateBadge', () => {
         </LangProvider>
       </KVProvider>,
     );
-    expect(html).toContain('Grace period');
+    expect(html).toContain('Alarm window');
     expect(html).not.toMatch(/opacity:\s*0[;"]/);
     expect(html).not.toMatch(/translateY\(5px\)/);
   });
 
   it('speaks Vietnamese', async () => {
     renderWithProviders(<StateBadge state="grace" />, { lang: 'vi' });
-    await waitFor(() => expect(screen.getByText('Thời gian ân hạn')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Thời gian báo động')).toBeTruthy());
   });
 
   it('marks a Drill and announces changes when live', () => {

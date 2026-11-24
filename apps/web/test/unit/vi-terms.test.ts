@@ -128,6 +128,10 @@ describe('Vietnamese words for check-in and release (ruling R20)', () => {
     );
   });
 
+  it('names the owner role "Chủ vault", as the vault page and the emails do', () => {
+    expect(vi.find(([path]) => path === 'labels.messages.ts vi.roleOwner')?.[1]).toBe('Chủ vault');
+  });
+
   it('says "điểm danh" and "trao" somewhere, so the checks above cannot pass on an empty dictionary', () => {
     expect(offending(/điểm danh/iu).length, 'Vietnamese strings that say "điểm danh"').toBeGreaterThan(0);
     expect(offending(/\btrao\b/iu).length, 'Vietnamese strings that say "trao"').toBeGreaterThan(0);
