@@ -5,6 +5,7 @@ import { useT } from '@/i18n/provider';
 import { messages as shell } from '@/messages/shell.messages';
 import { messages as ui } from '@/messages/ui.messages';
 import { ROUTES } from '@/routes';
+import { WalletButton } from '@/wallet/wallet-button';
 import { MobileMenu } from './mobile-menu';
 import { NavList } from './nav-list';
 import { SettingsMenu } from './settings-menu';
@@ -26,7 +27,8 @@ export function Header() {
         <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
           <NavList layout="bar" />
         </nav>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-2">
+          <WalletButton />
           <div className="hidden md:block">
             <SettingsMenu />
           </div>

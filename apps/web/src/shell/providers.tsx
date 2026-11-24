@@ -8,17 +8,20 @@ import type { KV } from '@/lib/store';
 import { MotionProvider } from '@/motion/provider';
 import { ThemeProvider } from '@/theme/provider';
 import { TooltipProvider } from '@/ui/tooltip';
+import { WalletProvider } from '@/wallet/provider';
 
-/** Every page renders inside these, in this order (storage first: language, theme and chain settings read it). */
+/** Every page renders inside these, in this order (storage first: language, theme, chain and wallet read it). */
 export function Providers({ children, kv }: { children: ReactNode; kv?: KV }) {
   return (
     <KVProvider kv={kv}>
       <LangProvider>
         <ThemeProvider>
           <ChainProvider>
-            <MotionProvider>
-              <TooltipProvider>{children}</TooltipProvider>
-            </MotionProvider>
+            <WalletProvider>
+              <MotionProvider>
+                <TooltipProvider>{children}</TooltipProvider>
+              </MotionProvider>
+            </WalletProvider>
           </ChainProvider>
         </ThemeProvider>
       </LangProvider>

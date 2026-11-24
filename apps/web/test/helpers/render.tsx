@@ -8,11 +8,15 @@ import { KVProvider } from '@/lib/kv';
 import { KEYS, type KV, memoryKV } from '@/lib/store';
 import { ThemeProvider } from '@/theme/provider';
 import { TooltipProvider } from '@/ui/tooltip';
+import { WalletProvider } from '@/wallet/provider';
+import type { WalletWindow } from '@/wallet/types';
 
 export interface ProviderOptions {
   kv?: KV;
   lang?: Lang;
   queryClient?: QueryClient;
+  /** Where wallet discovery looks; the test window by default. */
+  win?: WalletWindow;
 }
 
 /** No retries and no background refetch, so a test sees exactly the requests it makes. */
@@ -29,10 +33,12 @@ export function testQueryClient(): QueryClient {
 export function TestProviders({
   kv,
   queryClient,
+  win,
   children,
 }: {
   kv: KV;
   queryClient: QueryClient;
+  win?: WalletWindow;
   children: ReactNode;
 }) {
   return (
@@ -40,7 +46,9 @@ export function TestProviders({
       <LangProvider>
         <ThemeProvider>
           <ChainProvider client={queryClient}>
-            <TooltipProvider>{children}</TooltipProvider>
+            <WalletProvider win={win}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </WalletProvider>
           </ChainProvider>
         </ThemeProvider>
       </LangProvider>
@@ -54,7 +62,7 @@ export function makeWrapper(o: ProviderOptions = {}) {
   if (o.lang) kv.set(KEYS.lang, o.lang);
   const queryClient = o.queryClient ?? testQueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <TestProviders kv={kv} queryClient={queryClient}>
+    <TestProviders kv={kv} queryClient={queryClient} win={o.win}>
       {children}
     </TestProviders>
   );
