@@ -60,6 +60,8 @@
   );
 
   --animate-thread-pulse: thread-pulse 2.4s var(--ease-in-out-sine) infinite;
+  --animate-thread-pulse-mid: thread-pulse 1.6s var(--ease-in-out-sine) infinite;
+  --animate-thread-pulse-fast: thread-pulse 1s var(--ease-in-out-sine) infinite;
   --animate-thread-tremble: thread-tremble 0.9s var(--ease-in-out-sine) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
   /* HoldButton's one shake on an early release: DURATION.slow, motion's easeOut. Used only under motion-safe:. */
