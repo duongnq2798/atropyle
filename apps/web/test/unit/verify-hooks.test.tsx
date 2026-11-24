@@ -1,6 +1,7 @@
+import { onlineManager } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { Address } from 'viem';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHAIN_ID, useInvalidateVault } from '../../src/chain/hooks';
 import { chainKeys } from '../../src/chain/keys';
 import { useProof, useVaultVerify } from '../../src/verify/hooks';
@@ -211,5 +212,30 @@ describe('useVaultVerify', () => {
     await waitFor(() => expect(h.result.current.verify.status).toBe('done'));
     await act(() => h.result.current.invalidate(PEOPLE.vault));
     expect(impl.runVaultVerify).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('while the browser says it is offline', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
+  it('runs the proof, so a failed read shows as an error with its Retry, not as a run', async () => {
+    onlineManager.setOnline(false);
+    impl.runProof.mockRejectedValueOnce(Object.assign(new Error('every RPC failed'), { code: 'RPC_UNAVAILABLE' }));
+    const { wrapper } = makeWrapper();
+    const h = renderHook(() => useProof(), { wrapper });
+    act(() => h.result.current.run());
+    await waitFor(() => expect(h.result.current.status).toBe('error'));
+    expect(h.result.current.error).toMatchObject({ code: 'RPC_UNAVAILABLE' });
+  });
+
+  it('checks a vault with the SDK it already has', async () => {
+    onlineManager.setOnline(false);
+    impl.runVaultVerify.mockImplementation(async (_sdk: unknown, vault: string) => ({ vault }));
+    const { wrapper } = makeWrapper();
+    const h = renderHook(() => useVaultVerify(PEOPLE.vault as Address, false), { wrapper });
+    await waitFor(() => expect(h.result.current.status).toBe('done'));
+    expect(h.result.current.result).toMatchObject({ vault: PEOPLE.vault });
   });
 });

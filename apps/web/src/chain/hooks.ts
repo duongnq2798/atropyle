@@ -34,6 +34,10 @@ export function sdkQuery(crossCheck: boolean) {
     gcTime: Number.POSITIVE_INFINITY,
     // No `retry` of its own: the client's policy tries a chunk that failed to load again, a broken deployment never.
     refetchOnWindowFocus: false,
+    // Runs while the browser says it is offline: a chunk at hand still gives the SDK, and a chunk that cannot load
+    // becomes the error a card shows with its Retry. TanStack's 'online' would pause it, and the card would say
+    // "Preparing…" until the connection came back.
+    networkMode: 'always',
     structuralSharing: false,
   });
 }

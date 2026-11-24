@@ -49,11 +49,16 @@ function useProgress(id: string): ProofProgress | null {
   );
 }
 
+/**
+ * A run is asked for by the user and never retried. It also runs while the browser says it is offline: a paused query
+ * would read as 'running' with no progress until the connection came back; a failed read is an error with a Retry.
+ */
 const SESSION = {
   staleTime: Number.POSITIVE_INFINITY,
   retry: false,
   refetchOnWindowFocus: false,
   structuralSharing: false,
+  networkMode: 'always',
 } as const;
 
 /**

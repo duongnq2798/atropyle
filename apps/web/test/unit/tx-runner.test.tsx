@@ -1,4 +1,5 @@
 import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
+import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { Hex, WalletClient } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -358,6 +359,17 @@ describe('useTxRunner with TxCard', () => {
     fireEvent.click(sendButton());
     await screen.findByTestId('tx-done');
     expect(order).toEqual(['switch', 'client', 'send']);
+  });
+
+  it('prepares while the browser says it is offline, with the SDK it already has', async () => {
+    onlineManager.setOnline(false);
+    try {
+      setup();
+      await ready();
+      expect(sendButton().textContent).toBe('Send');
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it('a new plan starts clean', async () => {
