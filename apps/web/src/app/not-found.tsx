@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useT } from '@/i18n/provider';
 import { useMounted } from '@/lib/use-mounted';
 import { messages as shell } from '@/messages/shell.messages';
+import { NavLink } from '@/shell/nav-link';
 import { Thread } from '@/thread/thread';
 import { buttonClass } from '@/ui/button';
 import { UntrustedText } from '@/ui/untrusted-text';
@@ -25,9 +25,10 @@ export default function NotFound() {
         </p>
       ) : null}
       <p className="text-ink-muted">{t('notFoundHint')}</p>
-      <Link href="/" prefetch={false} className={buttonClass({ variant: 'primary', size: 'lg' })}>
+      {/* A NavLink, like every internal link of the shell and the pages: the way home runs in a view transition. */}
+      <NavLink href="/" prefetch={false} className={buttonClass({ variant: 'primary', size: 'lg' })}>
         {t('goHome')}
-      </Link>
+      </NavLink>
     </section>
   );
 }
