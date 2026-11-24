@@ -4,6 +4,7 @@ import { RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
+import { untrusted } from '@/lib/untrusted';
 import { messages as common } from '@/messages/common.messages';
 import { messages } from '@/messages/tx.messages';
 import { Banner } from '@/ui/banner';
@@ -12,6 +13,9 @@ import { ExternalLink } from '@/ui/external-link';
 import { SkeletonText } from '@/ui/skeleton';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { useErrorView } from './use-error-view';
+
+/** The longest message shown as the title; the SDK already cuts an unclassified error's text to 500 characters. */
+const MESSAGE_MAX = 200;
 
 const LOCAL_LINK =
   'underline decoration-line-strong decoration-1 underline-offset-4 transition-colors duration-150 ' +
@@ -32,7 +36,9 @@ function DocsLink({ href, children }: { href: string; children: ReactNode }) {
 /**
  * Any error, described by the SDK: the message as the title, the hint, the code and a docs link chosen by the code
  * (never a URL from the message). The revert reason of an unknown revert is shown apart, as untrusted text. A backend
- * error (ApiError) is worded by its code alone (src/api/errors.ts), never by its message.
+ * error (ApiError) is worded by its code alone (src/api/errors.ts), never by its message. For an error the SDK cannot
+ * classify, the message is the wallet's or the RPC's own text, so the title is cleaned like untrusted text (no bidi
+ * override or hidden character) and isolated from the surrounding text direction.
  */
 export function ErrorBox({
   error,
@@ -59,7 +65,7 @@ export function ErrorBox({
   if (view) {
     return (
       <div data-testid={testId} data-code={view.code} className={className}>
-        <Banner tone="error" title={view.message} className="break-words">
+        <Banner tone="error" title={<bdi>{untrusted(view.message, MESSAGE_MAX).value}</bdi>} className="break-words">
           <p>{view.hint}</p>
           {view.reason ? (
             <p className="mt-2 flex flex-col items-start gap-1">
