@@ -53,5 +53,18 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(index).toContain(home.en.heroTitle);
       expect(index).toContain(home.en.heroDrill);
     });
+
+    it('prerenders the live regions of the wrong-network banner and of a failed load, empty, above the main', () => {
+      // A live region that arrives already filled is not reliably read out, so both are there from the first paint.
+      for (const file of ['index.html', '404.html']) {
+        const html = read(file);
+        const main = html.indexOf('<main');
+        const banner = html.indexOf('<div aria-live="polite"></div>');
+        const notice = html.indexOf('<div role="alert" data-testid="load-notice"></div>');
+        expect(banner, file).toBeGreaterThan(html.indexOf('</header>'));
+        expect(notice, file).toBeGreaterThan(banner);
+        expect(main, file).toBeGreaterThan(notice);
+      }
+    });
   });
 }

@@ -10,6 +10,10 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 20_000 },
   retries: process.env.CI ? 1 : 0,
+  // A test that trips a fixture net (an off-chain request, a CSP violation, a page error) and passes on its retry
+  // fails the run: an intermittent leak must not pass the gate as "flaky".
+  failOnFlakyTests: !!process.env.CI,
+  forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: { trace: 'retain-on-failure' },
   projects: [

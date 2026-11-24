@@ -7,12 +7,12 @@ import { messages as shell } from '@/messages/shell.messages';
 import { useLazyOverlay } from '@/ui/lazy-overlay';
 import { PlainIconButton } from '@/ui/plain-icon-button';
 
-/** The popover and the switches load on the first hover, focus or press of the button (ruling R23). */
-const panel = lazyChunk(() => import('./settings-panel'));
+/** The popover and its switches load when the page is idle, or on the first hover, focus or press (ruling R23). */
+export const settingsPanel = lazyChunk(() => import('./settings-panel'));
 
 export function SettingsMenu() {
   const t = useT(shell);
-  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(panel);
+  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(settingsPanel);
   return (
     <>
       <PlainIconButton {...trigger} icon={Settings} label={t('settings')} />

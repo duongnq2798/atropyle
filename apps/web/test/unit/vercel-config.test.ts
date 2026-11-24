@@ -30,7 +30,7 @@ describe('vercel.json', () => {
     expect(config.trailingSlash).toBe(true);
   });
 
-  it('sends only the directives a meta policy cannot carry, so the hashed meta CSP still decides scripts', () => {
+  it('adds frame-ancestors, which a meta policy cannot carry, and repeats object-src, base-uri and form-action for responses without a meta tag', () => {
     // A header with default-src or script-src would block the inline scripts it cannot hash (Quyết định 12).
     expect(siteHeaders()['content-security-policy']).toBe(
       "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'",

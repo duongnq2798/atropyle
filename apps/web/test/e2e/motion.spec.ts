@@ -18,9 +18,9 @@ test('without reduced motion the thread breathes, so the test above can fail', a
 });
 
 /**
- * Plan 7A Quyết định 6: React's ViewTransition starts a view transition when a client navigation commits, so Next
- * needs no viewTransition key. In 7A only `/` and the 404 page exist, and a Link to a missing route reloads the
- * document, so the only client navigation is from the 404 page to `/`.
+ * Plan 7A Quyết định 6, outcome B of Task 15: in Next 16.4.6 React did not start a view transition on a client
+ * navigation, so the shell's NavLink starts one (withPendingViewTransition). In 7A only `/` and the 404 page exist,
+ * and a link to a missing route reloads the document, so the only client navigation is from the 404 page to `/`.
  */
 test('a client navigation runs inside a view transition', async ({ page, state }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });

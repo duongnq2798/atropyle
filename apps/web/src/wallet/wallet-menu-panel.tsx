@@ -5,7 +5,7 @@ import type { RefObject } from 'react';
 import { ENV, explorerUrlOf } from '@/config/env';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
-import { messages as walletText } from '@/messages/wallet.messages';
+import { messages as walletText } from '@/messages/wallet-overlays.messages';
 import { Address } from '@/ui/address';
 import { Button } from '@/ui/button';
 import { AnchoredPopover, PopoverClose } from '@/ui/popover';

@@ -19,6 +19,7 @@ import { ExternalLink } from '@/ui/external-link';
 import { HoldButton } from '@/ui/hold-button';
 import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
+import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { networkName } from '@/wallet/network';
 import { ErrorBox } from './error-box';
 import { TxProgress } from './tx-progress';
@@ -216,6 +217,9 @@ export function TxCard({
           variant="primary"
           data-testid={`${testId}-connect`}
           onClick={runner.connect}
+          // runner.connect opens the wallet sheet; its chunk loads now if the idle preload has not loaded it yet.
+          onPointerEnter={connectSheet.preload}
+          onFocus={connectSheet.preload}
           icon={<Wallet aria-hidden="true" strokeWidth={1.5} />}
         >
           {tw('connect')}

@@ -1,5 +1,5 @@
 import { type RefObject, useId, useRef, useState } from 'react';
-import { type LazyChunk, useChunk } from '@/lib/lazy-chunk';
+import { type LazyChunk, reportLoadFailure, useChunk } from '@/lib/lazy-chunk';
 
 /** What the trigger button of a lazy overlay spreads on itself. */
 export interface OverlayTrigger {
@@ -8,6 +8,8 @@ export interface OverlayTrigger {
   'aria-expanded': boolean;
   /** The content's id while it is open, as a Radix trigger has it. */
   'aria-controls': string | undefined;
+  /** While a press waits for the chunk; PlainIconButton shows a spinner then. */
+  'aria-busy': true | undefined;
   onClick(): void;
   onPointerEnter(): void;
   onFocus(): void;
@@ -15,9 +17,12 @@ export interface OverlayTrigger {
 
 /**
  * An overlay whose button is part of the first paint and whose content is not (ruling R23). The button is a plain
- * button with the attributes a Radix trigger gives its own; the content's chunk loads on pointerenter or focus of
- * the button, so it opens at once, or on the press when neither came first. The content takes `id`, positions on
- * `anchor` and gives focus back to it (AnchoredPopover, or a Dialog with onCloseAutoFocus).
+ * button with the attributes a Radix trigger gives its own; the content's chunk loads when the page is idle
+ * (shell/warm-overlays.ts) or on pointerenter or focus of the button, so it opens at once, or on the press when
+ * none of them came first. A press then shows the button busy and keeps the open pending: the button still says
+ * "not open", so a second press asks again for the same thing. A chunk that fails to load closes it again, and
+ * LoadNotice says so; the next press loads again. The content takes `id`, positions on `anchor` and gives focus
+ * back to it (AnchoredPopover, or a Dialog with onCloseAutoFocus).
  */
 export function useLazyOverlay<T>(chunk: LazyChunk<T>): {
   open: boolean;
@@ -31,7 +36,10 @@ export function useLazyOverlay<T>(chunk: LazyChunk<T>): {
   const [open, setOpen] = useState(false);
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
-  const content = useChunk(chunk, open, () => setOpen(false));
+  const content = useChunk(chunk, open, () => {
+    setOpen(false);
+    reportLoadFailure();
+  });
   const expanded = open && content !== null;
   return {
     open,
@@ -44,7 +52,8 @@ export function useLazyOverlay<T>(chunk: LazyChunk<T>): {
       'aria-haspopup': 'dialog',
       'aria-expanded': expanded,
       'aria-controls': expanded ? id : undefined,
-      onClick: () => setOpen(!open),
+      'aria-busy': open && content === null ? true : undefined,
+      onClick: () => setOpen(!expanded),
       onPointerEnter: chunk.preload,
       onFocus: chunk.preload,
     },

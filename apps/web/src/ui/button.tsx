@@ -34,7 +34,10 @@ export function buttonClass(o: { variant?: ButtonVariant; size?: ButtonSize; cla
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Disables the button and shows a spinner in place of the icon. */
+  /**
+   * Disables the button and shows a spinner in place of the icon. A caller's own `aria-busy` stays without it: busy
+   * but enabled, for a press that waits for a chunk (WalletButton).
+   */
   loading?: boolean;
   icon?: ReactNode;
   ref?: Ref<HTMLButtonElement>;
@@ -56,7 +59,7 @@ export function Button({
       {...rest}
       type={type}
       disabled={disabled || loading}
-      aria-busy={loading || undefined}
+      aria-busy={loading || rest['aria-busy'] || undefined}
       className={buttonClass({ variant, size, className })}
     >
       {loading ? (

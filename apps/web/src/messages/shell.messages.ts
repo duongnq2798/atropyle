@@ -25,6 +25,8 @@ export const messages = defineMessages(
     proofLineShort: 'Rules {keccak} · {limits}',
     proofLimits: 'limits →',
     proofLimitsShort: 'unaudited →',
+    loadFailed: 'Part of this page did not load. Check your connection and press again, or reload the page.',
+    reload: 'Reload the page',
   },
   {
     navCreate: 'Tạo vault',
@@ -50,5 +52,7 @@ export const messages = defineMessages(
     proofLineShort: 'Luật {keccak} · {limits}',
     proofLimits: 'giới hạn →',
     proofLimitsShort: 'chưa kiểm toán →',
+    loadFailed: 'Một phần của trang này chưa tải được. Hãy kiểm tra kết nối mạng rồi bấm lại, hoặc tải lại trang.',
+    reload: 'Tải lại trang',
   },
 );

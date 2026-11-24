@@ -2,11 +2,12 @@
 
 import { ChevronRight, RefreshCw, Wallet, WalletMinimal } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Component, lazy, type ReactNode, Suspense, useEffect, useState } from 'react';
 import { errorCode } from '@/chain/query-client';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
-import { messages as walletText } from '@/messages/wallet.messages';
+import { messages as buttonText } from '@/messages/wallet.messages';
+import { messages as walletText } from '@/messages/wallet-overlays.messages';
 import { SPRING } from '@/motion/tokens';
 import { Button } from '@/ui/button';
 import { CopyButton } from '@/ui/copy-button';
@@ -20,6 +21,24 @@ import type { WalletOption } from './types';
 
 // The QR encoder loads only when the no-wallet help shows, so it stays out of every page's first bundle.
 const QrCode = lazy(() => import('@/ui/qr-code').then((mod) => ({ default: mod.QrCode })));
+
+/**
+ * The QR code, or nothing once its chunk failed to load (offline, or a deploy replaced the hashed chunks of an
+ * open tab). Without it the error would reach the root boundary and take the whole page down; the copy-link row
+ * still gets the page to the phone.
+ */
+class QrBoundary extends Component<{ onError(): void; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override componentDidCatch(): void {
+    this.props.onError();
+  }
+  override render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 /** Longer links (a sign link with its payload) make a QR code too dense for a phone camera; uqr throws past ~2.3 kB. */
 export const QR_MAX_CHARS = 512;
@@ -71,6 +90,7 @@ function NoWallet({
   onSearch,
 }: Pick<WalletPickerProps, 'pageUrl' | 'searching' | 'onSearch'> & { failed: boolean }) {
   const t = useT(walletText);
+  const [qrFailed, setQrFailed] = useState(false);
   const fits = pageUrl.length > 0 && pageUrl.length <= QR_MAX_CHARS;
   return (
     <div className="flex flex-col items-center gap-3 py-2 text-center">
@@ -82,17 +102,21 @@ function NoWallet({
       {pageUrl ? (
         <div className="mt-1 flex w-full max-w-xs flex-col items-center gap-3 rounded-2xl border border-line bg-surface-2/60 p-4">
           {fits ? (
-            <Suspense
-              fallback={
-                <span className="block overflow-hidden rounded-xl">
-                  <Skeleton className="size-[168px]" />
-                </span>
-              }
-            >
-              <QrCode value={pageUrl} label={t('pageLink')} size={168} />
-            </Suspense>
+            <QrBoundary onError={() => setQrFailed(true)}>
+              <Suspense
+                fallback={
+                  <span className="block overflow-hidden rounded-xl">
+                    <Skeleton className="size-[168px]" />
+                  </span>
+                }
+              >
+                <QrCode value={pageUrl} label={t('pageLink')} size={168} />
+              </Suspense>
+            </QrBoundary>
           ) : null}
-          <p className="text-caption text-ink-muted">{fits ? t('noWalletPhone') : t('qrTooLong')}</p>
+          <p className="text-caption text-ink-muted">
+            {!fits ? t('qrTooLong') : qrFailed ? t('qrFailed') : t('noWalletPhone')}
+          </p>
           <CopyButton text={pageUrl} label={t('copyLink')} showText />
         </div>
       ) : null}
@@ -121,6 +145,7 @@ export function WalletPicker({
   onSearch,
 }: WalletPickerProps) {
   const t = useT(walletText);
+  const tb = useT(buttonText);
   if (wallets === null && error === 'searchFailed' && !searching) {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -192,7 +217,7 @@ export function WalletPicker({
                   {isRecommended(w) ? <span className="text-caption text-thread">{t('recommended')}</span> : null}
                 </span>
                 {busy ? (
-                  <Spinner label={t('connecting')} />
+                  <Spinner label={tb('connecting')} />
                 ) : (
                   <ChevronRight
                     aria-hidden="true"

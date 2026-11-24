@@ -19089,6 +19089,10 @@ Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cù
 19. **Lần tải đầu của `/` (R23).** Phần dư dưới 200 kB chỉ còn vài kB (mục Kích thước ở cuối), nên:
     - Component `m.*` lấy từ `motion/react-m` (`import * as m from 'motion/react-m'`); chỉ `MotionProvider` import từ `motion/react`. Test `motion-imports` và `test/build/first-load.test.ts` kiểm: một `import { m } from 'motion/react'` kéo mọi feature của Motion vào lần tải đầu của mọi trang (khoảng 36 kB).
     - Khung và trang `/` không dùng tĩnh `Dialog`, `Popover`, `Tooltip` hay `IconButton` có tooltip: nút vẽ ngay là `PlainIconButton` hay một `<button>` thường, nội dung nạp bằng `lazyChunk` + `useLazyOverlay` (mẫu ở `src/shell/settings-menu.tsx`). Thư viện QR cũng vậy. `first-load.test.ts` kiểm Radix và QR trên `/` và các trang 404; route khác của 7B được dùng chúng ngay từ lần vẽ đầu, trong 240 kB của mình.
+    - Lần bấm đầu không được chờ chunk: điện thoại không có hover. Frame nạp chunk của các overlay khi trang rảnh (`useWarmOverlays`, `whenIdle`), và mọi nút gọi `useWallet().openSheet()` trải `onPointerEnter={connectSheet.preload}` và `onFocus={connectSheet.preload}` (như `WalletButton` và `TxCard`). Overlay lazy mới mà nút nằm trong khung thì thêm `preload` của mình vào `useWarmOverlays`. Trong lúc chờ, nút báo `aria-busy` (trigger của `useLazyOverlay` có sẵn; `PlainIconButton` đổi icon thành spinner) và vẫn bật, nên focus ở lại trên nút.
+    - Chunk hỏng khi người đọc bấm: `onError` của `useChunk` gọi `reportLoadFailure()`, và `LoadNotice` (trong Frame) nói ra và cho tải lại trang. `useLazyOverlay` và `ConnectSheetSlot` đã làm vậy. Không tự tải lại trang: một form đang điền sẽ mất.
+    - Vùng live (`aria-live`, `role="alert"`) phải có từ lần vẽ đầu, nội dung lazy đi vào bên trong; một vùng vào DOM đã có chữ thì trình đọc màn hình không chắc đọc. `NetworkBannerSlot` và `LoadNotice` là mẫu, `test/build/shell.test.ts` kiểm cả hai.
+    - Chuỗi của sheet ví, menu ví và banner sai mạng nằm trong `wallet-overlays.messages.ts`, chỉ chunk của chúng import; `wallet.messages.ts` chỉ còn chuỗi của nút ví. `VisuallyHidden` là một `<span className="sr-only">`: bản của Radix kéo Primitive và Slot vào lần tải đầu qua `Spinner`.
 
 ### Cấu hình, route và môi trường
 
@@ -19210,6 +19214,9 @@ export function useNow(intervalMs?: number): number | null; // null lúc prerend
 export interface LazyChunk<T> { peek(): T | null; load(): Promise<T>; preload(): void } // load một lần; hỏng thì lần sau thử lại; preload nuốt lỗi
 export function lazyChunk<T>(importer: () => Promise<T>): LazyChunk<T>;
 export function useChunk<T>(chunk: LazyChunk<T>, wanted: boolean, onError?: () => void): T | null; // null tới khi nạp xong; đã nạp thì giữ
+export function reportLoadFailure(): void;  // cho onError của useChunk khi người đọc bấm; LoadNotice hiện tới lần một chunk nạp được
+export function useLoadFailed(): boolean;   // false lúc prerender và hydrate
+export function whenIdle(task: () => void): () => void; // requestIdleCallback (timeout 4 s), Safari thì setTimeout 1,5 s; trả hàm huỷ
 
 // src/messages/labels.messages.ts (mọi *.messages.ts export `messages`)
 export const messages: Messages<LabelKey>;
@@ -19346,15 +19353,15 @@ Luật dùng `Thread` cho Plan 7B (R18.4, R18.5):
 ### Primitive (`src/ui/`)
 
 ```ts
-export { Root as VisuallyHidden } from '@radix-ui/react-visually-hidden';
+export function VisuallyHidden(p: { children: ReactNode }): JSX.Element; // <span className="sr-only">, không Radix (R23)
 export function Spinner(p: { label?: string; size?: number; className?: string }): JSX.Element;
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export function buttonClass(o?: { variant?: ButtonVariant; size?: ButtonSize; className?: string }): string; // cho <Link>
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; icon?: ReactNode; ref?: Ref<HTMLButtonElement> }
-export function Button(p: ButtonProps): JSX.Element;
+export function Button(p: ButtonProps): JSX.Element; // loading: tắt nút, hiện spinner; aria-busy của người gọi được giữ khi không loading (bận mà vẫn bật)
 export interface PlainIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> { icon: LucideIcon; label: string; size?: 'sm' | 'md'; ref?: Ref<HTMLButtonElement> }
-export function PlainIconButton(p: PlainIconButtonProps): JSX.Element; // src/ui/plain-icon-button.tsx: không tooltip, không Radix (R23)
+export function PlainIconButton(p: PlainIconButtonProps): JSX.Element; // src/ui/plain-icon-button.tsx: không tooltip, không Radix (R23); aria-busy thì spinner thay icon
 export interface IconButtonProps extends PlainIconButtonProps { tooltip?: boolean }
 export function IconButton(p: IconButtonProps): JSX.Element;           // tooltip mặc định bật, nên file này mang Radix tooltip
 export interface HoldButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type'> { onConfirm(): void; children: ReactNode; icon?: ReactNode; tone?: 'thread' | 'danger'; size?: 'md' | 'lg'; duration?: number; hint?: string }
@@ -19363,8 +19370,9 @@ export function Tooltip(p: { content: ReactNode; children: ReactElement; side?: 
 export function Popover(p: { trigger: ReactElement; children: ReactNode; open?: boolean; onOpenChange?(open: boolean): void; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label?: string; className?: string }): JSX.Element;
 export const PopoverClose = P.Close; // P = @radix-ui/react-popover
 export function AnchoredPopover(p: { anchor: RefObject<HTMLButtonElement | null>; id: string; open: boolean; onOpenChange(open: boolean): void; children: ReactNode; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label: string; onCloseAutoFocus?(event: Event): void; className?: string }): JSX.Element; // popover của một nút đã vẽ trước khi chunk nạp: bấm nút thì đóng, Escape hay chọn bên trong trả focus về nút, bấm chỗ khác để focus ở đó
-export interface OverlayTrigger { ref: RefObject<HTMLButtonElement | null>; 'aria-haspopup': 'dialog'; 'aria-expanded': boolean; 'aria-controls': string | undefined; onClick(): void; onPointerEnter(): void; onFocus(): void }
-export function useLazyOverlay<T>(chunk: LazyChunk<T>): { open: boolean; setOpen(open: boolean): void; id: string; anchor: RefObject<HTMLButtonElement | null>; trigger: OverlayTrigger; content: T | null }; // src/ui/lazy-overlay.ts: trải trigger lên nút; content null tới khi lần mở đầu nạp xong
+export interface OverlayTrigger { ref: RefObject<HTMLButtonElement | null>; 'aria-haspopup': 'dialog'; 'aria-expanded': boolean; 'aria-controls': string | undefined; 'aria-busy': true | undefined; onClick(): void; onPointerEnter(): void; onFocus(): void }
+export function useLazyOverlay<T>(chunk: LazyChunk<T>): { open: boolean; setOpen(open: boolean): void; id: string; anchor: RefObject<HTMLButtonElement | null>; trigger: OverlayTrigger; content: T | null }; // src/ui/lazy-overlay.ts: trải trigger lên nút; content null tới khi lần mở đầu nạp xong;
+                                              // bấm khi chunk đang nạp thì aria-busy và giữ lệnh mở (onClick đảo theo aria-expanded); chunk hỏng thì đóng lại và reportLoadFailure()
 export interface DialogProps { open?: boolean; onOpenChange?(open: boolean): void; trigger?: ReactElement; title: ReactNode; description?: ReactNode; children?: ReactNode; size?: 'sm' | 'md' | 'lg'; sheet?: boolean; onCloseAutoFocus?(event: Event): void; id?: string; className?: string } // id cho aria-controls của nút ngoài dialog
 export function Dialog(p: DialogProps): JSX.Element;
 export function copyText(text: string): Promise<boolean>;
@@ -19398,15 +19406,19 @@ Lớp Tailwind (Task 3): màu `bg`, `surface-1|2|3`, `ink`, `ink-muted`, `thread
 ```ts
 // src/shell/*.tsx, src/home/hero.tsx
 export function Providers(p: { children: ReactNode; kv?: KV }): JSX.Element; // KV → Lang → Theme → Chain (Query) → Wallet → Motion; không provider tooltip (R23)
-export function Frame(p: { children: ReactNode }): JSX.Element;               // SkipLink, ProofLine, Header, NetworkBannerSlot, <main tabIndex={-1}>, Footer, ConnectSheetSlot
+export function Frame(p: { children: ReactNode }): JSX.Element;               // SkipLink, ProofLine, Header, NetworkBannerSlot, LoadNotice, <main tabIndex={-1}>, Footer, ConnectSheetSlot; gọi useWarmOverlays()
+export function LoadNotice(): JSX.Element;    // src/shell/load-notice.tsx: <div role="alert" data-testid="load-notice"> luôn có; chunk hỏng thì lỗi + nút "Reload the page"
+export function useWarmOverlays(): void;      // src/shell/warm-overlays.ts: khi trang rảnh, preload connectSheet, walletMenuPanel và settingsPanel (từ 48rem) hoặc menuSheet
 export function ProofLine(): JSX.Element;     // <p data-testid="proof-line">, một dòng 24 px, mono cỡ caption, prerender, không tắt được;
                                               // [data-variant="wide"] từ md: "Rules frozen in netlist 0x7016…3864 on X Layer · unaudited · limits →";
                                               // [data-variant="narrow"] dưới md, ≤ 36 ký tự: "Rules 0x7016…3864 · unaudited →";
                                               // link keccak → ROUTES.proof (title = keccak đầy đủ), link giới hạn → LIMITS_HREF
 export function Header(): JSX.Element;        // .site-header, dính trên cùng; bg-bg/95 dưới md, md:bg-bg/80 md:backdrop-blur-md
 export function NavList(p: { layout: 'bar' | 'sheet'; onNavigate?(): void }): JSX.Element;
-export function SettingsMenu(): JSX.Element;  // popover "Settings" (md trở lên); nút vẽ ngay, popover nạp khi hover, focus hay bấm (R23)
+export function SettingsMenu(): JSX.Element;  // popover "Settings" (md trở lên); nút vẽ ngay, popover nạp khi trang rảnh, hover, focus hay bấm (R23)
+export const settingsPanel: LazyChunk<typeof import('./settings-panel')>;   // settings-menu.tsx
 export function MobileMenu(): JSX.Element;    // dialog "Menu" (dưới md); nạp như SettingsMenu
+export const menuSheet: LazyChunk<typeof import('./menu-sheet')>;           // mobile-menu.tsx
 export function Footer(): JSX.Element;        // .site-footer; "Known limits" → LIMITS_HREF; "For heirs and guardians" → ROUTES.verify;
                                               // nguồn, X Layer, giấy phép, trạng thái, nhà phát triển, quyền riêng tư; phiên bản; "No trackers · No cookies"
 export function SkipLink(p: { targetId: string }): JSX.Element; // một <button>, giữ nguyên hash; luôn là phần tử đầu của trang
@@ -19530,13 +19542,16 @@ export function isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean
 export interface WalletPickerProps { wallets: readonly WalletOption[] | null; searching: boolean; connectingId: string | null; error: PickerError | null; pageUrl: string; onPick(option: WalletOption): void; onSearch(): void }
 export function WalletPicker(p: WalletPickerProps): JSX.Element;
 export function ConnectSheet(): JSX.Element;          // chunk riêng; Frame gắn qua ConnectSheetSlot; trang mở bằng useWallet().openSheet()
-export const connectSheet: LazyChunk<typeof import('./connect-sheet')>; // connect-sheet-slot.tsx; WalletButton preload khi hover và focus
-export function ConnectSheetSlot(): JSX.Element | null; // không vẽ gì tới lần openSheet() đầu, rồi giữ sheet; chunk hỏng thì đóng sheet lại
+export const connectSheet: LazyChunk<typeof import('./connect-sheet')>; // connect-sheet-slot.tsx; Frame preload khi trang rảnh, mọi nút gọi openSheet() preload khi hover và focus
+export function ConnectSheetSlot(): JSX.Element | null; // không vẽ gì tới lần openSheet() đầu, rồi giữ sheet; chunk hỏng thì đóng sheet lại và reportLoadFailure()
 export function WalletButton(): JSX.Element;
-export function WalletMenu(): JSX.Element;            // nút tài khoản vẽ ngay; menu (wallet-menu-panel.tsx) nạp khi hover, focus hay bấm
+export function WalletMenu(): JSX.Element;            // nút tài khoản vẽ ngay; menu (wallet-menu-panel.tsx) nạp khi trang rảnh, hover, focus hay bấm
+export const walletMenuPanel: LazyChunk<typeof import('./wallet-menu-panel')>; // wallet-menu.tsx
 export function SwitchNetworkButton(p: { className?: string }): JSX.Element;
-export function NetworkBanner(): JSX.Element;         // data-testid="network-banner"
-export function NetworkBannerSlot(): JSX.Element | null; // network-banner-slot.tsx: nạp NetworkBanner khi ví sai chain lần đầu
+export function NetworkBanner(): JSX.Element | null;  // data-testid="network-banner"; null khi ví đúng chain; không tự mang vùng live
+export const networkBanner: LazyChunk<typeof import('./network-banner')>; // network-banner-slot.tsx
+export function NetworkBannerSlot(): JSX.Element;     // <div aria-live="polite"> luôn có từ lần vẽ đầu; NetworkBanner nạp khi ví sai chain lần đầu rồi vào trong nó;
+                                                      // chunk hỏng thì thử lại sau 2 s (gấp đôi, tối đa 60 s) hoặc khi trình duyệt online lại
 
 // src/wallet/impl/index.ts (chỉ qua loadWalletImpl): discoverWallets, providerErrorCodes, call, requestAccount,
 // readChainId, ensureChain, walletClientFor (wallet.ts); UNSUPPORTED_CODES, CallsUnsupported, isUnsupported,
@@ -19763,4 +19778,4 @@ Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|light
 - `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
 - Ảnh duyệt thiết kế: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
 
-**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `191,1 kB` gzip (`npm run size`, bản deweb và bản vercel như nhau), dưới ngân sách 200 kB (R23), còn dư `8,9 kB`. Trang 404 là `184,8 kB`, dưới 240 kB. Dòng "R16" của báo cáo Task 15 ghi cách đo và phần lớn nhất: Next 16 + React 19 chiếm khoảng 135,7 kB. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).
+**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `189,2 kB` gzip (`npm run size`, bản deweb và bản vercel như nhau), dưới ngân sách 200 kB (R23), còn dư `10,8 kB`. Trang 404 là `182,8 kB`, dưới 240 kB. Dòng "R16" của báo cáo Task 15 ghi cách đo và phần lớn nhất: Next 16 + React 19 chiếm khoảng 135,7 kB. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).

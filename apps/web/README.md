@@ -39,7 +39,7 @@ Set them in the environment of the build, not in a `.env` file. The CSP of every
 
 ## Security
 
-- **CSP.** After `next build`, every page gets a `<meta>` policy with the SHA-256 of each of its inline scripts (`scripts/lib/csp.ts`). `connect-src` allows the RPC nodes of the deployment, plus the backend on `vercel`. `vercel.json` adds `frame-ancestors 'none'` and the other directives a meta tag cannot carry.
+- **CSP.** After `next build`, every page gets a `<meta>` policy with the SHA-256 of each of its inline scripts (`scripts/lib/csp.ts`). `connect-src` allows the RPC nodes of the deployment, plus the backend on `vercel`. `vercel.json` adds `frame-ancestors 'none'`, which a meta policy cannot carry, and repeats `object-src`, `base-uri` and `form-action` for responses without a meta tag.
 - **No telemetry, no third parties.** The build sets `NEXT_TELEMETRY_DISABLED=1`. Fonts are self-hosted with their OFL licences in `public/licenses/fonts/`. Lighthouse runs on this machine against the local build.
 - **Zero keys.** The app never asks for a key or a seed phrase; people sign in their own wallet. The e2e wallet holds no key either: it sends from unlocked accounts of a local anvil.
 - **Untrusted text.** Token names, revert reasons and wallet names are shown through `UntrustedText`, never as HTML or as a link.

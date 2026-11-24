@@ -6,10 +6,11 @@ import { lazyChunk } from '@/lib/lazy-chunk';
 import { messages as walletText } from '@/messages/wallet.messages';
 import { Avatar } from '@/ui/avatar';
 import { useLazyOverlay } from '@/ui/lazy-overlay';
+import { Spinner } from '@/ui/spinner';
 import { useWallet } from './provider';
 
-/** The menu loads on the first hover, focus or press of the account button (ruling R23). */
-const panel = lazyChunk(() => import('./wallet-menu-panel'));
+/** The menu loads when the page is idle, or on the first hover, focus or press of the account button (ruling R23). */
+export const walletMenuPanel = lazyChunk(() => import('./wallet-menu-panel'));
 
 /**
  * The connected account: a short form on the button (the full address is one click away, Task 5 `compactAddress`),
@@ -18,7 +19,7 @@ const panel = lazyChunk(() => import('./wallet-menu-panel'));
 export function WalletMenu() {
   const t = useT(walletText);
   const { wallet, wrongChain } = useWallet();
-  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(panel);
+  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(walletMenuPanel);
   if (!wallet) return null;
   const short = compactAddress(wallet.account);
   return (
@@ -30,7 +31,13 @@ export function WalletMenu() {
         aria-label={t(wrongChain ? 'accountButtonWrong' : 'accountButton', { account: short })}
         className="relative inline-flex h-8 items-center gap-2 rounded-full border border-line bg-surface-1 pr-1.5 pl-1.5 text-small transition-colors duration-150 hover:bg-surface-2 sm:pr-3"
       >
-        <Avatar address={wallet.account} size={24} />
+        {trigger['aria-busy'] ? (
+          <span className="grid size-6 place-items-center text-ink-muted">
+            <Spinner size={16} />
+          </span>
+        ) : (
+          <Avatar address={wallet.account} size={24} />
+        )}
         <span translate="no" className="hidden font-mono tabular-nums sm:inline">
           {short}
         </span>

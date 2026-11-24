@@ -3,6 +3,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes, Ref } from 'react';
 import { cn } from '@/lib/cn';
+import { Spinner } from './spinner';
 
 export interface PlainIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   icon: LucideIcon;
@@ -15,6 +16,7 @@ export interface PlainIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButt
 /**
  * An icon button without a tooltip. The shell's own buttons (Menu, Settings, the close buttons) use it, so the
  * Radix tooltip and its positioning engine stay out of the first load (ruling R23); IconButton adds the tooltip.
+ * While `aria-busy` (a lazy overlay waiting for its chunk), a spinner takes the icon's place.
  */
 export function PlainIconButton({
   icon: Icon,
@@ -36,7 +38,11 @@ export function PlainIconButton({
         className,
       )}
     >
-      <Icon aria-hidden="true" size={size === 'sm' ? 16 : 18} strokeWidth={1.5} />
+      {rest['aria-busy'] === true ? (
+        <Spinner size={size === 'sm' ? 14 : 16} />
+      ) : (
+        <Icon aria-hidden="true" size={size === 'sm' ? 16 : 18} strokeWidth={1.5} />
+      )}
     </button>
   );
 }

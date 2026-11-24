@@ -49,7 +49,11 @@ for (const target of ['vercel', 'deweb'] as const) {
         const scripts = sources(policies(html)[0].csp, 'script-src');
         expect(scripts[0], relative(out, file)).toBe("'self'");
         for (const s of scripts.slice(1)) expect(s, relative(out, file)).toMatch(/^'sha256-[A-Za-z0-9+/]{43}='$/);
-        for (const text of inlineScripts(html)) expect(scripts, relative(out, file)).toContain(scriptHash(text));
+        // Exactly the hashes of this page: none missing, and none from another page or a script that is gone.
+        expect(new Set(scripts.slice(1)), relative(out, file)).toEqual(new Set(inlineScripts(html).map(scriptHash)));
+        // Counted apart from the implementation's own pattern: every <script> without src is an inline script.
+        const bare = [...html.matchAll(/<script\b([^>]*)>/gi)].filter(([, attrs]) => !/\ssrc\s*=/i.test(attrs));
+        expect(inlineScripts(html), relative(out, file)).toHaveLength(bare.length);
       }
     });
   });

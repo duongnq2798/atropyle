@@ -4,7 +4,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { errorCode } from '@/chain/query-client';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
-import { messages as walletText } from '@/messages/wallet.messages';
+import { messages as walletText } from '@/messages/wallet-overlays.messages';
 import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
 import { InlineError } from '@/ui/inline-error';
@@ -60,24 +60,21 @@ export function SwitchNetworkButton({ className }: { className?: string }) {
 }
 
 /**
- * Under the header while the wallet is on another chain (Review Focus 3). The live region is always there, so a
- * screen reader hears the banner when a wallet event brings it.
+ * Under the header while the wallet is on another chain (Review Focus 3), in the live region that
+ * NetworkBannerSlot keeps on every page from the first paint, so a screen reader hears the banner when a wallet
+ * event brings it.
  */
 export function NetworkBanner() {
   const t = useT(walletText);
   const { wallet, wrongChain, expectedChainId } = useWallet();
-  const show = wallet !== null && wrongChain;
+  if (wallet === null || !wrongChain) return null;
   return (
-    <div aria-live="polite" className={show ? 'mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6' : undefined}>
-      {show ? (
-        <Banner tone="warn" testId="network-banner" title={t('wrongNetworkTitle')} action={<SwitchNetworkButton />}>
-          {t('wrongNetwork', {
-            actual: networkName(wallet.chainId),
-            expected: networkName(expectedChainId),
-            id: expectedChainId,
-          })}
-        </Banner>
-      ) : null}
-    </div>
+    <Banner tone="warn" testId="network-banner" title={t('wrongNetworkTitle')} action={<SwitchNetworkButton />}>
+      {t('wrongNetwork', {
+        actual: networkName(wallet.chainId),
+        expected: networkName(expectedChainId),
+        id: expectedChainId,
+      })}
+    </Banner>
   );
 }

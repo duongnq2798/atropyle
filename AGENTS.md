@@ -80,6 +80,7 @@ npm run typecheck -w apps/web
 npm test -w apps/web
 npm run test:build -w apps/web
 npm run worker:check -w apps/web
+npm run playwright:install -w apps/web
 npm run e2e -w apps/web
 npm run build -w apps/web
 npm run size -w apps/web

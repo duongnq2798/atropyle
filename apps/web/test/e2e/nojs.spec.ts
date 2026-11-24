@@ -53,10 +53,14 @@ async function expectHome(page: Page): Promise<void> {
 
 /** Every page that must read without JavaScript. Plan 7B Task 12 adds 'verify/', Plan 7C Task 3 adds 'proof/'. */
 const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [{ path: '', content: expectHome }];
+if (PAGES.length === 0) throw new Error('nojs.spec.ts checks no page');
 
 for (const { path, content } of PAGES) {
   test(`/${path} reads without JavaScript`, async ({ page, state }) => {
     await page.goto(new URL(path, state.siteUrl).href);
+    // Proof that no page script ran: Next's inline bootstrap defines self.__next_f as soon as scripts run. Without
+    // it, a lost `javaScriptEnabled: false` would let every check below pass on a hydrated page.
+    expect(await page.evaluate(() => '__next_f' in self)).toBe(false);
     await content(page);
     await expectFrame(page);
   });
