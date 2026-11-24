@@ -31,6 +31,8 @@ git submodule update --init --recursive
 npm ci
 ```
 
+On Windows, npm drops some `@emnapi` entries from `package-lock.json`, and `npm ci` on Linux then fails. Run `npm run lockfile:check -- --fix` after every `npm install` and commit `package-lock.json`.
+
 ## Build
 
 The order matters: circuits, then the SDK, then the MCP server, then the CLI. Each package tests against the built `dist` of the packages it depends on.
@@ -73,14 +75,15 @@ npm run build -w apps/web-legacy
 npm run size -w apps/web-legacy
 ```
 
-The web app v2 in `apps/web` has its own checks. Its e2e, like the legacy one, needs the output of `forge build` in `contracts/` and Chromium. `size` and `lighthouse` read the production build in `apps/web/out`, so run `npm run build -w apps/web` right before them.
+The web app v2 in `apps/web` has its own checks. `test:build`, `worker:check`, `e2e` and `lighthouse` need Chromium, which `npm run playwright:install -w apps/web` installs once; the e2e, like the legacy one, also needs the output of `forge build` in `contracts/`. `worker:check` and `e2e` leave their own build in `apps/web/out`, and `size` and `lighthouse` read the production build there, so run `npm run build -w apps/web` right before them. CI also checks the size budget on the vercel build of `test:build`.
 
 ```bash
 npm run typecheck -w apps/web
 npm test -w apps/web
-npm run test:build -w apps/web
-npm run worker:check -w apps/web
 npm run playwright:install -w apps/web
+npm run test:build -w apps/web
+SIZE_OUT=test/build/.out/vercel npm run size -w apps/web
+npm run worker:check -w apps/web
 npm run e2e -w apps/web
 npm run build -w apps/web
 npm run size -w apps/web

@@ -72,6 +72,8 @@ test('the web-next job builds the SDK first, then tests, then builds both target
   expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(
     c.indexOf('npm run worker:check -w apps/web'),
   );
+  // test/build/reveal-sync.test.ts launches Chromium.
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(c.indexOf('npm run test:build -w apps/web'));
 });
 
 test('the web-next job installs Foundry 1.9.0 and builds the contracts before e2e', () => {

@@ -23,7 +23,7 @@ npm run build -w apps/web && npm run size -w apps/web
 npm run lighthouse -w apps/web     # after a production build; reports in lighthouse-report/
 ```
 
-`npm run playwright:install -w apps/web` installs Chromium once, for `worker:check`, `e2e` and `lighthouse`.
+`npm run playwright:install -w apps/web` installs Chromium once, for `test:build`, `worker:check`, `e2e` and `lighthouse`. `worker:check` and `e2e` build into `out/` too, so build again before `size` and `lighthouse`.
 
 ## Build variables
 
