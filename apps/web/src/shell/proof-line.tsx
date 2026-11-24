@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { POLICY_NETLIST_KECCAK } from '@/config/facts';
 import { useT } from '@/i18n/provider';
 import { messages as shell } from '@/messages/shell.messages';
 import { LIMITS_HREF, ROUTES } from '@/routes';
+import { NavLink } from './nav-link';
 
 /** `0x7016…3864`: the first four and the last four hex digits; the full hash is the link's title. */
 const SHORT = `${POLICY_NETLIST_KECCAK.slice(0, 6)}…${POLICY_NETLIST_KECCAK.slice(-4)}`;
@@ -29,14 +29,15 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
   return (
     <span data-variant={variant} className={variant === 'wide' ? 'hidden md:inline' : 'md:hidden'}>
       {before}
-      {/* prefetch stays off until /proof/ exists (Quyết định 22; 7C T3 turns it on). */}
-      <Link href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={GOLD}>
+      {/* prefetch stays off until /proof/ exists (Quyết định 22; 7C T3 turns it on). NavLink, like the footer's
+          "Known limits": a plain next/link would leave without the route's view transition (Task 15, outcome B). */}
+      <NavLink href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={GOLD}>
         {SHORT}
-      </Link>
+      </NavLink>
       {between}
-      <Link href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
+      <NavLink href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
         {limits}
-      </Link>
+      </NavLink>
       {after}
     </span>
   );

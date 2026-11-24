@@ -1,8 +1,11 @@
-import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import deployment from '../../../../deployments/xlayer.json';
 import { ProofLine } from '../../src/shell/proof-line';
 import { renderWithProviders } from '../helpers/render';
+
+const nav = vi.hoisted(() => ({ push: vi.fn<(href: string) => void>() }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ push: nav.push }) }));
 
 const KECCAK = deployment.circuits.netlistKeccak.policy;
 const SHORT = `${KECCAK.slice(0, 6)}…${KECCAK.slice(-4)}`;
@@ -80,6 +83,35 @@ describe('ProofLine', () => {
       expect(length(narrow.textContent), `${lang} narrow`).toBeLessThanOrEqual(36);
       expect(length(wide.textContent), `${lang} wide`).toBeLessThanOrEqual(96);
       unmount();
+    }
+  });
+
+  it('leaves for /proof/ in a view transition, through NavLink like the footer (Task 15, outcome B)', () => {
+    const updates: (() => unknown)[] = [];
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (update: () => unknown) => {
+        updates.push(update);
+        return {};
+      },
+    });
+    // React handles the click at its root; this listener on window runs after it and stops happy-dom navigating.
+    const guard = (e: Event) => e.preventDefault();
+    window.addEventListener('click', guard);
+    try {
+      renderWithProviders(<ProofLine />);
+      for (const a of Array.from(variants().line.querySelectorAll('a'))) fireEvent.click(a);
+      expect(updates).toHaveLength(4);
+      for (const update of updates) void update();
+      expect(nav.push.mock.calls.map(([href]) => href)).toEqual([
+        '/proof/',
+        '/proof/#limits',
+        '/proof/',
+        '/proof/#limits',
+      ]);
+    } finally {
+      window.removeEventListener('click', guard);
+      Reflect.deleteProperty(document, 'startViewTransition');
     }
   });
 });
