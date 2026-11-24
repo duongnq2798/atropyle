@@ -1,11 +1,12 @@
 'use client';
 
-import { skipToken, useQuery } from '@tanstack/react-query';
+import { type QueryClient, skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import type { Address } from 'viem';
-import { CHAIN_ID, useSdk } from '@/chain/hooks';
+import { CHAIN_ID, sdkQuery } from '@/chain/hooks';
 import { chainKeys } from '@/chain/keys';
 import { useChainSettings } from '@/chain/provider';
+import type { Sdk } from '@/chain/types';
 import { loadVerifyImpl } from './load';
 import type { PolicyVerification, ProofProgress, VaultVerification } from './types';
 
@@ -55,6 +56,15 @@ const SESSION = {
   structuralSharing: false,
 } as const;
 
+/**
+ * The SDK inside the run's own query: a chunk that failed to load or a broken deployment becomes the run's error, and
+ * the run's Retry loads the SDK again. The run itself never retries (SESSION), so the SDK keeps the client's policy: a
+ * chunk that failed to load is tried again, a broken deployment never.
+ */
+function sdkFor(client: QueryClient, crossCheck: boolean): Promise<Sdk> {
+  return client.query(sdkQuery(crossCheck));
+}
+
 export interface ProofState {
   status: RunStatus;
   progress: ProofProgress | null;
@@ -66,25 +76,24 @@ export interface ProofState {
 
 /** The policy proof of this build's deployment (2^26 combinations, in the worker), only when the user asks. */
 export function useProof(): ProofState {
-  const sdkQuery = useSdk();
-  const sdk = sdkQuery.data;
+  const client = useQueryClient();
   const { crossCheck } = useChainSettings();
   const [started, setStarted] = useState(false);
   const queryKey = verifyKeys.proof(crossCheck);
   const id = JSON.stringify(queryKey);
   const q = useQuery({
     queryKey,
-    queryFn:
-      started && sdk
-        ? async () => {
-            try {
-              const impl = await loadVerifyImpl();
-              return await impl.runProof(sdk, { onProgress: (done, total) => publish(id, { done, total }) });
-            } finally {
-              publish(id, null);
-            }
+    queryFn: started
+      ? async () => {
+          try {
+            const sdk = await sdkFor(client, crossCheck);
+            const impl = await loadVerifyImpl();
+            return await impl.runProof(sdk, { onProgress: (done, total) => publish(id, { done, total }) });
+          } finally {
+            publish(id, null);
           }
-        : skipToken,
+        }
+      : skipToken,
     gcTime: Number.POSITIVE_INFINITY,
     ...SESSION,
   });
@@ -95,19 +104,19 @@ export function useProof(): ProofState {
     else if (isError) void refetch();
   }, [started, isError, refetch]);
 
-  const sdkError = started && sdkQuery.isError;
   // A retry after an error is 'running' again, not still 'error'.
   const status: RunStatus =
     q.data !== undefined
       ? 'done'
       : q.fetchStatus === 'fetching'
         ? 'running'
-        : q.isError || sdkError
+        : q.isError
           ? 'error'
           : started
             ? 'running'
             : 'idle';
-  return { status, progress, result: q.data, error: q.error ?? (sdkError ? sdkQuery.error : null), run };
+  // A vault page that left the session proof running still publishes its count; this page shows it once it runs too.
+  return { status, progress: status === 'running' ? progress : null, result: q.data, error: q.error, run };
 }
 
 export interface VaultVerifyState {
@@ -125,41 +134,40 @@ export interface VaultVerifyState {
  * (useInvalidateVault clears every key under the vault's).
  */
 export function useVaultVerify(vault: Address | null, policy: boolean): VaultVerifyState {
-  const sdkQuery = useSdk();
-  const sdk = sdkQuery.data;
+  const client = useQueryClient();
   const { crossCheck } = useChainSettings();
   const proofId = JSON.stringify(verifyKeys.proof(crossCheck));
   const q = useQuery({
     queryKey: verifyKeys.vault(vault ?? '', policy, crossCheck),
-    queryFn:
-      vault && sdk
-        ? async () => {
-            try {
-              const impl = await loadVerifyImpl();
-              return await impl.runVaultVerify(sdk, vault, {
-                policy,
-                onProgress: (done, total) => publish(proofId, { done, total }),
-              });
-            } finally {
-              if (policy) publish(proofId, null);
-            }
+    queryFn: vault
+      ? async () => {
+          try {
+            const sdk = await sdkFor(client, crossCheck);
+            const impl = await loadVerifyImpl();
+            return await impl.runVaultVerify(sdk, vault, {
+              policy,
+              onProgress: (done, total) => publish(proofId, { done, total }),
+            });
+          } finally {
+            if (policy) publish(proofId, null);
           }
-        : skipToken,
+        }
+      : skipToken,
     ...SESSION,
   });
   const progress = useProgress(proofId);
   const { refetch } = q;
+  // Without a vault there is no check to run (a refetch of a skipped query only fails with "Missing queryFn").
   const retry = useCallback(() => {
-    void refetch();
-  }, [refetch]);
+    if (vault) void refetch();
+  }, [vault, refetch]);
 
-  const sdkError = vault !== null && sdkQuery.isError;
   const status: RunStatus =
     q.data !== undefined
       ? 'done'
       : q.fetchStatus === 'fetching'
         ? 'running'
-        : q.isError || sdkError
+        : q.isError
           ? 'error'
           : vault
             ? 'running'
@@ -168,7 +176,7 @@ export function useVaultVerify(vault: Address | null, policy: boolean): VaultVer
     status,
     progress: policy && status === 'running' ? progress : null,
     result: q.data,
-    error: q.error ?? (sdkError ? sdkQuery.error : null),
+    error: q.error,
     retry,
   };
 }

@@ -38,7 +38,8 @@ interface EvalOptions {
   worker?: WorkerFactory;
   /**
    * Stops the run (ruling R14), for a page the user leaves: the worker is terminated and the promise rejects with an
-   * AbortError. A signal that has already aborted starts no worker.
+   * AbortError. A signal that has already aborted starts no worker. A signal always means a fresh, uncached run (see
+   * runProof), so a caller that means to join or fill the session proof passes none: pass it only with `blocks`.
    */
   signal?: AbortSignal;
 }
