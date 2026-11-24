@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NavLink } from '../../src/shell/nav-link';
 
@@ -48,6 +48,28 @@ describe('NavLink', () => {
     rerender(<NavLink href="/proof/">Proof</NavLink>);
     await finished;
     expect(done).toBe(true);
+  });
+
+  it('lets the new picture in as soon as the route commits, also when the clicked link leaves with the old page', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    // The header's home link stays; the in-page link goes with the old page, in the commit that changes the pathname.
+    const { rerender } = render(
+      <>
+        <NavLink href="/">Home</NavLink>
+        <NavLink href="/proof/">Proof</NavLink>
+      </>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'Proof' }));
+    expect(updates).toHaveLength(1);
+    let done = false;
+    const finished = updates[0]().then(() => {
+      done = true;
+    });
+    nav.pathname = '/proof/';
+    rerender(<NavLink href="/">Home</NavLink>);
+    await act(async () => {});
+    expect(done).toBe(true);
+    await finished;
   });
 
   it('stops holding the old picture after one second, so a failed navigation never freezes the page', async () => {
