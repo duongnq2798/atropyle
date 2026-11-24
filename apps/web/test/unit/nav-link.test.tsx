@@ -2,8 +2,15 @@ import { act, createEvent, fireEvent, render, screen } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NavLink } from '../../src/shell/nav-link';
 
-const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn<(href: string) => void>() }));
-vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ push: nav.push }) }));
+const nav = vi.hoisted(() => ({
+  pathname: '/',
+  push: vi.fn<(href: string, options?: object) => void>(),
+  replace: vi.fn<(href: string, options?: object) => void>(),
+}));
+vi.mock('next/navigation', () => ({
+  usePathname: () => nav.pathname,
+  useRouter: () => ({ push: nav.push, replace: nav.replace }),
+}));
 
 /** The update callbacks handed to the fake document.startViewTransition, in call order. */
 const updates: (() => Promise<void>)[] = [];
@@ -11,6 +18,7 @@ const updates: (() => Promise<void>)[] = [];
 beforeEach(() => {
   nav.pathname = '/';
   nav.push.mockClear();
+  nav.replace.mockClear();
   updates.length = 0;
   Object.defineProperty(document, 'startViewTransition', {
     configurable: true,
@@ -40,7 +48,7 @@ describe('NavLink', () => {
     const finished = updates[0]().then(() => {
       done = true;
     });
-    expect(nav.push).toHaveBeenCalledWith('/proof/');
+    expect(nav.push).toHaveBeenCalledWith('/proof/', { scroll: undefined, transitionTypes: undefined });
     await Promise.resolve();
     expect(done).toBe(false);
     // usePathname may report the route without its trailing slash; it is the same page.
@@ -110,6 +118,57 @@ describe('NavLink', () => {
     expect(nav.push).not.toHaveBeenCalled();
   });
 
+  it("keeps next/link's replace, scroll and transitionTypes on the navigation it starts", () => {
+    render(
+      <>
+        <NavLink href="/proof/" replace scroll={false} transitionTypes={['forward']}>
+          Proof
+        </NavLink>
+        <NavLink href="/create/">Create</NavLink>
+      </>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'Proof' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Create' }));
+    expect(updates).toHaveLength(2);
+    for (const update of updates) void update();
+    // replace: no new history entry; scroll={false}: the page keeps its scroll position.
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledWith('/proof/', { scroll: false, transitionTypes: ['forward'] });
+    expect(nav.push).toHaveBeenCalledTimes(1);
+    expect(nav.push.mock.calls[0][0]).toBe('/create/');
+  });
+
+  it('asks onNavigate first, as next/link does, and one that prevents it stays on the page', () => {
+    const asked: string[] = [];
+    render(
+      <>
+        <NavLink
+          href="/proof/"
+          onNavigate={(e) => {
+            asked.push('proof');
+            e.preventDefault();
+          }}
+        >
+          Proof
+        </NavLink>
+        <NavLink href="/create/" onNavigate={() => asked.push('create')}>
+          Create
+        </NavLink>
+      </>,
+    );
+    const proof = screen.getByRole('link', { name: 'Proof' });
+    const click = createEvent.click(proof);
+    fireEvent(proof, click);
+    // The browser does not follow the link either: next/link prevents the click before it asks.
+    expect(click.defaultPrevented).toBe(true);
+    expect(updates).toHaveLength(0);
+    fireEvent.click(screen.getByRole('link', { name: 'Create' }));
+    expect(asked).toEqual(['proof', 'create']);
+    expect(updates).toHaveLength(1);
+    void updates[0]();
+    expect(nav.push.mock.calls.map(([href]) => href)).toEqual(['/create/']);
+  });
+
   it('keeps the view transition under reduced motion, which globals.css turns into a 120 ms crossfade', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation(
       (query: string) => ({ matches: query.includes('reduce'), media: query }) as MediaQueryList,
@@ -121,6 +180,6 @@ describe('NavLink', () => {
     expect(click.defaultPrevented).toBe(true);
     expect(updates).toHaveLength(1);
     void updates[0]();
-    expect(nav.push).toHaveBeenCalledWith('/proof/');
+    expect(nav.push).toHaveBeenCalledWith('/proof/', { scroll: undefined, transitionTypes: undefined });
   });
 });

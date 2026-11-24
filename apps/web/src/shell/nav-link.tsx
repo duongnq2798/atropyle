@@ -30,9 +30,11 @@ let pending: { path: string; resolve(): void } | null = null;
 /**
  * next/link whose client navigation runs inside a view transition, because React did not start one for a navigation
  * in this Next version (the spy in test/e2e/motion.spec.ts). The old picture stays until the new pathname has
- * committed, at most one second.
+ * committed, at most one second. It keeps next/link's own props for the navigation it starts: `replace`, `scroll`,
+ * `transitionTypes`, and `onNavigate`, which may cancel it.
  */
 export function NavLink({ href, onClick, ...rest }: NavLinkProps) {
+  const { replace, scroll, transitionTypes, onNavigate } = rest;
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   useEffect(() => {
@@ -53,10 +55,22 @@ export function NavLink({ href, onClick, ...rest }: NavLinkProps) {
         // Another site, or the same page (a hash change): next/link and the browser handle it.
         if (to.origin !== window.location.origin || samePath(to.pathname, window.location.pathname)) return;
         e.preventDefault();
+        // As next/link: the click is already prevented, so a cancelled navigation stays on the page.
+        let cancelled = false;
+        onNavigate?.({
+          preventDefault: () => {
+            cancelled = true;
+          },
+        });
+        if (cancelled) return;
         const committed = new Promise<void>((resolve) => {
           pending = { path: to.pathname, resolve };
         });
-        withPendingViewTransition(() => router.push(href), committed);
+        const options = { scroll, transitionTypes };
+        withPendingViewTransition(
+          () => (replace ? router.replace(href, options) : router.push(href, options)),
+          committed,
+        );
       }}
     />
   );
