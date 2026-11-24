@@ -1,7 +1,7 @@
 import { focusManager } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../../src/api/client';
+import { ApiError, createApiClient } from '../../src/api/client';
 import { useApiStats, useConfirm, useHealth, useMe, useSubscribe, useUnsubscribe } from '../../src/api/hooks';
 import type { SubscribeRequest } from '../../src/api/types';
 import { toCache } from '../../src/chain/impl/stats-view';
@@ -261,5 +261,48 @@ describe('backend reads that failed before they had data', () => {
     expect(fake.stats).toHaveBeenCalledTimes(6);
     expect(fake.me).toHaveBeenCalledTimes(6);
     expect(result.current.api.error).toMatchObject({ code: 'INTERNAL' });
+  });
+});
+
+describe('a backend that never answers', () => {
+  /** A fetch that never answers and rejects like the real one when its signal aborts. */
+  const hanging = (_url: string, init: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      const abort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+      if (init.signal?.aborted) abort();
+      else init.signal?.addEventListener('abort', abort);
+    });
+
+  it('fails after one timeout, not three, so the home page falls back to the chain quickly (spec §2)', async () => {
+    vi.useFakeTimers();
+    const client = createApiClient('https://api.example', { fetch: hanging as unknown as typeof fetch });
+    fake.stats.mockImplementation((signal?: AbortSignal) => client.stats(signal));
+    fake.me.mockImplementation((a: string, signal?: AbortSignal) => client.me(a, signal));
+    fake.health.mockImplementation((signal?: AbortSignal) => client.health(signal));
+    const { wrapper } = makeWrapper({ queryClient: makeQueryClient() });
+    const { result } = renderHook(
+      () => ({ api: useApiStats(), home: useStats(), me: useMe(PEOPLE.owner), health: useHealth() }),
+      { wrapper },
+    );
+    // The client's own limit is 10 s a request.
+    await act(() => vi.advanceTimersByTimeAsync(10_100));
+    expect(result.current.api.error).toMatchObject({ code: 'TIMEOUT' });
+    expect(result.current.me.error).toMatchObject({ code: 'TIMEOUT' });
+    expect(result.current.health.error).toMatchObject({ code: 'TIMEOUT' });
+    expect(result.current.home).toMatchObject({ loading: false, error: { code: 'TIMEOUT' } });
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(fake.stats).toHaveBeenCalledTimes(1);
+    expect(fake.me).toHaveBeenCalledTimes(1);
+    expect(fake.health).toHaveBeenCalledTimes(1);
+  });
+
+  it('still retries a passing failure that answers', async () => {
+    vi.useFakeTimers();
+    fake.stats.mockRejectedValueOnce(new ApiError('NETWORK', null, 'GET /stats failed')).mockResolvedValue(STATS);
+    const { wrapper } = makeWrapper({ queryClient: makeQueryClient() });
+    const { result } = renderHook(() => useApiStats(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(result.current.data).toEqual(STATS);
+    expect(fake.stats).toHaveBeenCalledTimes(2);
   });
 });
