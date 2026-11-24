@@ -1,4 +1,4 @@
-import { AtropyleError, DOCS_BASE_URL, ERROR_INFO, untrusted } from '@atropyle/sdk';
+import { AtropyleError, DOCS_BASE_URL, untrusted } from '@atropyle/sdk';
 import { fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/client';
@@ -30,7 +30,8 @@ describe('ErrorBox', () => {
     );
     const box = await screen.findByTestId('error');
     expect(box.getAttribute('data-code')).toBe('NOT_OWNER');
-    expect(screen.getByRole('alert').textContent).toContain(ERROR_INFO.NOT_OWNER.hint);
+    // This site's hint for the code (src/tx/impl/errors-view.ts), not the CLI's.
+    expect(screen.getByRole('alert').textContent).toContain('Connect the wallet that owns this vault, then try again.');
     const docs = screen.getByRole('link', { name: /How to fix this/ });
     expect(docs.getAttribute('href')).toBe(`${DOCS_BASE_URL}/reference/errors.html#not_owner`);
     // A URL inside the message stays text.
