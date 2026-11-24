@@ -10,15 +10,17 @@ export interface LoadedVault {
   fetchedAtMs: number;
 }
 
-/** One snapshot, then the registration check and the engine at that snapshot's block. */
+/** One snapshot, then the registration check at that snapshot's block and the policy engine the vault is bound to. */
 export async function loadVault(sdk: Sdk, vault: Address, nowMs: () => number = Date.now): Promise<LoadedVault> {
   const handle = sdk.atro.vault(vault);
   const snap = await handle.snapshot();
+  // Chain time ticks from the moment the snapshot arrived, not from when the engine's netlist did.
+  const fetchedAtMs = nowMs();
   const [registered, engine] = await Promise.all([
     handle.registered({ blockNumber: snap.status.blockNumber }),
     sdk.atro.engineFor(snap.binding.cpu, snap.binding.policyId),
   ]);
-  return { snap, timeline: timelineOf(engine, snap), registered, fetchedAtMs: nowMs() };
+  return { snap, timeline: timelineOf(engine, snap), registered, fetchedAtMs };
 }
 
 export function rolesIn(snap: VaultSnapshot, account: string | null): Role[] {

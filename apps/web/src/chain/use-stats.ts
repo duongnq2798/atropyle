@@ -1,11 +1,12 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { useKV } from '@/lib/kv';
-import { useSdk } from './hooks';
+import { sdkQuery, useSdk } from './hooks';
 import { loadChainImpl } from './load';
-import type { CachedStats, Sdk } from './types';
+import { useChainSettings } from './provider';
+import type { CachedStats } from './types';
 
 export interface StatsSummary {
   source: 'api' | 'chain';
@@ -39,13 +40,19 @@ export function summaryOfCache(c: CachedStats): StatsSummary {
 
 /**
  * The count on this device shows at once; reading the chain waits for a button (the factory's logs take many
- * requests on public RPC, 100 blocks per request on X Layer).
+ * requests on public RPC, 100 blocks per request on X Layer). An SDK that failed to load is the error to show, and
+ * the button loads it again.
  */
 export function useChainStats(): StatsState {
   const kv = useKV();
-  const sdk = useSdk().data;
+  const client = useQueryClient();
+  const { crossCheck } = useChainSettings();
+  const sdkResult = useSdk();
+  const sdk = sdkResult.data;
   const [cached, setCached] = useState<CachedStats | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  /** One count at a time: a second press would read every log again from the same cursor. */
+  const counting = useRef(false);
 
   useEffect(() => {
     if (!sdk) return;
@@ -64,21 +71,27 @@ export function useChainStats(): StatsState {
   }, [sdk, kv]);
 
   const count = useMutation({
-    mutationFn: async (s: Sdk) => {
+    mutationFn: async () => {
+      const s = await client.query(sdkQuery(crossCheck));
       const impl = await loadChainImpl();
       return impl.countStats(s, kv, (done, total) => setProgress({ done, total }));
     },
     onSuccess: (c) => setCached(c),
-    onSettled: () => setProgress(null),
+    onSettled: () => {
+      counting.current = false;
+      setProgress(null);
+    },
   });
 
   return {
     summary: cached ? summaryOfCache(cached) : null,
     progress,
     busy: count.isPending,
-    error: count.error,
+    error: count.error ?? sdkResult.error,
     refresh: () => {
-      if (sdk) count.mutate(sdk);
+      if (counting.current) return;
+      counting.current = true;
+      count.mutate();
     },
   };
 }

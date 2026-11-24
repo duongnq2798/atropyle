@@ -9,7 +9,9 @@ const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 const GUARDED = /^(?:@atropyle\/sdk|viem)(?:\/|$)|(?:^|\/)impl(?:\/|$)/;
 const STATEMENT = /^\s*(?:import|export)\b([^;]*?)\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gm;
 
-const exempt = (rel: string) => /(^|\/)impl\//.test(rel) || rel.startsWith('workers/') || /^app\/[^/]+\//.test(rel);
+/** Route segment folders only: a route group `(name)` or a private folder `_name` can render `/` itself. */
+const exempt = (rel: string) =>
+  /(^|\/)impl\//.test(rel) || rel.startsWith('workers/') || /^app\/[^/(_][^/]*\//.test(rel);
 
 /** Every runtime import of a guarded module in `source`. */
 function runtimeImports(source: string): string[] {
@@ -37,6 +39,15 @@ describe('lazy boundary', () => {
     expect(runtimeImports("import type { Address } from 'viem';")).toEqual([]);
     expect(runtimeImports("export type { Sdk } from './impl/sdk';")).toEqual([]);
     expect(runtimeImports("const impl = await import('./impl');")).toEqual([]);
+  });
+
+  it('exempts route segment folders, not route groups or private folders, which can render /', () => {
+    expect(exempt('app/e2e/worker/page.tsx')).toBe(true);
+    expect(exempt('app/vault/page.tsx')).toBe(true);
+    expect(exempt('app/(home)/page.tsx')).toBe(false);
+    expect(exempt('app/_scenes/hero.tsx')).toBe(false);
+    expect(exempt('app/page.tsx')).toBe(false);
+    expect(exempt('chain/impl/vault.ts')).toBe(true);
   });
 
   it('no file outside impl/, workers/ and route folders imports the SDK, viem or impl at runtime', () => {

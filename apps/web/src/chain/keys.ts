@@ -7,4 +7,5 @@ export const chainKeys = {
   stats: (chainId: number, source: 'api' | 'chain') => ['atropyle', chainId, 'stats', source] as const,
   me: (chainId: number, account: string) => ['atropyle', chainId, 'me', account.toLowerCase()] as const,
   health: (chainId: number) => ['atropyle', chainId, 'health'] as const,
+  history: (chainId: number, vault: string) => ['atropyle', chainId, 'history', vault.toLowerCase()] as const,
 };

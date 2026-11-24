@@ -1,3 +1,4 @@
+import { timelineOf } from '@atropyle/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { Sdk } from '../../src/chain/impl/sdk';
 import { loadVault, rolesIn } from '../../src/chain/impl/vault';
@@ -5,21 +6,28 @@ import { fixtureDeployment, fixtureSnapshot, fixtureTimeline, PEOPLE } from './f
 
 vi.mock('@atropyle/sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@atropyle/sdk')>()),
-  timelineOf: () => fixtureTimeline(),
+  timelineOf: vi.fn(() => fixtureTimeline()),
 }));
 
 describe('chain impl', () => {
   it('loads a vault at one block: snapshot, registration and timeline', async () => {
     const snap = fixtureSnapshot();
+    const engine = { netlist: 'policy' };
+    let clock = 42;
     const registered = vi.fn(async () => true);
-    const engineFor = vi.fn(async () => ({}));
+    // The engine's netlist arrives later than the snapshot; the chain clock starts at the snapshot.
+    const engineFor = vi.fn(async () => {
+      clock = 99;
+      return engine;
+    });
     const sdk = {
       atro: { vault: () => ({ snapshot: async () => snap, registered }), engineFor },
       deployment: fixtureDeployment(),
     } as unknown as Sdk;
-    const loaded = await loadVault(sdk, PEOPLE.vault, () => 42);
+    const loaded = await loadVault(sdk, PEOPLE.vault, () => clock);
     expect(registered).toHaveBeenCalledWith({ blockNumber: snap.status.blockNumber });
     expect(engineFor).toHaveBeenCalledWith(snap.binding.cpu, snap.binding.policyId);
+    expect(timelineOf).toHaveBeenCalledWith(engine, snap);
     expect(loaded).toEqual({ snap, timeline: fixtureTimeline(), registered: true, fetchedAtMs: 42 });
   });
 
