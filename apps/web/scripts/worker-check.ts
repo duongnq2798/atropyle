@@ -16,6 +16,9 @@ const CSP = [
   "base-uri 'none'",
 ].join('; ');
 
+/** The smoke worker of Task 2, then the production verify worker of Task 12. */
+const ROWS = ['worker-smoke', 'worker-verify'] as const;
+
 const built = await buildApp({ env: { ...process.env, ATROPYLE_E2E: '1', NEXT_PUBLIC_TARGET: 'deweb' } });
 if (built.code !== 0) process.exit(built.code);
 
@@ -30,12 +33,16 @@ try {
   });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${server.url}/e2e/worker/`);
-  const smoke = page.getByTestId('worker-smoke');
-  await page.waitForSelector('[data-testid="worker-smoke"]:not([data-state="running"])', { timeout: 90_000 });
-  const state = await smoke.getAttribute('data-state');
-  console.log(`worker smoke: ${state} — ${await smoke.textContent()}`);
+  const states: string[] = [];
+  for (const id of ROWS) {
+    await page.waitForSelector(`[data-testid="${id}"]:not([data-state="running"])`, { timeout: 90_000 });
+    const row = page.getByTestId(id);
+    const state = (await row.getAttribute('data-state')) ?? 'missing';
+    states.push(state);
+    console.log(`${id}: ${state} — ${await row.textContent()}`);
+  }
   for (const e of errors) console.error(`console: ${e}`);
-  ok = state === 'ok' && !errors.some((e) => /Content Security Policy/i.test(e));
+  ok = states.every((s) => s === 'ok') && !errors.some((e) => /Content Security Policy/i.test(e));
 } finally {
   await browser.close();
   await server.close();
