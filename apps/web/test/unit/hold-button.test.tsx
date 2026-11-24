@@ -325,6 +325,8 @@ describe('HoldButton', () => {
   it('shows the fill and the thread while held under reduced motion on a prerendered, hydrated page, then fades them', async () => {
     // motion's frame loop and its lazy features need real time; a long hold keeps the timer out of the way.
     vi.useRealTimers();
+    // Real frames and a lazy chunk: a full parallel run once took over the 1 s default of vi.waitFor (parked T9).
+    const settled = { timeout: 5000 };
     // The static export prerenders with motion allowed: usePrefersReducedMotion is false until hydrated.
     const tree = (
       <KVProvider kv={memoryKV()}>
@@ -356,7 +358,7 @@ describe('HoldButton', () => {
       const button = screen.getByRole('button', { name: 'Check in' });
       const [fill, thread] = Array.from(button.querySelectorAll<HTMLElement>('span.origin-left'));
       // Hydrated, the features loaded and the reduced motion preference applied: the fill rests faded out.
-      await vi.waitFor(() => expect(fill.style.opacity).toBe('0'));
+      await vi.waitFor(() => expect(fill.style.opacity).toBe('0'), settled);
       act(() => {
         press(button);
       });
@@ -366,7 +368,7 @@ describe('HoldButton', () => {
           expect(el.style.opacity).toBe('1');
           expect(el.style.transform).not.toContain('scaleX(0)');
         }
-      });
+      }, settled);
 
       // Released, they fade out at full width over DURATION.quick and collapse only once out of sight. A hand-driven
       // frame samples the fade an eighth of the way through (JS animations, no WAAPI), so the check is not a race.
@@ -391,12 +393,12 @@ describe('HoldButton', () => {
           expect(el.style.opacity).toBe('0');
           expect(el.style.transform).toContain('scaleX(0)');
         }
-      });
+      }, settled);
     } finally {
       MotionGlobalConfig.useManualTiming = false;
       MotionGlobalConfig.skipAnimations = true;
       act(() => root?.unmount());
       container.remove();
     }
-  });
+  }, 20_000);
 });
