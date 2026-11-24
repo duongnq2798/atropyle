@@ -46,7 +46,7 @@ Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`,
 3. **Bundler: Turbopack mặc định, spike quyết định.** `next build` của 16.4.6 có cờ `--webpack` (đọc `dist/bin/next`). Task 2 dựng trang `page.e2e.tsx` tạo worker bằng `new Worker(new URL(...), { type: 'module' })`, worker import `@atropyle/sdk/verify` và một `import()` động, rồi chạy trong Chromium dưới CSP `worker-src 'self'`. Đạt với Turbopack thì giữ (`BUNDLER_FLAGS = []`); hỏng thì thử `--webpack`; cả hai hỏng thì dừng và báo BLOCKED. Kết quả ghi vào spec §16 hàng 15.
 4. **tsconfig dùng `extends`.** `writeConfigurationDefaults` của Next 16.4.6 return ngay khi tsconfig có `extends` hoặc `references`, nên Next không tự sửa tsconfig lúc build. `next-env.d.ts` (Next tự sinh) bị ignore trong git và Biome, không nằm trong `include`.
 5. **Telemetry:** `dist/telemetry/storage.js` tắt telemetry khi `NEXT_TELEMETRY_DISABLED` có giá trị. Wrapper luôn đặt `1`.
-6. **Config cố định:** `output: 'export'`, `trailingSlash: true`, `images.unoptimized`, `reactStrictMode`, `productionBrowserSourceMaps: false`, `typescript.ignoreBuildErrors: true` (typecheck chạy riêng bằng `tsc`, Next không chạy lần hai), `turbopack.root` = gốc monorepo (Turbopack chỉ resolve file dưới thư mục này; `node_modules` nằm ở gốc). Không có khoá `viewTransition`: React 19.3.1 đã export `ViewTransition` và `addTransitionType` ổn định (đọc `cjs/react.production.js` và `@types/react` 19.3.0).
+6. **Config cố định:** `output: 'export'`, `trailingSlash: true`, `images.unoptimized`, `reactStrictMode`, `productionBrowserSourceMaps: false`, `typescript.ignoreBuildErrors: true` (typecheck chạy riêng bằng `tsc`, Next không chạy lần hai), `turbopack.root` = gốc monorepo (Turbopack chỉ resolve file dưới thư mục này; `node_modules` nằm ở gốc). Không có khoá `viewTransition`: React 19.3.1 đã export `ViewTransition` và `addTransitionType` ổn định (đọc `cjs/react.production.js` và `@types/react` 19.3.0). **Task 15 ra Kết quả B:** bấm một `Link` thường không bao giờ gọi `document.startViewTransition` (spy của `test/e2e/motion.spec.ts`), nên React không mở view transition khi điều hướng. Vì vậy mọi link sang route khác dùng `NavLink` (`src/shell/nav-link.tsx`, Interfaces luật 18), và `<Thread shared>` tự đặt `view-transition-name` lên gốc của nó (spec §16 hàng 18).
 7. **Token light được làm đậm để đạt AA** (tính bằng công thức WCAG 2.x). Spec §4.3 ghi `thread #A86F12`, `alive #127A63`, `grace #A35A00`; trên `surface-3 #E7DFD1` chúng không đạt 4,5:1. Plan dùng **`thread #86590E`, `alive #106F5A`, `grace #945100`** (tối thiểu 4,60:1 trên mọi surface). Thêm `on-thread`, `on-danger`, `line`, `line-strong` (≥ 3:1 cho viền điều khiển, WCAG 1.4.11). Tỉ lệ nhỏ nhất: dark 5,50 (danger trên surface-3), light 4,60 (thread trên surface-3); `ink/bg` dark 15,77 và light 16,45 (AAA). Task 3 cập nhật bảng §4.3 và thêm spec §16 hàng 16.
 8. **Font bằng `next/font/local`, 9 lần gọi** (3 họ × 3 subset vietnamese, latin-ext, latin). Đọc `dist/compiled/@next/font/dist/local/loader.js` và validator: `declarations` được phép chứa `font-family` (loader bỏ tên họ tự sinh khi có `hasCustomFontFamily`), chỉ cấm `src`, `font-display`, `font-weight`, `font-style`. Nhờ vậy cả 3 file của một họ dùng chung tên `'Atropyle Fraunces'` với `unicode-range` riêng: trình duyệt chỉ tải subset cần. Chỉ subset latin có `adjustFontFallback` (sinh mặt `'Atropyle Fraunces Fallback'` có size-adjust, giữ CLS 0). Chỉ preload Fraunces latin và Inter latin. Plugin `postcss-next-font` của webpack đã đọc; hành vi của Turbopack với tên họ tự đặt nằm trong binary native nên chưa xác minh: test build `fonts.test.ts` (Task 4) quyết định, hỏng thì chuyển `BUNDLER_FLAGS` sang `--webpack`.
 9. **Fontsource 5.3.0:** trục Fraunces `opsz 9–144`, `wght 100–900`, `SOFT 0–100`, `WONK 0–1`; Inter `wght 100–900`; JetBrains Mono `wght 100–800`. File `LICENSE` của cả ba là SIL OFL 1.1. Woff2 được chép vào `src/fonts/files/`; test so SHA-256 với `node_modules/@fontsource-variable/*/files`.
@@ -113,25 +113,29 @@ apps/web/
     app/layout.tsx  page.tsx  not-found.tsx  globals.css  icon.svg
     app/e2e/worker/page.e2e.tsx           smoke worker (chỉ build e2e)
     config/env.ts                         target, chain, API URL, explorer
+    config/facts.ts                       POLICY_NETLIST_KECCAK, MAINNET_SINCE, KEEPER_CADENCE_S
     routes.ts                             ROUTES, NAV, href builders, legacyTarget, toSdkSignLink
     fonts/index.ts  fonts/ranges.ts  fonts/files/*.woff2 (9 file)
     i18n/core.ts  i18n/provider.tsx
     lib/store.ts  kv.tsx  untrusted.ts  duration.ts  docs.ts  address.ts  hash.ts  format.ts  links.ts  cn.ts
-       use-mounted.ts  use-now.ts
-    messages/{labels,common,shell,ui,tx,wallet,create,developers,guardian,heir,home,owner,sign,status,vault,verify,action-runner,editors}.messages.ts
+       use-mounted.ts  use-now.ts  lazy-chunk.ts
+    messages/{labels,common,shell,ui,tx,wallet,wallet-overlays,api,create,developers,guardian,heir,home,owner,sign,status,vault,verify,action-runner,editors}.messages.ts
     theme/theme.ts  provider.tsx  boot.ts  boot-script.tsx
-    motion/tokens.ts  features.ts  provider.tsx  view-transition.tsx  haptics.ts  use-hold.ts
+    motion/tokens.ts  features.ts  provider.tsx  view-transition.tsx  haptics.ts  use-hold.ts  move.ts  reveal-window.tsx
     thread/geometry.ts  state.ts  thread.tsx  glyphs.tsx  state-badge.tsx
-    ui/button.tsx  icon-button.tsx  hold-button.tsx  address.tsx  identicon.ts  amount.tsx  countdown.tsx  skeleton.tsx
-       empty-state.tsx  inline-error.tsx  banner.tsx  copy-button.tsx  untrusted-text.tsx  external-link.tsx
-       visually-hidden.tsx  dialog.tsx  popover.tsx  tooltip.tsx  qr-code.tsx  spinner.tsx  text-field.tsx
-    shell/providers.tsx  frame.tsx  header.tsx  footer.tsx  nav-list.tsx  settings-menu.tsx  mobile-menu.tsx
-       skip-link.tsx  lang-switch.tsx  theme-switch.tsx  haptics-switch.tsx  wordmark.tsx
-    home/hero.tsx                         cảnh đầu của trang chủ (Plan 7B thay)
+    ui/button.tsx  icon-button.tsx  plain-icon-button.tsx  hold-button.tsx  address.tsx  avatar.tsx  identicon.ts
+       amount.tsx  countdown.tsx  skeleton.tsx  empty-state.tsx  inline-error.tsx  banner.tsx  copy-button.tsx
+       untrusted-text.tsx  external-link.tsx  visually-hidden.tsx  dialog.tsx  popover.tsx  tooltip.tsx  lazy-overlay.ts
+       qr-code.tsx  spinner.tsx  text-field.tsx
+    shell/providers.tsx  frame.tsx  header.tsx  footer.tsx  nav-list.tsx  nav-link.tsx  proof-line.tsx  load-notice.tsx
+       settings-menu.tsx  settings-panel.tsx  mobile-menu.tsx  menu-sheet.tsx  warm-overlays.ts  skip-link.tsx
+       lang-switch.tsx  theme-switch.tsx  haptics-switch.tsx  wordmark.tsx
+    home/hero.tsx                         cảnh đầu của trang chủ (Plan 7C thay)
     chain/types.ts  load.ts  query-client.ts  keys.ts  provider.tsx  hooks.ts  use-stats.ts  time.ts
     chain/impl/index.ts  rpc.ts  sdk.ts  vault.ts  stats.ts  stats-view.ts            (chỉ nạp qua loadChainImpl)
-    wallet/types.ts  load.ts  remember.ts  network.ts  provider.tsx  connect-sheet.tsx  wallet-button.tsx
-       wallet-menu.tsx  network-banner.tsx  use-vault-roles.ts
+    wallet/types.ts  load.ts  remember.ts  recommended.ts  network.ts  provider.tsx  connect-sheet.tsx
+       connect-sheet-slot.tsx  wallet-button.tsx  wallet-menu.tsx  wallet-menu-panel.tsx  network-banner.tsx
+       network-banner-slot.tsx  use-vault-roles.ts
     wallet/impl/index.ts  wallet.ts  send-calls.ts  session.ts                       (chỉ nạp qua loadWalletImpl)
     verify/types.ts  load.ts  hooks.ts  verify-view.ts
     verify/impl/index.ts  verify-client.ts                                           (chỉ nạp qua loadVerifyImpl)
@@ -139,7 +143,7 @@ apps/web/
     tx/tx-view.ts  load.ts  use-error-view.ts  error-box.tsx  use-tx-runner.ts  tx-card.tsx  tx-progress.tsx
        use-leave-guard.ts  sign-href.ts
     tx/impl/index.ts  errors-view.ts  decode.ts  describe.ts                         (chỉ nạp qua loadTxImpl)
-    api/types.ts  client.ts  instance.ts  hooks.ts                                   (chỉ bản vercel gọi mạng)
+    api/types.ts  client.ts  instance.ts  hooks.ts  errors.ts                        (chỉ bản vercel gọi mạng)
   test/setup.ts
   test/helpers/render.tsx  helpers/wallet.ts
   test/unit/*.test.ts(x)  test/unit/fixtures.ts                                       (port + mới)
@@ -1627,7 +1631,7 @@ git commit -m "feat(web): Next.js 16 static export scaffold, build wrapper and w
   - Chữ: `text-caption|small|body|lead|title|h2|h1|display` (mỗi bậc có line-height riêng; VI ≥ 1.15 cho tiêu đề), `font-display`, `font-sans` (mặc định), `font-mono`.
   - Easing: `ease-out-expo`, `ease-in-out-sine`, `ease-spring` (`linear()` 443 ms). Animation: `animate-thread-pulse`, `animate-thread-tremble`, `animate-shimmer` (luôn dùng kèm `motion-safe:`).
   - Lớp animation cho Radix: `atro-overlay`, `atro-dialog`, `atro-sheet`, `atro-pop` (theo `data-state`).
-  - Theme: không có `data-theme` thì theo hệ thống; `data-theme="dark"|"light"` trên `<html>` thì ép.
+  - Theme: không có `data-theme` thì theo hệ thống; `data-theme="dark"|"light"` trên `<html>` thì ép. (Task 9 đổi: không có `data-theme` là night; `data-theme="light"` là vellum, ở `<html>` hay ở một phần tử; chỉ `data-theme="system"` trên `<html>` theo thiết bị.)
 
 - [ ] **Step 1: Cài Tailwind và bật cú pháp Tailwind cho Biome**
 
@@ -4240,6 +4244,8 @@ git commit -m "feat(web): motion tokens, lazy motion provider, view transitions,
 
 ### Task 7: Sợi chỉ (`Thread`) trên compositor, có trục thời gian, glyph trạng thái và `StateBadge`
 
+> Các khối mã của task này là bản lúc giao. 56c3479 (review Task 7) đổi `move.ts` (mới), `reveal-window.tsx` và `geometry.ts`; 5151279 và 2d9ff4c sửa tiếp `thread.tsx` và `move.ts`. Khi hai bên khác nhau, mã trên đĩa và mục "Interfaces for Plan 7B" là đúng.
+
 Nhân vật duy nhất của ngôn ngữ hình ảnh (spec §4.1), dựng theo `thread-engine` của spec §18.4.1 và hai ruling R18.4 (chỉ chuyển động trên compositor), R18.5 (trục thời gian tuyến tính). Hình học là hàm thuần có test; component chỉ vẽ. Không đo path bằng DOM (`getPointAtLength` không có lúc prerender): sợi chỉ là đường sóng `y = 60 + 9·sin(3π·x/600)` lấy mẫu rồi nối bằng Catmull-Rom, nên vị trí nút, điểm "bây giờ" và cổng tính được chính xác. Có hai chế độ. Không có `axis`, phần sáng là `remaining` của chu kỳ hiện tại, như trước (các trang chưa có trục và `StateBadge` dùng). Có `axis`, mọi mốc nằm ở `courseX(t, axis)`, tuyến tính theo thời gian chain, để `Scrubber`, bản xem trước, header, lá thư và witness của Plan 7B/7C đặt được thumb, chip mốc và đường dự đoán. Không có path nào được animate: phần sáng là một path cố định, chỉ cửa sổ `RevealWindow` bên ngoài nó dịch bằng `transform`.
 
 **Bốn lớp trong một gốc** (`div[data-thread]`, `relative`, `overflow: clip`):
@@ -4288,7 +4294,7 @@ Không làm ở task này: chữ ký và cột giám hộ (7B T6, đặt vào `[
   - `src/thread/geometry.ts`: `type Point = readonly [number, number]`; `VIEW = { w: 600, h: 120, mid: 60, amp: 9 }`; `GATE_X = 400`; `FRAY_X = 556`; `BEND_X = 352`; `RECOVERY_END: Point = [588, 22]`; `MAIN_WIDTH = 3`; `PREDICTED_DASH = '5 5'`; `BEAT_SECONDS = { slow: 2.4, mid: 1.6, fast: 1 }`; `type ThreadBeat = 'slow' | 'mid' | 'fast'`; `waveY(x: number): number`; `smoothPath(points: readonly Point[]): string`; `waveSegment(x0: number, x1: number, samples?: number): string`; `branchWidths(weights: readonly number[], main?: number): number[]`; `branchEnds(n: number): number[]`; `interface ThreadAxis { from: bigint; to: bigint; now: bigint; alarmAt?: bigint | null; releaseAt?: bigint | null; marks?: readonly bigint[] }`; `courseX(t: bigint, axis: Pick<ThreadAxis, 'from' | 'to'>): number`; `pctX(x: number): number`; `pctY(y: number): number`; `beatOf(left: number): ThreadBeat`; `interface ThreadInput { remaining?: number; knots?: readonly number[]; branches?: readonly number[]; axis?: ThreadAxis; predicted?: boolean; pendingKnot?: boolean; highlight?: number }`; `type ThreadTone = 'plain' | 'highlight' | 'muted'`; `interface ThreadGeometry { track: string; lit: string; litFrom: number; litTo: number; now: Point | null; nowX: number; pending: Point | null; knots: Point[]; gate: Point | null; gateX: number; branches: { d: string; width: number; tone: ThreadTone }[]; dots: { at: Point; tone: ThreadTone }[]; fibers: string[]; curl: string | null; ghost: string | null; dash: string | null; beat: ThreadBeat | null }`; `threadGeometry(state: ThreadState, input?: ThreadInput): ThreadGeometry`.
   - `src/thread/state.ts`: `type ThreadState = StateName | 'expired'`; `THREAD_STATES: readonly ThreadState[]`; `threadStateOf(s: Pick<VaultStatus, 'state' | 'expired'>): ThreadState`; `threadRemaining(s: Pick<VaultStatus, 'state' | 'expired' | 'lastAlive' | 'lateAt' | 'alarmAt' | 'windowEndsAt'>, now: bigint): number`; `THREAD_COLOR`, `BADGE_COLOR: Record<ThreadState, string>`; `STATE_GLYPH: Record<ThreadState, GlyphName>`.
   - `src/thread/glyphs.tsx`: `type GlyphName = 'active' | 'grace' | 'recovery' | 'releasedInherit' | 'releasedRecover' | 'expired' | 'drill' | 'knot'`; `GLYPH_NAMES`; `StateGlyph({ name, size?, className? })` (SVG 24 × 24, nét 1,5, `aria-hidden="true"`).
-  - `src/motion/reveal-window.tsx`: `type RevealMove = 'spring' | 'instant' | { linear: number }`; `interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void }`; `interface RevealWindowProps { from: number; to: number; children: ReactNode; ref?: Ref<RevealWindowHandle>; className?: string }`; `RevealWindow(props)`; `revealTransforms(from: number, to: number): [string, string, string]`; `REVEAL_MOVE` (chuỗi lớp transition).
+  - `src/motion/reveal-window.tsx`: `type RevealMove = 'spring' | 'instant' | { linear: number }`; `interface RevealWindowHandle { setRange(from: number, to: number, move?: RevealMove): void; reset(move?: RevealMove): void }`; `interface RevealWindowProps { from: number; to: number; children: ReactNode; ref?: Ref<RevealWindowHandle>; className?: string }`; `RevealWindow(props)`; `revealTransforms(from: number, to: number): [string, string, string]`; `useMoveWith(transform)` cho thứ đi cùng cửa sổ. Sau review (56c3479), `RevealMove` nằm ở `src/motion/move.ts` (cùng `moveTiming`, `moveTogether`) và `reveal-window.tsx` export lại; không còn `REVEAL_MOVE`.
   - `src/thread/thread.tsx`: `interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; revealRef?: Ref<RevealWindowHandle>; className?: string }`; `Thread(props)`. DOM: gốc `div[data-thread]` có `data-state`, `data-predicted`, `data-pending-knot`, `data-highlight`; lớp `svg[data-layer="base" | "glow" | "lit"]`, `div[data-layer="marks"]` (cũng mang `data-highlight`); phần `[data-part="lit" | "glow" | "track" | "fiber" | "fiber-course" | "ghost" | "branch" | "curl" | "gate" | "arch" | "knot" | "dot" | "now-at" | "now" | "halo" | "pending"]`.
   - `src/thread/state-badge.tsx`: `interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }`; `StateBadge(props)`.
 
@@ -18197,7 +18203,7 @@ export function NavLink({ href, onClick, ...rest }: NavLinkProps) {
 Run: `npm test -w apps/web -- nav-link`
 Expected: PASS (4 test).
 
-Đổi `Link` thành `NavLink` trong ba file khung. Spy của e2e bấm link `Atropyle home` của header, nên header cũng đổi. Dòng bằng chứng (link `/proof/`) giữ `Link` cho tới khi 7C T3 dựng `/proof/`.
+Đổi `Link` thành `NavLink` trong ba file khung. Spy của e2e bấm link `Atropyle home` của header, nên header cũng đổi. Dòng bằng chứng (link `/proof/`) giữ `Link` cho tới khi 7C T3 dựng `/proof/`. (Vòng sửa cuối của 7A đổi cả dòng bằng chứng và trang 404 sang `NavLink`, như link "Known limits" của footer; luật 18 của Interfaces.)
 
 ```bash
 sed -i -e "s#^import Link from 'next/link';#import { NavLink } from './nav-link';#" -e 's#<Link\b#<NavLink#g' -e 's#</Link>#</NavLink>#g' apps/web/src/shell/nav-list.tsx apps/web/src/shell/footer.tsx apps/web/src/shell/header.tsx
@@ -18246,7 +18252,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Global Constraints of Plan 7A and spec §11: first-load JS of `/` and of every other route, and all JS of the site.
-// Ruling R23 set `/` to 200 kB and other routes to 240 kB: Next 16 + React 19 alone measure about 130 kB.
+// Ruling R23 set `/` to 200 kB and other routes to 240 kB: Next 16 + React 19 alone measure about 136 kB.
 const HOME_LIMIT = '200 kB';
 const ROUTE_LIMIT = '240 kB';
 const TOTAL_LIMIT = '900 kB';
@@ -19084,17 +19090,35 @@ Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cù
     - 7B T12 thêm `{ path: 'verify/', content }`: `content` kiểm `<noscript>` trỏ tới `npx atropyle verify`.
     - 7C T3 thêm `{ path: 'proof/', content }`.
     - Kiểm bằng `expectSeen`: hiện ra, và không phần tử cha nào có `opacity: 0`.
-18. **View transition khi điều hướng** (`test/e2e/motion.spec.ts`): spy `document.startViewTransition` khi bấm link `Atropyle home` từ trang 404.
-    - Kết quả A: React tự mở view transition; link nội bộ dùng `Link` của Next như thường.
-    - Kết quả B: link nội bộ của khung và của trang dùng `NavLink` (`src/shell/nav-link.tsx`, cùng prop với `Link`, `href` là chuỗi).
-    - Báo cáo Task 15 ghi kết quả nào xảy ra. Khi một route của nav đã có, 7B có thể thêm vào test spy một ca bấm nav từ `/`.
-19. **Lần tải đầu của `/` (R23).** Phần dư dưới 200 kB chỉ còn vài kB (mục Kích thước ở cuối), nên:
+18. **View transition khi điều hướng** (Task 15 ra Kết quả B; spec §16 hàng 18). React không mở view transition khi điều hướng trên client: spy `document.startViewTransition` của `test/e2e/motion.spec.ts` không bao giờ được gọi khi bấm một `Link` thường.
+    - Mọi link sang route khác, của khung và của trang, dùng `NavLink` (`import { NavLink } from '@/shell/nav-link'`). Nó nhận đúng prop của `Link`, với `href` là chuỗi; `prefetch`, `replace`, `scroll`, `transitionTypes` và `onNavigate` vẫn có tác dụng.
+    - `next/link` chỉ dùng cho link hash trong cùng trang.
+    - Test `next-link-imports` hỏng khi một file trong `src/` import `next/link` mà không có tên trong danh sách `ALLOWED` của nó. Hiện danh sách có `shell/nav-link.tsx` và `home/hero.tsx`. 7C thay `hero.tsx` thì CTA dùng `NavLink`, và 7C bỏ file đó khỏi danh sách.
+    - `NavLink` tự mở transition bên ngoài React và giữ ảnh cũ cho tới khi pathname mới commit, tối đa 1 giây. Route chưa có thì Next tải lại cả trang sau khoảng chờ đó.
+    - Khi một route của nav đã có, 7B có thể thêm vào test spy một ca bấm nav từ `/`.
+19. **Lần tải đầu của `/` (R23).** Phần dư dưới 200 kB còn 11,4 kB (mục Kích thước ở cuối), nên:
     - Component `m.*` lấy từ `motion/react-m` (`import * as m from 'motion/react-m'`); chỉ `MotionProvider` import từ `motion/react`. Test `motion-imports` và `test/build/first-load.test.ts` kiểm: một `import { m } from 'motion/react'` kéo mọi feature của Motion vào lần tải đầu của mọi trang (khoảng 36 kB).
     - Khung và trang `/` không dùng tĩnh `Dialog`, `Popover`, `Tooltip` hay `IconButton` có tooltip: nút vẽ ngay là `PlainIconButton` hay một `<button>` thường, nội dung nạp bằng `lazyChunk` + `useLazyOverlay` (mẫu ở `src/shell/settings-menu.tsx`). Thư viện QR cũng vậy. `first-load.test.ts` kiểm Radix và QR trên `/` và các trang 404; route khác của 7B được dùng chúng ngay từ lần vẽ đầu, trong 240 kB của mình.
     - Lần bấm đầu không được chờ chunk: điện thoại không có hover. Frame nạp chunk của các overlay khi trang rảnh (`useWarmOverlays`, `whenIdle`), và mọi nút gọi `useWallet().openSheet()` trải `onPointerEnter={connectSheet.preload}` và `onFocus={connectSheet.preload}` (như `WalletButton` và `TxCard`). Overlay lazy mới mà nút nằm trong khung thì thêm `preload` của mình vào `useWarmOverlays`. Trong lúc chờ, nút báo `aria-busy` (trigger của `useLazyOverlay` có sẵn; `PlainIconButton` đổi icon thành spinner) và vẫn bật, nên focus ở lại trên nút.
     - Chunk hỏng khi người đọc bấm: `onError` của `useChunk` gọi `reportLoadFailure()`, và `LoadNotice` (trong Frame) nói ra và cho tải lại trang. `useLazyOverlay` và `ConnectSheetSlot` đã làm vậy. Không tự tải lại trang: một form đang điền sẽ mất.
     - Vùng live (`aria-live`, `role="alert"`) phải có từ lần vẽ đầu, nội dung lazy đi vào bên trong; một vùng vào DOM đã có chữ thì trình đọc màn hình không chắc đọc. `NetworkBannerSlot` và `LoadNotice` là mẫu, `test/build/shell.test.ts` kiểm cả hai.
-    - Chuỗi của sheet ví, menu ví và banner sai mạng nằm trong `wallet-overlays.messages.ts`, chỉ chunk của chúng import; `wallet.messages.ts` chỉ còn chuỗi của nút ví. `VisuallyHidden` là một `<span className="sr-only">`: bản của Radix kéo Primitive và Slot vào lần tải đầu qua `Spinner`.
+    - Chuỗi của sheet ví, menu ví và banner sai mạng nằm trong `wallet-overlays.messages.ts`, chỉ chunk của chúng import; `wallet.messages.ts` chỉ còn chuỗi của nút ví. `VisuallyHidden` là một `<span className="sr-only">`: bản của Radix kéo Primitive và Slot vào lần tải đầu qua `Spinner`, và app không còn dependency `@radix-ui/react-visually-hidden`.
+
+### Khoảng trống đã biết
+
+7A để lại các chỗ dưới đây, mỗi chỗ có task chủ. Task đó đóng nó, hoặc báo cáo vì sao không. Vài chỗ liên quan tới an toàn tiền: gửi lại một giao dịch, nói "Confirmed" trước receipt, chạy proof hai lần.
+
+- **`TxCard` với `confirm="hold"`** (7B T10, cả nút Nhận của 7B T11; R18.16). Giữ xong thì `HoldButton` hiện `ui.holdDone` ("Confirmed" / "Đã xác nhận") và thắt nút trước khi ví mở, trong lúc vùng live của thẻ nói "Confirm in your wallet". 7B T10 thêm `doneLabel` và `showKnot` cho `HoldButton`, và mọi `TxCard` dùng `hold` truyền một nhãn không nói đã xác nhận. Ở VI, `ui.holdDone` và chuỗi tiến độ `tx.progress` "Đã xác nhận {done}/{total}" có cùng chữ đầu: test tìm theo test id hay vùng, không theo chữ "Đã xác nhận".
+- **`useTxRunner`** (7B T3).
+  - Bước đã có hash mà đọc receipt hỏng (SDK: "was sent in transaction X, but its receipt could not be read") vẫn được mời gửi lại. `details.completed` chỉ đếm các bước trước nó, nên `offset` giữ bước đó, và "Resume from step N" cùng link hand-off gửi một giao dịch có thể vẫn lên chain. Gửi một bước hai lần có thể chuyển tài sản hai lần.
+  - `result` và `onDone(result)` chỉ chứa các bước của lần gửi tiếp tục cuối cùng, với chỉ số tính từ đầu sub-plan đó: chỉ số 0 là bước `offset`.
+  - Đổi plan giữa lúc gửi làm mất lần gửi đó, vì reset trong render chạy cả khi `inFlight`. Các hàng về `ready`, `committed` về false, và lần bấm sau gửi lại cả các bước đã xác nhận. Chốt của luật 5 chỉ chặn lời nhắc ví mới.
+- **`runProof`** (7C T3, quyết định 3 của 7C). Truyền `signal` làm lượt chạy thành lượt mới, không cache, kể cả khi không có `blocks`. Chỉ truyền `signal` cùng `blocks` (`again()`, `MINI_BLOCKS`), không bao giờ ở `start()`: nếu không, `start()` chạy một proof 2^26 thứ hai bên cạnh proof của `/verify/`.
+- **`loadVault`** (7B T9). Vault của factory khác có `binding.cpu` giả làm hỏng cả lần đọc (ví dụ `POLICY_MISMATCH`) thay vì trả `registered: false`, nên màn "không do factory này tạo" không bao giờ hiện. Sửa cần một ruling: `LoadedVault.timeline` có thể null, hoặc một kết quả "chưa đăng ký" riêng.
+- **Mọi chỗ dùng `failedEmpty`** (7C T8 `IndexRow` và `MePage`, mọi trang đọc). Một lần đọc hỏng trước khi có dữ liệu không tự đọc lại, kể cả lỗi tạm như `RPC_UNAVAILABLE` hay 429. Chỗ dùng `useVault`, `useVaultsOf` hay hook backend phải có nút Retry cho trạng thái đó. Ẩn hàng lỗi mà không có Retry là sai.
+- **`freshest()`** (7C T7). Câu trả lời API ở block cao hơn luôn thắng, kể cả ngay sau `refresh()` (người dùng bấm đếm từ chain). Một backend báo block quá xa thì thắng mãi.
+- **`Amount`** (7B T9). Giá trị gốc chỉ nằm trong tooltip lúc hover hay focus. Trên màn chạm Radix Tooltip không mở, nên không xem được.
+- **Link chỉ đổi hash trong cùng route** (7B T7, T9). Trình duyệt không có Navigation API (Safari trước 26.2, Firefox trước 147) chỉ báo `hashchange` và `popstate`, nên `useLocationHash` giữ giá trị cũ sau một `Link` như vậy. Đổi tham số trong cùng trang bằng `replaceHash()` (luật 1).
 
 ### Cấu hình, route và môi trường
 
@@ -19103,9 +19127,9 @@ Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cù
 export type Target = 'vercel' | 'deweb';
 export interface RawEnv { NEXT_PUBLIC_TARGET?: string; NEXT_PUBLIC_CHAIN?: string; NEXT_PUBLIC_DEPLOYMENT?: string; NEXT_PUBLIC_API_URL?: string; NEXT_PUBLIC_DOCS_PATH?: string; NEXT_PUBLIC_APP_VERSION?: string }
 export interface AppEnv { target: Target; chain: ChainName; deploymentJson: string | null; apiUrl: string | null; docsPath: '/docs/' | null; version: string }
-export function targetOf(raw?: string): Target;
-export function chainNameOf(raw?: string): ChainName;
-export function apiUrlOf(target: Target, raw?: string): string | null;
+export function targetOf(raw: string | undefined): Target;                 // raw bắt buộc (không có `targetOf()`): chỗ gọi
+export function chainNameOf(raw: string | undefined): ChainName;           // truyền tường minh process.env.NEXT_PUBLIC_*,
+export function apiUrlOf(target: Target, raw: string | undefined): string | null; // nên Next thay đúng chuỗi đó lúc build
 export function readEnv(raw: RawEnv): AppEnv;
 export function chainIdOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): number;
 export function explorerUrlOf(env: Pick<AppEnv, 'chain' | 'deploymentJson'>): string | null;
@@ -19228,7 +19252,7 @@ export const ROLE_KEY: Record<Role, LabelKey>;
 export const THREAD_STATE_KEY: Record<StateName | 'expired', LabelKey>;
 ```
 
-`src/messages/` đã có (port từ web cũ ở Task 5, thêm mới ở các task sau): `labels`, `common`, `shell`, `ui`, `tx`, `wallet`, `home`, `create`, `developers`, `guardian`, `heir`, `owner`, `sign`, `status`, `vault`, `verify`, `action-runner`, `editors`. Plan 7B sửa nội dung các file trang, giữ khoá mà test đang đọc.
+`src/messages/` đã có (port từ web cũ ở Task 5, thêm mới ở các task sau): `labels`, `common`, `shell`, `ui`, `tx`, `wallet`, `wallet-overlays` (sheet ví, menu ví, banner sai mạng; luật 19), `api` (lỗi backend, `src/api/errors.ts`), `home`, `create`, `developers`, `guardian`, `heir`, `owner`, `sign`, `status`, `vault`, `verify`, `action-runner`, `editors`. Plan 7B sửa nội dung các file trang, giữ khoá mà test đang đọc.
 
 Selector CSS mà Plan 7B được dựa vào:
 
@@ -19413,7 +19437,7 @@ export function useWarmOverlays(): void;      // src/shell/warm-overlays.ts: khi
 export function ProofLine(): JSX.Element;     // <p data-testid="proof-line">, một dòng 24 px, mono cỡ caption, prerender, không tắt được;
                                               // [data-variant="wide"] từ md: "Rules frozen in netlist 0x7016…3864 on X Layer · unaudited · limits →";
                                               // [data-variant="narrow"] dưới md, ≤ 36 ký tự: "Rules 0x7016…3864 · unaudited →";
-                                              // link keccak → ROUTES.proof (title = keccak đầy đủ), link giới hạn → LIMITS_HREF
+                                              // link keccak → ROUTES.proof (title = keccak đầy đủ), link giới hạn → LIMITS_HREF; cả hai là NavLink
 export function Header(): JSX.Element;        // .site-header, dính trên cùng; bg-bg/95 dưới md, md:bg-bg/80 md:backdrop-blur-md
 export function NavList(p: { layout: 'bar' | 'sheet'; onNavigate?(): void }): JSX.Element;
 export function SettingsMenu(): JSX.Element;  // popover "Settings" (md trở lên); nút vẽ ngay, popover nạp khi trang rảnh, hover, focus hay bấm (R23)
@@ -19427,7 +19451,8 @@ export function LangSwitch(): JSX.Element;
 export function ThemeSwitch(): JSX.Element;   // Night | Vellum | Match device (VI: Đêm | Giấy da | Theo thiết bị), radio gốc
 export function HapticsSwitch(): JSX.Element;
 export function Wordmark(p: { className?: string }): JSX.Element; // StateGlyph 'mark' (text-thread) + "Atropyle"
-export function HomeHero(): JSX.Element;      // Plan 7B thay bằng trang chủ sáu cảnh; giữ heroDrillNote dưới nút Drill, nối bằng aria-describedby
+export function HomeHero(): JSX.Element;      // Plan 7C thay cả file (T4: HomeHero({ art }); T7: trang chủ sáu cảnh); giữ heroDrillNote dưới nút Drill, nối bằng aria-describedby;
+                                              // hai CTA (createHref('drill'), ROUTES.proof) vẫn là next/link: bản thay dùng NavLink (luật 18)
 ```
 
 Khoá chuỗi mà Plan 7B và 7C dùng lại:
@@ -19472,18 +19497,24 @@ export const chainKeys: {
   stats(chainId: number, source: 'api' | 'chain'): readonly ['atropyle', number, 'stats', 'api' | 'chain'];
   me(chainId: number, account: string): readonly ['atropyle', number, 'me', string];
   health(chainId: number): readonly ['atropyle', number, 'health'];
+  history(chainId: number, vault: string): readonly ['atropyle', number, 'history', string]; // địa chỉ chữ thường; 7B HistoryThread dùng khoá này, không tự viết mảng
 };
 export function ChainProvider(p: { children: ReactNode; client?: QueryClient }): JSX.Element;
 export function useChainSettings(): { crossCheck: boolean; setCrossCheck(on: boolean): void };
 
-// src/chain/hooks.ts, time.ts, use-stats.ts
+// src/chain/hooks.ts
 export const CHAIN_ID: number;
-export function sdkQuery(crossCheck: boolean); // queryOptions({ queryKey: chainKeys.sdk(CHAIN_ID, crossCheck), queryFn: (): Promise<Sdk> }), cho queryClient.fetchQuery
+export function sdkQuery(crossCheck: boolean); // queryOptions({ queryKey: chainKeys.sdk(CHAIN_ID, crossCheck), queryFn: (): Promise<Sdk> }), cho queryClient.query(sdkQuery(…)) (fetchQuery đã deprecated ở TanStack 5.107.1)
 export function useSdk(): UseQueryResult<Sdk>;
-export function useVault(vault: Address | null): UseQueryResult<LoadedVault>; // không placeholderData
-export function useVaultsOf(account: Address | null): UseQueryResult<VaultRef[]>;
+export function failedEmpty(q: { state: { data: unknown; status: string } }): boolean; // đọc hỏng trước khi có dữ liệu: không poll, không đọc lại khi tab quay lại, chờ nút Retry của trang
+export function useVault(vault: Address | null): UseQueryResult<LoadedVault>; // không placeholderData; mỗi 30 s và khi tab quay lại, chỉ khi đã có dữ liệu (failedEmpty)
+export function useVaultsOf(account: Address | null): UseQueryResult<VaultRef[]>; // mỗi 60 s và khi tab quay lại, chỉ khi đã có dữ liệu (failedEmpty)
 export function useInvalidateVault(): (vault: string) => Promise<void>;
+
+// src/chain/time.ts (không phải hooks.ts: `import { useChainNow } from '@/chain/time'`)
 export function useChainNow(read: { blockTimestamp: bigint; fetchedAtMs: number } | null, intervalMs?: number): bigint | null;
+
+// src/chain/use-stats.ts
 export interface StatsSummary { source: 'api' | 'chain'; block: bigint; vaults: number; drills: number; checkIns: number; savedAtMs: number | null }
 export interface StatsState { summary: StatsSummary | null; loading: boolean; progress: { done: number; total: number } | null; busy: boolean; error: unknown; refresh(): void }
 export function summaryOfCache(c: CachedStats): StatsSummary;
@@ -19557,7 +19588,7 @@ export function NetworkBannerSlot(): JSX.Element;     // <div aria-live="polite"
 // src/wallet/impl/index.ts (chỉ qua loadWalletImpl): discoverWallets, providerErrorCodes, call, requestAccount,
 // readChainId, ensureChain, walletClientFor (wallet.ts); UNSUPPORTED_CODES, CallsUnsupported, isUnsupported,
 // supportsSendCalls, normalizeStatus, sendCalls (send-calls.ts); parseAccountsEvent, parseChainEvent,
-// isTransientDisconnect, WalletEvents, watchWallet, findRemembered, silentAccount, RestoreResult, restoreWallet,
+// isTransientDisconnect, type WalletEvents, watchWallet, findRemembered, silentAccount, type RestoreResult, restoreWallet,
 // connectWallet, notConnected (session.ts). useTxRunner ký lần lượt từng bước bằng atro.send; đường wallet_sendCalls
 // thuộc Plan 7B (Task 3 của 7B), không có trong 7A.
 ```
@@ -19635,14 +19666,16 @@ export function TxProgress(p: { rows: readonly StepRow[]; testId?: string; class
 export function ErrorBox(p: { error: unknown; onRetry?(): void; testId?: string; className?: string }): JSX.Element; // data-testid, data-code
 export interface ErrorViewState { view: ErrorDescription | null; unavailable: boolean }
 export function useErrorView(error: unknown): ErrorViewState;
-export type { ErrorDescription } from './impl/describe'; // ErrorView { code; message; hint; docsUrl } + { reason: string | null }
+export type { ErrorDescription } from './impl/describe'; // Omit<ErrorView, 'code'> + { code: ErrorView['code'] | ApiErrorCode; reason: string | null }
+                                                         // lỗi backend (ApiError) nói bằng EN/VI theo ngôn ngữ người đọc và không cần chunk tx/impl; lỗi SDK chỉ bằng tiếng Anh
 export function useLeaveGuard(active: boolean): void;
 export function toSignHref(sdkLink: string, origin: string): string | null;
 export type TxImpl = typeof Impl; // import type * as Impl from './impl'
 export function loadTxImpl(): Promise<TxImpl>;
 export function peekTxImpl(): TxImpl | null;
 // src/tx/impl/index.ts (chỉ qua loadTxImpl): errorView, isErrorJson, localDocs, ErrorView, describeError(e, docsPath),
-// ErrorDescription, decodeSendFailure(e): SendFailure { error: AtropyleErrorJson; index: number | null; completed: number }.
+// ErrorDescription, decodeSendFailure(e): SendFailure { error: AtropyleErrorJson; index: number | null; completed: number },
+// pageGone(): AtropyleError (USER_REJECTED, cho client của một thẻ đã unmount; luật 5).
 ```
 
 ### Backend (chỉ bản vercel)
@@ -19675,6 +19708,11 @@ export function useHealth(): UseQueryResult<HealthResponse>;
 export function useSubscribe(): UseMutationResult<OkResponse, Error, SubscribeRequest>;
 export function useConfirm(): UseMutationResult<ConfirmResponse, Error, string>;     // token từ '/alerts/confirm/#t=<token>'
 export function useUnsubscribe(): UseMutationResult<OkResponse, Error, string>;
+
+// src/api/errors.ts (chỉ `import type` từ client.ts: đọc ApiError theo hình dạng, nên trang hiện lỗi không kéo client vào)
+export interface ApiErrorView { code: ApiErrorCode; message: string; hint: string; docsUrl: string; reason: null } // hình dạng của ErrorDescription
+export function apiErrorCode(e: unknown): ApiErrorCode | null;  // mã của một ApiError; giá trị khác là null
+export function describeApiError(code: ApiErrorCode, docsPath: string | null, lang: Lang): ApiErrorView; // chữ chọn theo mã (api.messages, EN/VI), không bao giờ theo message của backend
 ```
 
 ### Build, test và công cụ
@@ -19769,8 +19807,8 @@ const PAGES: readonly { path: string; content(page: Page): Promise<void> }[]; //
 async function expectSeen(target: Locator): Promise<void>; // toBeVisible và không phần tử cha nào có opacity 0
 async function expectFrame(page: Page): Promise<void>; // dòng bằng chứng (data-testid "proof-line": keccak rút gọn → /proof/, "unaudited"), footer ("No trackers", /proof/#limits, /verify/)
 
-// Chỉ khi Task 15 ra Kết quả B (báo cáo Task 15 nói kết quả nào):
-export function NavLink(props: Omit<ComponentProps<typeof Link>, 'href'> & { href: string }): JSX.Element; // src/shell/nav-link.tsx
+// Task 15 ra Kết quả B (luật 18): mọi link sang route khác dùng NavLink
+export function NavLink(props: Omit<ComponentProps<typeof Link>, 'href'> & { href: string }): JSX.Element; // src/shell/nav-link.tsx; replace, scroll, transitionTypes, onNavigate như next/link
 export function withPendingViewTransition(update: () => void, committed: Promise<void>, maxMs?: number): void; // src/motion/view-transition.tsx
 ```
 
@@ -19779,4 +19817,8 @@ Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|light
 - `e2e` và `worker:check` tự build bản deweb e2e vào `out/`; `e2e` chép nó sang `test/e2e/.site/` rồi phục vụ từ đó. Sau hai lệnh này `out/` giữ bản e2e, nên `size` và `lighthouse` từ chối chạy cho tới khi `npm run build -w apps/web` build lại.
 - Ảnh duyệt thiết kế: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
 
-**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `189,2 kB` gzip (`npm run size`, bản deweb và bản vercel như nhau), dưới ngân sách 200 kB (R23), còn dư `10,8 kB`. Trang 404 là `182,8 kB`, dưới 240 kB. Dòng "R16" của báo cáo Task 15 ghi cách đo và phần lớn nhất: Next 16 + React 19 chiếm khoảng 135,7 kB. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).
+**Kích thước (R16).** JS lần tải đầu của `/` sau vòng sửa cuối của 7A (25/11) là `188,6 kB` gzip (`npm run size`, bản deweb và bản vercel như nhau), dưới ngân sách 200 kB (R23), còn dư `11,4 kB`. Trang 404 là `182,1 kB`, dưới 240 kB.
+- Next 16 + React 19 chiếm `135,7 kB` trong đó. Đây là tổng gzip mức 9 của sáu chunk lần tải đầu chỉ chứa React DOM, runtime client của Next, phần còn lại của Next và runtime Turbopack: 71,6 + 45,6 + 8,7 + 3,9 + 3,9 + 2,0 kB.
+- Báo cáo Task 15 (dòng "R16") ghép chunk với nội dung bằng `next analyze`. Bản build sau vòng sửa cuối có đủ sáu chunk đó với cùng cỡ; chỉ chunk mang bản đồ chunk của Next đổi tên.
+- Con số 129,7 kB lúc Task 15 mới dựng theo cách chia chunk lúc đó và không tính chunk 2 kB của Next (`310vm2bl3xxpt.js`). Khung trần của Task 2 (khoảng 132 kB) là một phép đo khác: app rỗng, trước khung của 7A.
+- Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18). Pre-flight 7C (F5) ước 7C thêm khoảng 18–20 kB vào `/`, nhiều hơn phần dư.
