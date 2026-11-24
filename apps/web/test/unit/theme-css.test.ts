@@ -19,7 +19,35 @@ function decls(selector: string, from = 0): Record<string, string> {
   return out;
 }
 
+/** The rules of the `@layer base` block as [selector, body], comments dropped; its rules hold no nested braces. */
+function baseRules(): Array<[string, string]> {
+  const open = CSS.indexOf('{', CSS.indexOf('@layer base {'));
+  let depth = 0;
+  let end = open;
+  for (; end < CSS.length; end++) {
+    if (CSS[end] === '{') depth++;
+    else if (CSS[end] === '}' && --depth === 0) break;
+  }
+  const inner = CSS.slice(open + 1, end).replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...inner.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [(m[1] ?? '').trim(), m[2] ?? '']);
+}
+
 describe('theme stylesheet', () => {
+  it('base rules read the theme tokens themselves, so scoped vellum gets its own focus ring and selection', () => {
+    // --color-* resolves once on :root and is inherited with night's value; only the html rule, which sits on :root
+    // with the page's data-theme, may read it.
+    const rules = baseRules();
+    expect(rules.map(([selector]) => selector)).toEqual(
+      expect.arrayContaining(['html', '::selection', ':focus-visible']),
+    );
+    expect(rules.filter(([selector, body]) => selector !== 'html' && body.includes('var(--color-'))).toEqual([]);
+    const base = CSS.indexOf('@layer base {');
+    expect(decls(':focus-visible', base)).toEqual({ outline: '2px solid var(--atro-thread)', 'outline-offset': '2px' });
+    expect(decls('::selection', base)).toEqual({
+      'background-color': 'color-mix(in oklab, var(--atro-thread) 35%, transparent)',
+    });
+  });
+
   it('night is :root with no attribute; vellum is an attribute any element can carry', () => {
     expect(decls('/* tokens:dark */\n:root,\n[data-theme="dark"]')['color-scheme']).toBe('dark');
     expect(decls('/* tokens:light */\n[data-theme="light"]')['color-scheme']).toBe('light');

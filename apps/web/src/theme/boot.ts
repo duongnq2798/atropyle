@@ -47,5 +47,9 @@ export function boot(themeKey: string, legacy: (pathname: string, hash: string) 
   }
 }
 
-/** The page's only inline script (Quyết định 14). The CSP hashes it after the build (Task 15). */
-export const BOOT_SCRIPT = `(${boot.toString()})(${JSON.stringify(KEYS.theme)},${legacyTarget.toString()});`;
+/**
+ * The page's only inline script (Quyết định 14). The CSP hashes it after the build (Task 15). Pure, so a client chunk
+ * that reaches this module through routes.ts (legacyTarget) does not build the string it never uses.
+ */
+export const BOOT_SCRIPT = /* @__PURE__ */ (() =>
+  `(${boot.toString()})(${JSON.stringify(KEYS.theme)},${legacyTarget.toString()});`)();

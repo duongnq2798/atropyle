@@ -283,11 +283,13 @@
   p {
     text-wrap: pretty;
   }
+  /* The theme tokens, not --color-*: --color-thread resolves once on :root and scoped vellum would inherit night's
+     gold, a 1.66:1 focus ring on vellum paper. */
   ::selection {
-    background-color: color-mix(in oklab, var(--color-thread) 35%, transparent);
+    background-color: color-mix(in oklab, var(--atro-thread) 35%, transparent);
   }
   :focus-visible {
-    outline: 2px solid var(--color-thread);
+    outline: 2px solid var(--atro-thread);
     outline-offset: 2px;
   }
 }
