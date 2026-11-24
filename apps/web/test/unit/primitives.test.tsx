@@ -411,6 +411,22 @@ describe('Banner', () => {
   });
 });
 
+/** A Dialog with no trigger, opened by a button outside it, as ConnectSheet is by the header's Connect. */
+function OpenedFromOutside({ onCloseAutoFocus }: { onCloseAutoFocus?(event: Event): void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Opener
+      </button>
+      <button type="button">Elsewhere</button>
+      <Dialog open={open} onOpenChange={setOpen} title="Choose a wallet" onCloseAutoFocus={onCloseAutoFocus}>
+        <Button>Inside</Button>
+      </Dialog>
+    </>
+  );
+}
+
 describe('Dialog', () => {
   it('opens from its trigger with a title, and closes with Escape', async () => {
     renderWithProviders(
@@ -457,20 +473,7 @@ describe('Dialog', () => {
   });
 
   it('without a trigger, gives focus back to what had it when it opened', async () => {
-    function Outside() {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          <button type="button" onClick={() => setOpen(true)}>
-            Opener
-          </button>
-          <Dialog open={open} onOpenChange={setOpen} title="Choose a wallet">
-            <Button>Inside</Button>
-          </Dialog>
-        </>
-      );
-    }
-    renderWithProviders(<Outside />);
+    renderWithProviders(<OpenedFromOutside />);
     const opener = screen.getByRole('button', { name: 'Opener' });
     act(() => opener.focus());
     fireEvent.click(opener);
@@ -482,29 +485,14 @@ describe('Dialog', () => {
   });
 
   it('leaves focus where the caller put it on close', async () => {
-    function Outside() {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          <button type="button" onClick={() => setOpen(true)}>
-            Opener
-          </button>
-          <button type="button">Elsewhere</button>
-          <Dialog
-            open={open}
-            onOpenChange={setOpen}
-            title="Choose a wallet"
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              screen.getByRole('button', { name: 'Elsewhere' }).focus();
-            }}
-          >
-            <Button>Inside</Button>
-          </Dialog>
-        </>
-      );
-    }
-    renderWithProviders(<Outside />);
+    renderWithProviders(
+      <OpenedFromOutside
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          screen.getByRole('button', { name: 'Elsewhere' }).focus();
+        }}
+      />,
+    );
     const opener = screen.getByRole('button', { name: 'Opener' });
     act(() => opener.focus());
     fireEvent.click(opener);
