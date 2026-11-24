@@ -16,8 +16,9 @@ import {
 export type ApiErrorCode = ProblemCode | 'NETWORK' | 'TIMEOUT' | 'BAD_RESPONSE' | 'UNAVAILABLE';
 
 /**
- * Every failure of a backend call. The UI words its message by `code`; `message` is for the console only, since the
- * backend's `title` is neither translated nor meant for people.
+ * Every failure of a backend call. The UI words its message by `code` (src/api/errors.ts); `message` names the
+ * request and the code for the console. The backend's `title` is left out: it is neither translated nor meant for
+ * people, and the page takes no text from the backend.
  */
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
@@ -131,9 +132,8 @@ const healthOf: Parse<HealthResponse> = (v) => {
   return indexer && integrity !== undefined && keeper !== undefined ? { indexer, integrity, keeper } : null;
 };
 
-function problemOf(v: unknown): { code: ProblemCode; title: string } | null {
-  if (!isObj(v) || !isProblemCode(v.code)) return null;
-  return { code: v.code, title: typeof v.title === 'string' ? v.title.slice(0, 200) : v.code };
+function problemOf(v: unknown): ProblemCode | null {
+  return isObj(v) && isProblemCode(v.code) ? v.code : null;
 }
 
 function jsonOf(text: string): unknown {
@@ -200,8 +200,8 @@ export function createApiClient(base: string, o: ApiClientOptions = {}): ApiClie
     }
     const json = jsonOf(text);
     if (!res.ok) {
-      const p = problemOf(json);
-      if (p) throw new ApiError(p.code, res.status, `${what}: ${p.title}`);
+      const code = problemOf(json);
+      if (code) throw new ApiError(code, res.status, `${what}: ${code} (HTTP ${res.status})`);
       throw new ApiError(res.status >= 500 ? 'INTERNAL' : 'BAD_RESPONSE', res.status, `${what}: HTTP ${res.status}`);
     }
     const value = parse(json);

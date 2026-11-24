@@ -1,7 +1,7 @@
 'use client';
 
 import { skipToken, type UseMutationResult, type UseQueryResult, useMutation, useQuery } from '@tanstack/react-query';
-import { CHAIN_ID } from '@/chain/hooks';
+import { CHAIN_ID, failedEmpty } from '@/chain/hooks';
 import { chainKeys } from '@/chain/keys';
 import { isAddressText } from '@/lib/address';
 import { type ApiClient, ApiError } from './client';
@@ -22,6 +22,8 @@ export function useApiStats(): UseQueryResult<StatsResponse> {
     queryKey: chainKeys.stats(CHAIN_ID, 'api'),
     queryFn: api ? ({ signal }) => api.stats(signal) : skipToken,
     staleTime: 60_000,
+    // A failure with nothing shown waits for Retry, as the chain's reads do (failedEmpty).
+    refetchOnWindowFocus: (q) => !failedEmpty(q),
   });
 }
 
@@ -35,6 +37,7 @@ export function useMe(account: string | null): UseQueryResult<MeResponse> {
     queryKey: chainKeys.me(CHAIN_ID, account ?? ''),
     queryFn: api && account && isAddressText(account) ? ({ signal }) => api.me(account, signal) : skipToken,
     staleTime: 30_000,
+    refetchOnWindowFocus: (q) => !failedEmpty(q),
   });
 }
 
@@ -44,7 +47,9 @@ export function useHealth(): UseQueryResult<HealthResponse> {
   return useQuery({
     queryKey: chainKeys.health(CHAIN_ID),
     queryFn: api ? ({ signal }) => api.health(signal) : skipToken,
-    refetchInterval: 30_000,
+    // A backend that is down stays one steady error until Retry, rather than an error and a spinner every 30 s.
+    refetchInterval: (q) => (failedEmpty(q) ? false : 30_000),
+    refetchOnWindowFocus: (q) => !failedEmpty(q),
   });
 }
 

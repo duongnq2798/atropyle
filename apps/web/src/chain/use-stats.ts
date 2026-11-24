@@ -129,7 +129,9 @@ export function useChainStats(): StatsState {
 export function useStats(): StatsState {
   const chain = useChainStats();
   const api = useApiStats();
-  const summary = freshest(api.data ? summaryOfApi(api.data) : null, chain.summary);
+  // A backend that has not indexed yet answers block 0 with zero counts: no count, rather than zeros.
+  const fromApi = api.data && api.data.block !== '0' ? summaryOfApi(api.data) : null;
+  const summary = freshest(fromApi, chain.summary);
   return {
     ...chain,
     summary,

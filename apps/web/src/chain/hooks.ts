@@ -55,9 +55,10 @@ function sdkFor(client: QueryClient, crossCheck: boolean): Promise<Sdk> {
 /**
  * A read that failed before it had any data waits for the user's Retry. Polling it, or reading it again when the
  * tab comes back, would only swap the error for a loading state and back (a screen reader announces it each time),
- * and a permanent error comes back the same (Quyết định 18). A read that has data keeps refreshing.
+ * and a permanent error comes back the same (Quyết định 18). A read that has data keeps refreshing. The backend's
+ * reads (src/api/hooks.ts) follow the same rule.
  */
-function failedEmpty(q: { state: { data: unknown; status: string } }): boolean {
+export function failedEmpty(q: { state: { data: unknown; status: string } }): boolean {
   return q.state.data === undefined && q.state.status === 'error';
 }
 

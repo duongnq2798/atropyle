@@ -1,9 +1,11 @@
+import { focusManager } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/client';
 import { useApiStats, useConfirm, useHealth, useMe, useSubscribe, useUnsubscribe } from '../../src/api/hooks';
 import type { SubscribeRequest } from '../../src/api/types';
 import { toCache } from '../../src/chain/impl/stats-view';
+import { makeQueryClient } from '../../src/chain/query-client';
 import { freshest, type StatsSummary, summaryOfApi, useStats } from '../../src/chain/use-stats';
 import { makeWrapper } from '../helpers/render';
 import { fixtureDeployment, fixtureStats, PEOPLE } from './fixtures';
@@ -47,6 +49,11 @@ beforeEach(() => {
   impl.loadDeployment.mockImplementation(() => fixtureDeployment());
   impl.createSdk.mockImplementation(() => ({ fake: 'sdk' }));
   impl.cachedStats.mockReturnValue(null);
+});
+
+afterEach(() => {
+  focusManager.setFocused(undefined);
+  vi.useRealTimers();
 });
 
 describe('stats summary', () => {
@@ -104,6 +111,16 @@ describe('useStats with a backend', () => {
     await waitFor(() => expect(impl.cachedStats).toHaveBeenCalled());
     act(() => result.current.refresh());
     await waitFor(() => expect(result.current.summary).toMatchObject({ source: 'chain', block: 2_000n, vaults: 3 }));
+    expect(result.current.error).toBeNull();
+  });
+
+  it('shows nothing from a backend that has not indexed yet, rather than zeros at block 0', async () => {
+    fake.stats.mockResolvedValue({ ...STATS, block: '0', vaults: '0', drills: '0', checkIns: '0' });
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useStats(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fake.stats).toHaveBeenCalledTimes(1);
+    expect(result.current.summary).toBeNull();
     expect(result.current.error).toBeNull();
   });
 
@@ -172,5 +189,77 @@ describe('backend hooks', () => {
     });
     expect(fake.subscribe).not.toHaveBeenCalled();
     expect(fake.stats).not.toHaveBeenCalled();
+  });
+});
+
+describe('backend reads that failed before they had data', () => {
+  const down = () => new ApiError('INTERNAL', 503, 'GET: INTERNAL (HTTP 503)');
+
+  it('waits for Retry instead of polling the health, while a loaded health keeps polling', async () => {
+    vi.useFakeTimers();
+    fake.health.mockRejectedValue(down());
+    const { wrapper } = makeWrapper({ queryClient: makeQueryClient() });
+    const { result } = renderHook(() => useHealth(), { wrapper });
+    // The first request and the two retries of a passing failure (Quyết định 18).
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(result.current.error).toMatchObject({ code: 'INTERNAL' });
+    expect(fake.health).toHaveBeenCalledTimes(3);
+    const seen = new Set<string>();
+    for (let s = 0; s < 70; s++) {
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      seen.add(result.current.status);
+    }
+    expect([...seen]).toEqual(['error']);
+    expect(fake.health).toHaveBeenCalledTimes(3);
+
+    fake.health.mockResolvedValue(HEALTH);
+    await act(async () => {
+      void result.current.refetch();
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(result.current.data).toEqual(HEALTH);
+    expect(fake.health).toHaveBeenCalledTimes(4);
+    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    expect(fake.health).toHaveBeenCalledTimes(6);
+  });
+
+  it('does not ask again when the tab comes back, so the home page holds still, and asks on Retry', async () => {
+    vi.useFakeTimers();
+    fake.stats.mockRejectedValue(down());
+    fake.me.mockRejectedValue(down());
+    fake.health.mockRejectedValue(down());
+    const { wrapper } = makeWrapper({ queryClient: makeQueryClient() });
+    const { result } = renderHook(
+      () => ({ api: useApiStats(), home: useStats(), me: useMe(PEOPLE.owner), health: useHealth() }),
+      { wrapper },
+    );
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(result.current.api.status).toBe('error');
+    expect(result.current.me.status).toBe('error');
+    expect(result.current.health.status).toBe('error');
+    expect(result.current.home).toMatchObject({ loading: false, error: { code: 'INTERNAL' } });
+    expect(fake.stats).toHaveBeenCalledTimes(3);
+    expect(fake.me).toHaveBeenCalledTimes(3);
+    expect(fake.health).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(result.current.api.status).toBe('error');
+    expect(result.current.me.status).toBe('error');
+    expect(result.current.health.status).toBe('error');
+    expect(result.current.home).toMatchObject({ loading: false, error: { code: 'INTERNAL' } });
+    expect(fake.stats).toHaveBeenCalledTimes(3);
+    expect(fake.me).toHaveBeenCalledTimes(3);
+    expect(fake.health).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      void result.current.api.refetch();
+      void result.current.me.refetch();
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fake.stats).toHaveBeenCalledTimes(6);
+    expect(fake.me).toHaveBeenCalledTimes(6);
+    expect(result.current.api.error).toMatchObject({ code: 'INTERNAL' });
   });
 });

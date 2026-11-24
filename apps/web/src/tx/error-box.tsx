@@ -31,7 +31,8 @@ function DocsLink({ href, children }: { href: string; children: ReactNode }) {
 
 /**
  * Any error, described by the SDK: the message as the title, the hint, the code and a docs link chosen by the code
- * (never a URL from the message). The revert reason of an unknown revert is shown apart, as untrusted text.
+ * (never a URL from the message). The revert reason of an unknown revert is shown apart, as untrusted text. A backend
+ * error (ApiError) is worded by its code alone (src/api/errors.ts), never by its message.
  */
 export function ErrorBox({
   error,
