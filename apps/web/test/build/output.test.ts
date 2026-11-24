@@ -12,7 +12,7 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(existsSync(join(out, '404.html'))).toBe(true);
     });
 
-    it('ships neither the dev gallery nor the e2e pages', () => {
+    it('ships no dev-only and no e2e-only pages', () => {
       expect(existsSync(join(out, 'dev'))).toBe(false);
       expect(existsSync(join(out, 'e2e'))).toBe(false);
     });

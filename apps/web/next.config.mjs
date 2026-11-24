@@ -5,18 +5,16 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 const TARGETS = ['vercel', 'deweb'];
 
 /**
- * A function of the phase so that dev-only pages (`page.dev.tsx`, the /dev/ gallery) never reach a production build,
- * and e2e-only pages (`page.e2e.tsx`) exist only when ATROPYLE_E2E=1.
- * @param {string} phase
+ * A function, so that the target is checked at load and e2e-only pages (`page.e2e.tsx`) exist only when
+ * ATROPYLE_E2E=1. There are no dev-only pages: the design review uses screenshots of the real pages.
  * @returns {import('next').NextConfig}
  */
-export default function config(phase) {
+export default function config() {
   const target = process.env.NEXT_PUBLIC_TARGET || 'deweb';
   if (!TARGETS.includes(target)) throw new Error(`NEXT_PUBLIC_TARGET must be vercel or deweb, got "${target}"`);
   // The deweb build must never carry the backend URL (spec §2); scripts/lib/build-env.ts drops it too.
   if (target !== 'vercel') delete process.env.NEXT_PUBLIC_API_URL;
   const pageExtensions = ['tsx', 'ts'];
-  if (phase === 'phase-development-server') pageExtensions.unshift('dev.tsx');
   if (process.env.ATROPYLE_E2E === '1') pageExtensions.unshift('e2e.tsx');
   return {
     output: 'export',
