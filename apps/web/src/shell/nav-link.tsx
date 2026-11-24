@@ -1,0 +1,57 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { type ComponentProps, type MouseEvent, useEffect, useRef } from 'react';
+import { withPendingViewTransition } from '@/motion/view-transition';
+
+type NavLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & { href: string };
+
+/** `/proof` and `/proof/` are the same page (trailingSlash: true). */
+function samePath(a: string, b: string): boolean {
+  return (a.replace(/\/+$/, '') || '/') === (b.replace(/\/+$/, '') || '/');
+}
+
+/** A click the browser keeps for itself: another button, a modifier key, another tab. */
+function isPlainClick(e: MouseEvent<HTMLAnchorElement>): boolean {
+  const target = e.currentTarget.getAttribute('target');
+  return (
+    e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && (target === null || target === '_self')
+  );
+}
+
+/**
+ * next/link whose client navigation runs inside a view transition, because React did not start one for a navigation
+ * in this Next version (the spy in test/e2e/motion.spec.ts). The old picture stays until the new pathname has
+ * committed, at most one second.
+ */
+export function NavLink({ href, onClick, ...rest }: NavLinkProps) {
+  const router = useRouter();
+  const pathname = usePathname() ?? '/';
+  const pending = useRef<{ path: string; resolve(): void } | null>(null);
+  useEffect(() => {
+    const p = pending.current;
+    if (p && samePath(p.path, pathname)) {
+      pending.current = null;
+      p.resolve();
+    }
+  }, [pathname]);
+  return (
+    <Link
+      {...rest}
+      href={href}
+      onClick={(e) => {
+        onClick?.(e);
+        if (e.defaultPrevented || !isPlainClick(e)) return;
+        const to = new URL(href, window.location.href);
+        // Another site, or the same page (a hash change): next/link and the browser handle it.
+        if (to.origin !== window.location.origin || samePath(to.pathname, window.location.pathname)) return;
+        e.preventDefault();
+        const committed = new Promise<void>((resolve) => {
+          pending.current = { path: to.pathname, resolve };
+        });
+        withPendingViewTransition(() => router.push(href), committed);
+      }}
+    />
+  );
+}

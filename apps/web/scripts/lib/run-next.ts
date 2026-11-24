@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { buildEnvFor } from './build-env';
+import { applyCsp } from './csp';
 
 export const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 export const OUT_DIR = fileURLToPath(new URL('../../out', import.meta.url));
@@ -40,7 +41,16 @@ export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{
   });
 }
 
-/** `next build` into out/, then the postbuild steps (Task 15 adds the CSP). */
+/** `next build` into out/, then the postbuild step: a hashed CSP in every page (Quyết định 12). */
 export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
-  return runNext('build', o);
+  const built = await runNext('build', o);
+  if (built.code !== 0) return built;
+  // The environment `next build` ran with, so that connect-src matches the bundle (Task 14 keeps .env files out).
+  // A plain record, as buildEnvFor takes: ProcessEnv declares TZ and NODE_ENV, which share no key with CspEnv.
+  const env: Readonly<Record<string, string | undefined>> = buildEnvFor(o.env ?? process.env);
+  const pages = applyCsp(OUT_DIR, env);
+  const line =
+    pages > 0 ? `csp: ${pages} pages carry a hashed Content-Security-Policy\n` : 'csp: out/ has no HTML page\n';
+  if (!o.quiet) process.stdout.write(line);
+  return { code: pages > 0 ? 0 : 1, output: built.output + line };
 }

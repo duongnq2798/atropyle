@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useT } from '@/i18n/provider';
 import { messages as shell } from '@/messages/shell.messages';
 import { messages as ui } from '@/messages/ui.messages';
 import { ROUTES } from '@/routes';
 import { WalletButton } from '@/wallet/wallet-button';
 import { MobileMenu } from './mobile-menu';
+import { NavLink } from './nav-link';
 import { NavList } from './nav-list';
 import { SettingsMenu } from './settings-menu';
 import { Wordmark } from './wordmark';
@@ -21,9 +21,9 @@ export function Header() {
   return (
     <header className="site-header sticky top-0 z-40 border-line/70 border-b bg-bg/95 md:bg-bg/80 md:backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
-        <Link href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
+        <NavLink href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
           <Wordmark />
-        </Link>
+        </NavLink>
         <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
           <NavList layout="bar" />
         </nav>

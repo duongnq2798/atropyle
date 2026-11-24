@@ -37,6 +37,18 @@ describe('static server', () => {
     expect(r.headers.get('content-security-policy')).toBe("default-src 'self'");
   });
 
+  it('gzips text when the client accepts it, as Vercel does, and leaves compressed formats alone', async () => {
+    const page = await fetch(`${server.url}/proof/`, { headers: { 'accept-encoding': 'gzip, br' } });
+    expect(page.headers.get('content-encoding')).toBe('gzip');
+    expect(page.headers.get('vary')).toBe('accept-encoding');
+    expect(await page.text()).toBe('<p>proof</p>');
+    const plain = await fetch(`${server.url}/proof/`, { headers: { 'accept-encoding': 'identity' } });
+    expect(plain.headers.get('content-encoding')).toBeNull();
+    expect(await plain.text()).toBe('<p>proof</p>');
+    const font = await fetch(`${server.url}/font.woff2`, { headers: { 'accept-encoding': 'gzip' } });
+    expect(font.headers.get('content-encoding')).toBeNull();
+  });
+
   it('never serves a file outside the root', async () => {
     const r = await fetch(`${server.url}/..%2f..%2fetc%2fpasswd`);
     expect([403, 404]).toContain(r.status);

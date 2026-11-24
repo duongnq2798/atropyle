@@ -30,3 +30,4 @@ apps/web/test/e2e/.state.json
 apps/web/test-results/
 apps/web/playwright-report/
 apps/web/lighthouse-report/
+apps/web/.size/

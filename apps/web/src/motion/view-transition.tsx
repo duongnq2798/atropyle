@@ -27,3 +27,24 @@ export function withViewTransition(update: () => void): void {
   }
   start.call(document, () => flushSync(update));
 }
+
+type StartPendingViewTransition = (update: () => Promise<void>) => unknown;
+
+/**
+ * A crossfade around an update that commits later, such as a client route change: the browser keeps the old picture
+ * until `committed` resolves or `maxMs` has passed, then animates to the new one. Without the API, or when the user
+ * prefers reduced motion, the update simply runs.
+ */
+export function withPendingViewTransition(update: () => void, committed: Promise<void>, maxMs = 1_000): void {
+  const start = (document as { startViewTransition?: StartPendingViewTransition }).startViewTransition;
+  const reduce =
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (typeof start !== 'function' || reduce) {
+    update();
+    return;
+  }
+  start.call(document, () => {
+    update();
+    return Promise.race([committed, new Promise<void>((resolve) => setTimeout(resolve, maxMs))]);
+  });
+}

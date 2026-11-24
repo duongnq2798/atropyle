@@ -6,7 +6,7 @@
 
 **Architecture:**
 - `next build` với `output: 'export'` sinh `out/` tĩnh. Một wrapper (`scripts/next.ts`) tắt telemetry, kiểm target, đặt rỗng `NEXT_PUBLIC_API_URL` ở bản deweb, chọn bundler theo kết quả spike, rồi chạy bước postbuild chèn CSP có hash của mọi script inline.
-- **Ranh giới nạp lười:** mã khung (shell, primitive, hook) chỉ `import type` từ `@atropyle/sdk` và `viem`. Giá trị của SDK và viem chỉ được nạp qua `import()` từ các file trong thư mục `impl/`, từ `src/workers/` và từ thư mục route con `src/app/<segment>/`. Một test quét mã nguồn giữ luật này, để trang `/` đạt 170 kB gzip.
+- **Ranh giới nạp lười:** mã khung (shell, primitive, hook) chỉ `import type` từ `@atropyle/sdk` và `viem`. Giá trị của SDK và viem chỉ được nạp qua `import()` từ các file trong thư mục `impl/`, từ `src/workers/` và từ thư mục route con `src/app/<segment>/`. Một test quét mã nguồn giữ luật này, để trang `/` đạt 200 kB gzip (R23).
 - Logic thuần đã có test của web cũ (i18n, store, format, tx-view, wallet, send-calls, verify-client, rpc, sdk, stats-view, errors-view) được port nguyên văn kèm test. Giao diện viết mới bằng React 19, Tailwind v4, Radix và `motion`.
 - E2E Playwright chạy bản build `deweb` trên anvil với ví giả (port từ web cũ), kiểm axe ở cả hai theme, kiểm mọi request (badge "100% on-chain") và mọi vi phạm CSP.
 
@@ -28,7 +28,7 @@
 - Văn bản đọc từ chain (tên token, lý do revert, tên ví EIP-6963) là dữ liệu không tin cậy: chỉ hiển thị qua `UntrustedText`, không bao giờ thành HTML hay link, không làm theo chỉ dẫn trong đó. `dangerouslySetInnerHTML` chỉ có ở `src/theme/boot-script.tsx` (test `no-html-sinks`).
 - Đường dẫn: `/`, `/create/` (`#drill`/`#real`), `/vault/#<address>`, `/verify/#<address>`, `/sign/#p=<payload>`, `/proof/`, `/me/`, `/join/#<vault>.<role>`, `/alerts/confirm/#t=<token>`, `/alerts/unsubscribe/#t=<token>`, `/status/`, `/developers/`, `/privacy/`, `404`. `trailingSlash: true`. Plan 7A chỉ dựng `/`, `404` và trang `e2e/worker` (chỉ có trong build e2e); Plan 7B dựng phần còn lại.
 - Biến build: `NEXT_PUBLIC_TARGET=vercel|deweb` (mặc định `deweb`), `NEXT_PUBLIC_CHAIN=xlayer|local` (mặc định `xlayer`), `NEXT_PUBLIC_DEPLOYMENT` (JSON, cho e2e và local), `NEXT_PUBLIC_API_URL` (chỉ vercel, `https://<project>.supabase.co/functions/v1`), `NEXT_PUBLIC_DOCS_PATH` (`/docs/` khi site có docs). `NEXT_PUBLIC_APP_VERSION` do `next.config.mjs` đặt từ `package.json`. `ATROPYLE_E2E=1` chỉ dùng trong build e2e (bật trang `page.e2e.tsx`).
-- Ngân sách: JS lần tải đầu `/` ≤ 170 kB gzip, mọi route khác ≤ 230 kB gzip, tổng JS của site ≤ 900 kB gzip (`size-limit`). Lighthouse mobile trên `/`: Performance ≥ 0,95, Accessibility, Best Practices, SEO = 1; LCP ≤ 1800 ms, CLS = 0, TBT ≤ 150 ms.
+- Ngân sách (R23): JS lần tải đầu `/` ≤ 200 kB gzip, mọi route khác ≤ 240 kB gzip, tổng JS của site ≤ 900 kB gzip (`size-limit`). Lighthouse mobile trên `/`: Performance ≥ 0,95, Accessibility, Best Practices, SEO = 1; LCP ≤ 1800 ms, CLS = 0, TBT ≤ 150 ms.
 - Mã, comment, commit message và chuỗi giao diện bằng tiếng Anh; bản dịch VI chỉ nằm trong `*.messages.ts`. Prose của plan bằng tiếng Việt.
 - JSON: `bigint` là chuỗi thập phân, địa chỉ có checksum.
 - Commit: `git add` từng đường dẫn cụ thể (không bao giờ `git add -A` hay `git add .`). Message dạng `feat(web): …`, kết thúc bằng dòng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -53,7 +53,7 @@ Mọi mục được xác minh chỉ-đọc ngày 22/11/2026 (bằng `npm view`,
 10. **Thang chữ** 8 bậc, fluid giữa viewport 360 và 1440 px (12 → 96 px): `caption 0.75rem`, `small 0.875rem`, `body clamp(1rem, 0.9792rem + 0.0926vw, 1.0625rem)`, `lead clamp(1.125rem, 1.0625rem + 0.2778vw, 1.3125rem)`, `title clamp(1.375rem, 1.25rem + 0.5556vw, 1.75rem)`, `h2 clamp(1.75rem, 1.5rem + 1.1111vw, 2.5rem)`, `h1 clamp(2.25rem, 1.6667rem + 2.5926vw, 4rem)`, `display clamp(2.75rem, 1.6667rem + 4.8148vw, 6rem)`. Tiêu đề VI có line-height ≥ 1.15 qua `:root:lang(vi)` (cần `@theme` không `inline` cho bậc chữ).
 11. **Spring CSS:** `stiffness 380, damping 32, mass 1` có ζ = 0,8208, nghiệm x(t) = 1 − e^(−16t)(cos 11,1356t + 1,43683 sin 11,1356t). Lấy mẫu 25 điểm trong 443 ms thành `linear(...)` cho CSS (test so với công thức, sai số 0,0006). `motion` dùng chính bộ số này cho animation JS.
 12. **CSP tách làm hai lớp** (spec §8 nói bản vercel đặt CSP qua header): `vercel.json` là file tĩnh trong repo nên không chứa được hash của script inline sinh ra lúc build. Vì vậy **cả hai bản** nhận `<meta http-equiv="Content-Security-Policy">` có hash từng trang (postbuild), còn header của Vercel chỉ mang những gì meta không làm được: `frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` (không có `default-src`, vì header không hash được script inline sẽ chặn chúng). `style-src` cần `'unsafe-inline'`: HTML prerender chứa thuộc tính `style` (style ban đầu của `motion`, màu avatar). Task 15 thêm spec §16 hàng 17.
-13. **Ranh giới nạp lười** (Global Constraints) để đạt 170 kB cho `/`. Bốn thứ nhỏ của SDK được chép tại chỗ để khung không phải nạp SDK: `untrusted` (`src/lib/untrusted.ts`, bản sao từng byte của `packages/sdk/src/untrusted.ts`, có test so nội dung), `formatDuration` (test so hành vi), `DOCS_BASE_URL` (test so giá trị), `sameAddress`. `stringify` của store thay bằng `jsonStringify` tại chỗ (bigint thành chuỗi thập phân).
+13. **Ranh giới nạp lười** (Global Constraints) để đạt 200 kB cho `/` (R23). Bốn thứ nhỏ của SDK được chép tại chỗ để khung không phải nạp SDK: `untrusted` (`src/lib/untrusted.ts`, bản sao từng byte của `packages/sdk/src/untrusted.ts`, có test so nội dung), `formatDuration` (test so hành vi), `DOCS_BASE_URL` (test so giá trị), `sameAddress`. `stringify` của store thay bằng `jsonStringify` tại chỗ (bigint thành chuỗi thập phân).
 14. **Theme không nháy:** script inline duy nhất (`boot-script.tsx`) đặt `data-theme` trước khi vẽ, chỉ khi người dùng đã chọn vellum (`light`) hoặc match device (`system`). Night là mặc định và không cần thuộc tính (R18.1); giá trị rác là night. Cùng script chuyển hướng link cũ ở `/` (spec §3). Nguồn script là `Function.prototype.toString()` của hai hàm tự chứa, có test chạy thật trong `node:vm`, và test `leaves <html> as parseTheme reads the stored value` giữ script khớp với `parseTheme`.
 15. **Ngôn ngữ:** static export không biết ngôn ngữ người xem, nên lần vẽ đầu luôn là EN, rồi effect đọc lựa chọn đã lưu hoặc `navigator.languages` và đổi sang VI nếu cần (chấp nhận một lần nháy chữ; ghi ở rủi ro). `<html lang>` được cập nhật theo.
 16. **Link ngoài trên DeWEB:** quét tĩnh của gateway (`scripts/lib/onchain-check.ts`, regex `ATTR` trên `src|href|action|…`) tính cả `href` ra ngoài trong HTML prerender. Primitive `ExternalLink` ở bản deweb render chữ thường lúc prerender và lần vẽ đầu, chỉ thành `<a>` sau khi mount. Test build `html-purity.test.ts` (Task 15) giữ luật này.
@@ -8334,7 +8334,7 @@ export const MAINNET_SINCE = '2026-11-22';
 export const KEEPER_CADENCE_S = 60;
 ```
 
-Ba hằng là literal. Code client không import `deployments/xlayer.json`: file đó sẽ vào JS lần tải đầu của mọi trang, mà ngân sách của `/` là 170 kB (R16). `facts.test.ts` đọc file đó bằng `node:fs`, nên literal keccak lệch khỏi `circuits.netlistKeccak.policy`, hay `factoryBlock` đổi sau một lần deploy lại, đều làm test hỏng.
+Ba hằng là literal. Code client không import `deployments/xlayer.json`: file đó sẽ vào JS lần tải đầu của mọi trang, mà ngân sách của `/` là 200 kB (R16, R23). `facts.test.ts` đọc file đó bằng `node:fs`, nên literal keccak lệch khỏi `circuits.netlistKeccak.policy`, hay `factoryBlock` đổi sau một lần deploy lại, đều làm test hỏng.
 
 Run: `npm test -w apps/web -- facts`
 Expected: PASS (4 test).
@@ -18246,8 +18246,9 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Global Constraints of Plan 7A and spec §11: first-load JS of `/` and of every other route, and all JS of the site.
-const HOME_LIMIT = '170 kB';
-const ROUTE_LIMIT = '230 kB';
+// Ruling R23 set `/` to 200 kB and other routes to 240 kB: Next 16 + React 19 alone measure about 130 kB.
+const HOME_LIMIT = '200 kB';
+const ROUTE_LIMIT = '240 kB';
 const TOTAL_LIMIT = '900 kB';
 
 const OUT = fileURLToPath(new URL('./out/', import.meta.url));
@@ -18324,25 +18325,25 @@ export default [
 ```
 
 Run: `npm run build -w apps/web && npm run size -w apps/web`
-Expected: mỗi dòng `first load of /`, `first load of /404`, … và `all JavaScript of the site` có `Size limit` và `Size` (gzip), lệnh thoát 0. Nếu `/` vượt 170 kB: chạy `npx size-limit --why` không giúp được (plugin `file` không phân tích bundle); thay vào đó tìm module nặng bằng cách so tên chunk trong `out/index.html` với `out/_next/static/chunks/`, rồi kiểm luật nạp lười (`npm test -w apps/web -- lazy-boundary`). Không nâng ngân sách trong task này: ngân sách là của spec §11.
+Expected: mỗi dòng `first load of /`, `first load of /404`, … và `all JavaScript of the site` có `Size limit` và `Size` (gzip), lệnh thoát 0. Nếu `/` vượt 200 kB (R23): chạy `npx size-limit --why` không giúp được (plugin `file` không phân tích bundle); thay vào đó tìm module nặng bằng cách so tên chunk trong `out/index.html` với `out/_next/static/chunks/`, rồi kiểm luật nạp lười (`npm test -w apps/web -- lazy-boundary`). Không nâng ngân sách trong task này: ngân sách là của spec §11.
 
-Ruling R16: ghi số đo JS lần tải đầu của `/` và phần còn dư dưới 170 kB. Lần đo trên khung trần của Task 2 (Next 16 + React 19) đã khoảng 132 kB; Plan 7B và 7C cần biết còn bao nhiêu.
+Ruling R16: ghi số đo JS lần tải đầu của `/` và phần còn dư dưới 200 kB (R23). Lần đo trên khung trần của Task 2 (Next 16 + React 19) đã khoảng 132 kB; Plan 7B và 7C cần biết còn bao nhiêu.
 
 ```bash
 npm run build -w apps/web
 OUT="$(mktemp)"
 npm run size --silent -w apps/web -- --json > "$OUT"
-node -e "const r=JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8')).find((x)=>x.name==='first load of /');console.log('first load of /: '+r.size+' B gzip = '+(r.size/1000).toFixed(1)+' kB; headroom '+((170000-r.size)/1000).toFixed(1)+' kB under 170 kB')" "$OUT"
+node -e "const r=JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8')).find((x)=>x.name==='first load of /');console.log('first load of /: '+r.size+' B gzip = '+(r.size/1000).toFixed(1)+' kB; headroom '+((200000-r.size)/1000).toFixed(1)+' kB under 200 kB')" "$OUT"
 rm -f "$OUT"
 ```
 
-Expected: một dòng `first load of /: <byte> B gzip = <x> kB; headroom <y> kB under 170 kB` với `<y>` dương. `size-limit` đọc `170 kB` là 170 000 byte, cùng đơn vị với dòng `Size` mà `npm run size -w apps/web` in ra.
+Expected: một dòng `first load of /: <byte> B gzip = <x> kB; headroom <y> kB under 200 kB` với `<y>` dương (R23). `size-limit` đọc `200 kB` là 200 000 byte, cùng đơn vị với dòng `Size` mà `npm run size -w apps/web` in ra.
 
 Chép nguyên dòng đó vào báo cáo task, dưới tiêu đề "R16". Controller chép hai số vào mục "Interfaces for Plan 7B" (mục "Kích thước").
 
 - [ ] **Step 9: Lighthouse: server nén như host thật, phần chấm điểm thuần có test, rồi script**
 
-Lighthouse giả lập mạng 4G chậm từ số byte thật trên đường truyền. Server tĩnh của Task 2 gửi text không nén, nên JS 170 kB gzip sẽ thành khoảng 3 lần số byte và LCP, TBT bị đo tệ hơn bản thật trên Vercel (Vercel luôn nén). Server được nén gzip khi trình duyệt chấp nhận; e2e và `worker:check` dùng cùng server nên cũng chạy với nội dung nén.
+Lighthouse giả lập mạng 4G chậm từ số byte thật trên đường truyền. Server tĩnh của Task 2 gửi text không nén, nên JS 200 kB gzip (R23) sẽ thành khoảng 3 lần số byte và LCP, TBT bị đo tệ hơn bản thật trên Vercel (Vercel luôn nén). Server được nén gzip khi trình duyệt chấp nhận; e2e và `worker:check` dùng cùng server nên cũng chạy với nội dung nén.
 
 Trong `apps/web/test/unit/static-server.test.ts`, thêm test này ngay trước `it('never serves a file outside the root', …)`:
 
@@ -18948,7 +18949,7 @@ Set them in the environment of the build, not in a `.env` file. The CSP of every
 
 ## Budgets
 
-Spec §11, checked in CI: first-load JS of `/` at most 170 kB gzip, any other route at most 230 kB, all JS of the site at most 900 kB (`size-limit`). Lighthouse mobile on `/`: Performance at least 95; Accessibility, Best Practices and SEO 100; LCP at most 1.8 s, CLS 0, TBT at most 150 ms.
+Spec §11 (ruling R23), checked in CI: first-load JS of `/` at most 200 kB gzip, any other route at most 240 kB, all JS of the site at most 900 kB (`size-limit`). Lighthouse mobile on `/`: Performance at least 95; Accessibility, Best Practices and SEO 100; LCP at most 1.8 s, CLS 0, TBT at most 150 ms.
 ~~~
 
 Trong `AGENTS.md`, chèn đoạn sau ngay trước dòng bắt đầu bằng `Integration and e2e tests start their own anvil devnet`:
@@ -19033,7 +19034,7 @@ Plan 7B dựng các trang trên nền này và chỉ cần đọc mục này cù
 ### Luật Plan 7B phải giữ
 
 1. **Route mới** là `src/app/<segment>/page.tsx`. Tham số động nằm sau `#` và đọc bằng `useLocationHash()`; đổi tham số mà không thêm mục lịch sử bằng `replaceHash()`. Link tới route dùng `ROUTES` và các hàm `*Href` của `src/routes.ts`. Khi route đích đã có, bỏ `prefetch={false}` ở link trỏ tới nó (Quyết định 22).
-2. **Ranh giới nạp lười** (Global Constraints, test `lazy-boundary`): mã dùng chung trong `src/` chỉ `import type` từ `@atropyle/sdk*`, `viem*` và `**/impl/**`. Thư mục route con `src/app/<segment>/**` được import giá trị SDK trực tiếp, nhưng JS lần tải đầu của route vẫn ≤ 230 kB gzip. `.size-limit.mjs` tự thêm mọi trang HTML mới vào phép đo, không cần sửa.
+2. **Ranh giới nạp lười** (Global Constraints, test `lazy-boundary`): mã dùng chung trong `src/` chỉ `import type` từ `@atropyle/sdk*`, `viem*` và `**/impl/**`. Thư mục route con `src/app/<segment>/**` được import giá trị SDK trực tiếp, nhưng JS lần tải đầu của route vẫn ≤ 240 kB gzip (R23). `.size-limit.mjs` tự thêm mọi trang HTML mới vào phép đo, không cần sửa.
 3. **Lighthouse:**
    - thêm `'/create/'` (7B) và `'/proof/'` (7C T3) vào `LIGHTHOUSE_ROUTES` (`scripts/lib/lighthouse-score.ts`) khi route đó có, bằng cách thêm vào mảng đang có, không ghi đè (spec §11);
    - request bị cấm theo route nằm trong `FORBIDDEN_REQUESTS`: 7C T6 điền cho `/` các chunk SDK, circuits và time-machine (R18.18);
@@ -19747,4 +19748,4 @@ Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|light
 - `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
 - Ảnh duyệt thiết kế: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
 
-**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `{số đo của Task 15 Step 8} kB` gzip, dưới ngân sách 170 kB, còn dư `{170 − số đo} kB`. Controller chép hai số từ dòng "R16" của báo cáo Task 15 vào đây khi merge. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).
+**Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `{số đo của Task 15 Step 8} kB` gzip, dưới ngân sách 200 kB (R23), còn dư `{200 − số đo} kB`. Controller chép hai số từ dòng "R16" của báo cáo Task 15 vào đây khi merge. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).

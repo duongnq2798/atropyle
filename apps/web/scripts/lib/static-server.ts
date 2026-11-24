@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -15,6 +16,9 @@ const TYPES: Record<string, string> = {
   '.webmanifest': 'application/manifest+json',
   '.wasm': 'application/wasm',
 };
+
+/** Text that Vercel compresses on the way out; woff2, images and wasm are compressed already. */
+const COMPRESSIBLE = /^(?:text\/|application\/(?:json|manifest\+json)|image\/svg\+xml)/;
 
 async function isFile(p: string): Promise<boolean> {
   try {
@@ -58,12 +62,17 @@ export async function startStaticServer(
     const target = file ?? join(root, '404.html');
     try {
       const body = await readFile(target);
+      const type = TYPES[extname(target)] ?? 'application/octet-stream';
+      // Lighthouse simulates a slow network from the bytes on the wire, so text goes out gzipped as on Vercel.
+      const gzip = COMPRESSIBLE.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '');
       res.writeHead(status, {
         ...headers,
-        'content-type': TYPES[extname(target)] ?? 'application/octet-stream',
+        'content-type': type,
         'cache-control': 'no-store',
+        vary: 'accept-encoding',
+        ...(gzip ? { 'content-encoding': 'gzip' } : {}),
       });
-      res.end(body);
+      res.end(gzip ? gzipSync(body) : body);
     } catch {
       res.writeHead(404, headers).end('not found');
     }

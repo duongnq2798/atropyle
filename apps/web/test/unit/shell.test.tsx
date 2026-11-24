@@ -15,7 +15,11 @@ import { Wordmark } from '../../src/shell/wordmark';
 import { GLYPH_NAMES } from '../../src/thread/glyphs';
 import { renderWithProviders } from '../helpers/render';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/create/' }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/create/',
+  useSelectedLayoutSegment: () => 'create',
+  useRouter: () => ({ push: () => undefined }),
+}));
 
 const root = document.documentElement;
 afterEach(() => root.removeAttribute('data-theme'));

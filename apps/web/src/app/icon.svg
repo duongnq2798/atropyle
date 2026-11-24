@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Atropyle</title>
+  <rect width="24" height="24" rx="6" fill="#0b0d12"/>
+  <path d="M2 18c2.5 0 4.5-1 4.5-4v-3a5.5 5.5 0 0 1 11 0v3c0 3 2 4 4.5 4" fill="none" stroke="#e8b65a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

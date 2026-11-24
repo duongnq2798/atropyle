@@ -454,7 +454,7 @@ Plan 7 (web) và Plan 8 (backend) viết song song. Bảng dưới là giao di�
 |---|---|---|
 | Lighthouse mobile | Performance ≥ 95, Accessibility 100, Best Practices 100, SEO 100 trên `/`, `/create/`, `/proof/` | Lighthouse chạy cục bộ trong CI trên bản build, không dịch vụ ngoài |
 | Web vitals (Lighthouse mobile) | LCP ≤ 1,8 s, CLS 0, TBT ≤ 150 ms | Như trên |
-| JS lần tải đầu | `/` ≤ 170 kB gzip; mỗi route khác ≤ 230 kB gzip; tổng site ≤ 900 kB | `size-limit` theo route |
+| JS lần tải đầu | `/` ≤ 200 kB gzip; mỗi route khác ≤ 240 kB gzip; tổng site ≤ 900 kB (R23: Next 16 + React 19 đã khoảng 130 kB) | `size-limit` theo route |
 | Accessibility | WCAG 2.2 AA; không lỗi axe ở mọi trang và mọi trạng thái chính; bàn phím đi hết mọi flow | `@axe-core/playwright` trong e2e, cộng một test chỉ dùng bàn phím |
 | Chuyển động | 60 fps trên CPU throttle 4×; không animation nào khi reduced motion ngoài crossfade | Kiểm thủ công có ghi lại trong PR, cộng một test e2e với `reducedMotion: 'reduce'` |
 | Tương phản | Mọi cặp token đạt AA | Unit test trên bảng token |
@@ -547,6 +547,7 @@ Hôm nay là 22/11. Khoá tính năng 2/12, nộp bài 6/12. Có hai plan chạy
 | 14 | Preact sang `apps/web-legacy`, Next.js ở `apps/web` ngay từ task đầu | Đường dẫn cuối có sẵn; CI và script sửa một lần; bản cũ vẫn được test tới lúc xoá | Hai app cùng chạy CI trong khoảng một tuần, CI chậm hơn |
 | 15 | Turbopack (mặc định của Next 16) cho build và dev | Spike ở Plan 7A Task 2: worker module nạp `@atropyle/sdk/verify` và một chunk lười của chính nó dưới CSP `worker-src 'self'` trong Chromium | Bản Next sau làm hỏng worker hoặc font thì đổi `BUNDLER_FLAGS` sang `--webpack`, một dòng trong `scripts/lib/run-next.ts` |
 | 16 | Làm đậm ba token light: `thread #86590E`, `alive #106F5A`, `grace #945100`; thêm `on-thread`, `on-danger`, `line`, `line-strong` | Giá trị ban đầu không đạt 4,5:1 trên `surface-3`; sau khi đổi, nhỏ nhất là 4,60:1 (light) và 5,50:1 (dark), test `contrast.test.ts` giữ ngưỡng | Vàng light hơi trầm hơn bản phác; đổi lại chỉ là sửa token, test chặn mọi giá trị không đạt AA |
+| 17 | CSP theo hash trong thẻ `<meta>` ở cả hai bản; header của Vercel chỉ mang `frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'` (§8 nói bản vercel đặt CSP qua header) | `vercel.json` là file tĩnh, không chứa được hash của script inline sinh lúc build; header có `script-src` hay `default-src` sẽ chặn chính các script đó. `style-src` cần `'unsafe-inline'` vì HTML prerender có thuộc tính `style` | Header và meta cùng được áp: thêm directive vào header phải kiểm cả hai; bỏ `'unsafe-inline'` ở style cần nonce, tức là cần server |
 
 ## 17. Rủi ro
 

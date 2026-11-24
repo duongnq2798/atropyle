@@ -2,13 +2,16 @@
 
 import { ChevronRight } from 'lucide-react';
 import { m } from 'motion/react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { messages as shell } from '@/messages/shell.messages';
 import { SPRING } from '@/motion/tokens';
 import { isCurrent, NAV, ROUTES } from '@/routes';
+import { NavLink } from './nav-link';
+
+/** The segment Next gives the root not-found page (next/dist/shared/lib/segment.js, NOT_FOUND_SEGMENT_KEY). */
+const NOT_FOUND_SEGMENT = '/_not-found';
 
 /**
  * The main navigation. `bar`: one row in the header, a thread under the current page that slides to the next one.
@@ -17,14 +20,17 @@ import { isCurrent, NAV, ROUTES } from '@/routes';
 export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNavigate?(): void }) {
   const t = useT(shell);
   const pathname = usePathname() ?? '/';
+  // 404.html is prerendered once and served for every missing path, so its pathname differs between the HTML and
+  // hydration; its segment comes from the router tree in the page and does not. A missing page is no page of the nav.
+  const notFound = useSelectedLayoutSegment() === NOT_FOUND_SEGMENT;
   return (
     <ul className={layout === 'bar' ? 'flex items-center gap-1' : 'flex flex-col'}>
       {NAV.map((item) => {
         const href = ROUTES[item.route];
-        const current = isCurrent(pathname, href);
+        const current = !notFound && isCurrent(pathname, href);
         return (
           <li key={item.route}>
-            <Link
+            <NavLink
               href={href}
               prefetch={false}
               onClick={onNavigate}
@@ -49,7 +55,7 @@ export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNav
               {layout === 'sheet' ? (
                 <ChevronRight aria-hidden="true" size={18} strokeWidth={1.5} className="text-ink-muted" />
               ) : null}
-            </Link>
+            </NavLink>
           </li>
         );
       })}

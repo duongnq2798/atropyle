@@ -32,16 +32,22 @@ const scriptsOf = (dir: string): string[] =>
     (JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8')) as { scripts?: Record<string, string> })
       .scripts ?? {},
   );
+const isNpmScript = (c: string): boolean => c.startsWith('npm run ') || c.startsWith('npm test');
 
-/** Grows with Plan 7A: Task 15 adds the e2e, size and Lighthouse steps. */
+/** Every command of the job, as Plan 7A Task 15 leaves it. */
 const WEB_NEXT_COMMANDS = [
   'npm ci',
+  'forge build',
   'npm run build',
   'npm run typecheck -w apps/web',
   'npm test -w apps/web',
   'npm run playwright:install -w apps/web',
   'npm run test:build -w apps/web',
   'npm run worker:check -w apps/web',
+  'npm run e2e -w apps/web',
+  'npm run build -w apps/web',
+  'npm run size -w apps/web',
+  'npm run lighthouse -w apps/web',
 ];
 
 test('the web-next job reads only, holds no secret and signs nothing', () => {
@@ -68,9 +74,32 @@ test('the web-next job builds the SDK first, then tests, then builds both target
   );
 });
 
+test('the web-next job installs Foundry 1.9.0 and builds the contracts before e2e', () => {
+  const foundry = job.steps.find((s) => s.uses?.startsWith('foundry-rs/foundry-toolchain@'));
+  expect(foundry?.with?.version).toBe('v1.9.0');
+  expect(job.steps.find((s) => s.run === 'forge build')?.['working-directory']).toBe('contracts');
+  const c = commands();
+  expect(c.indexOf('forge build')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+});
+
+test('size and Lighthouse read a fresh production build, made after every other build', () => {
+  const c = commands();
+  const build = c.indexOf('npm run build -w apps/web');
+  for (const before of [
+    'npm run test:build -w apps/web',
+    'npm run worker:check -w apps/web',
+    'npm run e2e -w apps/web',
+  ]) {
+    expect(c.indexOf(before), before).toBeLessThan(build);
+  }
+  expect(build).toBeLessThan(c.indexOf('npm run size -w apps/web'));
+  expect(c.indexOf('npm run size -w apps/web')).toBeLessThan(c.indexOf('npm run lighthouse -w apps/web'));
+});
+
 test('the web-next job runs only npm scripts that exist', () => {
-  const runs = commands().filter((c) => c.startsWith('npm run ') || c.startsWith('npm test'));
-  expect(runs.length).toBeGreaterThanOrEqual(WEB_NEXT_COMMANDS.length - 1);
+  const runs = commands().filter(isNpmScript);
+  expect(runs.length).toBeGreaterThanOrEqual(WEB_NEXT_COMMANDS.filter(isNpmScript).length);
   for (const c of runs) {
     const m = /^npm (?:run ([\w:-]+)|(test))(?: -w (\S+))?/.exec(c);
     expect(m, c).not.toBeNull();

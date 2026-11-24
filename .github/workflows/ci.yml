@@ -276,22 +276,29 @@ jobs:
       - name: E2E on a local anvil, a whole Drill driven by tick
         run: npm run test:e2e -w apps/backend
 
-  # The Next.js web app v2 (Plan 7A). Read-only and keyless: no step signs or broadcasts anything.
+  # The Next.js web app v2 (Plan 7A). Read-only and keyless: e2e sends only from unlocked accounts of its own anvil,
+  # and no step signs or broadcasts anything to a real chain.
   web-next:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
+          # forge-std and openzeppelin-contracts; their own nested submodules are not needed.
           submodules: true
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
       - run: npm ci
+      - run: forge build
+        working-directory: contracts
       - name: Build circuits and the SDK
         run: npm run build
       - name: Typecheck and unit tests
@@ -302,3 +309,17 @@ jobs:
         run: npm run test:build -w apps/web
       - name: The worker loads under a strict CSP
         run: npm run worker:check -w apps/web
+      - name: E2E on a local anvil, with axe, the on-chain request rule and the CSP
+        run: npm run e2e -w apps/web
+      - name: Size budget per route, on a fresh production build
+        run: npm run build -w apps/web && npm run size -w apps/web
+      - name: Lighthouse on the production build, run locally
+        run: npm run lighthouse -w apps/web
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-next-reports
+          path: |
+            apps/web/playwright-report
+            apps/web/lighthouse-report
+          retention-days: 7

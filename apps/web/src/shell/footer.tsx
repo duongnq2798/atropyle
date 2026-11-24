@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { ENV, IS_VERCEL } from '@/config/env';
 import { useT } from '@/i18n/provider';
 import { LICENSE_URL, REPO_URL, XLAYER_URL } from '@/lib/links';
@@ -8,6 +7,7 @@ import { messages as shell } from '@/messages/shell.messages';
 import { messages as ui } from '@/messages/ui.messages';
 import { LIMITS_HREF, ROUTES } from '@/routes';
 import { ExternalLink } from '@/ui/external-link';
+import { NavLink } from './nav-link';
 import { Wordmark } from './wordmark';
 
 const LINK = 'text-ink-muted transition-colors duration-150 hover:text-ink';
@@ -26,20 +26,20 @@ export function Footer() {
           <div className="flex max-w-md flex-col items-start gap-3">
             <Wordmark />
             <p className="text-ink-muted text-small">{t('footer')}</p>
-            <Link
+            <NavLink
               href={LIMITS_HREF}
               prefetch={false}
               className="rounded-sm font-medium text-small text-thread underline decoration-thread/40 underline-offset-4 transition-colors duration-150 hover:decoration-thread"
             >
               {t('knownLimits')}
-            </Link>
+            </NavLink>
           </div>
           <nav aria-label={t('footerNav')}>
             <ul className="grid grid-cols-2 gap-x-10 gap-y-3 text-small">
               <li>
-                <Link href={ROUTES.verify} prefetch={false} className={LINK}>
+                <NavLink href={ROUTES.verify} prefetch={false} className={LINK}>
                   {t('forHeirs')}
-                </Link>
+                </NavLink>
               </li>
               <li>
                 <ExternalLink href={REPO_URL} className={LINK}>
@@ -47,9 +47,9 @@ export function Footer() {
                 </ExternalLink>
               </li>
               <li>
-                <Link href={ROUTES.status} prefetch={false} className={LINK}>
+                <NavLink href={ROUTES.status} prefetch={false} className={LINK}>
                   {t('navStatus')}
-                </Link>
+                </NavLink>
               </li>
               <li>
                 <ExternalLink href={XLAYER_URL} className={LINK}>
@@ -57,9 +57,9 @@ export function Footer() {
                 </ExternalLink>
               </li>
               <li>
-                <Link href={ROUTES.developers} prefetch={false} className={LINK}>
+                <NavLink href={ROUTES.developers} prefetch={false} className={LINK}>
                   {t('navDevelopers')}
-                </Link>
+                </NavLink>
               </li>
               <li>
                 <ExternalLink href={LICENSE_URL} className={LINK}>
@@ -67,9 +67,9 @@ export function Footer() {
                 </ExternalLink>
               </li>
               <li>
-                <Link href={ROUTES.privacy} prefetch={false} className={LINK}>
+                <NavLink href={ROUTES.privacy} prefetch={false} className={LINK}>
                   {u('footerPrivacy')}
-                </Link>
+                </NavLink>
               </li>
             </ul>
           </nav>
