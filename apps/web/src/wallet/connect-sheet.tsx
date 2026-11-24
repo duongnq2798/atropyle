@@ -17,7 +17,11 @@ import { Skeleton } from '@/ui/skeleton';
 import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { useWallet } from './provider';
+import { isRecommended } from './recommended';
 import type { WalletOption } from './types';
+
+// The rule lives next to wallet discovery's, which sorts and de-duplicates by it too.
+export { isRecommended };
 
 // The QR encoder loads only when the no-wallet help shows, so it stays out of every page's first bundle.
 const QrCode = lazy(() => import('@/ui/qr-code').then((mod) => ({ default: mod.QrCode })));
@@ -50,11 +54,6 @@ export function connectErrorKey(e: unknown): Exclude<PickerError, 'searchFailed'
   if (errorCode(e) === 'USER_REJECTED') return 'rejected';
   const code = typeof e === 'object' && e !== null ? (e as { code?: unknown }).code : undefined;
   return code === -32002 ? 'requestPending' : 'connectFailed';
-}
-
-/** OKX Wallet, known by its EIP-6963 rdns or the OKX App's injected global. Never by name: any wallet can pick a name. */
-export function isRecommended(w: Pick<WalletOption, 'rdns' | 'source'>): boolean {
-  return w.rdns === 'com.okex.wallet' || w.source === 'okxwallet';
 }
 
 export interface WalletPickerProps {

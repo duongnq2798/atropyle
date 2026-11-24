@@ -86,6 +86,23 @@ describe('discoverWallets', () => {
     expect(w.name.startsWith('EvilW')).toBe(true);
     expect(Array.from(w.name).length).toBeLessThanOrEqual(41);
   });
+
+  it('a wallet that only calls itself OKX neither takes the top slot nor hides window.okxwallet', async () => {
+    const okx = fakeProvider({ chainId: 196 }).provider;
+    const win = Object.assign(new EventTarget(), { okxwallet: okx }) as WalletWindow;
+    announce(win, [
+      { uuid: 'a', name: 'Alpha Wallet', rdns: 'io.alpha', icon: ICON },
+      { uuid: 'e', name: 'OKX', rdns: 'evil.example', icon: ICON },
+    ]);
+    const list = await discoverWallets(win, 0);
+    // The rule of the Recommended badge (isRecommended): the rdns or the OKX App's global, never the name.
+    expect(list.map((w) => [w.name, w.source])).toEqual([
+      ['OKX Wallet', 'okxwallet'],
+      ['Alpha Wallet', 'eip6963'],
+      ['OKX', 'eip6963'],
+    ]);
+    expect(list[0].provider).toBe(okx);
+  });
 });
 
 describe('chain and account', () => {

@@ -1,5 +1,6 @@
 import { AtropyleError, untrusted } from '@atropyle/sdk';
 import { type Address, type Chain, createWalletClient, custom, getAddress, type WalletClient } from 'viem';
+import { isRecommended, OKX_RDNS } from '../recommended';
 
 export interface Eip1193 {
   request(args: { method: string; params?: unknown[] | object }): Promise<unknown>;
@@ -32,12 +33,9 @@ function safeIcon(icon: unknown): string | null {
   return typeof icon === 'string' && icon.startsWith('data:image/') && icon.length <= 100_000 ? icon : null;
 }
 
-function isOkx(w: Pick<WalletOption, 'name' | 'rdns'>): boolean {
-  return /okx|okex/i.test(`${w.rdns ?? ''} ${w.name}`);
-}
-
+/** The recommended wallet first, by the badge's rule (never by name), then by name. */
 function sortWallets(list: WalletOption[]): WalletOption[] {
-  return [...list].sort((a, b) => Number(isOkx(b)) - Number(isOkx(a)) || a.name.localeCompare(b.name));
+  return [...list].sort((a, b) => Number(isRecommended(b)) - Number(isRecommended(a)) || a.name.localeCompare(b.name));
 }
 
 /** EIP-6963 first; then `window.okxwallet` (OKX App browser); `window.ethereum` only when nothing else answered. */
@@ -62,7 +60,8 @@ export async function discoverWallets(win: WalletWindow, waitMs = 250): Promise<
   win.removeEventListener('eip6963:announceProvider', onAnnounce);
   const list = [...found.values()];
   const okx = win.okxwallet;
-  if (isProvider(okx) && !list.some((w) => isOkx(w) || w.provider === okx)) {
+  // Skipped only for OKX Wallet's own announcement: a wallet named 'OKX' must not hide the OKX App's provider.
+  if (isProvider(okx) && !list.some((w) => w.rdns === OKX_RDNS || w.provider === okx)) {
     list.push({ id: 'okxwallet', name: 'OKX Wallet', icon: null, rdns: null, provider: okx, source: 'okxwallet' });
   }
   if (list.length === 0 && isProvider(win.ethereum)) {
