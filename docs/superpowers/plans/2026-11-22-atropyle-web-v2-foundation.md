@@ -19256,8 +19256,7 @@ export const SPRING_EASING: string;                                     // --eas
 // src/motion/provider.tsx, view-transition.tsx, haptics.ts, use-hold.ts
 export function MotionProvider(p: { children: ReactNode }): JSX.Element; // MotionConfig reducedMotion="user" + LazyMotion strict
 export function usePrefersReducedMotion(): boolean;                     // false lúc prerender và hydrate
-export const THREAD_VT_NAME = 'atropyle-thread';
-export function SharedThread(p: { children: ReactNode }): JSX.Element;
+export const THREAD_VT_NAME = 'atropyle-thread';                      // <Thread shared> đặt nó lên chính gốc (style view-transition-name); không còn SharedThread: <ViewTransition name> của React chỉ đặt tên trong transition do React tự mở, mà NavLink mở mọi transition (Task 15, Kết quả B)
 export function withViewTransition(update: () => void): void;
 export function canVibrate(): boolean;
 export function useHaptics(): { supported: boolean; enabled: boolean; setEnabled(on: boolean): void; pulse(): void };
@@ -19331,7 +19330,7 @@ export function StateGlyph(p: { name: GlyphName; size?: number; className?: stri
 
 // src/thread/thread.tsx
 export interface ThreadProps extends ThreadInput { state: ThreadState; label?: string; shared?: boolean; revealRef?: Ref<RevealWindowHandle>; className?: string }
-export function Thread(p: ThreadProps): JSX.Element;        // có label: role="img"; shared: tối đa một sợi mỗi trang; mặc định 5:1, chỗ gọi đặt chiều cao để đổi tỉ lệ
+export function Thread(p: ThreadProps): JSX.Element;        // có label: role="img"; shared: gốc [data-thread] mang view-transition-name THREAD_VT_NAME, nên nó morph sang sợi shared của trang kế; tối đa một sợi shared mỗi trang (tên trùng làm hỏng cả transition); mặc định 5:1, chỗ gọi đặt chiều cao để đổi tỉ lệ
 
 // src/thread/state-badge.tsx
 export interface StateBadgeProps { state: ThreadState; drill?: boolean; size?: 'sm' | 'md'; live?: boolean; className?: string }
@@ -19358,8 +19357,8 @@ export function Spinner(p: { label?: string; size?: number; className?: string }
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export function buttonClass(o?: { variant?: ButtonVariant; size?: ButtonSize; className?: string }): string; // cho <Link>
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; icon?: ReactNode; ref?: Ref<HTMLButtonElement> }
-export function Button(p: ButtonProps): JSX.Element; // loading: tắt nút, hiện spinner; aria-busy của người gọi được giữ khi không loading (bận mà vẫn bật)
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; loadingLabel?: string; icon?: ReactNode; ref?: Ref<HTMLButtonElement> }
+export function Button(p: ButtonProps): JSX.Element; // loading: aria-disabled + aria-busy, không phải disabled gốc (nút vẫn giữ focus), bỏ qua lần bấm (preventDefault, nên submit cũng không gửi form), spinner có nhãn ẩn loadingLabel (mặc định 'loading' của common); disabled vẫn là disabled gốc; aria-busy của người gọi được giữ khi không loading (bận mà vẫn bật). Test: toBeDisabled() của jest-dom chỉ đọc disabled gốc, bỏ qua aria-disabled, nên nút đang loading thì kiểm getAttribute('aria-disabled')
 export interface PlainIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> { icon: LucideIcon; label: string; size?: 'sm' | 'md'; ref?: Ref<HTMLButtonElement> }
 export function PlainIconButton(p: PlainIconButtonProps): JSX.Element; // src/ui/plain-icon-button.tsx: không tooltip, không Radix (R23); aria-busy thì spinner thay icon
 export interface IconButtonProps extends PlainIconButtonProps { tooltip?: boolean }
@@ -19367,7 +19366,7 @@ export function IconButton(p: IconButtonProps): JSX.Element;           // toolti
 export interface HoldButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type'> { onConfirm(): void; children: ReactNode; icon?: ReactNode; tone?: 'thread' | 'danger'; size?: 'md' | 'lg'; duration?: number; hint?: string }
 export function HoldButton(p: HoldButtonProps): JSX.Element; // giữ 600 ms, Enter xác nhận ngay, Space là giữ
 export function Tooltip(p: { content: ReactNode; children: ReactElement; side?: 'top' | 'right' | 'bottom' | 'left' }): JSX.Element; // mỗi Tooltip mang provider riêng, không có TooltipProvider (R23)
-export function Popover(p: { trigger: ReactElement; children: ReactNode; open?: boolean; onOpenChange?(open: boolean): void; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label?: string; className?: string }): JSX.Element;
+export function Popover(p: { trigger: ReactElement; children: ReactNode; open?: boolean; onOpenChange?(open: boolean): void; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label: string; onCloseAutoFocus?(event: Event): void; className?: string }): JSX.Element; // label bắt buộc: role="dialog" không tên trượt luật aria-dialog-name của axe
 export const PopoverClose = P.Close; // P = @radix-ui/react-popover
 export function AnchoredPopover(p: { anchor: RefObject<HTMLButtonElement | null>; id: string; open: boolean; onOpenChange(open: boolean): void; children: ReactNode; align?: 'start' | 'center' | 'end'; side?: 'top' | 'right' | 'bottom' | 'left'; label: string; onCloseAutoFocus?(event: Event): void; className?: string }): JSX.Element; // popover của một nút đã vẽ trước khi chunk nạp: bấm nút thì đóng, Escape hay chọn bên trong trả focus về nút, bấm chỗ khác để focus ở đó
 export interface OverlayTrigger { ref: RefObject<HTMLButtonElement | null>; 'aria-haspopup': 'dialog'; 'aria-expanded': boolean; 'aria-controls': string | undefined; 'aria-busy': true | undefined; onClick(): void; onPointerEnter(): void; onFocus(): void }
