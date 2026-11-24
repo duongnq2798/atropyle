@@ -19775,7 +19775,7 @@ export function withPendingViewTransition(update: () => void, committed: Promise
 
 Lệnh: `npm run dev|build|test|test:build|typecheck|worker:check|e2e|size|lighthouse|playwright:install -w apps/web`.
 - `size` và `lighthouse` đọc `out/` của một bản production mới build.
-- `e2e` tự build bản deweb e2e vào `test/e2e/.site/`.
+- `e2e` và `worker:check` tự build bản deweb e2e vào `out/`; `e2e` chép nó sang `test/e2e/.site/` rồi phục vụ từ đó. Sau hai lệnh này `out/` giữ bản e2e, nên `size` và `lighthouse` từ chối chạy cho tới khi `npm run build -w apps/web` build lại.
 - Ảnh duyệt thiết kế: `SCREENS=1 npm run e2e -w apps/web -- --project=desktop`.
 
 **Kích thước (R16).** JS lần tải đầu của `/` sau Task 15 là `189,2 kB` gzip (`npm run size`, bản deweb và bản vercel như nhau), dưới ngân sách 200 kB (R23), còn dư `10,8 kB`. Trang 404 là `182,8 kB`, dưới 240 kB. Dòng "R16" của báo cáo Task 15 ghi cách đo và phần lớn nhất: Next 16 + React 19 chiếm khoảng 135,7 kB. Khung trần của Task 2 đã khoảng 132 kB. Mọi thứ 7B và 7C thêm vào `/` phải nằm trong phần dư này; chunk nặng chỉ nạp khi có ý định thật (R18.18).
