@@ -186,7 +186,10 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
   }, [wallet, sdkNow]);
 
   const openSheet = useCallback(() => {
-    sheetOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Safari and Firefox on macOS focus no button on a click or a tap, so the page itself may have focus: no opener
+    // then, and the sheet gives focus to the wallet button when it closes.
+    const a = document.activeElement;
+    sheetOpener.current = a instanceof HTMLElement && a !== document.body && a !== document.documentElement ? a : null;
     setSheetOpen(true);
   }, []);
 

@@ -280,6 +280,16 @@ describe('wallet focus', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Connect wallet' })));
   });
 
+  it('a press that focuses nothing (Safari, Firefox on macOS) still ends on the account button after a connection', async () => {
+    realWallet();
+    // Those browsers do not focus a button on a click or a tap: the page keeps focus, and is no opener.
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect wallet' }));
+    fireEvent.click(await screen.findByRole('button', { name: /OKX Wallet/ }, { timeout: 2000 }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(accountButton()));
+  });
+
   it('a switch from the banner lands on the account button, which now names the right network', async () => {
     realWallet(fakeWallet({ accounts: [PEOPLE.owner], chainId: 1 }));
     await connectByKeyboard();
