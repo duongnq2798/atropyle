@@ -67,8 +67,9 @@ export function failedEmpty(q: { state: { data: unknown; status: string } }): bo
 }
 
 /**
- * One vault, refreshed every 30 s and when the tab comes back. No placeholder: while another address loads, `data`
- * is undefined, so a page never shows the previous vault under the new address (Quyết định 18).
+ * One vault, refreshed every 30 s and when the tab comes back, once it has data: a read that failed before it had
+ * any waits for the page's Retry (failedEmpty). No placeholder: while another address loads, `data` is undefined, so
+ * a page never shows the previous vault under the new address (Quyết định 18).
  */
 export function useVault(vault: Address | null): UseQueryResult<LoadedVault> {
   const client = useQueryClient();

@@ -3,7 +3,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Global Constraints of Plan 7A and spec §11: first-load JS of `/` and of every other route, and all JS of the site.
-// Ruling R23 set `/` to 200 kB and other routes to 240 kB: Next 16 + React 19 alone measure about 130 kB.
+// Ruling R23 set `/` to 200 kB and other routes to 240 kB: Next 16 + React 19 alone measure about 136 kB.
 const HOME_LIMIT = '200 kB';
 const ROUTE_LIMIT = '240 kB';
 const TOTAL_LIMIT = '900 kB';
