@@ -1,5 +1,5 @@
 import { ANVIL, expect, test } from './fixtures.ts';
-import { connectWallet, expectAccessible } from './helpers.ts';
+import { connectWallet, expectAccessible, openSettings } from './helpers.ts';
 import { rpcCall } from './state.ts';
 
 /** compactAddress of ANVIL[1] (Task 5). */
@@ -44,6 +44,36 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   await page.reload();
   await expect(connect).toBeVisible();
   await expect(account).toBeHidden();
+});
+
+/**
+ * Parked T11: one press on Connect right after Escape closed the settings did not open the sheet. The press is a
+ * person's (mouse.click or touchscreen.tap at the button), not locator.click, which waits until the closing settings
+ * are out of the way.
+ */
+test('one press on Connect right after Escape closed the settings opens the wallet sheet', async ({
+  page,
+  state,
+  wallet,
+}, info) => {
+  await wallet({ account: ANVIL[1] });
+  await page.goto(state.siteUrl);
+  const connect = page.getByRole('button', { name: 'Connect wallet' });
+  await expect(connect).toBeVisible();
+  const box = await connect.boundingBox();
+  if (box === null) throw new Error('Connect wallet has no box');
+  const settings = await openSettings(page);
+  await expect(settings).toBeVisible();
+  await page.keyboard.press('Escape');
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  if (info.project.use.hasTouch) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+  const sheet = page.getByRole('dialog', { name: 'Choose a wallet' });
+  await expect(sheet.getByRole('button', { name: 'Test Wallet' })).toBeVisible();
+  // The settings finish closing behind the sheet; giving focus back to their button must not close it or take focus.
+  await expect(settings).toBeHidden();
+  await expect(sheet).toBeVisible();
+  expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
 });
 
 test('a wallet on another chain sees the banner and switches with one press', async ({ page, state, wallet }) => {

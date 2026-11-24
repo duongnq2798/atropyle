@@ -6,13 +6,14 @@ import { describe, expect, it } from 'vitest';
 const CSS_FILE = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
 const CSS = readFileSync(CSS_FILE, 'utf8').replaceAll('\r\n', '\n');
 
-/** The declarations of the first rule written as `<selector> {`, searched from `from`. */
+/** The declarations of the first rule written as `<selector> {`, searched from `from`; comments dropped. */
 function decls(selector: string, from = 0): Record<string, string> {
   const at = CSS.indexOf(`${selector} {`, from);
   if (at < 0) throw new Error(`no rule "${selector}" after offset ${from}`);
   const open = at + selector.length + 2;
   const out: Record<string, string> = {};
-  for (const d of CSS.slice(open, CSS.indexOf('}', open)).split(';')) {
+  const body = CSS.slice(open, CSS.indexOf('}', open)).replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const d of body.split(';')) {
     const i = d.indexOf(':');
     if (i > 0) out[d.slice(0, i).trim()] = d.slice(i + 1).trim();
   }
@@ -84,6 +85,14 @@ describe('theme stylesheet', () => {
     expect(decls(':root:has(:is(.atro-overlay, .atro-pop)) :is(.site-header, .site-footer)')).toEqual({
       'view-transition-name': 'none',
     });
+  });
+
+  it('a closing overlay, sheet or popover lets the next press through to the page', () => {
+    // Radix keeps each mounted for its exit animation and writes pointer-events: auto inline on the dimming, so a tap
+    // on Connect right after Escape closed the Menu sheet was lost on it (test/e2e/wallet.spec.ts).
+    expect(
+      decls('.atro-overlay[data-state="closed"],\n.atro-dialog[data-state="closed"],\n.atro-pop[data-state="closed"]'),
+    ).toEqual({ 'pointer-events': 'none !important' });
   });
 
   it('under reduced motion a view transition is a 120 ms crossfade where nothing moves, the root included', () => {

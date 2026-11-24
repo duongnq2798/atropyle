@@ -329,7 +329,14 @@
 }
 
 /* Radix overlays animate on `data-state` (tooltips open as `delayed-open` or `instant-open`); Radix waits for the
-   closing animation before it unmounts. */
+   closing animation before it unmounts. Closing, they let a press through to the page: the dimming carries an inline
+   `pointer-events: auto` from Radix, so a tap on Connect right after Escape closed the Menu sheet was lost on it. */
+.atro-overlay[data-state="closed"],
+.atro-dialog[data-state="closed"],
+.atro-pop[data-state="closed"] {
+  /* biome-ignore lint/complexity/noImportantStyles: it must beat the inline pointer-events that Radix writes. */
+  pointer-events: none !important;
+}
 @media (prefers-reduced-motion: no-preference) {
   .atro-overlay[data-state="open"] {
     animation: atro-fade-in 240ms var(--ease-out-expo);
