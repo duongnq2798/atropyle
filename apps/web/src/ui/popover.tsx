@@ -14,6 +14,7 @@ export function Popover({
   align = 'end',
   side = 'bottom',
   label,
+  onCloseAutoFocus,
   className,
 }: {
   trigger: ReactElement;
@@ -24,6 +25,11 @@ export function Popover({
   side?: 'top' | 'right' | 'bottom' | 'left';
   /** The name of the content, a role="dialog": an unnamed one fails axe's aria-dialog-name rule. */
   label: string;
+  /**
+   * Where focus goes on close, for a popover whose trigger can be gone by then (Radix would focus the missing
+   * trigger and leave focus on the page). Call `preventDefault()` after moving focus; otherwise Radix focuses the trigger.
+   */
+  onCloseAutoFocus?(event: Event): void;
   className?: string;
 }) {
   return (
@@ -36,6 +42,7 @@ export function Popover({
           sideOffset={8}
           collisionPadding={12}
           aria-label={label}
+          onCloseAutoFocus={onCloseAutoFocus}
           className={cn(
             'atro-pop z-50 min-w-56 rounded-2xl border border-line bg-surface-1 p-2 text-ink outline-none',
             'shadow-[0_24px_48px_-12px_rgb(0_0_0/0.45)]',

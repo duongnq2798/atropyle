@@ -64,7 +64,12 @@ function WalletIcon({ option }: { option: WalletOption }) {
   );
 }
 
-function NoWallet({ pageUrl, searching, onSearch }: Pick<WalletPickerProps, 'pageUrl' | 'searching' | 'onSearch'>) {
+function NoWallet({
+  pageUrl,
+  searching,
+  failed,
+  onSearch,
+}: Pick<WalletPickerProps, 'pageUrl' | 'searching' | 'onSearch'> & { failed: boolean }) {
   const t = useT(walletText);
   const fits = pageUrl.length > 0 && pageUrl.length <= QR_MAX_CHARS;
   return (
@@ -100,6 +105,7 @@ function NoWallet({ pageUrl, searching, onSearch }: Pick<WalletPickerProps, 'pag
       >
         {t('searchAgain')}
       </Button>
+      <div aria-live="polite">{failed ? <InlineError>{t('searchFailed')}</InlineError> : null}</div>
     </div>
   );
 }
@@ -118,7 +124,11 @@ export function WalletPicker({
   if (wallets === null && error === 'searchFailed' && !searching) {
     return (
       <div className="flex flex-col items-start gap-3">
-        <InlineError>{t('searchFailed')}</InlineError>
+        {/* It takes the place of the searching status, so it announces itself: a live region added with its text
+            is not read out. */}
+        <div role="alert">
+          <InlineError>{t('searchFailed')}</InlineError>
+        </div>
         <Button
           variant="secondary"
           size="sm"
@@ -143,7 +153,9 @@ export function WalletPicker({
       </div>
     );
   }
-  if (wallets.length === 0) return <NoWallet pageUrl={pageUrl} searching={searching} onSearch={onSearch} />;
+  if (wallets.length === 0) {
+    return <NoWallet pageUrl={pageUrl} searching={searching} failed={error === 'searchFailed'} onSearch={onSearch} />;
+  }
   return (
     <div className="flex flex-col gap-3">
       <ul className="flex flex-col gap-2">
@@ -156,10 +168,14 @@ export function WalletPicker({
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...SPRING, delay: at * 0.04 }}
             >
+              {/* The row whose prompt is open stays focusable (aria-disabled), so a keyboard user keeps their place. */}
               <button
                 type="button"
-                onClick={() => onPick(w)}
-                disabled={connectingId !== null}
+                onClick={() => {
+                  if (connectingId === null) onPick(w);
+                }}
+                disabled={connectingId !== null && !busy}
+                aria-disabled={busy || undefined}
                 aria-busy={busy || undefined}
                 className={cn(
                   'group flex w-full items-center gap-3 rounded-2xl border bg-surface-1 p-3 text-left',

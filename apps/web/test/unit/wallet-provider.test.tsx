@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { KEYS, type KV, memoryKV } from '../../src/lib/store';
+import { loadWalletImpl } from '../../src/wallet/load';
 import { useWallet } from '../../src/wallet/provider';
-import type { WalletWindow } from '../../src/wallet/types';
+import type { WalletOption, WalletWindow } from '../../src/wallet/types';
 import { makeWrapper } from '../helpers/render';
 import { type FakeWallet, fakeWallet, walletWindow } from '../helpers/wallet';
 import { PEOPLE } from './fixtures';
@@ -22,9 +23,42 @@ vi.mock('../../src/chain/load', async () => {
 });
 
 const OKX = { uuid: 'uuid-1', name: 'OKX Wallet', rdns: 'com.okex.wallet', icon: '' };
+const OTHER = { uuid: 'uuid-3', name: 'Other wallet', rdns: 'org.example.wallet', icon: '' };
 const REMEMBERED = JSON.stringify({ rdns: 'com.okex.wallet', source: 'eip6963', name: 'OKX Wallet' });
 // Discovery listens for EIP-6963 answers for 250 ms.
 const SLOW = { timeout: 2000 };
+
+/**
+ * An async act() as a real Promise. React's act() returns a thenable whose then() returns undefined, so
+ * `expect(act(...)).rejects` has nothing to wait for and passes whatever the callback does.
+ */
+function settled<T>(callback: () => Promise<T>): Promise<T> {
+  return Promise.resolve(act(callback));
+}
+
+function byRdns(list: readonly WalletOption[], rdns: string): WalletOption {
+  const found = list.find((w) => w.rdns === rdns);
+  if (!found) throw new Error(`no wallet ${rdns}`);
+  return found;
+}
+
+/** Holds the wallet's answer to `method` until the test releases it; `reached()` says whether the page asked yet. */
+function hold(fake: FakeWallet, method: string) {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  let asked = false;
+  const answer = fake.provider.request.bind(fake.provider);
+  fake.provider.request = async (args) => {
+    if (args.method === method) {
+      asked = true;
+      await gate;
+    }
+    return answer(args);
+  };
+  return Object.assign(() => open(), { reached: () => asked });
+}
 
 function setup(o: { kv?: KV; win?: WalletWindow } = {}) {
   const { wrapper, kv } = makeWrapper(o);
@@ -128,12 +162,96 @@ describe('WalletProvider', () => {
     await expect(h.result.current.walletClient()).rejects.toMatchObject({ code: 'WRONG_ACCOUNT' });
   });
 
+  it('stops listening to the wallet when the page unmounts', async () => {
+    const fake = fakeWallet({ accounts: [PEOPLE.owner] });
+    const h = await connected(fake);
+    await waitFor(() => expect(fake.listenerCount('accountsChanged')).toBe(1));
+    h.unmount();
+    for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) expect(fake.listenerCount(event)).toBe(0);
+  });
+
+  it('a wallet that never answers ends the restore after a few seconds, still remembered', async () => {
+    // The chunk is loaded before the clock is faked: only the wallet hangs here.
+    await loadWalletImpl();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const fake = fakeWallet({ accounts: [PEOPLE.owner], shared: true });
+      hold(fake, 'eth_accounts');
+      const kv = memoryKV();
+      kv.set(KEYS.wallet, REMEMBERED);
+      const h = setup({ kv, win: walletWindow([{ info: OKX, provider: fake.provider }]) });
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(h.result.current.status).toBe('restoring');
+      await act(() => vi.advanceTimersByTimeAsync(5000));
+      expect(h.result.current.status).toBe('idle');
+      expect(h.result.current.wallet).toBeNull();
+      expect(kv.get(KEYS.wallet)).toBe(REMEMBERED);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a slow restore never replaces the wallet the user chose meanwhile', async () => {
+    const remembered = fakeWallet({ accounts: [PEOPLE.owner], shared: true });
+    const release = hold(remembered, 'eth_accounts');
+    const chosen = fakeWallet({ accounts: [PEOPLE.heirA] });
+    const kv = memoryKV();
+    kv.set(KEYS.wallet, REMEMBERED);
+    const h = setup({
+      kv,
+      win: walletWindow([
+        { info: OKX, provider: remembered.provider },
+        { info: OTHER, provider: chosen.provider },
+      ]),
+    });
+    const list = await act(() => h.result.current.discover());
+    await waitFor(() => expect(release.reached()).toBe(true), SLOW);
+    await act(() => h.result.current.connect(byRdns(list, OTHER.rdns)));
+    expect(h.result.current.wallet?.account).toBe(PEOPLE.heirA);
+
+    // The remembered wallet answers at last: too late, the user has chosen.
+    release();
+    await waitFor(() => expect(remembered.calls).toContain('eth_chainId'));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(h.result.current.status).toBe('connected');
+    expect(h.result.current.wallet?.account).toBe(PEOPLE.heirA);
+    expect(JSON.parse(kv.get(KEYS.wallet) ?? '{}')).toMatchObject({ rdns: OTHER.rdns });
+  });
+
+  it('a connection that a newer wallet event overtook fails instead of passing for a success', async () => {
+    const first = fakeWallet({ accounts: [PEOPLE.owner] });
+    const second = fakeWallet({ accounts: [PEOPLE.heirA] });
+    const release = hold(second, 'eth_requestAccounts');
+    const h = setup({
+      win: walletWindow([
+        { info: OKX, provider: first.provider },
+        { info: OTHER, provider: second.provider },
+      ]),
+    });
+    const list = await act(() => h.result.current.discover());
+    await act(() => h.result.current.connect(byRdns(list, OKX.rdns)));
+    await waitFor(() => expect(first.listenerCount('accountsChanged')).toBe(1));
+
+    let outcome: Promise<unknown> = Promise.resolve();
+    act(() => {
+      outcome = h.result.current.connect(byRdns(list, OTHER.rdns));
+    });
+    await waitFor(() => expect(release.reached()).toBe(true));
+    // The first wallet locks while the second one's prompt is open.
+    act(() => first.emit('accountsChanged', []));
+    expect(h.result.current.wallet).toBeNull();
+    release();
+    await expect(settled(() => outcome)).rejects.toThrow();
+    expect(h.result.current.wallet).toBeNull();
+    expect(h.result.current.status).toBe('idle');
+  });
+
   it('a declined request leaves the wallet disconnected and gives the error to the caller', async () => {
     const fake = fakeWallet({ accounts: [PEOPLE.owner], reject: true });
     const kv = memoryKV();
     const h = setup({ kv, win: walletWindow([{ info: OKX, provider: fake.provider }]) });
     const list = await act(() => h.result.current.discover());
-    await expect(act(() => h.result.current.connect(list[0]))).rejects.toMatchObject({ code: 'USER_REJECTED' });
+    await expect(settled(() => h.result.current.connect(list[0]))).rejects.toMatchObject({ code: 'USER_REJECTED' });
     expect(h.result.current.status).toBe('idle');
     expect(kv.get(KEYS.wallet)).toBeNull();
   });

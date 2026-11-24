@@ -21,7 +21,7 @@ export const CHAIN_ID: number = chainIdOf(ENV);
 
 /**
  * The query behind useSdk. Code that needs the SDK only on demand (the wallet, when it switches chain) calls
- * `queryClient.fetchQuery(sdkQuery(crossCheck))`, so a page that never connects never loads the SDK chunk.
+ * `queryClient.query(sdkQuery(crossCheck))`, so a page that never connects never loads the SDK chunk.
  */
 export function sdkQuery(crossCheck: boolean) {
   return queryOptions({

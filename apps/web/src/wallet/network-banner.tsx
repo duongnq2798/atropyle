@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { errorCode } from '@/chain/query-client';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -19,8 +19,22 @@ export function SwitchNetworkButton({ className }: { className?: string }) {
   const [error, setError] = useState<'switchRejected' | 'switchFailed' | null>(null);
   const errorId = useId();
   const expected = networkName(expectedChainId);
+  const box = useRef<HTMLDivElement>(null);
+  // A switch that worked removes this button (the banner goes, the menu drops the row) and the focus with it. The
+  // cleanup runs before React removes the node, so it can tell; once the commit is done, focus goes to the wallet
+  // button, whose name now gives the right network, instead of to the page.
+  useLayoutEffect(() => {
+    const node = box.current;
+    return () => {
+      if (!node?.contains(document.activeElement)) return;
+      queueMicrotask(() => {
+        if (document.activeElement !== null && document.activeElement !== document.body) return;
+        document.querySelector<HTMLElement>('[data-wallet-button]')?.focus();
+      });
+    };
+  }, []);
   return (
-    <div className={cn('flex flex-col items-start gap-2', className)}>
+    <div ref={box} className={cn('flex flex-col items-start gap-2', className)}>
       <Button
         size="sm"
         variant="primary"

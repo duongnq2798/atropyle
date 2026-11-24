@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LoadedVault } from '../../src/chain/types';
@@ -9,7 +9,7 @@ import type { ConnectedWallet, WalletOption } from '../../src/wallet/types';
 import { useVaultRoles } from '../../src/wallet/use-vault-roles';
 import { WalletButton } from '../../src/wallet/wallet-button';
 import { renderWithProviders } from '../helpers/render';
-import { fakeWallet } from '../helpers/wallet';
+import { type FakeWallet, fakeWallet, walletWindow } from '../helpers/wallet';
 import { fixtureSnapshot, PEOPLE } from './fixtures';
 
 // useVaultRoles reads the real rolesIn through peekChainImpl.
@@ -118,6 +118,38 @@ describe('ConnectSheet', () => {
     expect(screen.getByRole('dialog').querySelector('a')).toBeNull();
   });
 
+  it('says so when the first search fails, and when Look again fails', async () => {
+    const offline = () => Promise.reject(new Error('offline'));
+    const r = withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, discover: vi.fn(offline) }));
+    // The searching status gives way to the error, so the error announces itself.
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not look for wallets');
+    r.unmount();
+
+    const discover = vi.fn(async (): Promise<WalletOption[]> => []);
+    withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [], discover }));
+    await waitFor(() => expect(discover).toHaveBeenCalledTimes(1));
+    discover.mockImplementationOnce(offline);
+    fireEvent.click(screen.getByRole('button', { name: 'Look again' }));
+    expect(await screen.findByText(/Could not look for wallets/)).toBeTruthy();
+    expect(screen.getByText('No wallet in this browser')).toBeTruthy();
+  });
+
+  it('keeps the row whose prompt is open focusable, and ignores a second press', () => {
+    const connect = vi.fn(() => new Promise<ConnectedWallet>(() => undefined));
+    const other = option({ id: 'other', name: 'Other wallet', rdns: 'org.example.wallet' });
+    withWallet(<ConnectSheet />, walletValue({ sheetOpen: true, wallets: [option(), other], connect }));
+    const row = screen.getByRole('button', { name: /OKX Wallet/ });
+    act(() => row.focus());
+    fireEvent.click(row);
+    expect(row).not.toBeDisabled();
+    expect(row).toHaveAttribute('aria-disabled', 'true');
+    expect(row).toHaveAttribute('aria-busy', 'true');
+    expect(document.activeElement).toBe(row);
+    expect(screen.getByRole('button', { name: /Other wallet/ })).toBeDisabled();
+    fireEvent.click(row);
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+
   it('offers a link too long for a QR code for copying only', async () => {
     window.history.replaceState(null, '', `/sign/#p=${'a'.repeat(700)}`);
     try {
@@ -177,6 +209,80 @@ describe('NetworkBanner', () => {
     fireEvent.click(button);
     await waitFor(() => expect(switchChain).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText(/You declined the switch/)).toBeNull());
+  });
+});
+
+const OKX_INFO = { uuid: 'uuid-1', name: 'OKX Wallet', rdns: 'com.okex.wallet', icon: '' };
+
+/** The header button, the banner and the sheet over the real WalletProvider and an in-memory wallet. */
+function realWallet(fake: FakeWallet = fakeWallet({ accounts: [PEOPLE.owner] })) {
+  renderWithProviders(
+    <>
+      <WalletButton />
+      <NetworkBanner />
+      <ConnectSheet />
+    </>,
+    { win: walletWindow([{ info: OKX_INFO, provider: fake.provider }]) },
+  );
+  return fake;
+}
+
+/** A keyboard press: the control has focus, then activates. fireEvent.click alone moves no focus. */
+function press(el: HTMLElement) {
+  act(() => el.focus());
+  fireEvent.click(el);
+}
+
+const accountButton = () => screen.getByRole('button', { name: /^Wallet 0x7099/ });
+
+async function connectByKeyboard() {
+  press(screen.getByRole('button', { name: 'Connect wallet' }));
+  // Discovery listens for EIP-6963 answers for 250 ms.
+  press(await screen.findByRole('button', { name: /OKX Wallet/ }, { timeout: 2000 }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+}
+
+describe('wallet focus', () => {
+  it('Escape on the sheet gives focus back to Connect', async () => {
+    realWallet();
+    const connect = screen.getByRole('button', { name: 'Connect wallet' });
+    press(connect);
+    fireEvent.keyDown(await screen.findByRole('dialog', { name: 'Choose a wallet' }), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(connect));
+  });
+
+  it('a connection closes the sheet onto the account button, and Disconnect lands on Connect', async () => {
+    realWallet();
+    await connectByKeyboard();
+    await waitFor(() => expect(document.activeElement).toBe(accountButton()));
+
+    press(accountButton());
+    press(await screen.findByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Connect wallet' })));
+  });
+
+  it('a switch from the banner lands on the account button, which now names the right network', async () => {
+    realWallet(fakeWallet({ accounts: [PEOPLE.owner], chainId: 1 }));
+    await connectByKeyboard();
+    press(await screen.findByRole('button', { name: 'Switch to X Layer' }));
+    await waitFor(() => expect(screen.queryByTestId('network-banner')).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8' })),
+    );
+  });
+
+  it('a switch from the wallet menu keeps focus on the account button, not the page', async () => {
+    realWallet(fakeWallet({ accounts: [PEOPLE.owner], chainId: 1 }));
+    await connectByKeyboard();
+    press(accountButton());
+    const menu = await screen.findByRole('dialog', { name: 'Wallet' });
+    const inMenu = [...menu.querySelectorAll('button')].find((b) => b.textContent === 'Switch to X Layer');
+    if (!inMenu) throw new Error('no Switch button in the menu');
+    press(inMenu);
+    await waitFor(() => expect(screen.queryByTestId('network-banner')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(accountButton()));
   });
 });
 

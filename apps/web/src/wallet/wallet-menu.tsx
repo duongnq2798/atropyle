@@ -1,6 +1,7 @@
 'use client';
 
 import { LogOut } from 'lucide-react';
+import { useRef } from 'react';
 import { ENV, explorerUrlOf } from '@/config/env';
 import { useT } from '@/i18n/provider';
 import { compactAddress } from '@/lib/address';
@@ -23,14 +24,26 @@ const EXPLORER = explorerUrlOf(ENV);
 export function WalletMenu() {
   const t = useT(walletText);
   const { wallet, wrongChain, disconnect } = useWallet();
+  const trigger = useRef<HTMLButtonElement>(null);
   if (!wallet) return null;
   const short = compactAddress(wallet.account);
   return (
     <Popover
       label={t('walletMenu')}
       className="w-80 max-w-[calc(100vw-1.5rem)]"
+      onCloseAutoFocus={(event) => {
+        // Disconnect, or a wallet that went away, removes this menu together with its button; focus goes to the
+        // Connect button that takes its place, not to the page. While connected, Radix returns focus to the button.
+        if (trigger.current?.isConnected) return;
+        const next = document.querySelector<HTMLElement>('[data-wallet-button]');
+        if (next) {
+          event.preventDefault();
+          next.focus();
+        }
+      }}
       trigger={
         <button
+          ref={trigger}
           type="button"
           data-wallet-button=""
           aria-label={t(wrongChain ? 'accountButtonWrong' : 'accountButton', { account: short })}

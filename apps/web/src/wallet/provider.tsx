@@ -31,7 +31,10 @@ export interface WalletValue {
   wallets: WalletOption[] | null;
   discovering: boolean;
   discover(): Promise<WalletOption[]>;
-  /** Opens the wallet's prompt. Rejects with USER_REJECTED when the user declines. */
+  /**
+   * Opens the wallet's prompt. Rejects with USER_REJECTED when the user declines, and with a plain Error when a newer
+   * connect, a disconnect or a lost wallet overtook it.
+   */
   connect(option: WalletOption): Promise<ConnectedWallet>;
   /** Forgets the wallet on this site; the wallet itself keeps its permission. */
   disconnect(): void;
@@ -48,6 +51,12 @@ export interface WalletValue {
 export const WalletContext = createContext<WalletValue | null>(null);
 
 type Pending = 'restoring' | 'connecting' | null;
+
+/**
+ * The longest a silent reconnect may hold the header's placeholder. A wallet that keeps `eth_accounts` waiting until
+ * it is unlocked, or a chunk that never arrives, counts as locked: Connect shows, and the wallet stays remembered.
+ */
+const RESTORE_TIMEOUT_MS = 4000;
 
 /**
  * The connected wallet of the whole site (Quyết định 27). Nothing here loads viem or the SDK until it is needed: a
@@ -74,8 +83,12 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
     if (!remembered) return;
     const mine = ++epoch.current;
     setPending('restoring');
-    loadWalletImpl()
-      .then((impl) => impl.restoreWallet(windowOf(), remembered))
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tooSlow = new Promise<{ kind: 'locked' }>((resolve) => {
+      timer = setTimeout(() => resolve({ kind: 'locked' }), RESTORE_TIMEOUT_MS);
+    });
+    Promise.race([loadWalletImpl().then((impl) => impl.restoreWallet(windowOf(), remembered)), tooSlow])
+      .finally(() => clearTimeout(timer))
       .then(
         (r) => {
           if (epoch.current !== mine) return;
@@ -87,6 +100,7 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
           if (epoch.current === mine) setPending(null);
         },
       );
+    return () => clearTimeout(timer);
   }, [kv, windowOf]);
 
   // Wallet events (Review Focus 3): a new account or chain updates the state; anything unusable drops the wallet.
@@ -133,11 +147,12 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
       setPending('connecting');
       try {
         const next = await (await loadWalletImpl()).connectWallet(option);
-        if (epoch.current === mine) {
-          setWallet(next);
-          remember(kv, option);
-          setSheetOpen(false);
-        }
+        // A newer connect, a disconnect or a lost wallet came first: say so, rather than pass for a success the
+        // page never applied (the sheet shows the error, and trying again connects at once).
+        if (epoch.current !== mine) throw new Error('A newer wallet action replaced this connection.');
+        setWallet(next);
+        remember(kv, option);
+        setSheetOpen(false);
         return next;
       } finally {
         if (epoch.current === mine) setPending(null);
@@ -154,7 +169,7 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
   }, [kv]);
 
   // The SDK only on demand: a visitor who never connects never loads it here.
-  const sdkNow = useCallback(() => queryClient.fetchQuery(sdkQuery(crossCheck)), [queryClient, crossCheck]);
+  const sdkNow = useCallback(() => queryClient.query(sdkQuery(crossCheck)), [queryClient, crossCheck]);
 
   const switchChain = useCallback(async () => {
     const [impl, sdk] = await Promise.all([loadWalletImpl(), sdkNow()]);

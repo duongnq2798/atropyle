@@ -9,7 +9,8 @@ import {
   restoreWallet,
   watchWallet,
 } from '../../src/wallet/impl/session';
-import { readRemembered, reviveRemembered } from '../../src/wallet/remember';
+import { discoverWallets } from '../../src/wallet/impl/wallet';
+import { readRemembered, remember, reviveRemembered } from '../../src/wallet/remember';
 import type { RememberedWallet, WalletOption } from '../../src/wallet/types';
 import { fakeWallet, walletWindow } from '../helpers/wallet';
 import { PEOPLE } from './fixtures';
@@ -84,6 +85,29 @@ describe('remembered wallet', () => {
     kv.set(KEYS.wallet, '{"rdns":');
     expect(readRemembered(kv)).toBeNull();
     expect(kv.get(KEYS.wallet)).toBeNull();
+  });
+
+  it('reads back every wallet that discovery can hand to remember()', async () => {
+    const fake = fakeWallet();
+    const announced = [
+      // Cut by discovery to 40 characters plus the ellipsis, and the rdns to 100 plus the ellipsis.
+      { uuid: 'long', name: 'Super Long Wallet Name Of Some Fancy Extension', rdns: `com.${'x'.repeat(120)}` },
+      // 30 characters, but 60 UTF-16 code units.
+      { uuid: 'astral', name: '\u{1F98A}'.repeat(30), rdns: 'org.example.fox' },
+      // An rdns that is only an invisible character cleans to nothing.
+      { uuid: 'blank', name: 'Blank rdns', rdns: '​' },
+    ];
+    const win = walletWindow(announced.map((info) => ({ info: { ...info, icon: '' }, provider: fake.provider })));
+    const found = await discoverWallets(win);
+    expect(found).toHaveLength(3);
+    expect(found.find((w) => w.id === 'long')?.name).toHaveLength(41);
+    for (const option of found) {
+      const kv = memoryKV();
+      remember(kv, option);
+      const back = readRemembered(kv);
+      expect(back).toEqual({ rdns: option.rdns || null, source: 'eip6963', name: option.name });
+      expect(back && findRemembered(found, back)).toBe(option);
+    }
   });
 
   it('finds the same wallet by rdns, because EIP-6963 uuids change on every page load', () => {
