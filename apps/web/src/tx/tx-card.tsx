@@ -2,7 +2,7 @@
 
 import { Ban, Check, ChevronDown, Signature, Smartphone, Wallet, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { type ReactNode, useId, useState } from 'react';
+import { type ReactNode, useId, useRef, useState } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -189,6 +189,13 @@ export function TxCard({
   const headingId = useId();
   // The browser refused to copy the hand-off link (some in-app browsers, a permission policy): it is shown instead.
   const [copyByHand, setCopyByHand] = useState(false);
+  const sendArea = useRef<HTMLDivElement>(null);
+  // A connection from the card replaces its Connect button: the wallet sheet then gives focus to Send, when it can be
+  // pressed, rather than to the wallet button in the header.
+  const sendButton = () => {
+    const b = sendArea.current?.querySelector('button');
+    return b && !b.disabled ? b : null;
+  };
   const { plan, view, busy, result, blocker, offset } = runner;
   const active = view.rows.find((r) => inWallet(r.phase));
   const announce = result
@@ -218,7 +225,7 @@ export function TxCard({
         <Button
           variant="primary"
           data-testid={`${testId}-connect`}
-          onClick={runner.connect}
+          onClick={() => runner.connect(sendButton)}
           // runner.connect opens the wallet sheet; its chunk loads now if the idle preload has not loaded it yet.
           onPointerEnter={connectSheet.preload}
           onFocus={connectSheet.preload}
@@ -237,7 +244,10 @@ export function TxCard({
     );
   } else {
     action = (
-      <div className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}>
+      <div
+        ref={sendArea}
+        className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}
+      >
         {confirm === 'hold' ? (
           <HoldButton
             data-testid={`${testId}-send`}

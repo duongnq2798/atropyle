@@ -40,8 +40,8 @@ export interface TxRunner {
   handoffLink: string | null;
   explorer: string | null;
   send(): void;
-  /** Opens the wallet sheet. */
-  connect(): void;
+  /** Opens the wallet sheet; `fallback` takes focus when it closes on a connection (WalletValue.openSheet). */
+  connect(fallback?: () => HTMLElement | null): void;
   /** Loads the SDK chunk again after it failed. */
   reload(): void;
 }

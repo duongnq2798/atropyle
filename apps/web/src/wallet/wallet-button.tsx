@@ -39,7 +39,7 @@ export function WalletButton() {
       aria-label={connecting ? undefined : t('connect')}
       loading={connecting}
       aria-busy={waiting || undefined}
-      onClick={openSheet}
+      onClick={() => openSheet()}
       onPointerEnter={connectSheet.preload}
       onFocus={connectSheet.preload}
       icon={waiting ? <Spinner size={16} /> : <Wallet aria-hidden="true" strokeWidth={1.5} />}

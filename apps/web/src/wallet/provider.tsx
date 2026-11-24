@@ -42,10 +42,16 @@ export interface WalletValue {
   /** A viem client that signs through the connected wallet on this build's chain. */
   walletClient(): Promise<WalletClient>;
   sheetOpen: boolean;
-  openSheet(): void;
+  /**
+   * Opens the wallet sheet. `fallback`: where focus goes when the sheet closes and the element that opened it has
+   * left the page (a connection replaces a Connect button), tried before the wallet button.
+   */
+  openSheet(fallback?: () => HTMLElement | null): void;
   setSheetOpen(open: boolean): void;
   /** The element that opened the sheet, so focus returns to it. */
   sheetOpener: RefObject<HTMLElement | null>;
+  /** The `fallback` of the last openSheet(), or null. */
+  sheetFallback: RefObject<(() => HTMLElement | null) | null>;
 }
 
 export const WalletContext = createContext<WalletValue | null>(null);
@@ -72,6 +78,7 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
   const [discovering, setDiscovering] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetOpener = useRef<HTMLElement | null>(null);
+  const sheetFallback = useRef<(() => HTMLElement | null) | null>(null);
   // Each connect, disconnect, restore and loss takes the next number; a slower one that meets a newer number drops
   // its result, so a late restore never overwrites a wallet the user has just chosen.
   const epoch = useRef(0);
@@ -185,11 +192,12 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
     return impl.walletClientFor(wallet.option.provider, wallet.account, sdk.atro.chain);
   }, [wallet, sdkNow]);
 
-  const openSheet = useCallback(() => {
+  const openSheet = useCallback((fallback?: () => HTMLElement | null) => {
     // Safari and Firefox on macOS focus no button on a click or a tap, so the page itself may have focus: no opener
-    // then, and the sheet gives focus to the wallet button when it closes.
+    // then, and the sheet gives focus to `fallback` or the wallet button when it closes.
     const a = document.activeElement;
     sheetOpener.current = a instanceof HTMLElement && a !== document.body && a !== document.documentElement ? a : null;
+    sheetFallback.current = fallback ?? null;
     setSheetOpen(true);
   }, []);
 
@@ -210,6 +218,7 @@ export function WalletProvider({ children, win }: { children: ReactNode; win?: W
       openSheet,
       setSheetOpen,
       sheetOpener,
+      sheetFallback,
     }),
     [
       pending,

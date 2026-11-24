@@ -111,6 +111,7 @@ export function walletValue(over: Partial<WalletValue> = {}): WalletValue {
     openSheet: () => undefined,
     setSheetOpen: () => undefined,
     sheetOpener: { current: null },
+    sheetFallback: { current: null },
     ...over,
   };
 }

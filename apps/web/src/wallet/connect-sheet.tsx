@@ -276,9 +276,15 @@ export function ConnectSheet() {
       description={t('chooseWalletHint')}
       size="sm"
       onCloseAutoFocus={(event) => {
-        // Back to what opened the sheet; after a connection that button is gone, so to the wallet button instead.
+        // Back to what opened the sheet. After a connection that button is gone: to the opener's fallback (the card's
+        // send button), else to the wallet button.
         const opener = w.sheetOpener.current;
-        const back = opener?.isConnected ? opener : document.querySelector<HTMLElement>('[data-wallet-button]');
+        const fallback = opener?.isConnected ? null : (w.sheetFallback.current?.() ?? null);
+        const back = opener?.isConnected
+          ? opener
+          : fallback?.isConnected
+            ? fallback
+            : document.querySelector<HTMLElement>('[data-wallet-button]');
         if (back) {
           event.preventDefault();
           back.focus();

@@ -47,6 +47,7 @@ function walletValue(over: Partial<WalletValue> = {}): WalletValue {
     openSheet: vi.fn(),
     setSheetOpen: vi.fn(),
     sheetOpener: { current: null },
+    sheetFallback: { current: null },
     ...over,
   };
 }

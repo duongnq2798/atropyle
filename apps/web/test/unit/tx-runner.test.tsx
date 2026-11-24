@@ -6,9 +6,11 @@ import { CHAIN_ID } from '../../src/chain/hooks';
 import { chainKeys } from '../../src/chain/keys';
 import { TxCard } from '../../src/tx/tx-card';
 import { type TxRunner, useTxRunner } from '../../src/tx/use-tx-runner';
+import { ConnectSheet } from '../../src/wallet/connect-sheet';
 import { WalletContext, type WalletValue } from '../../src/wallet/provider';
+import { WalletButton } from '../../src/wallet/wallet-button';
 import { renderWithProviders } from '../helpers/render';
-import { walletValue } from '../helpers/wallet';
+import { fakeWallet, walletValue, walletWindow } from '../helpers/wallet';
 
 const fake = vi.hoisted(() => ({ send: vi.fn(), link: vi.fn() }));
 vi.mock('../../src/chain/load', async () => {
@@ -371,5 +373,48 @@ describe('useTxRunner with TxCard', () => {
     expect(screen.queryByTestId('tx-progress')).toBeNull();
     expect(screen.queryByTestId('error')).toBeNull();
     expect(sendButton().textContent).toBe('Send');
+  });
+});
+
+/** A keyboard press: the control has focus, then activates. fireEvent.click alone moves no focus. */
+function press(el: HTMLElement) {
+  act(() => el.focus());
+  fireEvent.click(el);
+}
+
+describe('TxCard and the wallet sheet', () => {
+  /** The header's wallet button, the card and the sheet over the real WalletProvider and an in-memory wallet. */
+  function withSheet() {
+    const wallet = fakeWallet({ accounts: [A] });
+    const info = { uuid: 'uuid-1', name: 'OKX Wallet', rdns: 'com.okex.wallet', icon: '' };
+    renderWithProviders(
+      <>
+        <WalletButton />
+        <Harness plan={plan} onRunner={() => undefined} />
+        <ConnectSheet />
+      </>,
+      { win: walletWindow([{ info, provider: wallet.provider }]) },
+    );
+  }
+
+  it('gives focus to Send when a connection from the card closes the sheet', async () => {
+    withSheet();
+    press(screen.getByTestId('tx-connect'));
+    // Discovery listens for EIP-6963 answers for 250 ms.
+    press(await screen.findByRole('button', { name: /OKX Wallet/ }, { timeout: 2000 }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(sendButton()));
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it("gives focus back to the card's Connect when the sheet closes without a connection", async () => {
+    withSheet();
+    const connect = screen.getByTestId('tx-connect');
+    press(connect);
+    const sheet = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    await screen.findByRole('button', { name: /OKX Wallet/ }, { timeout: 2000 });
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(connect));
   });
 });
