@@ -3,7 +3,7 @@
 import { type ReactNode, type Ref, useMemo } from 'react';
 import { cn } from '@/lib/cn';
 import { RevealWindow, type RevealWindowHandle, useMoveWith } from '@/motion/reveal-window';
-import { SharedThread } from '@/motion/view-transition';
+import { THREAD_VT_NAME } from '@/motion/view-transition';
 import {
   MAIN_WIDTH,
   type Point,
@@ -21,7 +21,10 @@ export interface ThreadProps extends ThreadInput {
   state: ThreadState;
   /** Makes the thread an image with this name; without it the thread is decoration next to a text label. */
   label?: string;
-  /** Morph into the next page's thread (View Transitions). At most one shared thread per page. */
+  /**
+   * Morph into the next page's thread (View Transitions): the root carries THREAD_VT_NAME. At most one shared thread
+   * per page, since a name used twice aborts the whole transition.
+   */
   shared?: boolean;
   /**
    * The lit part's window, for a caller that moves it every frame (a drag) without rendering. setRange moves only
@@ -134,6 +137,9 @@ export function Thread({
     'data-pending-knot': pendingKnot ? 'true' : undefined,
     'data-highlight': highlighted,
     className: cn('pointer-events-none relative aspect-[5/1] overflow-clip', THREAD_COLOR[state], className),
+    // Named on the element itself, so it is named in every transition, also the ones NavLink starts. React's
+    // <ViewTransition name> names an element only inside a transition React starts (Task 15, outcome B).
+    style: shared ? { viewTransitionName: THREAD_VT_NAME } : undefined,
   };
 
   const layers = (
@@ -262,7 +268,7 @@ export function Thread({
   );
 
   // With a label the box is one image; without, it is decoration next to a text label.
-  const root = label ? (
+  return label ? (
     <div role="img" aria-label={label} {...box}>
       {layers}
     </div>
@@ -271,5 +277,4 @@ export function Thread({
       {layers}
     </div>
   );
-  return shared ? <SharedThread>{root}</SharedThread> : root;
 }

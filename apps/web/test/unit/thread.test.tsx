@@ -1,7 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { LangProvider } from '../../src/i18n/provider';
 import { KVProvider } from '../../src/lib/kv';
 import { memoryKV } from '../../src/lib/store';
@@ -11,19 +10,6 @@ import { THREAD_STATES } from '../../src/thread/state';
 import { StateBadge } from '../../src/thread/state-badge';
 import { Thread } from '../../src/thread/thread';
 import { renderWithProviders } from '../helpers/render';
-
-// The real SharedThread, inside a marker: React's ViewTransition itself leaves nothing in the DOM to look for.
-vi.mock('../../src/motion/view-transition', async (load) => {
-  const real = await load<typeof import('../../src/motion/view-transition')>();
-  return {
-    ...real,
-    SharedThread: ({ children }: { children: ReactNode }) => (
-      <div data-testid="shared-thread">
-        <real.SharedThread>{children}</real.SharedThread>
-      </div>
-    ),
-  };
-});
 
 const parts = (c: HTMLElement, part: string) => c.querySelectorAll(`[data-part="${part}"]`);
 const root = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-thread]');
@@ -38,12 +24,21 @@ describe('Thread', () => {
     expect(root(container)?.getAttribute('class')?.split(/\s+/)).toContain('pointer-events-none');
   });
 
-  it('morphs into the next page only when shared', () => {
+  it('morphs into the next page only when shared: its root carries the view-transition name', () => {
+    // On the root itself. React's <ViewTransition name> names an element only inside a view transition that React
+    // starts, and NavLink starts every one of them (Task 15, outcome B), so through it no element was ever named.
     const { container, unmount } = renderWithProviders(<Thread state="active" />);
-    expect(container.querySelector('[data-testid="shared-thread"]')).toBeNull();
+    expect(root(container)?.style.viewTransitionName).toBe('');
+    expect(root(container)?.hasAttribute('style')).toBe(false);
     unmount();
     const shared = renderWithProviders(<Thread state="active" shared />).container;
-    expect(shared.querySelector('[data-testid="shared-thread"] > [data-thread]')).not.toBeNull();
+    expect(root(shared)?.style.viewTransitionName).toBe('atropyle-thread');
+    // No wrapper: the root is what the page laid out.
+    expect(root(shared)?.parentElement).toBe(shared);
+    // The prerender writes the name too, so a static page morphs on its first navigation.
+    const html = renderToString(<Thread state="active" shared />);
+    expect(html).toMatch(/^<div aria-hidden="true" data-thread=""[^>]* style="view-transition-name:atropyle-thread">/);
+    expect(renderToString(<Thread state="active" />)).not.toContain('view-transition-name');
   });
 
   it('carries a label as an image when given one', () => {

@@ -1,15 +1,13 @@
 'use client';
 
-import { type ReactNode, ViewTransition } from 'react';
 import { flushSync } from 'react-dom';
 
-/** One element per page carries this name; globals.css gives its group the spring (spec §4.1 "shared element"). */
+/**
+ * The view-transition name of the page's main Thread (`<Thread shared>` puts it on its root), so the thread morphs
+ * from one route to the next instead of cutting; globals.css gives its group the spring (spec §4.1 "shared
+ * element"). At most one element per page: a name used twice aborts the whole transition.
+ */
 export const THREAD_VT_NAME = 'atropyle-thread';
-
-/** Wrap the page's main Thread: it morphs from one route to the next instead of cutting. */
-export function SharedThread({ children }: { children: ReactNode }) {
-  return <ViewTransition name={THREAD_VT_NAME}>{children}</ViewTransition>;
-}
 
 type StartViewTransition = (update: () => void) => unknown;
 

@@ -18,6 +18,24 @@ test('without reduced motion the thread breathes, so the test above can fail', a
 });
 
 /**
+ * The hero's Thread is the page's shared element (spec §4.1). It carries the name itself: React's <ViewTransition>
+ * names an element only inside a transition React starts, and NavLink starts every one of them (outcome B below).
+ */
+test('the hero thread carries the shared view-transition name, and it is the only element that does', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const named = await page.evaluate(() =>
+    [...document.querySelectorAll('*')]
+      .filter((el) => getComputedStyle(el).viewTransitionName === 'atropyle-thread')
+      .map((el) => el.hasAttribute('data-thread')),
+  );
+  expect(named).toEqual([true]);
+});
+
+/**
  * Plan 7A Quyết định 6, outcome B of Task 15: in Next 16.4.6 React did not start a view transition on a client
  * navigation, so the shell's NavLink starts one (withPendingViewTransition). In 7A only `/` and the 404 page exist,
  * and a link to a missing route reloads the document, so the only client navigation is from the 404 page to `/`.
