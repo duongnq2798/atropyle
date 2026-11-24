@@ -16,9 +16,13 @@ import { outOf } from './paths';
  *   1.3.1 and react-dismissable-layer 1.2.1: the popper's wrapper attribute, the focus scope's mount event and the
  *   layer's outside-press event. The wallet sheet, the wallet menu, the settings popover and the menu sheet load on
  *   their first open, and a page with a tooltip carries it itself (ruling R23).
- * The motion features stay out of every page. The QR encoder and the overlays stay out of the pages that are only the
- * shell (`/` and the 404 pages): a route of Plan 7B may show a QR code or a tooltip from its first paint, inside its
- * 240 kB.
+ * - viem, checked against viem 2.58.0: its version tag `viem@${version}` (viem, _esm/errors/base.js), which every viem
+ *   error carries.
+ * - The SDK: the CLI hint of its UNKNOWN code in ERROR_INFO (packages/sdk/src/errors.ts), which every AtropyleError
+ *   reads. No file of src/ carries it: this site words that hint itself (src/tx/impl/errors-view.ts).
+ * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
+ * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
+ * or a tooltip, or read the chain, from its first paint, inside its 240 kB.
  */
 const SHELL_PAGES = new Set(['index.html', '404.html', '404/index.html', '_not-found/index.html']);
 const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' }> = {
@@ -32,6 +36,8 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
     ],
     pages: 'shell',
   },
+  viem: { markers: [/["'`]viem@/], pages: 'shell' },
+  'the SDK': { markers: [/["'`]Run again with --verbose and report the output\.["'`]/], pages: 'shell' },
 };
 
 function walk(dir: string): string[] {
