@@ -1,6 +1,6 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MotionGlobalConfig, m, processFrame } from 'motion/react';
-import type { ReactElement } from 'react';
+import { type ReactElement, useState } from 'react';
 import { encode } from 'uqr';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { untrusted } from '../../src/lib/untrusted';
@@ -438,6 +438,81 @@ describe('Dialog', () => {
     expect(overlay).toHaveClass('bg-bg/95', 'md:bg-bg/70', 'md:backdrop-blur-[3px]');
     expect(overlay).not.toHaveClass('bg-bg/70');
     expect(overlay).not.toHaveClass('backdrop-blur-[3px]');
+  });
+
+  it('scrolls only its body, so the title and the close button stay in view', async () => {
+    renderWithProviders(
+      <Dialog open title="Choose a wallet">
+        <p>Body</p>
+      </Dialog>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    const body = within(dialog).getByText('Body').parentElement;
+    // A phone sheet stops at 90dvh: when the body is taller, only the body scrolls.
+    expect(dialog).toHaveClass('overflow-hidden', 'flex-col');
+    expect(dialog).not.toHaveClass('overflow-y-auto');
+    expect(body).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(body?.contains(within(dialog).getByRole('button', { name: 'Close' }))).toBe(false);
+    expect(body?.contains(within(dialog).getByRole('heading', { name: 'Choose a wallet' }))).toBe(false);
+  });
+
+  it('without a trigger, gives focus back to what had it when it opened', async () => {
+    function Outside() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Opener
+          </button>
+          <Dialog open={open} onOpenChange={setOpen} title="Choose a wallet">
+            <Button>Inside</Button>
+          </Dialog>
+        </>
+      );
+    }
+    renderWithProviders(<Outside />);
+    const opener = screen.getByRole('button', { name: 'Opener' });
+    act(() => opener.focus());
+    fireEvent.click(opener);
+    const dialog = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
+  it('leaves focus where the caller put it on close', async () => {
+    function Outside() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Opener
+          </button>
+          <button type="button">Elsewhere</button>
+          <Dialog
+            open={open}
+            onOpenChange={setOpen}
+            title="Choose a wallet"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              screen.getByRole('button', { name: 'Elsewhere' }).focus();
+            }}
+          >
+            <Button>Inside</Button>
+          </Dialog>
+        </>
+      );
+    }
+    renderWithProviders(<Outside />);
+    const opener = screen.getByRole('button', { name: 'Opener' });
+    act(() => opener.focus());
+    fireEvent.click(opener);
+    const dialog = await screen.findByRole('dialog', { name: 'Choose a wallet' });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' })));
   });
 });
 
