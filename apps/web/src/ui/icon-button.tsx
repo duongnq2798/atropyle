@@ -1,42 +1,14 @@
 'use client';
 
-import type { LucideIcon } from 'lucide-react';
-import type { ButtonHTMLAttributes, Ref } from 'react';
-import { cn } from '@/lib/cn';
+import { PlainIconButton, type PlainIconButtonProps } from './plain-icon-button';
 import { Tooltip } from './tooltip';
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
-  icon: LucideIcon;
-  /** The accessible name, also shown as a tooltip. */
-  label: string;
-  size?: 'sm' | 'md';
+export interface IconButtonProps extends PlainIconButtonProps {
+  /** Shows the label as a tooltip too. Without one, use PlainIconButton: this file brings the Radix tooltip. */
   tooltip?: boolean;
-  ref?: Ref<HTMLButtonElement>;
 }
 
-export function IconButton({
-  icon: Icon,
-  label,
-  size = 'md',
-  tooltip = true,
-  className,
-  type = 'button',
-  ...rest
-}: IconButtonProps) {
-  const button = (
-    <button
-      {...rest}
-      type={type}
-      aria-label={label}
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors duration-150',
-        'hover:bg-surface-2 hover:text-ink disabled:opacity-50',
-        size === 'sm' ? 'size-8' : 'size-10',
-        className,
-      )}
-    >
-      <Icon aria-hidden="true" size={size === 'sm' ? 16 : 18} strokeWidth={1.5} />
-    </button>
-  );
-  return tooltip ? <Tooltip content={label}>{button}</Tooltip> : button;
+export function IconButton({ tooltip = true, ...rest }: IconButtonProps) {
+  const button = <PlainIconButton {...rest} />;
+  return tooltip ? <Tooltip content={rest.label}>{button}</Tooltip> : button;
 }

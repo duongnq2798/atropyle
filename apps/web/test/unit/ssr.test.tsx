@@ -9,14 +9,11 @@ import { Providers } from '../../src/shell/providers';
 import { Address } from '../../src/ui/address';
 import { CopyButton } from '../../src/ui/copy-button';
 import { ExternalLink } from '../../src/ui/external-link';
-import { TooltipProvider } from '../../src/ui/tooltip';
 
 const html = (node: ReactNode) =>
   renderToString(
     <KVProvider kv={memoryKV()}>
-      <LangProvider>
-        <TooltipProvider>{node}</TooltipProvider>
-      </LangProvider>
+      <LangProvider>{node}</LangProvider>
     </KVProvider>,
   );
 

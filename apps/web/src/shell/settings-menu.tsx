@@ -2,24 +2,21 @@
 
 import { Settings } from 'lucide-react';
 import { useT } from '@/i18n/provider';
+import { lazyChunk } from '@/lib/lazy-chunk';
 import { messages as shell } from '@/messages/shell.messages';
-import { IconButton } from '@/ui/icon-button';
-import { Popover } from '@/ui/popover';
-import { HapticsSwitch } from './haptics-switch';
-import { LangSwitch } from './lang-switch';
-import { ThemeSwitch } from './theme-switch';
+import { useLazyOverlay } from '@/ui/lazy-overlay';
+import { PlainIconButton } from '@/ui/plain-icon-button';
+
+/** The popover and the switches load on the first hover, focus or press of the button (ruling R23). */
+const panel = lazyChunk(() => import('./settings-panel'));
 
 export function SettingsMenu() {
   const t = useT(shell);
+  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(panel);
   return (
-    <Popover
-      label={t('settings')}
-      trigger={<IconButton icon={Settings} label={t('settings')} tooltip={false} />}
-      className="flex w-72 flex-col gap-5 p-4"
-    >
-      <LangSwitch />
-      <ThemeSwitch />
-      <HapticsSwitch />
-    </Popover>
+    <>
+      <PlainIconButton {...trigger} icon={Settings} label={t('settings')} />
+      {content ? <content.SettingsPanel id={id} anchor={anchor} open={open} onOpenChange={setOpen} /> : null}
+    </>
   );
 }

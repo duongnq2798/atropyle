@@ -5,6 +5,7 @@ import { useT } from '@/i18n/provider';
 import { messages as walletText } from '@/messages/wallet.messages';
 import { Button } from '@/ui/button';
 import { Skeleton } from '@/ui/skeleton';
+import { connectSheet } from './connect-sheet-slot';
 import { useWallet } from './provider';
 import { WalletMenu } from './wallet-menu';
 
@@ -30,6 +31,8 @@ export function WalletButton() {
       aria-label={connecting ? undefined : t('connect')}
       loading={connecting}
       onClick={openSheet}
+      onPointerEnter={connectSheet.preload}
+      onFocus={connectSheet.preload}
       icon={<Wallet aria-hidden="true" strokeWidth={1.5} />}
     >
       {connecting ? (

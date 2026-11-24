@@ -1,7 +1,7 @@
 'use client';
 
 import { Ban, Check, ChevronDown, Signature, Smartphone, Wallet, X } from 'lucide-react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ReactNode, useId } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';

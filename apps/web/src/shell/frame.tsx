@@ -1,8 +1,8 @@
 'use client';
 
 import { type ReactNode, useId } from 'react';
-import { ConnectSheet } from '@/wallet/connect-sheet';
-import { NetworkBanner } from '@/wallet/network-banner';
+import { ConnectSheetSlot } from '@/wallet/connect-sheet-slot';
+import { NetworkBannerSlot } from '@/wallet/network-banner-slot';
 import { Footer } from './footer';
 import { Header } from './header';
 import { ProofLine } from './proof-line';
@@ -19,12 +19,12 @@ export function Frame({ children }: { children: ReactNode }) {
       <SkipLink targetId={mainId} />
       <ProofLine />
       <Header />
-      <NetworkBanner />
+      <NetworkBannerSlot />
       <main id={mainId} tabIndex={-1} className="flex flex-1 flex-col outline-none">
         {children}
       </main>
       <Footer />
-      <ConnectSheet />
+      <ConnectSheetSlot />
     </div>
   );
 }

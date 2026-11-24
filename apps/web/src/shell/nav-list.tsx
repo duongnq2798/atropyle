@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';

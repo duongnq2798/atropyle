@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Copy, X } from 'lucide-react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';

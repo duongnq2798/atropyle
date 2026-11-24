@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { messages as common } from '@/messages/common.messages';
-import { IconButton } from './icon-button';
+import { PlainIconButton } from './plain-icon-button';
 
 export type BannerTone = 'info' | 'warn' | 'error' | 'success';
 
@@ -50,7 +50,7 @@ export function Banner({
         {action ? <div className="pt-2">{action}</div> : null}
       </div>
       {onDismiss ? (
-        <IconButton icon={X} label={c('close')} size="sm" tooltip={false} onClick={onDismiss} className="-mt-1 -mr-1" />
+        <PlainIconButton icon={X} label={c('close')} size="sm" onClick={onDismiss} className="-mt-1 -mr-1" />
       ) : null}
     </div>
   );

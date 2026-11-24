@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight, RefreshCw, Wallet, WalletMinimal } from 'lucide-react';
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { errorCode } from '@/chain/query-client';
 import { useT } from '@/i18n/provider';

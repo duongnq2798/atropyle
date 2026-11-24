@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useState } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';

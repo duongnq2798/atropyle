@@ -6,7 +6,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { messages as common } from '@/messages/common.messages';
-import { IconButton } from './icon-button';
+import { PlainIconButton } from './plain-icon-button';
 
 export interface DialogProps {
   open?: boolean;
@@ -20,6 +20,8 @@ export interface DialogProps {
   sheet?: boolean;
   /** Where focus goes on close. Needed when there is no `trigger`; call `preventDefault()` after moving focus. */
   onCloseAutoFocus?(event: Event): void;
+  /** The content's id, for a trigger outside the dialog (aria-controls); Radix makes one by default. */
+  id?: string;
   className?: string;
 }
 
@@ -35,6 +37,7 @@ export function Dialog({
   size = 'md',
   sheet = true,
   onCloseAutoFocus,
+  id,
   className,
 }: DialogProps) {
   const c = useT(common);
@@ -47,6 +50,7 @@ export function Dialog({
         <D.Overlay className="atro-overlay fixed inset-0 z-50 bg-bg/95 md:bg-bg/70 md:backdrop-blur-[3px]" />
         <D.Content
           {...describedBy}
+          {...(id ? { id } : {})}
           onCloseAutoFocus={onCloseAutoFocus}
           className={cn(
             'fixed z-50 flex max-h-[min(90dvh,48rem)] w-full flex-col gap-5 overflow-y-auto border border-line',
@@ -67,7 +71,7 @@ export function Dialog({
           </div>
           {children}
           <D.Close asChild>
-            <IconButton icon={X} label={c('close')} size="sm" tooltip={false} className="absolute top-4 right-4" />
+            <PlainIconButton icon={X} label={c('close')} size="sm" className="absolute top-4 right-4" />
           </D.Close>
         </D.Content>
       </D.Portal>

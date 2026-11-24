@@ -7,7 +7,6 @@ import { LangProvider } from '@/i18n/provider';
 import { KVProvider } from '@/lib/kv';
 import { KEYS, type KV, memoryKV } from '@/lib/store';
 import { ThemeProvider } from '@/theme/provider';
-import { TooltipProvider } from '@/ui/tooltip';
 import { WalletProvider } from '@/wallet/provider';
 import type { WalletWindow } from '@/wallet/types';
 
@@ -27,8 +26,8 @@ export function testQueryClient(): QueryClient {
 }
 
 /**
- * The providers of every page except MotionProvider, which loads its features asynchronously; `m.*` elements still
- * render their first state without it.
+ * The providers of every page (shell/providers.tsx) except MotionProvider, which loads its features
+ * asynchronously; `m.*` elements still render their first state without it.
  */
 export function TestProviders({
   kv,
@@ -46,9 +45,7 @@ export function TestProviders({
       <LangProvider>
         <ThemeProvider>
           <ChainProvider client={queryClient}>
-            <WalletProvider win={win}>
-              <TooltipProvider>{children}</TooltipProvider>
-            </WalletProvider>
+            <WalletProvider win={win}>{children}</WalletProvider>
           </ChainProvider>
         </ThemeProvider>
       </LangProvider>
