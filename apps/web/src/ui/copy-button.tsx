@@ -26,12 +26,15 @@ export function CopyButton({
   label,
   showText = false,
   className,
+  onResult,
 }: {
   text: string;
   /** The accessible name, for example "Copy address". */
   label: string;
   showText?: boolean;
   className?: string;
+  /** After each press: whether the text reached the clipboard (false when the browser refused). */
+  onResult?(copied: boolean): void;
 }) {
   const c = useT(common);
   const t = useT(ui);
@@ -60,6 +63,7 @@ export function CopyButton({
         onClick={async () => {
           const ok = await copyText(text);
           setCopy((s) => ({ state: ok ? 'copied' : 'failed', n: s.n + 1 }));
+          onResult?.(ok);
         }}
         className={cn(
           'inline-flex shrink-0 items-center gap-1.5 rounded-full text-ink-muted transition-colors duration-150 hover:text-ink',

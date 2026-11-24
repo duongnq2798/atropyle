@@ -2,7 +2,7 @@
 
 import { Ban, Check, ChevronDown, Signature, Smartphone, Wallet, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { type ReactNode, useId } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -187,6 +187,8 @@ export function TxCard({
   const t = useT(messages);
   const tw = useT(walletMessages);
   const headingId = useId();
+  // The browser refused to copy the hand-off link (some in-app browsers, a permission policy): it is shown instead.
+  const [copyByHand, setCopyByHand] = useState(false);
   const { plan, view, busy, result, blocker, offset } = runner;
   const active = view.rows.find((r) => inWallet(r.phase));
   const announce = result
@@ -333,8 +335,23 @@ export function TxCard({
                 label={t('copyLink')}
                 showText
                 className="border border-line-strong"
+                onResult={(copied) => {
+                  if (!copied) setCopyByHand(true);
+                }}
               />
             </span>
+            {copyByHand ? (
+              <label className="flex w-full flex-col gap-1.5">
+                <span className="text-ink-muted text-small">{t('handoffManual')}</span>
+                <input
+                  data-testid={`${testId}-link`}
+                  readOnly
+                  value={runner.handoffLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="w-full rounded-xl border border-line-strong bg-surface-1 px-3 py-2 font-mono text-caption text-ink"
+                />
+              </label>
+            ) : null}
           </div>
         </details>
       ) : null}

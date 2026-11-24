@@ -39,6 +39,7 @@ export const messages = defineMessages(
     handoffBody:
       'Copy this link and open it where your wallet is. That page checks every step again before it lets you sign.',
     copyLink: 'Copy link to sign on another device',
+    handoffManual: 'Copy this link yourself: your browser did not let this page copy it.',
     reason: 'The contract said',
     readDocs: 'How to fix this',
     errorCode: 'Error code',
@@ -81,6 +82,7 @@ export const messages = defineMessages(
     handoffTitle: 'Ký trên thiết bị khác',
     handoffBody: 'Sao chép link này và mở ở nơi có ví của bạn. Trang đó kiểm lại từng bước trước khi cho bạn ký.',
     copyLink: 'Sao chép link để ký trên thiết bị khác',
+    handoffManual: 'Hãy tự sao chép link này: trình duyệt không cho trang này sao chép.',
     reason: 'Contract trả lời',
     readDocs: 'Cách khắc phục',
     errorCode: 'Mã lỗi',

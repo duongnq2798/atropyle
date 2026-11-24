@@ -126,6 +126,24 @@ describe('TxCard', () => {
     expect(sendButton()).toHaveAccessibleName('Loading… Sending…');
   });
 
+  it('shows the hand-off link to copy by hand when the browser refuses to copy it', async () => {
+    const link = 'https://atropyle.test/sign/#p=abc';
+    const writeText = vi.fn(async (_t: string) => {
+      throw new DOMException('Write permission denied.', 'NotAllowedError');
+    });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderWithProviders(<TxCard runner={runnerOf(PLAN, { handoffLink: link })} label="Send" />);
+    expect(screen.queryByTestId('tx-link')).toBeNull();
+    const button = screen.getByTestId('tx-copy-link').querySelector('button');
+    if (!button) throw new Error('no copy button');
+    fireEvent.click(button);
+    const field = (await screen.findByTestId('tx-link')) as HTMLInputElement;
+    expect(writeText).toHaveBeenCalledWith(link);
+    expect(field.value).toBe(link);
+    expect(field.readOnly).toBe(true);
+    expect(field).toHaveAccessibleName('Copy this link yourself: your browser did not let this page copy it.');
+  });
+
   it('shows warnings from the chain as text only', () => {
     const warned: TxPlan = {
       ...PLAN,
