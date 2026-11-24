@@ -8,8 +8,10 @@ import { LIMITS_HREF, ROUTES } from '@/routes';
 
 /** `0x7016…3864`: the first four and the last four hex digits; the full hash is the link's title. */
 const SHORT = `${POLICY_NETLIST_KECCAK.slice(0, 6)}…${POLICY_NETLIST_KECCAK.slice(-4)}`;
-const LINK =
-  'rounded-sm text-thread underline decoration-thread/40 underline-offset-2 transition-colors duration-150 hover:decoration-thread';
+const LINK = 'rounded-sm underline underline-offset-2 transition-colors duration-150';
+const GOLD = `${LINK} text-thread decoration-thread/40 hover:decoration-thread`;
+/** "unaudited →" on a phone: R21 keeps the word in the line's own muted ink, with no accent. */
+const MUTED = `${LINK} text-ink-muted decoration-line-strong hover:text-ink`;
 
 /**
  * Splits a template at `{keccak}` and `{limits}`, so both links sit inside one translated sentence. A template
@@ -28,11 +30,11 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
     <span data-variant={variant} className={variant === 'wide' ? 'hidden md:inline' : 'md:hidden'}>
       {before}
       {/* prefetch stays off until /proof/ exists (Quyết định 22; 7C T3 turns it on). */}
-      <Link href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={LINK}>
+      <Link href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={GOLD}>
         {SHORT}
       </Link>
       {between}
-      <Link href={LIMITS_HREF} prefetch={false} className={LINK}>
+      <Link href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
         {limits}
       </Link>
       {after}
@@ -43,17 +45,21 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
 /**
  * The first line every page shows (R18.7): where the guarantee lives (the netlist frozen on X Layer) and where it
  * stops (unaudited, the known limits). Prerendered, one 24 px line, never dismissable. Both variants are in the
- * HTML and CSS picks one, so nothing measures the width in JS.
+ * HTML and CSS picks one, so nothing measures the width in JS. A labelled landmark of its own, outside the sticky
+ * header, since the line scrolls away. Below 20rem the gutters narrow; a screen narrower than the line (a fold
+ * cover, a zoomed phone) clips its end instead of scrolling the page sideways, 4 px out so a focus ring still shows.
  */
 export function ProofLine() {
   const t = useT(shell);
   return (
-    <p
-      data-testid="proof-line"
-      className="h-6 whitespace-nowrap border-line/60 border-b bg-surface-1 px-4 text-center font-mono text-caption text-ink-muted leading-6"
-    >
-      <Variant variant="wide" template={t('proofLine')} limits={t('proofLimits')} />
-      <Variant variant="narrow" template={t('proofLineShort')} limits={t('proofLimitsShort')} />
-    </p>
+    <aside aria-label={t('proofLineLabel')}>
+      <p
+        data-testid="proof-line"
+        className="h-6 overflow-clip whitespace-nowrap border-line/60 border-b bg-surface-1 px-4 text-center font-mono text-caption text-ink-muted leading-6 [overflow-clip-margin:4px] max-[20rem]:px-2"
+      >
+        <Variant variant="wide" template={t('proofLine')} limits={t('proofLimits')} />
+        <Variant variant="narrow" template={t('proofLineShort')} limits={t('proofLimitsShort')} />
+      </p>
+    </aside>
   );
 }

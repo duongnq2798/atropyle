@@ -44,6 +44,31 @@ describe('ProofLine', () => {
     expect(variants().wide.textContent).toBe(
       `Luật đóng băng trong netlist ${SHORT} trên X Layer · chưa kiểm toán · giới hạn →`,
     );
+    expect(screen.getByRole('complementary', { name: 'Bằng chứng về luật' })).toContainElement(variants().line);
+  });
+
+  it('is a landmark of its own, so a reader who moves by landmarks reaches it', () => {
+    renderWithProviders(<ProofLine />);
+    const region = screen.getByRole('complementary', { name: 'Proof of the rules' });
+    expect(region).toContainElement(variants().line);
+  });
+
+  it('keeps "unaudited" in the muted ink of the line on a phone too (R21); only the netlist link is gold', () => {
+    renderWithProviders(<ProofLine />);
+    const { wide, narrow } = variants();
+    const classes = (a: Element) => (a.getAttribute('class') ?? '').split(/\s+/);
+    const [keccak, unaudited] = Array.from(narrow.querySelectorAll('a'));
+    expect(unaudited.textContent).toBe('unaudited →');
+    expect(classes(unaudited)).toEqual(expect.arrayContaining(['text-ink-muted', 'underline', 'hover:text-ink']));
+    expect(classes(unaudited).filter((c) => c.includes('thread'))).toEqual([]);
+    for (const a of [keccak, ...Array.from(wide.querySelectorAll('a'))]) expect(classes(a)).toContain('text-thread');
+  });
+
+  it('never widens the page: it clips what does not fit, with room for a focus ring, and narrows its gutters', () => {
+    renderWithProviders(<ProofLine />);
+    expect(variants().line.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['overflow-clip', '[overflow-clip-margin:4px]', 'px-4', 'max-[20rem]:px-2']),
+    );
   });
 
   it('fits one line: 36 characters on a phone, 96 from 48rem', async () => {
