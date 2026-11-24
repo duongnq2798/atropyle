@@ -7,6 +7,10 @@ import { InlineError } from './inline-error';
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> {
   label: ReactNode;
   hint?: ReactNode;
+  /**
+   * Linked to the input with aria-describedby but not live: a caller that shows an error after the user acts also
+   * announces it in a polite live region.
+   */
   error?: ReactNode;
   /** Monospace with tabular figures: addresses, amounts, hashes. */
   mono?: boolean;

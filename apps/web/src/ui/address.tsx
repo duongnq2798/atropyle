@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { useT } from '@/i18n/provider';
 import { addressGroups, isAddressText } from '@/lib/address';
 import { cn } from '@/lib/cn';
@@ -60,15 +60,17 @@ export function Address({
       {avatar ? <Avatar address={address} size={size === 'sm' ? 18 : 22} /> : null}
       <span
         translate="no"
-        className={cn('min-w-0 break-all font-mono tabular-nums', size === 'sm' ? 'text-small' : 'text-body')}
+        className={cn('min-w-0 wrap-anywhere font-mono tabular-nums', size === 'sm' ? 'text-small' : 'text-body')}
       >
+        {/* Lines break between groups (<wbr>), never inside one. wrap-anywhere splits only a text that is not an
+            address, which comes as one group. */}
         {parts.map((p) => (
-          <span
-            key={p.at}
-            className={p.at === 0 && parts.length > 1 ? 'text-ink-muted' : p.at > 1 ? 'ml-[0.45ch]' : undefined}
-          >
-            {p.text}
-          </span>
+          <Fragment key={p.at}>
+            {p.at > 1 ? <wbr /> : null}
+            <span className={p.at === 0 && parts.length > 1 ? 'text-ink-muted' : p.at > 1 ? 'ml-[0.45ch]' : undefined}>
+              {p.text}
+            </span>
+          </Fragment>
         ))}
       </span>
       {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}

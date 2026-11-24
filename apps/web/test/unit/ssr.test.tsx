@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { LangProvider } from '../../src/i18n/provider';
 import { KVProvider } from '../../src/lib/kv';
 import { memoryKV } from '../../src/lib/store';
+import { Providers } from '../../src/shell/providers';
 import { Address } from '../../src/ui/address';
+import { CopyButton } from '../../src/ui/copy-button';
 import { ExternalLink } from '../../src/ui/external-link';
 import { TooltipProvider } from '../../src/ui/tooltip';
 
@@ -31,5 +33,18 @@ describe('prerendered HTML of the deweb build', () => {
       <Address address="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" explorer="https://www.oklink.com/xlayer" />,
     );
     expect(out).not.toContain('oklink.com');
+  });
+
+  it('draws every copy icon from the first paint: only a later copy enters (§18.2, 6)', () => {
+    const out = renderToString(
+      <Providers kv={memoryKV()}>
+        <CopyButton text="x" label="Copy" />
+        <CopyButton text="x" label="Copy link" showText />
+        <Address address="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" />
+      </Providers>,
+    );
+    expect(out).toContain('Copy link');
+    expect(out).not.toMatch(/opacity:\s*0[;"]/);
+    expect(out).not.toMatch(/scale\(0\.6\)/);
   });
 });

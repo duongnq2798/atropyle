@@ -22,7 +22,8 @@ export function Popover({
   onOpenChange?(open: boolean): void;
   align?: 'start' | 'center' | 'end';
   side?: 'top' | 'right' | 'bottom' | 'left';
-  label?: string;
+  /** The name of the content, a role="dialog": an unnamed one fails axe's aria-dialog-name rule. */
+  label: string;
   className?: string;
 }) {
   return (
