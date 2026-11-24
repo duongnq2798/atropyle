@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   failures,
   forbiddenRequests,
+  hostNote,
   type LhrLike,
   medianRun,
   type Run,
   runOf,
+  SLOW_HOST_BENCHMARK,
   THRESHOLDS,
 } from '../../scripts/lib/lighthouse-score';
 
@@ -42,6 +44,23 @@ describe('lighthouse score', () => {
       cls: 0,
       tbtMs: Number.POSITIVE_INFINITY,
     });
+  });
+
+  it("keeps the host's CPU benchmark of each run, which simulated TBT scales with", () => {
+    const lhr: LhrLike = { categories: {}, audits: {}, environment: { benchmarkIndex: 1834.5 } };
+    expect(runOf(lhr).benchmarkIndex).toBe(1834.5);
+    expect(runOf({ categories: {}, audits: {} }).benchmarkIndex).toBeUndefined();
+  });
+
+  it('flags a host at or below the benchmark where Lighthouse warns of a slow CPU, and only then', () => {
+    expect(hostNote({ ...PASS, benchmarkIndex: SLOW_HOST_BENCHMARK })).toMatch(
+      /benchmark 1000 .*cpuSlowdownMultiplier/,
+    );
+    expect(hostNote({ ...PASS, benchmarkIndex: 640.2 })).toMatch(/benchmark 640 /);
+    expect(hostNote({ ...PASS, benchmarkIndex: SLOW_HOST_BENCHMARK + 1 })).toBeNull();
+    expect(hostNote(PASS)).toBeNull();
+    // Informational: the gate itself never reads the benchmark.
+    expect(failures({ ...PASS, benchmarkIndex: 100 })).toEqual([]);
   });
 
   it('takes the run with the median performance score, with its own metrics', () => {

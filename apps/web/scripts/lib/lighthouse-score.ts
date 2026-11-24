@@ -28,13 +28,25 @@ export interface Run {
   lcpMs: number;
   cls: number;
   tbtMs: number;
+  /**
+   * The host's CPU benchmark (Lighthouse's BenchmarkIndex), logged with the median run. Simulated TBT scales with
+   * the host CPU, so a slow CI runner shows here first. The gate never reads it.
+   */
+  benchmarkIndex?: number;
 }
 
 /** The part of a Lighthouse result the gate reads; the real `Result` type fits it. */
 export interface LhrLike {
   categories: Record<string, { score: number | null } | undefined>;
   audits: Record<string, { numericValue?: number; details?: unknown } | undefined>;
+  environment?: { benchmarkIndex?: number };
 }
+
+/**
+ * Lighthouse warns of an underpowered host at or below this BenchmarkIndex, on its CLI only
+ * (SLOW_CPU_BENCHMARK_INDEX_THRESHOLD in core/gather/driver/environment.js); the Node API this script uses does not.
+ */
+export const SLOW_HOST_BENCHMARK = 1000;
 
 const score = (lhr: LhrLike, id: string): number => lhr.categories[id]?.score ?? 0;
 const metric = (lhr: LhrLike, id: string): number => lhr.audits[id]?.numericValue ?? Number.POSITIVE_INFINITY;
@@ -49,7 +61,18 @@ export function runOf(lhr: LhrLike): Run {
     lcpMs: metric(lhr, 'largest-contentful-paint'),
     cls: metric(lhr, 'cumulative-layout-shift'),
     tbtMs: metric(lhr, 'total-blocking-time'),
+    benchmarkIndex: lhr.environment?.benchmarkIndex,
   };
+}
+
+/** A warning when the run's host is as slow as Lighthouse's own slow-CPU line; null otherwise or when unknown. */
+export function hostNote(r: Run): string | null {
+  if (r.benchmarkIndex === undefined || r.benchmarkIndex > SLOW_HOST_BENCHMARK) return null;
+  return (
+    `host CPU benchmark ${Math.round(r.benchmarkIndex)} is at or below ${SLOW_HOST_BENCHMARK}, where Lighthouse warns ` +
+    'that the CPU is slower than it expects and the score suffers (TBT first); calibrate ' +
+    'throttling.cpuSlowdownMultiplier for this host rather than loosening the thresholds'
+  );
 }
 
 /** Quyết định 24: the run with the median Performance score; its other numbers come with it. */

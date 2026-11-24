@@ -8,6 +8,7 @@ import {
   FORBIDDEN_REQUESTS,
   failures,
   forbiddenRequests,
+  hostNote,
   LIGHTHOUSE_ROUTES,
   medianRun,
   type Run,
@@ -53,7 +54,10 @@ try {
     }
     const median = medianRun(runs);
     const missed = [...failures(median), ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`)];
+    // The median run carries its host's benchmarkIndex: simulated TBT scales with the host CPU (a CI runner's too).
     console.log(`${route}: ${JSON.stringify(median)}`);
+    const note = hostNote(median);
+    if (note) console.warn(`  ${route}: ${note}`);
     for (const m of missed) console.error(`  ${route}: ${m}`);
     if (missed.length > 0) failed = true;
   }
