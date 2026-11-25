@@ -1,14 +1,15 @@
 'use client';
 
-import { Ban, Check, ChevronDown, Signature, Smartphone, Wallet, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, RotateCcw, Signature, Smartphone, Wallet, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { type ReactNode, useId, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { formatAmount } from '@/lib/format';
 import { explorerTx } from '@/lib/links';
 import { messages } from '@/messages/tx.messages';
+import { messages as flowMessages } from '@/messages/tx-flow.messages';
 import { messages as walletMessages } from '@/messages/wallet.messages';
 import { SPRING } from '@/motion/tokens';
 import { Address } from '@/ui/address';
@@ -22,9 +23,15 @@ import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { networkName } from '@/wallet/network';
 import { ErrorBox } from './error-box';
+import { stepIsIrreversible } from './irreversible';
+import type { MirrorCall } from './mirror';
+import { MirrorBox } from './mirror-box';
+import { Receipt } from './receipt';
+import { stepTitleKey } from './step-title';
 import { TxProgress } from './tx-progress';
 import { type StepPhase, type StepRow, warningKey } from './tx-view';
 import type { TxRunner } from './use-tx-runner';
+import { WarningText } from './warning-text';
 
 const PHASE = {
   ready: { key: 'phaseReady', tone: 'text-ink-muted' },
@@ -91,13 +98,20 @@ function StepItem({
   last,
   explorer,
   testId,
+  title,
+  irreversible,
+  mirror,
 }: {
   row: StepRow;
   last: boolean;
   explorer: string | null;
   testId: string;
+  title: string;
+  irreversible: boolean;
+  mirror: ReactNode;
 }) {
   const t = useT(messages);
+  const tf = useT(flowMessages);
   const phase = PHASE[row.phase];
   const sim = row.simulation === 'ok' ? t('simOk') : row.simulation === 'failed' ? t('simFailed') : t('simSkipped');
   return (
@@ -117,7 +131,21 @@ function StepItem({
       )}
       <StepMarker row={row} />
       <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
-        <p className="text-body text-ink">{row.summary}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-body text-ink">{title}</p>
+          {irreversible ? (
+            <span
+              data-testid={`${testId}-irreversible-${row.index}`}
+              className="inline-flex items-center rounded-full border border-danger/45 px-2 py-0.5 text-caption text-danger"
+            >
+              {tf('irreversible')}
+            </span>
+          ) : null}
+        </div>
+        {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. */}
+        <p lang="en" className="text-ink-muted text-small">
+          {row.summary}
+        </p>
         <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-small', phase.tone)}>
           <span>{t(phase.key)}</span>
           {row.hash && explorer ? (
@@ -129,6 +157,7 @@ function StepItem({
             <code className="break-all font-mono text-caption text-ink-muted">{row.hash}</code>
           ) : null}
         </p>
+        {mirror}
         <details className="group mt-1">
           <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
             {t('details')}
@@ -162,6 +191,53 @@ function StepItem({
   );
 }
 
+/** A bundle or a step the wallet took whose outcome this page has not read: it says so and sends nothing again. */
+function Unsettled({ runner, testId }: { runner: TxRunner; testId: string }) {
+  const t = useT(messages);
+  const tf = useT(flowMessages);
+  const u = runner.unsettled;
+  if (!u) return null;
+  const recheck = (
+    <Button
+      variant="secondary"
+      size="sm"
+      data-testid={`${testId}-recheck`}
+      loading={runner.rechecking}
+      onClick={runner.recheck}
+      icon={<RotateCcw aria-hidden="true" strokeWidth={1.5} />}
+    >
+      {tf('recheck')}
+    </Button>
+  );
+  return (
+    <div data-testid={`${testId}-unsettled`} data-kind={u.kind}>
+      <Banner tone="warn" title={u.kind === 'bundle' ? tf('bundleTitle') : tf('stepUnknownTitle')} action={recheck}>
+        {u.kind === 'bundle' ? (
+          <>
+            <p>{tf('bundleBody')}</p>
+            <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
+              <span>{tf('bundleId')}</span>
+              {/* The wallet's own text. */}
+              <UntrustedText value={u.calls.id} max={80} className="voice-ledger break-all text-ink" />
+            </p>
+          </>
+        ) : (
+          <>
+            <p>{tf('stepUnknownBody', { n: u.index + 1 })}</p>
+            {runner.explorer ? (
+              <ExternalLink href={explorerTx(runner.explorer, u.hash)} className="mt-2 inline-flex">
+                {t('viewTx')}
+              </ExternalLink>
+            ) : (
+              <code className="mt-2 block break-all font-mono text-caption">{u.hash}</code>
+            )}
+          </>
+        )}
+      </Banner>
+    </div>
+  );
+}
+
 export interface TxCardProps {
   runner: TxRunner;
   /** The send button, for example "Create vault". */
@@ -169,56 +245,98 @@ export interface TxCardProps {
   title?: ReactNode;
   /** `hold`: a HoldButton (600 ms, or Enter) for the actions the spec makes a ritual, such as the check-in. */
   confirm?: 'click' | 'hold';
-  /** `danger` for a plan that cannot be undone. */
+  /** `danger` for a plan that cannot be undone (planIsIrreversible). */
   tone?: 'thread' | 'danger';
+  /** The page's own gate is closed (on /sign/, a vote not typed again): Send stays disabled. */
+  disabled?: boolean;
+  /** The Receipt's footer slot: the page's next step, for example a link to the vault. */
+  receiptFooter?: ReactNode;
   testId?: string;
   className?: string;
 }
 
-/** A prepared plan, step by step: what each step does, what the simulation said, and where the wallet is. */
+/** A prepared plan, step by step: what each step does, what the wallet should show, and where the wallet is. */
 export function TxCard({
   runner,
   label,
   title,
   confirm = 'click',
   tone = 'thread',
+  disabled = false,
+  receiptFooter,
   testId = 'tx',
   className,
 }: TxCardProps) {
   const t = useT(messages);
+  const tf = useT(flowMessages);
   const tw = useT(walletMessages);
   const headingId = useId();
   // The browser refused to copy the hand-off link (some in-app browsers, a permission policy): it is shown instead.
   const [copyByHand, setCopyByHand] = useState(false);
   const sendArea = useRef<HTMLDivElement>(null);
+  const section = useRef<HTMLElement>(null);
+  const receiptHeading = useRef<HTMLHeadingElement>(null);
   // A connection from the card replaces its Connect button: the wallet sheet then gives focus to Send, when it can be
   // pressed, rather than to the wallet button in the header.
   const sendButton = () => {
     const b = sendArea.current?.querySelector('button');
     return b && !b.disabled ? b : null;
   };
-  const { plan, view, busy, result, blocker, offset } = runner;
+  const { plan, view, busy, result, blocker, offset, mirror, mode, unsettled } = runner;
+
+  // The Receipt replaces the button that had focus: focus goes to its heading, unless the reader is elsewhere
+  // (parked T13 165).
+  useEffect(() => {
+    if (!result) return;
+    const a = document.activeElement;
+    if (a === null || a === document.body || section.current?.contains(a)) receiptHeading.current?.focus();
+  }, [result]);
+
+  const callOf = (i: number): MirrorCall | null => mirror?.[i] ?? null;
+  const titles = plan.steps.map((s, i) => tf(stepTitleKey(s, callOf(i))));
+  // The step the wallet will show next; in a bundle, it and every step after it.
+  const next =
+    !result && unsettled === null && view.canSend ? view.rows.find((r) => r.phase !== 'confirmed') : undefined;
+  const bundleCalls = mode === 'bundle' && next && mirror ? mirror.slice(next.index) : null;
+  const stepMirror = (i: number): ReactNode => {
+    const c = callOf(i);
+    return mode !== 'bundle' && next?.index === i && c ? (
+      <MirrorBox calls={[c]} explorer={runner.explorer} testId={testId} />
+    ) : null;
+  };
+
   const active = view.rows.find((r) => inWallet(r.phase));
   const announce = result
     ? t('done')
     : active
       ? t('live', { n: active.index + 1, total: view.total, status: t(PHASE[active.phase].key) })
       : '';
+  // After a failed load the button stops saying "Preparing…": the error box offers Retry (parked T13 163).
+  const preparing = blocker === 'loading' && !runner.loadFailed;
   const sendLabel = busy
     ? t('sending')
-    : blocker === 'loading'
+    : preparing
       ? t('preparing')
       : offset > 0
         ? t('resume', { n: offset + 1 })
         : label;
+  const locked = blocker !== null || disabled;
 
   let action: ReactNode;
   if (result) {
     action = (
-      <Banner tone="success" testId={`${testId}-done`}>
-        {t('done')}
-      </Banner>
+      <Receipt
+        steps={runner.receipt ?? []}
+        titles={titles}
+        explorer={runner.explorer}
+        reading={runner.receiptReading}
+        testId={testId}
+        footer={receiptFooter}
+        headingRef={receiptHeading}
+      />
     );
+  } else if (blocker === 'unsettled') {
+    action = <Unsettled runner={runner} testId={testId} />;
   } else if (blocker === 'connect') {
     action = (
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -250,12 +368,7 @@ export function TxCard({
         className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}
       >
         {confirm === 'hold' ? (
-          <HoldButton
-            data-testid={`${testId}-send`}
-            tone={tone}
-            disabled={busy || blocker !== null}
-            onConfirm={runner.send}
-          >
+          <HoldButton data-testid={`${testId}-send`} tone={tone} disabled={busy || locked} onConfirm={runner.send}>
             {sendLabel}
           </HoldButton>
         ) : (
@@ -263,8 +376,8 @@ export function TxCard({
             data-testid={`${testId}-send`}
             variant={tone === 'danger' ? 'danger' : 'primary'}
             size="lg"
-            loading={busy || (blocker === 'loading' && runner.error === null)}
-            disabled={blocker !== null}
+            loading={busy || preparing}
+            disabled={locked}
             onClick={runner.send}
             icon={<Signature aria-hidden="true" strokeWidth={1.5} />}
             className="w-full sm:w-auto"
@@ -281,6 +394,7 @@ export function TxCard({
 
   return (
     <section
+      ref={section}
       data-testid={testId}
       aria-labelledby={headingId}
       className={cn('flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6', className)}
@@ -303,7 +417,7 @@ export function TxCard({
         <div className="flex flex-col gap-2">
           {view.warnings.map((w) => (
             <Banner key={warningKey(w)} tone="warn" testId={`warning-${w.code}`}>
-              <UntrustedText value={w.message} max={280} />
+              <WarningText warning={w} />
             </Banner>
           ))}
         </div>
@@ -317,12 +431,24 @@ export function TxCard({
             last={i === view.rows.length - 1}
             explorer={runner.explorer}
             testId={testId}
+            title={titles[r.index] ?? r.summary}
+            irreversible={stepIsIrreversible(plan.steps[r.index] ?? { action: r.action, data: '0x' })}
+            mirror={stepMirror(r.index)}
           />
         ))}
       </ol>
 
-      {view.blockedError ? <ErrorBox error={view.blockedError} /> : null}
-      <ErrorBox error={runner.error} onRetry={blocker === 'loading' ? runner.reload : undefined} />
+      {bundleCalls && bundleCalls.length > 0 ? (
+        <MirrorBox calls={bundleCalls} explorer={runner.explorer} testId={testId} bundle />
+      ) : null}
+
+      {view.blockedError ? <ErrorBox error={view.blockedError} testId={`${testId}-blocked-error`} /> : null}
+      {/* While an outcome is unsettled, its banner says it all; the send's error would only repeat it in red. */}
+      <ErrorBox
+        error={unsettled ? null : runner.error}
+        testId={`${testId}-error`}
+        onRetry={runner.loadFailed ? runner.reload : undefined}
+      />
 
       <footer className="flex flex-col gap-3 border-line border-t pt-5">{action}</footer>
 

@@ -1,6 +1,12 @@
 import type { SendCallsParams } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { CallsUnsupported, normalizeStatus, sendCalls, supportsSendCalls } from '../../src/wallet/impl/send-calls';
+import {
+  CallsUnsupported,
+  normalizeStatus,
+  readCallsStatus,
+  sendCalls,
+  supportsSendCalls,
+} from '../../src/wallet/impl/send-calls';
 import type { Eip1193 } from '../../src/wallet/impl/wallet';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -130,5 +136,26 @@ describe('EIP-5792', () => {
     expect(normalizeStatus(600)).toBe('partial');
     expect(normalizeStatus(777)).toBe('unknown');
     expect(normalizeStatus(undefined)).toBe('unknown');
+  });
+
+  it('reads one status poll; a poll that throws reads as pending', async () => {
+    const ok = wallet({ wallet_getCallsStatus: () => ({ status: 200, receipts: [{ transactionHash: H1 }] }) });
+    expect(await readCallsStatus(ok.p, 'b1')).toEqual({ id: 'b1', status: 'confirmed', hashes: [H1], ok: true });
+    const down = wallet({
+      wallet_getCallsStatus: () => {
+        throw new Error('offline');
+      },
+    });
+    expect(await readCallsStatus(down.p, 'b1')).toEqual({ id: 'b1', status: 'pending', hashes: [], ok: false });
+  });
+
+  it('drops what the wallet reports as a hash when it is not 32 bytes of hex', async () => {
+    const w = wallet({
+      wallet_getCallsStatus: () => ({
+        status: 500,
+        receipts: [{ transactionHash: 'see https://x' }, { transactionHash: H1 }, 'nonsense'],
+      }),
+    });
+    expect((await readCallsStatus(w.p, 'b1')).hashes).toEqual([H1]);
   });
 });

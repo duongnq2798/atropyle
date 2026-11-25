@@ -1,12 +1,9 @@
 import {
-  type AtropyleClient,
   AtropyleError,
   type ConfirmAddress,
   GUARDIAN_WARNING,
   type InspectedStep,
   type PreparedTx,
-  type SendOptions,
-  type SendResult,
   type SignPayload,
   type SignRequestCheck,
   sameAddress,
@@ -14,15 +11,8 @@ import {
   vaultAbi,
   ZERO_ADDRESS,
 } from '@atropyle/sdk';
-import { type Address, decodeFunctionData, type Hex, type WalletClient } from 'viem';
-import {
-  type CallsResult,
-  type CallsStatus,
-  CallsUnsupported,
-  sendCalls,
-  supportsSendCalls,
-} from '@/wallet/impl/send-calls';
-import type { Eip1193 } from '@/wallet/impl/wallet';
+import { type Address, decodeFunctionData, type Hex } from 'viem';
+import { type BatchOutcome, type SendDeps, type SendHooks, sendBatchOrSequential } from '@/tx/impl/calls';
 
 /**
  * unproven: the request needs addresses typed again, and a step was not simulated after the ones before it (an
@@ -147,37 +137,22 @@ export function checkToPlan(p: SignPayload, c: SignRequestCheck): TxPlan {
   };
 }
 
-export type SignOutcome =
-  | { kind: 'sendCalls'; result: CallsResult }
-  | { kind: 'sequential'; result: SendResult }
-  | { kind: 'refused'; check: SignRequestCheck };
+export type SignOutcome = BatchOutcome | { kind: 'refused'; check: SignRequestCheck };
 
 /**
- * Re-inspects right before signing, then batches with EIP-5792 when the wallet can, else signs step by step. When the
- * request needs addresses typed again, `confirm` gives what the signer typed for each one the SDK asks for.
+ * Re-inspects right before signing, then sends through the app's one send path (sendBatchOrSequential): one EIP-5792
+ * bundle when the wallet can, else step by step. When the request needs addresses typed again, `confirm` gives what
+ * the signer typed for each one the SDK asks for (7B-main-sync §7).
  */
 export async function sendSignRequest(
-  d: { atro: AtropyleClient; provider: Eip1193; walletClient: WalletClient },
+  d: SendDeps,
   p: SignPayload,
-  o: {
-    onStep?: SendOptions['onStep'];
-    onStatus?: (s: CallsStatus) => void;
-    confirm?: (addresses: readonly ConfirmAddress[]) => string[];
-  } = {},
+  o: SendHooks & { confirm?: (addresses: readonly ConfirmAddress[]) => string[] } = {},
 ): Promise<SignOutcome> {
   let check = await d.atro.handoff.inspect(p);
   if (check.confirm && !check.confirm.confirmed && o.confirm) {
     check = await d.atro.handoff.inspect(p, { confirmed: o.confirm(check.confirm.addresses) });
   }
   if (!check.ok) return { kind: 'refused', check };
-  const plan = checkToPlan(p, check);
-  if (await supportsSendCalls(d.provider, p.from, p.chainId)) {
-    try {
-      const result = await sendCalls(d.provider, d.atro.handoff.calls(p), { onStatus: o.onStatus });
-      return { kind: 'sendCalls', result };
-    } catch (e) {
-      if (!(e instanceof CallsUnsupported)) throw e;
-    }
-  }
-  return { kind: 'sequential', result: await d.atro.send(plan, d.walletClient, { onStep: o.onStep }) };
+  return sendBatchOrSequential(d, checkToPlan(p, check), o);
 }

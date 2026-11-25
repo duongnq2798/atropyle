@@ -2,6 +2,7 @@
 
 import { RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { apiErrorCode } from '@/api/errors';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { untrusted } from '@/lib/untrusted';
@@ -54,6 +55,9 @@ export function ErrorBox({
   const c = useT(common);
   const t = useT(messages);
   const { view, unavailable } = useErrorView(error);
+  // The SDK's words and this site's hints for them are English: a Vietnamese page marks them as such until they are
+  // translated (parked T14 184). A backend error is worded in the reader's language by its code.
+  const english = apiErrorCode(error) === null ? 'en' : undefined;
   if (error === null || error === undefined) return null;
 
   const retry = onRetry ? (
@@ -65,8 +69,12 @@ export function ErrorBox({
   if (view) {
     return (
       <div data-testid={testId} data-code={view.code} className={className}>
-        <Banner tone="error" title={<bdi>{untrusted(view.message, MESSAGE_MAX).value}</bdi>} className="break-words">
-          <p>{view.hint}</p>
+        <Banner
+          tone="error"
+          title={<bdi lang={english}>{untrusted(view.message, MESSAGE_MAX).value}</bdi>}
+          className="break-words"
+        >
+          <p lang={english}>{view.hint}</p>
           {view.reason ? (
             <p className="mt-2 flex flex-col items-start gap-1">
               <span>{t('reason')}</span>

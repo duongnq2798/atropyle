@@ -1,7 +1,10 @@
-import { AtropyleError, type PreparedTx, type TxPlan } from '@atropyle/sdk';
+import { AtropyleError, type PreparedTx, type TxPlan, vaultAbi } from '@atropyle/sdk';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { encodeFunctionData, erc20Abi, maxUint256 } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 import { explorerTx } from '../../src/lib/links';
+import { mirrorPlan } from '../../src/tx/impl/mirror';
+import type { MirrorContext } from '../../src/tx/mirror';
 import { TxCard } from '../../src/tx/tx-card';
 import { applyStep, txView } from '../../src/tx/tx-view';
 import type { TxRunner } from '../../src/tx/use-tx-runner';
@@ -49,9 +52,20 @@ function runnerOf(plan: TxPlan, over: Partial<TxRunner> = {}): TxRunner {
     switchFirst: false,
     handoffLink: null,
     explorer: null,
+    mode: null,
+    mirror: null,
+    unsettled: null,
+    bundle: null,
+    rechecking: false,
+    loadFailed: false,
+    receipt: null,
+    receiptReading: false,
+    stale: false,
     send: () => undefined,
     connect: () => undefined,
     reload: () => undefined,
+    recheck: () => undefined,
+    adopt: () => undefined,
     ...over,
   };
 }
@@ -86,7 +100,7 @@ describe('TxCard', () => {
     renderWithProviders(<TxCard runner={runnerOf(blocked, { blocker: 'blocked' })} label="Send" />);
     expect(screen.getByTestId('tx-step-1').getAttribute('data-phase')).toBe('blocked');
     expect(sendButton().disabled).toBe(true);
-    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('NOT_OWNER'));
+    await waitFor(() => expect(screen.getByTestId('tx-blocked-error').getAttribute('data-code')).toBe('NOT_OWNER'));
   });
 
   it('hold to confirm: Enter sends at once, a plain mouse click does not', () => {
@@ -156,5 +170,110 @@ describe('TxCard', () => {
     );
     expect(banner.querySelector('img')).toBeNull();
     expect(within(banner).queryByRole('link')).toBeNull();
+  });
+
+  it('a disabled card does not send, on a click or on a hold', () => {
+    const send = vi.fn();
+    renderWithProviders(<TxCard runner={runnerOf(PLAN, { send })} label="Send" disabled />);
+    expect(sendButton().disabled).toBe(true);
+    fireEvent.click(sendButton());
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('tone danger sends through a danger button', () => {
+    renderWithProviders(<TxCard runner={runnerOf(PLAN)} label="Hand over" tone="danger" />);
+    expect(sendButton().className).toContain('bg-danger');
+  });
+
+  it('shows the raw hash when there is no explorer', () => {
+    const view = applyStep(txView(PLAN), { index: 0, phase: 'pending', hash: H });
+    renderWithProviders(<TxCard runner={runnerOf(PLAN, { view, busy: true })} label="Send" />);
+    expect(within(screen.getByTestId('tx-step-0')).getByText(H)).toBeTruthy();
+    expect(within(screen.getByTestId('tx-step-0')).queryByRole('link')).toBeNull();
+  });
+
+  it('titles each step in plain words, with the SDK summary under it in English, also on a Vietnamese page', () => {
+    renderWithProviders(<TxCard runner={runnerOf(PLAN)} label="Gửi" />, { lang: 'vi' });
+    const first = within(screen.getByTestId('tx-step-0'));
+    expect(first.getByText('Điểm danh')).toBeTruthy();
+    expect(first.getByText('one').getAttribute('lang')).toBe('en');
+  });
+
+  it('labels what cannot be undone: a vault, a payout, a vote for a wallet, not a vote taken back', () => {
+    const vote = (target: `0x${string}`) =>
+      encodeFunctionData({ abi: vaultAbi, functionName: 'voteRecovery', args: [target] });
+    const p: TxPlan = {
+      ...PLAN,
+      steps: [
+        { ...step('a'), action: 'createVault' },
+        { ...step('b'), action: 'distribute' },
+        { ...step('c'), action: 'voteRecovery', data: vote(A) },
+        { ...step('d'), action: 'voteRecovery', data: vote('0x0000000000000000000000000000000000000000') },
+      ],
+    };
+    renderWithProviders(<TxCard runner={runnerOf(p)} label="Send" />);
+    expect(screen.getByTestId('tx-irreversible-0').textContent).toBe('Cannot be undone');
+    expect(screen.getByTestId('tx-irreversible-1')).toBeTruthy();
+    expect(screen.getByTestId('tx-irreversible-2')).toBeTruthy();
+    expect(screen.queryByTestId('tx-irreversible-3')).toBeNull();
+    expect(within(screen.getByTestId('tx-step-3')).getByText('Take back your vote')).toBeTruthy();
+  });
+
+  it('mirrors the next step from its calldata, even when the summary says otherwise; a bundle mirrors every call', () => {
+    const USDG = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+    const lying: TxPlan = {
+      ...PLAN,
+      steps: [
+        {
+          ...step('Check in on your vault.'),
+          to: USDG,
+          action: 'approve',
+          data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [V, maxUint256] }),
+        },
+        step('two'),
+      ],
+    };
+    const ctx: MirrorContext = { factory: '0x1111111111111111111111111111111111111111', feeTokens: [USDG], tokens: [] };
+    const mirror = mirrorPlan(lying, ctx);
+    const { unmount } = renderWithProviders(
+      <TxCard runner={runnerOf(lying, { mirror, mode: 'steps' })} label="Send" />,
+    );
+    const box = screen.getByTestId('tx-mirror-0');
+    expect(within(box).getByText('approve')).toBeTruthy();
+    expect(within(box).getByText('Unlimited')).toBeTruthy();
+    expect(within(screen.getByTestId('tx-step-0')).getByText('Let the vault move this token')).toBeTruthy();
+    expect(screen.queryByTestId('tx-mirror-1')).toBeNull();
+    unmount();
+    renderWithProviders(<TxCard runner={runnerOf(lying, { mirror, mode: 'bundle' })} label="Send" />);
+    const bundle = screen.getByTestId('tx-mirror-bundle');
+    expect(within(bundle).getByTestId('tx-mirror-0')).toBeTruthy();
+    expect(within(bundle).getByTestId('tx-mirror-1')).toBeTruthy();
+  });
+
+  it("says RECOVERY_POWER in the reader's words", () => {
+    const warned: TxPlan = {
+      ...PLAN,
+      warnings: [{ code: 'RECOVERY_POWER', message: 'x', params: { k: 2, guardians: 3, window: 86_400 } }],
+    };
+    renderWithProviders(<TxCard runner={runnerOf(warned)} label="Gửi" />, { lang: 'vi' });
+    expect(screen.getByTestId('warning-RECOVERY_POWER').textContent).toContain('2 trên 3 người giám hộ');
+  });
+
+  it('an unsettled bundle shows its id as text and offers Check again, not Send', () => {
+    const recheck = vi.fn();
+    const unsettled = {
+      kind: 'bundle' as const,
+      base: 0,
+      calls: { id: '<b>id</b>', status: 'pending' as const, hashes: [], ok: false },
+    };
+    renderWithProviders(
+      <TxCard runner={runnerOf(PLAN, { blocker: 'unsettled', unsettled, committed: true, recheck })} label="Send" />,
+    );
+    const banner = screen.getByTestId('tx-unsettled');
+    expect(banner.querySelector('[data-untrusted]')?.textContent).toBe('<b>id</b>');
+    expect(banner.querySelector('b')).toBeNull();
+    expect(screen.queryByTestId('tx-send')).toBeNull();
+    fireEvent.click(screen.getByTestId('tx-recheck'));
+    expect(recheck).toHaveBeenCalledTimes(1);
   });
 });

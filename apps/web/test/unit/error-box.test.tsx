@@ -100,4 +100,11 @@ describe('ErrorBox', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("marks the SDK's English words on a Vietnamese page, and not a backend error worded in Vietnamese", async () => {
+    renderWithProviders(<ErrorBox error={new AtropyleError('NOT_OWNER')} />, { lang: 'vi' });
+    const box = await screen.findByTestId('error');
+    expect(box.querySelector('bdi')?.getAttribute('lang')).toBe('en');
+    expect(box.querySelector('p[lang="en"]')).not.toBeNull();
+  });
 });

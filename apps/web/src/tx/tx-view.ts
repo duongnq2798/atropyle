@@ -90,6 +90,32 @@ export function applyStep(v: TxView, e: { index: number; phase: SendPhase; hash?
   };
 }
 
-export function failStep(v: TxView, index: number, error: AtropyleErrorJson): TxView {
-  return { ...v, rows: v.rows.map((r) => (r.index === index ? { ...r, phase: 'failed', error } : r)) };
+/** The phase a row has before any send: what its simulation allows. */
+function initialPhase(r: StepRow): StepPhase {
+  return r.simulation === 'ok' ? 'ready' : r.simulation === 'failed' ? 'blocked' : 'skipped';
+}
+
+/** Every row from `from` on that is not confirmed takes `phase`: a bundle the wallet shows, then holds. */
+export function markRows(v: TxView, from: number, phase: 'signing' | 'pending'): TxView {
+  return { ...v, rows: v.rows.map((r) => (r.index >= from && r.phase !== 'confirmed' ? { ...r, phase } : r)) };
+}
+
+/** Rows from `from` on that the wallet showed but never took (no hash) go back to their phase before the send. */
+export function rewind(v: TxView, from: number): TxView {
+  return {
+    ...v,
+    rows: v.rows.map((r) =>
+      r.index >= from && r.hash === null && (r.phase === 'signing' || r.phase === 'pending')
+        ? { ...r, phase: initialPhase(r) }
+        : r,
+    ),
+  };
+}
+
+/** `hash`: the transaction the step reverted in; the row keeps it, so the card links it. */
+export function failStep(v: TxView, index: number, error: AtropyleErrorJson, hash: Hex | null = null): TxView {
+  return {
+    ...v,
+    rows: v.rows.map((r) => (r.index === index ? { ...r, phase: 'failed', error, hash: hash ?? r.hash } : r)),
+  };
 }
