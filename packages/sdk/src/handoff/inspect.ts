@@ -1,16 +1,35 @@
-import { type Address, decodeFunctionData, erc20Abi, type Hex, maxUint256, toFunctionSelector } from 'viem';
+import { type Address, decodeFunctionData, erc20Abi, type Hex, isAddress, maxUint256, toFunctionSelector } from 'viem';
 import { erc1155Abi, factoryAbi, vaultAbi } from '../abi/index';
 import { sameAddress, ZERO_ADDRESS } from '../address';
 import { isBuilderCode, parseBuilderCodeSuffix } from '../builder-code';
 import { AtropyleError } from '../errors';
+import { planWarnings, recoveryPowerWarning } from '../plan/validate';
+import { type ExitTimes, exitTimes } from '../policy/exit';
 import { GUARDIAN_WARNING } from '../prepare/actions';
 import { approvalForAllWarning, unlimitedApprovalWarning } from '../prepare/approvals';
 import { simulateTxs } from '../prepare/simulate';
 import { summarize } from '../prepare/summary';
 import type { ActionName, Simulation } from '../prepare/types';
 import type { ReadContext } from '../read/context';
-import { ASSET_KINDS, type Asset, type Warning } from '../types';
+import { ASSET_KINDS, type Asset, type Heir, type Timing, type Warning } from '../types';
 import { parsePayloadBytes, payloadBytes, type SignPayload } from './payload';
+
+/** The terms of the vault a createVault step creates, decoded from its calldata. */
+export interface CreateTerms {
+  vault: Address;
+  drill: boolean;
+  heirs: Heir[];
+  guardians: Address[];
+  k: number;
+  recoveryEnabled: boolean;
+  timing: Timing;
+  /** When the assets can first leave the owner's wallet if the owner never checks in again, route by route. */
+  exit: ExitTimes;
+  /** Timestamp of the block the check read. The vault cannot be created before it. */
+  readAt: bigint;
+  /** `readAt` + `exit.earliest.after`: whenever the step is signed, no asset can leave before this. null: never. */
+  earliestAt: bigint | null;
+}
 
 export interface InspectedStep {
   index: number;
@@ -26,23 +45,78 @@ export interface InspectedStep {
   reason: string | null;
   builderCodes: string[] | null;
   simulation: Simulation;
+  /** Who gets what and how early, for a createVault step; null for any other step. */
+  create: CreateTerms | null;
+}
+
+export interface ConfirmAddress {
+  /** The step that creates the vault, or the first step that gives it an allowance. */
+  step: number;
+  vault: Address;
+  role: 'heir' | 'guardian';
+  /** Position in the vault's list of heirs or guardians. */
+  index: number;
+  account: Address;
+  /** The heir's share in basis points; null for a guardian. */
+  bps: number | null;
+}
+
+/**
+ * A Drill releases within minutes, so a link that creates one (or gives one an allowance) and also grants a token
+ * allowance can drain a wallet before anyone notices. Such a link is blocked until the signer types again, from
+ * their own records, every address that can receive the assets: the heirs of each Drill vault involved, and its
+ * guardians when wallet recovery is on (they choose the wallet).
+ */
+export interface AddressConfirmation {
+  reason: 'DRILL_WITH_ALLOWANCE';
+  addresses: ConfirmAddress[];
+  /** True when the `confirmed` option holds every one of `addresses`, in this order. */
+  confirmed: boolean;
 }
 
 export interface SignRequestCheck {
-  /** Every step allowed, chain matches, and no simulation failed. */
+  /** Every step allowed, chain matches, no simulation failed, and any required address confirmation given. */
   ok: boolean;
   chainId: number;
   from: Address;
   vault: Address | null;
   steps: InspectedStep[];
+  /** The addresses the signer must type again before signing; null when the request needs none. */
+  confirm: AddressConfirmation | null;
+}
+
+export interface InspectOptions {
+  /** What the signer typed for each of `confirm.addresses`, in the same order. Never filled in from the link. */
+  confirmed?: readonly string[];
+}
+
+interface VaultPeople {
+  drill: boolean;
+  heirs: Heir[];
+  guardians: Address[];
+  k: number;
+  recoveryEnabled: boolean;
+  timing: Timing;
 }
 
 interface KnownVault {
   owner: Address;
   assets: Asset[];
+  /** Read on first need; a vault the payload creates has them from its calldata. Later steps of the payload update them. */
+  people: VaultPeople | null;
 }
 
-type Verdict = { action: ActionName; summary: string; vault?: Address; warnings?: Warning[] } | { refuse: string };
+type Verdict =
+  | {
+      action: ActionName;
+      summary: string;
+      vault?: Address;
+      warnings?: Warning[];
+      create?: CreateTerms;
+      /** The spender or operator this step gives an allowance to; absent for revocations and every other call. */
+      grant?: Address;
+    }
+  | { refuse: string };
 
 const MAX_BUILDER_CODES = 8;
 const MAX_BUILDER_CODE_LENGTH = 64;
@@ -65,23 +139,56 @@ const validCodes = (codes: readonly string[]) =>
 
 const APPROVE = toFunctionSelector('function approve(address,uint256)');
 const SET_APPROVAL_FOR_ALL = toFunctionSelector('function setApprovalForAll(address,bool)');
+/** Allowance calls Atropyle never asks for: named in the refusal, so nobody mistakes them for an unknown call. */
+const OTHER_ALLOWANCES = new Map<string, string>(
+  [
+    ['function increaseAllowance(address,uint256)', 'increaseAllowance'],
+    ['function increaseApproval(address,uint256)', 'increaseApproval'],
+    ['function permit(address,address,uint256,uint256,uint8,bytes32,bytes32)', 'permit (EIP-2612)'],
+    ['function permit(address,address,uint256,uint256,bool,uint8,bytes32,bytes32)', 'permit (DAI)'],
+    ['function approve(address,address,uint160,uint48)', 'a Permit2 approval'],
+  ].map(([sig, name]) => [toFunctionSelector(sig), name]),
+);
 const SKIPPED: Simulation = { ok: 'skipped', reason: 'NOT_ALLOWED' };
 
 const toAssets = (a: readonly { kind: number; token: Address; id: bigint; heir: number }[]): Asset[] =>
   a.map((x) => ({ kind: ASSET_KINDS[x.kind], token: x.token, id: x.id, heir: x.heir }));
 
 /**
+ * What the signer typed matches when it is a valid address (in mixed case, with a valid checksum, so most typos do not
+ * pass) equal to `expected`.
+ */
+export function typedAddressMatches(typed: string, expected: Address): boolean {
+  const t = typed.trim();
+  return isAddress(t) && t.toLowerCase() === expected.toLowerCase();
+}
+
+function confirmationOf(addresses: ConfirmAddress[], typed: readonly string[] | undefined): AddressConfirmation {
+  const confirmed =
+    typed !== undefined &&
+    typed.length === addresses.length &&
+    addresses.every((a, i) => typedAddressMatches(typed[i], a.account));
+  return { reason: 'DRILL_WITH_ALLOWANCE', addresses, confirmed };
+}
+
+/**
  * The whitelist of spec §15: the factory's createVault; any call to a vault the factory created; approving a fee
  * token to the factory (at most the full fee); approving an asset to a vault owned by the signer (including the one
- * the same link creates). Everything else is refused.
+ * the same link creates). Everything else is refused. A request that gives a Drill vault the power to move tokens
+ * also needs `confirm` (see AddressConfirmation).
  */
-export async function inspectPayload(ctx: ReadContext, request: SignPayload): Promise<SignRequestCheck> {
+export async function inspectPayload(
+  ctx: ReadContext,
+  request: SignPayload,
+  opts: InspectOptions = {},
+): Promise<SignRequestCheck> {
   const p = normalize(request);
   const d = ctx.deployment;
   const c = ctx.client;
   const chainOk = p.chainId === d.chainId;
   const blockNumber = chainOk ? await c.getBlockNumber() : 0n;
   const known = new Map<string, KnownVault | null>();
+  let readAt: bigint | null = null;
 
   async function vaultInfo(a: Address): Promise<KnownVault | null> {
     const key = a.toLowerCase();
@@ -100,10 +207,37 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
         c.readContract({ ...at, functionName: 'owner' }),
         c.readContract({ ...at, functionName: 'assets' }),
       ]);
-      info = { owner, assets: toAssets(assets) };
+      info = { owner, assets: toAssets(assets), people: null };
     }
     known.set(key, info);
     return info;
+  }
+
+  async function peopleOf(a: Address, info: KnownVault): Promise<VaultPeople> {
+    if (info.people) return info.people;
+    const at = { address: a, abi: vaultAbi, blockNumber } as const;
+    const [drill, heirs, guardians, k, recoveryEnabled, timing] = await Promise.all([
+      c.readContract({ ...at, functionName: 'drill' }),
+      c.readContract({ ...at, functionName: 'heirs' }),
+      c.readContract({ ...at, functionName: 'guardians' }),
+      c.readContract({ ...at, functionName: 'k' }),
+      c.readContract({ ...at, functionName: 'recoveryEnabled' }),
+      c.readContract({ ...at, functionName: 'timing' }),
+    ]);
+    info.people = {
+      drill,
+      heirs: heirs.map((h) => ({ account: h.account, bps: h.bps })),
+      guardians: [...guardians],
+      k,
+      recoveryEnabled,
+      timing: { period: timing.period, threshold: timing.threshold, window: timing.window },
+    };
+    return info.people;
+  }
+
+  async function blockTime(): Promise<bigint> {
+    readAt ??= (await c.getBlock({ blockNumber })).timestamp;
+    return readAt;
   }
 
   async function factoryCall(data: Hex): Promise<Verdict> {
@@ -123,7 +257,15 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
       blockNumber,
     });
     const assets = toAssets(cfg.assets);
-    known.set(vault.toLowerCase(), { owner: p.from, assets });
+    const people: VaultPeople = {
+      drill,
+      heirs: cfg.heirs.map((h) => ({ account: h.account, bps: h.bps })),
+      guardians: [...cfg.guardians],
+      k: cfg.k,
+      recoveryEnabled: cfg.recoveryEnabled,
+      timing: { period: cfg.timing.period, threshold: cfg.timing.threshold, window: cfg.timing.window },
+    };
+    known.set(vault.toLowerCase(), { owner: p.from, assets, people });
     let fee = 0n;
     let feeDecimals: number | null = null;
     if (!drill) {
@@ -139,21 +281,27 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
       feeDecimals = (await ctx.token(feeTokenArg, blockNumber)).decimals;
     }
     const summary = summarize.createVault(vault, p.from, {
-      drill,
-      heirs: cfg.heirs.map((h) => ({ account: h.account, bps: h.bps })),
-      guardians: [...cfg.guardians],
-      k: cfg.k,
-      recoveryEnabled: cfg.recoveryEnabled,
-      timing: { period: cfg.timing.period, threshold: cfg.timing.threshold, window: cfg.timing.window },
+      ...people,
       assets,
       fee,
       feeToken: drill ? ZERO_ADDRESS : feeTokenArg,
       feeDecimals,
     });
-    return { action: 'createVault', summary, vault };
+    const exit = exitTimes(people);
+    const at = await blockTime();
+    const create: CreateTerms = {
+      vault,
+      ...people,
+      heirs: [...people.heirs],
+      guardians: [...people.guardians],
+      exit,
+      readAt: at,
+      earliestAt: exit.earliest ? at + BigInt(exit.earliest.after) : null,
+    };
+    return { action: 'createVault', summary, vault, warnings: planWarnings(people), create };
   }
 
-  function vaultCall(to: Address, data: Hex, info: KnownVault): Verdict {
+  async function vaultCall(to: Address, data: Hex, info: KnownVault): Promise<Verdict> {
     let call: ReturnType<typeof decodeFunctionData<typeof vaultAbi>>;
     try {
       call = decodeFunctionData({ abi: vaultAbi, data });
@@ -163,26 +311,39 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
     switch (call.functionName) {
       case 'checkIn':
         return { action: 'checkIn', summary: summarize.checkIn(to), vault: to };
-      case 'setHeirs':
-        return {
-          action: 'setHeirs',
-          summary: summarize.setHeirs(
-            to,
-            call.args[0].map((h) => ({ account: h.account, bps: h.bps })),
-          ),
-          vault: to,
-        };
+      case 'setHeirs': {
+        const heirs = call.args[0].map((h) => ({ account: h.account, bps: h.bps }));
+        // Only the signer's own vault takes these calls (onlyOwner); for any other the simulation fails.
+        if (sameAddress(info.owner, p.from)) (await peopleOf(to, info)).heirs = heirs;
+        return { action: 'setHeirs', summary: summarize.setHeirs(to, heirs), vault: to };
+      }
       case 'setGuardians': {
         const [g, k, recoveryEnabled] = call.args;
-        return { action: 'setGuardians', summary: summarize.setGuardians(to, [...g], k, recoveryEnabled), vault: to };
+        const warnings: Warning[] = [];
+        if (sameAddress(info.owner, p.from)) {
+          const people = await peopleOf(to, info);
+          Object.assign(people, { guardians: [...g], k, recoveryEnabled });
+          if (recoveryEnabled && k > 0) warnings.push(recoveryPowerWarning(k, g.length, people.timing.window));
+        }
+        return {
+          action: 'setGuardians',
+          summary: summarize.setGuardians(to, [...g], k, recoveryEnabled),
+          vault: to,
+          warnings,
+        };
       }
       case 'setTiming': {
-        const t = call.args[0];
-        return {
-          action: 'setTiming',
-          summary: summarize.setTiming(to, { period: t.period, threshold: t.threshold, window: t.window }),
-          vault: to,
-        };
+        const a = call.args[0];
+        const t = { period: a.period, threshold: a.threshold, window: a.window };
+        const warnings: Warning[] = [];
+        if (sameAddress(info.owner, p.from)) {
+          const people = await peopleOf(to, info);
+          people.timing = t;
+          if (people.recoveryEnabled && people.k > 0) {
+            warnings.push(recoveryPowerWarning(people.k, people.guardians.length, t.window));
+          }
+        }
+        return { action: 'setTiming', summary: summarize.setTiming(to, t), vault: to, warnings };
       }
       case 'setAssets': {
         const assets = toAssets(call.args[0]);
@@ -223,6 +384,8 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
 
   async function tokenCall(to: Address, data: Hex): Promise<Verdict> {
     const selector = data.slice(0, 10).toLowerCase();
+    const other = OTHER_ALLOWANCES.get(selector);
+    if (other) return { refuse: `${other} is not allowed: Atropyle only asks for approve and setApprovalForAll` };
     try {
       if (selector === APPROVE) {
         const { args } = decodeFunctionData({ abi: erc20Abi, data });
@@ -241,6 +404,7 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
           return {
             action: 'approve',
             summary: summarize.approveFee(d.factory, to, amount, (await ctx.token(to, blockNumber)).decimals),
+            ...(amount > 0n ? { grant: d.factory } : {}),
           };
         }
         if (sameAddress(spender, ZERO_ADDRESS)) return { action: 'approve', summary: summarize.clear721(to, amount) };
@@ -248,7 +412,12 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
         if (typeof v === 'string') return { refuse: v };
         const kind = v.assets.find((a) => sameAddress(a.token, to))?.kind;
         if (kind === 'erc721')
-          return { action: 'approve', summary: summarize.approve721(spender, to, amount), vault: spender };
+          return {
+            action: 'approve',
+            summary: summarize.approve721(spender, to, amount),
+            vault: spender,
+            grant: spender,
+          };
         if (amount === 0n) return { action: 'approve', summary: summarize.revoke20(spender, to), vault: spender };
         if (kind === 'erc20') {
           const decimals = (await ctx.token(to, blockNumber)).decimals;
@@ -257,6 +426,7 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
             summary: summarize.approve20(spender, to, amount === maxUint256 ? null : amount, decimals),
             vault: spender,
             warnings: amount === maxUint256 ? [unlimitedApprovalWarning(to)] : [],
+            grant: spender,
           };
         }
         return { refuse: `token ${to} is not an ERC-20 or ERC-721 asset of vault ${spender}` };
@@ -276,6 +446,7 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
           summary: summarize.approveAll(operator, to),
           vault: operator,
           warnings: [approvalForAllWarning(to)],
+          grant: operator,
         };
       }
     } catch {
@@ -284,7 +455,58 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
     return { refuse: `unknown call to ${to}` };
   }
 
+  /**
+   * The Drill vaults that a granting request involves: every Drill it creates, as soon as it grants any allowance,
+   * and every Drill vault already on chain that it grants one to. Their final heirs and, with recovery on, guardians
+   * (after every setHeirs and setGuardians of the request) are what the signer must type again.
+   */
+  async function drillConfirmation(
+    made: { step: number; vault: Address }[],
+    given: { step: number; spender: Address }[],
+  ): Promise<AddressConfirmation | null> {
+    if (given.length === 0) return null;
+    const involved: { step: number; vault: Address; people: VaultPeople }[] = [];
+    const seen = new Set<string>();
+    const add = async (step: number, a: Address) => {
+      const key = a.toLowerCase();
+      if (seen.has(key)) return;
+      const info = await vaultInfo(a);
+      if (!info) return;
+      const people = await peopleOf(a, info);
+      if (!people.drill) return;
+      seen.add(key);
+      involved.push({ step, vault: a, people });
+    };
+    for (const m of made) await add(m.step, m.vault);
+    for (const g of given) await add(g.step, g.spender);
+    if (involved.length === 0) return null;
+    involved.sort((x, y) => x.step - y.step);
+    const addresses = involved.flatMap(({ step, vault: v, people }): ConfirmAddress[] => [
+      ...people.heirs.map((h, index) => ({
+        step,
+        vault: v,
+        role: 'heir' as const,
+        index,
+        account: h.account,
+        bps: h.bps,
+      })),
+      ...(people.recoveryEnabled && people.k > 0
+        ? people.guardians.map((g, index) => ({
+            step,
+            vault: v,
+            role: 'guardian' as const,
+            index,
+            account: g,
+            bps: null,
+          }))
+        : []),
+    ]);
+    return confirmationOf(addresses, opts.confirmed);
+  }
+
   const steps: InspectedStep[] = [];
+  const created: { step: number; vault: Address }[] = [];
+  const grants: { step: number; spender: Address }[] = [];
   let vault: Address | null = null;
   for (const [index, s] of p.steps.entries()) {
     const parsed = parseBuilderCodeSuffix(s.data);
@@ -297,13 +519,22 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
     else if (sameAddress(s.to, d.factory)) v = await factoryCall(data);
     else {
       const info = await vaultInfo(s.to);
-      v = info ? vaultCall(s.to, data, info) : await tokenCall(s.to, data);
+      v = info ? await vaultCall(s.to, data, info) : await tokenCall(s.to, data);
     }
-    const base = { index, to: s.to, value: s.value, builderCodes: suffix?.codes ?? null, simulation: SKIPPED };
+    const base = {
+      index,
+      to: s.to,
+      value: s.value,
+      builderCodes: suffix?.codes ?? null,
+      simulation: SKIPPED,
+      create: null,
+    };
     if ('refuse' in v) {
       steps.push({ ...base, action: null, summary: null, warnings: [], allowed: false, reason: v.refuse });
     } else {
       vault ??= v.vault ?? null;
+      if (v.create) created.push({ step: index, vault: v.create.vault });
+      if (v.grant) grants.push({ step: index, spender: v.grant });
       steps.push({
         ...base,
         action: v.action,
@@ -311,9 +542,11 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
         warnings: v.warnings ?? [],
         allowed: true,
         reason: null,
+        create: v.create ?? null,
       });
     }
   }
+  const confirm = await drillConfirmation(created, grants);
   if (steps.every((s) => s.allowed)) {
     const sims = await simulateTxs(c, p.from, p.steps);
     sims.forEach((sim, i) => {
@@ -321,10 +554,11 @@ export async function inspectPayload(ctx: ReadContext, request: SignPayload): Pr
     });
   }
   return {
-    ok: steps.every((s) => s.allowed && s.simulation.ok !== false),
+    ok: steps.every((s) => s.allowed && s.simulation.ok !== false) && (confirm === null || confirm.confirmed),
     chainId: p.chainId,
     from: p.from,
     vault,
     steps,
+    confirm,
   };
 }

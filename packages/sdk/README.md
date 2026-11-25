@@ -69,7 +69,17 @@ atro.handoff.okx(tx.steps[0]); // onchainos wallet contract-call --chain 196 --t
 await atro.send(tx, walletClient, { onStep: (e) => console.log(e.index, e.phase, e.hash) });
 ```
 
-`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs.
+`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs. Each `createVault` step gets `create`: the heirs, the guardians and `k`, and `exit`, the earliest time the assets can leave (`exitTimes` computes it from a config).
+
+A link that creates a Drill, or approves tokens to one, and also grants a token allowance can empty a wallet within minutes. For such a link `confirm` lists the addresses the signer must type again (`reason: 'DRILL_WITH_ALLOWANCE'`), and `ok` stays false until they are passed back in order:
+
+```ts
+const check = await atro.handoff.inspect(payload);
+if (check.confirm && !check.confirm.confirmed) {
+  // typed: what the signer typed for each of check.confirm.addresses, from their own records
+  const again = await atro.handoff.inspect(payload, { confirmed: typed });
+}
+```
 
 ## Everyday actions
 
