@@ -44,7 +44,7 @@ Ask one question at a time. Copy wallet addresses exactly; never guess one.
 
 1. **Heirs**, 1 to 5: who inherits, and what share. Shares add up to 100%. On the command line, give a share to every `--heir`, or to none for equal shares; in a plan file only a single heir may leave the share out.
 2. **Guardians**, optional, up to 5: people who can confirm a death early, and how many must agree (`k`). Guardians change the fallback: without them, the heirs are paid after the alarm and the window; with them, the heirs are paid then only if `k` guardians attest, and otherwise payment waits until the owner has missed the maximum number of periods (15). Step 4 shows the real dates.
-3. **Recovery**, only with guardians, off unless the owner says yes. `k` guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet after a loss. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` of them with everything. With recovery on, `plan check`, `simulate`, `prepare` and `status` all carry the warning `RECOVERY_POWER`, which says this with the real `k`, number of guardians and window: read it to the owner each time.
+3. **Recovery**, only with guardians, off unless the owner says yes. `k` guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet after a loss. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` of them with everything. With recovery on, `plan check`, `simulate --plan`, `prepare create-vault`, `prepare set-guardians`, `prepare set-timing` and `status` carry the warning `RECOVERY_POWER`, which says this with the real `k`, number of guardians and window: read it to the owner each time.
 4. **Timing**: `sixMonths` (check in every 30 days, alarm after 6 missed check-ins, 14 days to cancel) or `twelveMonths` (alarm after 12, 30 days to cancel). A Drill uses `drill`: 1 minute, 2 missed, 2 minutes to cancel.
 5. **Assets**: the ERC-20 tokens and NFTs the vault covers. They stay in the owner's wallet. The vault takes them only when it pays the heirs, up to what the owner approved.
 
@@ -90,7 +90,7 @@ npx -y atropyle@0.1.0 prepare create-vault <PLAN_FILE> --json
 
 Without `--drill`, an approval of the fee comes first, only when the allowance is short. Then comes `createVault`, then one approval per asset so the vault can take it at release. The address of the vault is known before it exists (`vault`), so those approvals can be prepared now. The owner signs every step: without the asset approvals the vault covers nothing, and `status` warns `COVERAGE_BELOW_100`.
 
-The signing page decodes the link itself. For each `createVault` step it states the earliest time the assets can leave the owner's wallet, every way they can leave, the heirs with their shares, and the guardians with `k`. A Drill pays out within minutes, so a link that creates a Drill and also approves a token is held: Sign stays off until the owner types every heir again, and every guardian too when recovery is on. The Drill links this skill prepares with assets are such links. Tell the owner before you hand over the link, so they have the addresses ready from their own records. Never paste the addresses for them, and never send them with the link: retyping them is what catches a link that names someone else's wallet.
+The signing page decodes the link itself. For each `createVault` step it states the earliest time the assets can leave the owner's wallet, every way they can leave, the heirs with their shares, and the guardians with `k`. It refuses any call to the vault the same link creates, so these terms are final. A Drill pays out within minutes, so a link that creates a Drill and also approves a token is held: Sign stays off until the owner types every heir again, and every guardian too when recovery is on. The Drill links this skill prepares with assets are such links. Tell the owner before you hand over the link, so they have the addresses ready from their own records. Never paste the addresses for them, and never send them with the link: retyping them is what catches a link that names someone else's wallet.
 
 ### With the OKX Agentic Wallet
 
@@ -132,7 +132,7 @@ To show what would happen if the owner stopped checking in, simulate a `poke` fr
 npx -y atropyle@0.1.0 simulate <VAULT> poke --as <HEIR_1> --at +200d --json
 ```
 
-Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle@0.1.0 prepare --help` lists their flags. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
+Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle@0.1.0 prepare --help` lists their flags. On a Drill, the signing page holds a `set-heirs` link, and a `set-guardians` link with recovery on, as it holds a Drill link with approvals: the owner types every heir again, and every guardian too when recovery is on. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
 
 ## Exit codes
 

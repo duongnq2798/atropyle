@@ -87,7 +87,8 @@ export interface Warning {
   message: string;
   /**
    * The typed numbers `message` was built from, for apps that translate it (RECOVERY_POWER: k, guardians and window
-   * in seconds). Never text from the chain or from a link. JSON outputs of the CLI and the MCP server leave it out.
+   * in seconds). Never text from the chain or from a link. JSON outputs of the CLI and the MCP server include it, as
+   * numbers.
    */
   params?: Record<string, number>;
 }

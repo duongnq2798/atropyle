@@ -454,6 +454,7 @@ describe('a Drill with a token allowance is blocked until the signer types the a
       ]),
     );
     expect(check.confirm?.addresses.map((a) => [a.role, a.account])).toEqual([['heir', ATTACKER]]);
+    expect(check.confirm?.reason).toBe('DRILL_WITH_ALLOWANCE');
   });
 
   it('lets revocations, Drills without allowances and paid vaults through', async () => {
@@ -480,6 +481,130 @@ describe('a Drill with a token allowance is blocked until the signer types the a
     const check = await inspectPayload(fakeCtx(), one(TOKEN, data));
     expect(check.ok).toBe(false);
     expect(check.steps[0].reason).toContain(`${name} is not allowed`);
+  });
+});
+
+const setHeirsTo = (account: Address) =>
+  encodeFunctionData({ abi: vaultAbi, functionName: 'setHeirs', args: [[{ account, bps: 10_000 }]] });
+const setTimingTo = (timing: { period: number; threshold: number; window: number }) =>
+  encodeFunctionData({ abi: vaultAbi, functionName: 'setTiming', args: [timing] });
+const setGuardiansTo = (guardians: Address[], k: number, recoveryEnabled: boolean) =>
+  encodeFunctionData({ abi: vaultAbi, functionName: 'setGuardians', args: [guardians, k, recoveryEnabled] });
+
+describe('a request may not call the vault it creates, so the terms of its createVault step are final', () => {
+  const TWELVE_MONTHS = { period: 30 * 86400, threshold: 12, window: 30 * 86400 };
+  const erc20 = [{ kind: 'erc20' as const, token: TOKEN, id: 0n, heir: 0 }];
+
+  it('refuses a paid vault whose later steps shorten its timing and pay the attacker', async () => {
+    const check = await inspectPayload(
+      fakeCtx(),
+      many([
+        [FEE_TOKEN, approve20(FACTORY, FULL_FEE)],
+        [FACTORY, createVault(cfgOf({ timing: TWELVE_MONTHS, assets: erc20 }), false, FEE_TOKEN)],
+        [PREDICTED, setTimingTo({ period: 86400, threshold: 1, window: 3 * 86400 })],
+        [PREDICTED, setHeirsTo(ATTACKER)],
+        [TOKEN, approve20(PREDICTED, maxUint256)],
+      ]),
+    );
+    expect(check.ok).toBe(false);
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, true, false, false, true]);
+    for (const i of [2, 3]) {
+      expect(check.steps[i].reason).toBe(
+        `step 2 creates vault ${PREDICTED}, and a request may not call the vault it creates`,
+      );
+    }
+    expect(check.steps.every((s) => s.simulation.ok === 'skipped')).toBe(true);
+    // What step 2 states is all the vault can ever get from this request: HEIR_A, 12 missed months and 30 days.
+    expect(check.steps[1].create?.heirs).toEqual([{ account: HEIR_A, bps: 10_000 }]);
+    expect(check.steps[1].create?.exit.earliest).toEqual({ route: 'heirs', after: 390 * 86400, guardians: 0 });
+  });
+
+  it('refuses a Drill that says it never releases, then speeds itself up and pays the attacker', async () => {
+    const slow = cfgOf({ timing: { period: 7 * 86400, threshold: 1, window: 60 }, assets: erc20 });
+    const payload = many([
+      [FACTORY, createVault(slow, true)],
+      [PREDICTED, setTimingTo({ period: 60, threshold: 1, window: 60 })],
+      [PREDICTED, setHeirsTo(ATTACKER)],
+      [TOKEN, approve20(PREDICTED, maxUint256)],
+    ]);
+    const check = await inspectPayload(fakeCtx(), payload);
+    expect(check.steps[0].create?.exit.earliest).toBeNull();
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, false, false, true]);
+    expect(check.ok).toBe(false);
+    // The refused steps changed nothing: the address to type again is still the heir of the calldata.
+    expect(check.confirm?.addresses.map((a) => a.account)).toEqual([HEIR_A]);
+    // And typing it does not unlock a refused step.
+    expect((await inspectPayload(fakeCtx(), payload, { confirmed: [HEIR_A] })).ok).toBe(false);
+  });
+
+  it('refuses turning recovery on, and any other call, on the vault the request creates', async () => {
+    const calls: [string, Hex][] = [
+      ['setGuardians', setGuardiansTo([ATTACKER], 1, true)],
+      ['setAssets', encodeFunctionData({ abi: vaultAbi, functionName: 'setAssets', args: [[]] })],
+      ['checkIn', encodeFunctionData({ abi: vaultAbi, functionName: 'checkIn' })],
+    ];
+    for (const [name, data] of calls) {
+      const check = await inspectPayload(
+        fakeCtx(),
+        many([
+          [FACTORY, createVault(cfgOf(), false, FEE_TOKEN)],
+          [PREDICTED, data],
+        ]),
+      );
+      expect(check.steps[0].create?.recoveryEnabled, name).toBe(false);
+      expect(check.steps[1], name).toMatchObject({ allowed: false, action: null, warnings: [] });
+      expect(check.ok, name).toBe(false);
+    }
+  });
+});
+
+describe('new heirs or recovery guardians for a Drill are typed again too', () => {
+  it('holds setHeirs on a Drill already on chain, which may hold allowances from an earlier link', async () => {
+    const payload = one(DRILL_VAULT, setHeirsTo(ATTACKER));
+    const check = await inspectPayload(fakeCtx(), payload);
+    expect(check.steps[0]).toMatchObject({ allowed: true, action: 'setHeirs' });
+    expect(check.ok).toBe(false);
+    expect(check.confirm).toEqual({
+      reason: 'DRILL_RECIPIENTS_CHANGED',
+      addresses: [
+        { step: 0, vault: DRILL_VAULT, role: 'heir', index: 0, account: ATTACKER, bps: 10_000 },
+        { step: 0, vault: DRILL_VAULT, role: 'guardian', index: 0, account: G1, bps: null },
+      ],
+      confirmed: false,
+    });
+    expect((await inspectPayload(fakeCtx(), payload, { confirmed: [ATTACKER, G1] })).ok).toBe(true);
+  });
+
+  it('holds setGuardians with recovery on for a Drill, and lists the new guardians', async () => {
+    const check = await inspectPayload(fakeCtx(), one(DRILL_VAULT, setGuardiansTo([ATTACKER], 1, true)));
+    expect(check.ok).toBe(false);
+    expect(check.confirm?.reason).toBe('DRILL_RECIPIENTS_CHANGED');
+    expect(check.confirm?.addresses.map((a) => [a.role, a.account])).toEqual([
+      ['heir', HEIR_A],
+      ['heir', HEIR_B],
+      ['guardian', ATTACKER],
+    ]);
+    expect(check.steps[0].warnings.map((w) => w.code)).toEqual(['RECOVERY_POWER']);
+  });
+
+  it('counts a fee approval as no allowance to the Drill it repoints', async () => {
+    const check = await inspectPayload(
+      fakeCtx(),
+      many([
+        [FEE_TOKEN, approve20(FACTORY, FULL_FEE)],
+        [DRILL_VAULT, setHeirsTo(ATTACKER)],
+      ]),
+    );
+    expect(check.confirm?.reason).toBe('DRILL_RECIPIENTS_CHANGED');
+    expect(check.confirm?.addresses[0]).toMatchObject({ step: 1, account: ATTACKER });
+  });
+
+  it('lets through recovery turned off on a Drill, and new heirs for a paid vault', async () => {
+    for (const p of [one(DRILL_VAULT, setGuardiansTo([], 0, false)), one(VAULT, setHeirsTo(HEIR_B))]) {
+      const check = await inspectPayload(fakeCtx(), p);
+      expect(check.confirm).toBeNull();
+      expect(check.ok).toBe(true);
+    }
   });
 });
 

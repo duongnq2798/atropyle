@@ -65,6 +65,8 @@ export const messages = defineMessages(
     confirmTitle: 'Type the addresses again before you sign',
     confirmIntro:
       'This link gives a Drill vault the power to move your tokens. A Drill releases within minutes, so a link like this can empty a wallet before you notice. Type or paste each address below from your own records, such as a note you wrote, a contact you saved or a call with the person, never from this page or from the message that brought the link. Signing stays off until every address matches.',
+    confirmIntroRecipients:
+      'This link changes who can receive the assets of a Drill vault. A Drill releases within minutes and can use every allowance you already gave it, so a link like this can empty a wallet before you notice. Type or paste each address below from your own records, such as a note you wrote, a contact you saved or a call with the person, never from this page or from the message that brought the link. Signing stays off until every address matches.',
     confirmHeir: 'Heir {n} ({share}) of the vault in step {step}',
     confirmGuardian: 'Guardian {n} of the vault in step {step}: with wallet recovery on, guardians choose the wallet',
     confirmInvalid: 'That is not a valid address. Check it, including its capital letters.',
@@ -134,6 +136,8 @@ export const messages = defineMessages(
     confirmTitle: 'Gõ lại các địa chỉ trước khi ký',
     confirmIntro:
       'Link này cho một vault Drill quyền chuyển token của bạn. Drill giải phóng chỉ trong vài phút, nên một link như vậy có thể làm trống ví trước khi bạn kịp nhận ra. Hãy gõ hoặc dán từng địa chỉ bên dưới từ ghi chép của chính bạn, như một ghi chú bạn đã viết, một danh bạ bạn đã lưu hay một cuộc gọi với người đó, đừng chép từ trang này hay từ tin nhắn gửi link. Nút ký chỉ bật khi mọi địa chỉ đều khớp.',
+    confirmIntroRecipients:
+      'Link này đổi người có thể nhận tài sản của một vault Drill. Drill giải phóng chỉ trong vài phút và dùng được mọi quyền chi token bạn đã cấp cho nó, nên một link như vậy có thể làm trống ví trước khi bạn kịp nhận ra. Hãy gõ hoặc dán từng địa chỉ bên dưới từ ghi chép của chính bạn, như một ghi chú bạn đã viết, một danh bạ bạn đã lưu hay một cuộc gọi với người đó, đừng chép từ trang này hay từ tin nhắn gửi link. Nút ký chỉ bật khi mọi địa chỉ đều khớp.',
     confirmHeir: 'Người thừa kế {n} ({share}) của vault ở bước {step}',
     confirmGuardian: 'Người giám hộ {n} của vault ở bước {step}: khi bật khôi phục ví, người giám hộ chọn ví nhận',
     confirmInvalid: 'Đây không phải địa chỉ hợp lệ. Hãy kiểm lại, kể cả chữ hoa chữ thường.',

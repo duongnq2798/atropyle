@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import {
+  type AddressConfirmation,
   AtropyleError,
   type ConfirmAddress,
   type CreateTerms,
@@ -469,7 +470,7 @@ const toType: ConfirmAddress[] = [
   { step: 0, vault: DRILL, role: 'guardian', index: 0, account: GUARD, bps: null },
 ];
 
-function drillPage(lang: 'en' | 'vi' = 'en') {
+function drillPage(lang: 'en' | 'vi' = 'en', reason: AddressConfirmation['reason'] = 'DRILL_WITH_ALLOWANCE') {
   const options: (InspectOptions | undefined)[] = [];
   const sent: unknown[] = [];
   const sdk = {
@@ -497,7 +498,7 @@ function drillPage(lang: 'en' | 'vi' = 'en') {
               step({ index: 0, action: 'createVault', summary: 'Create a Drill vault.', create: terms }),
               step({ index: 1, to: TOKEN, action: 'approve', summary: 'Approve the vault.' }),
             ],
-            confirm: { reason: 'DRILL_WITH_ALLOWANCE', addresses: toType, confirmed },
+            confirm: { reason, addresses: toType, confirmed },
           } satisfies SignRequestCheck;
         },
       },
@@ -628,5 +629,21 @@ describe('SignPage Drill retype gate', () => {
     );
     expect(screen.getByTestId('sign-confirm-count').textContent).toBe('0 trên 3 địa chỉ đã khớp.');
     expect(screen.getByTestId('sign-terms-0-earliest').textContent).toContain('2m sau khi vault được tạo');
+  });
+
+  it('says why when the link gives a Drill new heirs or recovery guardians, in English and Vietnamese', async () => {
+    drillPage('en', 'DRILL_RECIPIENTS_CHANGED');
+    const gate = await screen.findByTestId('sign-confirm');
+    expect(gate.getAttribute('aria-describedby')).toBe('sign-confirm-intro');
+    expect(screen.getByTestId('sign-confirm').querySelector('#sign-confirm-intro')?.textContent).toMatch(
+      /^This link changes who can receive the assets of a Drill vault\. A Drill releases within minutes and can use every allowance you already gave it/,
+    );
+    expect(sendButton().disabled).toBe(true);
+    cleanup();
+    drillPage('vi', 'DRILL_RECIPIENTS_CHANGED');
+    await screen.findByTestId('sign-confirm');
+    expect(screen.getByTestId('sign-confirm').querySelector('#sign-confirm-intro')?.textContent).toMatch(
+      /^Link này đổi người có thể nhận tài sản của một vault Drill\./,
+    );
   });
 });

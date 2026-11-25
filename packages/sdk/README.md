@@ -69,9 +69,9 @@ atro.handoff.okx(tx.steps[0]); // onchainos wallet contract-call --chain 196 --t
 await atro.send(tx, walletClient, { onStep: (e) => console.log(e.index, e.phase, e.hash) });
 ```
 
-`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs. Each `createVault` step gets `create`: the heirs, the guardians and `k`, and `exit`, the earliest time the assets can leave (`exitTimes` computes it from a config).
+`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs. Each `createVault` step gets `create`: the heirs, the guardians and `k`, and `exit`, the earliest time the assets can leave (`exitTimes` computes it from a config). A link may not call the vault it creates, so these terms are final.
 
-A link that creates a Drill, or approves tokens to one, and also grants a token allowance can empty a wallet within minutes. For such a link `confirm` lists the addresses the signer must type again (`reason: 'DRILL_WITH_ALLOWANCE'`), and `ok` stays false until they are passed back in order:
+A link that creates a Drill, or approves tokens to one, and also grants a token allowance can empty a wallet within minutes. So can a link that changes the heirs of a Drill, or sets its guardians with recovery on, since the Drill may already hold allowances. For such a link `confirm` lists the addresses the signer must type again (`reason` is `DRILL_WITH_ALLOWANCE` or `DRILL_RECIPIENTS_CHANGED`), and `ok` stays false until they are passed back in order:
 
 ```ts
 const check = await atro.handoff.inspect(payload);

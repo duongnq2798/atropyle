@@ -30,7 +30,8 @@ const UNDECODED: TargetCheck = { ok: false, reason: 'invalid' };
 const VOTE_REASON = { invalid: 'voteInvalid', mismatch: 'voteMismatch' } as const;
 const CONFIRM_REASON = { invalid: 'confirmInvalid', mismatch: 'confirmMismatch' } as const;
 
-/** Who gets what and how early, as the SDK decoded it from the createVault calldata. */
+/** Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses any later call
+ * to that vault in the same link, so these terms are final. */
 function TermsCard({ index, terms, explorer }: { index: number; terms: CreateTerms; explorer: string | null }) {
   const t = useT(messages);
   const l = useT(labels);
@@ -181,7 +182,8 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
     check: v.target ? confirmTarget(typed[v.index] ?? '', v.target) : UNDECODED,
   }));
   const votesConfirmed = votes.every((v) => v.check.ok);
-  // A Drill that can move tokens: every heir (and guardian, with recovery) is typed again before Sign turns on.
+  // A Drill that can move tokens, or gets new heirs or recovery guardians: every heir (and guardian, with recovery)
+  // is typed again before Sign turns on.
   const confirmRows = view.confirm.map((a, i) => {
     const key = confirmKey(a);
     return { a, i, key, check: confirmTarget(retyped[key] ?? '', a.account) };
@@ -341,7 +343,9 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           aria-describedby="sign-confirm-intro"
         >
           <h2 id="sign-confirm-title">{t('confirmTitle')}</h2>
-          <p id="sign-confirm-intro">{t('confirmIntro')}</p>
+          <p id="sign-confirm-intro">
+            {t(check.confirm?.reason === 'DRILL_RECIPIENTS_CHANGED' ? 'confirmIntroRecipients' : 'confirmIntro')}
+          </p>
           {confirmRows.map((r) => {
             const reason = !r.check.ok && r.check.reason !== 'empty' ? r.check.reason : null;
             const errorId = `sign-confirm-${r.i}-error`;

@@ -14,7 +14,10 @@ import type { ReadContext } from '../read/context';
 import { ASSET_KINDS, type Asset, type Heir, type Timing, type Warning } from '../types';
 import { parsePayloadBytes, payloadBytes, type SignPayload } from './payload';
 
-/** The terms of the vault a createVault step creates, decoded from its calldata. */
+/**
+ * The terms of the vault a createVault step creates, decoded from its calldata. They are final: the same request may
+ * not call that vault afterwards, so no later step can change its heirs, guardians, timing or assets.
+ */
 export interface CreateTerms {
   vault: Address;
   drill: boolean;
@@ -50,7 +53,7 @@ export interface InspectedStep {
 }
 
 export interface ConfirmAddress {
-  /** The step that creates the vault, or the first step that gives it an allowance. */
+  /** The first step that creates the vault, gives it an allowance or changes who can receive its assets. */
   step: number;
   vault: Address;
   role: 'heir' | 'guardian';
@@ -63,12 +66,17 @@ export interface ConfirmAddress {
 
 /**
  * A Drill releases within minutes, so a link that creates one (or gives one an allowance) and also grants a token
- * allowance can drain a wallet before anyone notices. Such a link is blocked until the signer types again, from
- * their own records, every address that can receive the assets: the heirs of each Drill vault involved, and its
- * guardians when wallet recovery is on (they choose the wallet).
+ * allowance can drain a wallet before anyone notices. So can a link that gives new heirs, or recovery guardians, to a
+ * Drill that already holds allowances. Such a link is blocked until the signer types again, from their own records,
+ * every address that can receive the assets: the heirs of each Drill vault involved, and its guardians when wallet
+ * recovery is on (they choose the wallet).
  */
 export interface AddressConfirmation {
-  reason: 'DRILL_WITH_ALLOWANCE';
+  /**
+   * DRILL_WITH_ALLOWANCE: the request grants an allowance and creates a Drill or gives one an allowance.
+   * DRILL_RECIPIENTS_CHANGED: otherwise, it changes the heirs, or the guardians with recovery on, of a Drill.
+   */
+  reason: 'DRILL_WITH_ALLOWANCE' | 'DRILL_RECIPIENTS_CHANGED';
   addresses: ConfirmAddress[];
   /** True when the `confirmed` option holds every one of `addresses`, in this order. */
   confirmed: boolean;
@@ -99,6 +107,12 @@ interface VaultPeople {
   timing: Timing;
 }
 
+/** A step and the vault it involves. */
+interface Point {
+  step: number;
+  vault: Address;
+}
+
 interface KnownVault {
   owner: Address;
   assets: Asset[];
@@ -115,6 +129,8 @@ type Verdict =
       create?: CreateTerms;
       /** The spender or operator this step gives an allowance to; absent for revocations and every other call. */
       grant?: Address;
+      /** The Drill vault whose heirs, or recovery guardians, this step changes. */
+      repoint?: Address;
     }
   | { refuse: string };
 
@@ -163,19 +179,24 @@ export function typedAddressMatches(typed: string, expected: Address): boolean {
   return isAddress(t) && t.toLowerCase() === expected.toLowerCase();
 }
 
-function confirmationOf(addresses: ConfirmAddress[], typed: readonly string[] | undefined): AddressConfirmation {
+function confirmationOf(
+  reason: AddressConfirmation['reason'],
+  addresses: ConfirmAddress[],
+  typed: readonly string[] | undefined,
+): AddressConfirmation {
   const confirmed =
     typed !== undefined &&
     typed.length === addresses.length &&
     addresses.every((a, i) => typedAddressMatches(typed[i], a.account));
-  return { reason: 'DRILL_WITH_ALLOWANCE', addresses, confirmed };
+  return { reason, addresses, confirmed };
 }
 
 /**
  * The whitelist of spec §15: the factory's createVault; any call to a vault the factory created; approving a fee
  * token to the factory (at most the full fee); approving an asset to a vault owned by the signer (including the one
- * the same link creates). Everything else is refused. A request that gives a Drill vault the power to move tokens
- * also needs `confirm` (see AddressConfirmation).
+ * the same link creates). Everything else is refused, including any call to the vault the same request creates. A
+ * request that gives a Drill vault the power to move tokens, or new recipients, also needs `confirm` (see
+ * AddressConfirmation).
  */
 export async function inspectPayload(
   ctx: ReadContext,
@@ -313,23 +334,39 @@ export async function inspectPayload(
         return { action: 'checkIn', summary: summarize.checkIn(to), vault: to };
       case 'setHeirs': {
         const heirs = call.args[0].map((h) => ({ account: h.account, bps: h.bps }));
+        let repoint = false;
         // Only the signer's own vault takes these calls (onlyOwner); for any other the simulation fails.
-        if (sameAddress(info.owner, p.from)) (await peopleOf(to, info)).heirs = heirs;
-        return { action: 'setHeirs', summary: summarize.setHeirs(to, heirs), vault: to };
+        if (sameAddress(info.owner, p.from)) {
+          const people = await peopleOf(to, info);
+          people.heirs = heirs;
+          // New heirs of a Drill can be paid within minutes, with every allowance the Drill already holds.
+          repoint = people.drill;
+        }
+        return {
+          action: 'setHeirs',
+          summary: summarize.setHeirs(to, heirs),
+          vault: to,
+          ...(repoint ? { repoint: to } : {}),
+        };
       }
       case 'setGuardians': {
         const [g, k, recoveryEnabled] = call.args;
         const warnings: Warning[] = [];
+        let repoint = false;
         if (sameAddress(info.owner, p.from)) {
           const people = await peopleOf(to, info);
           Object.assign(people, { guardians: [...g], k, recoveryEnabled });
-          if (recoveryEnabled && k > 0) warnings.push(recoveryPowerWarning(k, g.length, people.timing.window));
+          if (recoveryEnabled && k > 0) {
+            warnings.push(recoveryPowerWarning(k, g.length, people.timing.window));
+            repoint = people.drill;
+          }
         }
         return {
           action: 'setGuardians',
           summary: summarize.setGuardians(to, [...g], k, recoveryEnabled),
           vault: to,
           warnings,
+          ...(repoint ? { repoint: to } : {}),
         };
       }
       case 'setTiming': {
@@ -456,31 +493,32 @@ export async function inspectPayload(
   }
 
   /**
-   * The Drill vaults that a granting request involves: every Drill it creates, as soon as it grants any allowance,
-   * and every Drill vault already on chain that it grants one to. Their final heirs and, with recovery on, guardians
-   * (after every setHeirs and setGuardians of the request) are what the signer must type again.
+   * The Drill vaults a request involves: every Drill it creates, as soon as it grants any allowance; every Drill
+   * vault already on chain that it grants one to; and every Drill whose heirs, or recovery guardians, it changes.
+   * Their final heirs and, with recovery on, guardians (after every setHeirs and setGuardians of the request) are
+   * what the signer must type again.
    */
   async function drillConfirmation(
-    made: { step: number; vault: Address }[],
-    given: { step: number; spender: Address }[],
+    made: Point[],
+    given: Point[],
+    changed: Point[],
   ): Promise<AddressConfirmation | null> {
-    if (given.length === 0) return null;
+    const granting = given.length > 0 ? [...made, ...given] : [];
+    const points = [...granting, ...changed].sort((x, y) => x.step - y.step);
     const involved: { step: number; vault: Address; people: VaultPeople }[] = [];
     const seen = new Set<string>();
-    const add = async (step: number, a: Address) => {
+    for (const { step, vault: a } of points) {
       const key = a.toLowerCase();
-      if (seen.has(key)) return;
+      if (seen.has(key)) continue;
       const info = await vaultInfo(a);
-      if (!info) return;
+      if (!info) continue;
       const people = await peopleOf(a, info);
-      if (!people.drill) return;
+      if (!people.drill) continue;
       seen.add(key);
       involved.push({ step, vault: a, people });
-    };
-    for (const m of made) await add(m.step, m.vault);
-    for (const g of given) await add(g.step, g.spender);
+    }
     if (involved.length === 0) return null;
-    involved.sort((x, y) => x.step - y.step);
+    const viaGrant = involved.some((x) => granting.some((g) => sameAddress(g.vault, x.vault)));
     const addresses = involved.flatMap(({ step, vault: v, people }): ConfirmAddress[] => [
       ...people.heirs.map((h, index) => ({
         step,
@@ -501,12 +539,13 @@ export async function inspectPayload(
           }))
         : []),
     ]);
-    return confirmationOf(addresses, opts.confirmed);
+    return confirmationOf(viaGrant ? 'DRILL_WITH_ALLOWANCE' : 'DRILL_RECIPIENTS_CHANGED', addresses, opts.confirmed);
   }
 
   const steps: InspectedStep[] = [];
-  const created: { step: number; vault: Address }[] = [];
-  const grants: { step: number; spender: Address }[] = [];
+  const created: Point[] = [];
+  const grants: Point[] = [];
+  const repoints: Point[] = [];
   let vault: Address | null = null;
   for (const [index, s] of p.steps.entries()) {
     const parsed = parseBuilderCodeSuffix(s.data);
@@ -518,8 +557,14 @@ export async function inspectPayload(
     else if (s.value !== 0n) v = { refuse: 'the step sends native currency' };
     else if (sameAddress(s.to, d.factory)) v = await factoryCall(data);
     else {
-      const info = await vaultInfo(s.to);
-      v = info ? await vaultCall(s.to, data, info) : await tokenCall(s.to, data);
+      const made = created.find((m) => sameAddress(m.vault, s.to));
+      // Atropyle creates a vault with its final terms: a later call could change what the createVault step shows.
+      if (made)
+        v = { refuse: `step ${made.step + 1} creates vault ${s.to}, and a request may not call the vault it creates` };
+      else {
+        const info = await vaultInfo(s.to);
+        v = info ? await vaultCall(s.to, data, info) : await tokenCall(s.to, data);
+      }
     }
     const base = {
       index,
@@ -534,7 +579,8 @@ export async function inspectPayload(
     } else {
       vault ??= v.vault ?? null;
       if (v.create) created.push({ step: index, vault: v.create.vault });
-      if (v.grant) grants.push({ step: index, spender: v.grant });
+      if (v.grant) grants.push({ step: index, vault: v.grant });
+      if (v.repoint) repoints.push({ step: index, vault: v.repoint });
       steps.push({
         ...base,
         action: v.action,
@@ -546,7 +592,7 @@ export async function inspectPayload(
       });
     }
   }
-  const confirm = await drillConfirmation(created, grants);
+  const confirm = await drillConfirmation(created, grants, repoints);
   if (steps.every((s) => s.allowed)) {
     const sims = await simulateTxs(c, p.from, p.steps);
     sims.forEach((sim, i) => {
