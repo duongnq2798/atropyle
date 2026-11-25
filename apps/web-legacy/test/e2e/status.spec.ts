@@ -12,6 +12,8 @@ test('the status page checks the chain and copies diagnostics without the wallet
   await page.getByTestId('connect').click();
 
   await expect(page.getByTestId('status-integrity')).toHaveAttribute('data-ok', 'true');
+  await expect(page.getByTestId('counters')).toHaveAttribute('data-status', 'ok');
+  await expect(page.getByTestId('counters-definitions')).toContainText('nonce minus one');
   // The DeWEB build verifies through the OKX group only (plan decision 4).
   await expect(page.getByTestId('status-warning-SINGLE_RPC')).toBeVisible();
   await expect(page.getByTestId('status-rpc-0')).toHaveAttribute('data-ok', 'true');

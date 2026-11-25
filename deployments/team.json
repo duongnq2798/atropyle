@@ -1,0 +1,25 @@
+{
+  "description": "Public addresses the Atropyle team controls, per chain. Each entry has a role and a source anyone can check. The traction counters (SDK counters(), the web app, npm run daily:check) count a vault as a team vault when its owner is listed here, so every team wallet that could own a vault belongs in this list. To add a wallet, append an entry to the chain's members with one of the roles below and a public source (a transaction, a contract view or a deployment record). The keeper wallet is not listed yet: it does not exist. scripts/deployments-sync.ts copies the addresses and roles into packages/sdk/src/deployments/team.ts.",
+  "roles": {
+    "deployer": "Signed the mainnet deployment transactions.",
+    "treasury": "Receives every vault creation fee: AtropyleFactory.treasury(), fixed at construction.",
+    "keeper": "Signs the permissionless poke and distribute calls of the backend keeper. Planned: no keeper wallet exists yet."
+  },
+  "chains": {
+    "xlayer": {
+      "chainId": 196,
+      "members": [
+        {
+          "address": "0xC0a61674Fa1caAd04500073ea94Ec9006D7A2375",
+          "role": "deployer",
+          "source": "Sender of the AtropyleFactory creation, tx 0xb4e4c9723a64903677d6292b11ee47d4d11298bc085f88c4fc7e7f1e3674b372 (block 76567034), and of the Drill vault creation, tx 0x237c4446b30a8ff889cd7eabd982452676baa4b6d2b72c6a67c88277e673b717 (block 76567050). Both read with eth_getTransactionByHash on rpc.xlayer.tech, 25 Nov 2026."
+        },
+        {
+          "address": "0x990221559B7EB3516204dc73535d6581391cFAa4",
+          "role": "treasury",
+          "source": "AtropyleFactory(0x7eCbBECA8F90A868A12aF48B766264bf9c87a651).treasury(), read at block 76825469 (2026-11-25 08:15:05 UTC); also the treasury field of deployments/xlayer.json."
+        }
+      ]
+    }
+  }
+}

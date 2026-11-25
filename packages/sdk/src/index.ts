@@ -21,9 +21,15 @@ export {
   type Deployment,
   deploymentToJson,
   getDeployment,
+  getTeam,
   parseDeployment,
   resolveDeployment,
   type TapeoutInfo,
+  TEAM_ROLES,
+  type TeamChain,
+  type TeamFile,
+  type TeamMember,
+  type TeamRole,
 } from './deployments/index';
 export { formatDuration, parseDuration } from './duration';
 export { assetsToAbi, heirsToAbi, paramsToAbi, timingToAbi } from './encode';
@@ -92,6 +98,13 @@ export type {
 } from './prepare/types';
 export type { PlanCheck, TokenCheck } from './read/check-plan';
 export { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+export {
+  type ChainCounters,
+  type CountersOptions,
+  type CountPair,
+  readCounters,
+  STABLECOIN_DECIMALS,
+} from './read/counters';
 export { DEFAULT_EVENTS_WINDOW, type VaultEvent } from './read/events';
 export type { FeeOption, FeeQuote } from './read/fees';
 export type { CreatedVault, ScanCursor, ScanOptions, ScanResult } from './read/scan';

@@ -10,6 +10,7 @@
       "!packages/sdk/src/abi/generated.ts",
       "!packages/sdk/src/deployments/local.ts",
       "!packages/sdk/src/deployments/xlayer.ts",
+      "!packages/sdk/src/deployments/team.ts",
       "!deployments",
       "!prompts",
       "!reports",
