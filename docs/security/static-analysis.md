@@ -1,8 +1,9 @@
 # Static analysis of the contracts
 
-This page lists every finding that Slither and `forge lint` report on the Atropyle contracts, with its triage. It was
-written on 25 November 2026 (UTC) against `contracts/src` at commit `6fc1e2f`. The source in `contracts/src` last
-changed in commit `40f3ba0` (19 November 2026), before the mainnet deployment.
+This page lists every finding that Slither and `forge lint` report on the Atropyle contracts, with its triage.
+`forge lint` runs only its High, Medium and Low lints by default; this page also covers its Info, Gas and Code-size
+lints. It was written on 25 November 2026 (UTC) against `contracts/src` at commit `6fc1e2f`. The source in
+`contracts/src` last changed in commit `40f3ba0` (19 November 2026), before the mainnet deployment.
 
 ## Summary
 
@@ -10,16 +11,20 @@ changed in commit `40f3ba0` (19 November 2026), before the mainnet deployment.
 - Slither reports 42 results. 29 of them touch `contracts/src` and are triaged one by one below (S-01 to S-29). The
   other 13 are only in OpenZeppelin Contracts under `contracts/lib`; `contracts/slither.config.json` hides them, and
   they are listed in [Dependency-only results](#dependency-only-results) (D-01 to D-13).
-- `forge lint` as configured reports nothing on `contracts/src`. Behind that are 48 findings, all triaged here
+- `forge lint` as configured reports nothing on `contracts/src`. By default it runs only its High, Medium and Low
+  lints (`severity = ["high", "medium", "low"]` in `forge config`). At those severities there are 48 findings
   (F-01 to F-48): 13 `unsafe-typecast` findings that `contracts/foundry.toml` excludes, and 35 findings that inline
-  `forge-lint` comments in the deployed source suppress.
-- CI runs both tools on every push and fails only on a finding that is not in this triage. See [CI](#ci).
+  `forge-lint` comments in the deployed source suppress. Its Info, Gas and Code-size lints report 33 more notes
+  (F-49 to F-81). All 81 are triaged here.
+- CI runs both tools on every push, `forge lint` at all six severities. It fails on a finding that is not in this
+  triage and on a triaged finding that is no longer reported. See [CI](#ci).
 
-| Tool and scope                  | Findings | True positive         | False positive | Accepted by design |
-| ------------------------------- | -------: | --------------------- | -------------: | -----------------: |
-| Slither, `contracts/src`        |       29 | 3, all Informational  |              8 |                 18 |
-| Slither, `contracts/lib` only   |       13 | 0                     |              1 |                 12 |
-| `forge lint`, `contracts/src`   |       48 | 0                     |             19 |                 29 |
+| Tool and scope                                         | Findings | True positive        | False positive | Accepted by design |
+| ------------------------------------------------------ | -------: | -------------------- | -------------: | -----------------: |
+| Slither, `contracts/src`                               |       29 | 3, all Informational |              8 |                 18 |
+| Slither, `contracts/lib` only                          |       13 | 0                    |              1 |                 12 |
+| `forge lint`, High, Medium and Low, `contracts/src`    |       48 | 0                    |             19 |                 29 |
+| `forge lint`, Info, Gas and Code-size, `contracts/src` |       33 | 7, all Informational |              0 |                 26 |
 
 Severity is our assessment after triage, not the tool's impact column:
 
@@ -46,20 +51,27 @@ Read at block 76825358 (25 November 2026, 08:13:14 UTC) on `https://rpc.xlayer.t
 [`deployments/xlayer.json`](../../deployments/xlayer.json), which `atropyle verify --vault` also checks on chain.
 
 Slither analyses `contracts/src` and the OpenZeppelin files it imports (16 contracts). Its Foundry integration skips
-`contracts/test` and `contracts/script`, which are not deployed. `forge lint` was run on `contracts/src`; the whole
-project (`forge lint` with no path) reports nothing either.
+`contracts/test` and `contracts/script`, which are not deployed. `forge lint` was run on `contracts/src` at all six of
+its severities (High, Medium, Low, Info, Gas and Code-size). As configured, the whole project (`forge lint` with no
+path) reports nothing either. At the Info, Gas and Code-size severities, the whole project also has notes in
+`contracts/test` and `contracts/script`; they are not deployed, so this page does not triage them.
 
 ### Tool versions
 
-| Tool                  | Version                                         | Where it comes from                                              |
-| --------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
-| Foundry (`forge`)     | 1.9.0, commit `6056c58`, built 2 November 2026 | `forge --version`; CI pins `v1.9.0`                              |
-| solc                  | 0.8.24+commit.e11b9ed9                          | `solc_version` in `contracts/foundry.toml`; installed by Foundry |
-| Slither               | `slither-analyzer` 0.11.6 (PyPI, 28 July 2026)  | `uvx --from slither-analyzer==0.11.6`                            |
-| crytic-compile        | 0.4.2 (PyPI, 28 July 2026)                      | `uvx --with crytic-compile==0.4.2`                               |
-| Python                | 3.12 (3.12.13 for this run)                     | `uvx --python 3.12`; CI uses `actions/setup-python` with 3.12    |
-| uv                    | 0.11.8                                          | CI: `pip install uv==0.11.8`                                     |
-| OpenZeppelin Contracts | v5.0.2                                         | `contracts/foundry.lock`                                         |
+| Tool                         | Version                                          | Where it comes from                                              |
+| ---------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| Foundry (`forge`)            | 1.9.0, commit `6056c58`, built 2 November 2026   | `forge --version`; CI pins `v1.9.0`                              |
+| solc                         | 0.8.24+commit.e11b9ed9                           | `solc_version` in `contracts/foundry.toml`; installed by Foundry |
+| Slither                      | `slither-analyzer` 0.11.6 (PyPI, 28 July 2026)   | `uvx --from slither-analyzer==0.11.6`                            |
+| crytic-compile               | 0.4.2 (PyPI, 28 July 2026)                       | `uvx --with crytic-compile==0.4.2`                               |
+| Slither's other dependencies | PyPI as of 25 November 2026, 00:00 UTC           | `uvx --exclude-newer 2026-11-25T00:00:00Z`                       |
+| Python                       | 3.12 (3.12.13 for this run)                      | `uvx --python 3.12`; CI uses `actions/setup-python` with 3.12    |
+| uv                           | 0.11.8                                           | CI: `pip install uv==0.11.8`                                     |
+| OpenZeppelin Contracts       | v5.0.2                                           | `contracts/foundry.lock`                                         |
+
+`--exclude-newer` makes uv ignore every package version uploaded after that time, so the transitive dependencies of
+Slither resolve the same way on every run. For this run they included web3 7.16.0, eth-abi 6.0.0, solc-select 1.2.0,
+prettytable 3.19.0, packaging 26.4 and pycryptodome 3.24.1.
 
 Compiler settings: legacy (evmasm) pipeline, optimizer on with 200 runs, EVM version `shanghai`, no via-IR.
 
@@ -70,28 +82,33 @@ Run from `contracts/` on a checkout with its submodules (`git submodule update -
 ```bash
 forge build
 
-# forge lint as configured: no output, exit code 0
-forge lint src --deny notes
+# forge lint as configured, which runs the High, Medium and Low lints: no output, exit code 0
+forge lint src --deny warnings
 
 # the lint that foundry.toml excludes: 13 unsafe-typecast warnings (F-01 to F-13)
 forge lint src --only-lint unsafe-typecast
 
+# the Info, Gas and Code-size lints, which forge lint does not run by default: 33 notes (F-49 to F-81)
+forge lint src --severity info gas code-size
+
 # Slither, with slither.config.json (exclude_dependencies): 29 results (S-01 to S-29)
-uvx --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither .
+uvx --exclude-newer 2026-11-25T00:00:00Z --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither .
 
 # Slither without the config: 42 results, the 29 above and D-01 to D-13
 echo '{}' > /tmp/slither-empty.json
-uvx --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --config-file /tmp/slither-empty.json
+uvx --exclude-newer 2026-11-25T00:00:00Z --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --config-file /tmp/slither-empty.json
 ```
 
 The 35 findings that inline comments suppress show up in a scratch copy where the comments are neutralised and the
-`[lint]` table is removed. The copy keeps the line numbers (GNU sed):
+`[lint]` table is removed. The copy keeps the line numbers (GNU sed). The inline comments name only High, Medium and
+Low lints, so at the other severities the copy reports the same 33 notes as `contracts/`:
 
 ```bash
 rm -rf /tmp/atropyle-lint && cp -r . /tmp/atropyle-lint && cd /tmp/atropyle-lint
 sed -i 's/forge-lint:/forge-lint-off:/g' src/*.sol src/*/*.sol
 sed -i '/^\[lint\]/,/^$/d' foundry.toml
 forge lint src   # 48 warnings, F-01 to F-48
+forge lint src --severity high med low info gas code-size   # 81 findings, F-01 to F-81
 ```
 
 Notes:
@@ -231,9 +248,10 @@ now, and the app shows it. The heir behaviour above is documented here.
 | S-11 | Slither (Low / Medium) | `AtropyleFactory.sol:84` fee transfer, then `isVault` written at line 87  | Accepted by design | Informational |
 
 Reasoning: the external call is `safeTransferFrom` on a fee token fixed at construction (USD₮0, USDC and USDG, listed
-in `deployments/xlayer.json`). Two of the three are EIP-1967 proxies: their implementation slot was set at block
-76825358, so their issuers can change their code. The triage therefore does not assume that the tokens have no
-hooks. The factory has two state-changing functions. A call back into it during the transfer can call `createVault`,
+in `deployments/xlayer.json`). All three are upgradeable proxies, so their issuers can change their code: USD₮0 and
+USDG have an implementation in the EIP-1967 slot, and USDC in the older ZeppelinOS slot
+(`keccak256("org.zeppelinos.proxy.implementation")`), read with `eth_getStorageAt` at block 76825358 (25 November
+2026, 08:13:14 UTC). The triage therefore does not assume that the tokens have no hooks. The factory has two state-changing functions. A call back into it during the transfer can call `createVault`,
 which charges its own fee and creates its own clone under its own caller's salt, or `index`, which reverts for any
 caller that is not a registered vault (`AtropyleFactory.sol:101`). The state written after the call, `isVault[vault]`, concerns an address
 that has no code yet. `paidCount` is incremented before the call (`AtropyleFactory.sol:83`).
@@ -319,10 +337,12 @@ the app shows them as times derived from block timestamps. No code change is pos
 
 ### assembly
 
-| ID   | Tool                         | Location                                         | Verdict            | Severity      |
-| ---- | ---------------------------- | ------------------------------------------------ | ------------------ | ------------- |
-| S-24 | Slither (Informational / High) | `vault/VaultDistribution.sol:88-92`, in `_send20`  | Accepted by design | Informational |
-| S-25 | Slither (Informational / High) | `vault/VaultDistribution.sol:143-147`, in `_viewWord` | Accepted by design | Informational |
+| ID   | Tool                           | Location                                               | Verdict            | Severity      |
+| ---- | ------------------------------ | ------------------------------------------------------ | ------------------ | ------------- |
+| S-24 | Slither (Informational / High) | `vault/VaultDistribution.sol:88-92`, in `_send20`      | Accepted by design | Informational |
+| F-51 | forge lint (Info)              | `vault/VaultDistribution.sol:88:9`, `inline-assembly`  | Accepted by design | Informational |
+| S-25 | Slither (Informational / High) | `vault/VaultDistribution.sol:143-147`, in `_viewWord`  | Accepted by design | Informational |
+| F-52 | forge lint (Info)              | `vault/VaultDistribution.sol:143:9`, `inline-assembly` | Accepted by design | Informational |
 
 Reasoning: both blocks are marked `memory-safe` and write only to the scratch space at `0x00`. They copy at most 32
 bytes of returndata, so a token that returns a huge payload costs the vault nothing extra, and they use the gas caps
@@ -351,7 +371,9 @@ Mitigation: none needed.
 | ID   | Tool                           | Location                                                | Verdict       | Severity      |
 | ---- | ------------------------------ | ------------------------------------------------------- | ------------- | ------------- |
 | S-27 | Slither (Informational / High) | `AtropyleVault.sol:50`, `AlarmRaised(uint8, address)`   | True positive | Informational |
+| F-49 | forge lint (Info)              | `AtropyleVault.sol:50:11`, `event-fields`               | True positive | Informational |
 | S-28 | Slither (Informational / High) | `AtropyleVault.sol:52`, `Released(uint8, address)`      | True positive | Informational |
+| F-50 | forge lint (Info)              | `AtropyleVault.sol:52:11`, `event-fields`               | True positive | Informational |
 
 Reasoning: these events cannot be filtered by their target address through log topics. That is a convenience for
 indexers, not a security property.
@@ -438,6 +460,116 @@ emits one: `setGuardians` emits `ConfigUpdated(2)` (`AtropyleVault.sol:149`) and
 
 Mitigation: none needed.
 
+## forge lint notes at the Info, Gas and Code-size severities
+
+`forge lint` does not run these lints by default, so `forge lint src` does not show them. Run
+`forge lint src --severity info gas code-size` to see all 33. No inline comment in `src` names one of these lints, and
+`foundry.toml` does not exclude any of them. The CI gate pins their locations in
+`contracts/static-analysis.baseline.json`. Four of them match a Slither finding and are triaged with it: F-49 and F-50
+(`event-fields`) under [unindexed-event-address](#unindexed-event-address), F-51 and F-52 (`inline-assembly`) under
+[assembly](#assembly). The other 29 follow.
+
+### internal-function-used-once (Info)
+
+| ID   | Location                 | Function      | Verdict            | Severity      |
+| ---- | ------------------------ | ------------- | ------------------ | ------------- |
+| F-53 | `PolicyCodec.sol:27:5`   | `toWord`      | Accepted by design | Informational |
+| F-54 | `PolicyCodec.sol:44:5`   | `packWord`    | Accepted by design | Informational |
+| F-55 | `PolicyCodec.sol:51:5`   | `pack`        | Accepted by design | Informational |
+| F-56 | `PolicyCodec.sol:55:5`   | `encodeState` | Accepted by design | Informational |
+| F-57 | `PolicyCodec.sol:68:5`   | `isCanonical` | Accepted by design | Informational |
+
+Reasoning: `PolicyCodec` is the wire format of the policy circuit (`PolicyCodec.sol:4-5`), and each of these functions
+is one named step of it. In `src`, the vault calls `encodeState` and `pack` once (`AtropyleVault.sol:282`) and
+`isCanonical` once (`AtropyleVault.sol:285`), and `pack` calls `toWord` and `packWord` (`PolicyCodec.sol:52`). The
+tests in `contracts/test` call each of the five directly, for example `contracts/test/PolicyModel.t.sol`, so the wire
+format is tested step by step against the circuit model.
+
+Mitigation: none needed.
+
+### literal-instead-of-constant (Info)
+
+| ID   | Location                   | Literal                                | Verdict            | Severity      |
+| ---- | -------------------------- | -------------------------------------- | ------------------ | ------------- |
+| F-58 | `AtropyleVault.sol:315:26` | `15`, the bound of `idle`              | Accepted by design | Informational |
+| F-59 | `AtropyleVault.sol:315:31` | `15`, the saturated value of `idle`    | Accepted by design | Informational |
+| F-60 | `PolicyCodec.sol:28:29`    | `0x0f`, `idle` mask in `toWord`        | Accepted by design | Informational |
+| F-61 | `PolicyCodec.sol:28:59`    | `0x0f`, `threshold` mask in `toWord`   | Accepted by design | Informational |
+| F-62 | `PolicyCodec.sol:28:94`    | `0x1f`, `inhVotes` mask in `toWord`    | Accepted by design | Informational |
+| F-63 | `PolicyCodec.sol:29:36`    | `0x1f`, `recVotes` mask in `toWord`    | Accepted by design | Informational |
+| F-64 | `PolicyCodec.sol:29:65`    | `0x07`, `k` mask in `toWord`           | Accepted by design | Informational |
+| F-65 | `PolicyCodec.sol:35:28`    | `0x0f`, `idle` mask in `fromWord`      | Accepted by design | Informational |
+| F-66 | `PolicyCodec.sol:36:40`    | `0x0f`, `threshold` mask in `fromWord` | Accepted by design | Informational |
+| F-67 | `PolicyCodec.sol:37:39`    | `0x1f`, `inhVotes` mask in `fromWord`  | Accepted by design | Informational |
+| F-68 | `PolicyCodec.sol:38:40`    | `0x1f`, `recVotes` mask in `fromWord`  | Accepted by design | Informational |
+| F-69 | `PolicyCodec.sol:39:33`    | `0x07`, `k` mask in `fromWord`         | Accepted by design | Informational |
+
+Reasoning: the masks are the widths of the input fields of the circuit, 4, 5 and 3 bits. Each one appears once in
+`toWord` and once in `fromWord`, next to the shift that places its field, and the struct gives the bits of every field
+(`PolicyCodec.sol:17-25`). `15` is the largest value of the 4-bit `idle` input, where `_idle` saturates, as the comment
+above it says (`AtropyleVault.sol:313`). The literals read directly against the circuit's spec.
+
+Mitigation: none needed.
+
+### screaming-snake-case-immutable (Info)
+
+| ID   | Location                     | Immutable   | Verdict            | Severity      |
+| ---- | ---------------------------- | ----------- | ------------------ | ------------- |
+| F-70 | `AtropyleFactory.sol:19:30`  | `vaultImpl` | Accepted by design | Informational |
+| F-71 | `AtropyleFactory.sol:20:30`  | `cpu`       | Accepted by design | Informational |
+| F-72 | `AtropyleFactory.sol:21:30`  | `policyId`  | Accepted by design | Informational |
+| F-73 | `AtropyleFactory.sol:22:30`  | `treasury`  | Accepted by design | Informational |
+
+Reasoning: the four immutables are `public`, so their names are the getters of the factory's ABI (`vaultImpl()`,
+`cpu()`, `policyId()`, `treasury()`). The SDK reads them by these names (`packages/sdk/src/verify/integrity.ts:43-46`).
+
+Mitigation: none needed.
+
+### asm-keccak256 (Gas)
+
+| ID   | Location                     | Verdict       | Severity      |
+| ---- | ---------------------------- | ------------- | ------------- |
+| F-74 | `AtropyleFactory.sol:137:16` | True positive | Informational |
+
+Reasoning: `_salt` hashes `abi.encode(owner, salt)` (`AtropyleFactory.sol:136-138`). Hashing the two words in inline
+assembly would skip the memory allocation of `abi.encode` and save a little gas in each `createVault`
+(`AtropyleFactory.sol:86`) and `predictVault` (`AtropyleFactory.sol:96`) call. The saving was not measured. It has no
+security impact.
+
+Mitigation: none.
+
+### costly-loop (Gas)
+
+| ID   | Location                    | Write                                            | Verdict            | Severity      |
+| ---- | --------------------------- | ------------------------------------------------ | ------------------ | ------------- |
+| F-75 | `AtropyleFactory.sol:59:13` | `earlyFee[t]` in the constructor                 | Accepted by design | Informational |
+| F-76 | `AtropyleFactory.sol:60:13` | `fullFee[t]` in the constructor                  | Accepted by design | Informational |
+| F-77 | `AtropyleVault.sol:258:13`  | `delete recVote[_guardians[i]]` in `_ownerAlive` | Accepted by design | Informational |
+
+Reasoning: each iteration writes a different storage slot, the fee of one token or the recovery vote of one guardian,
+so the writes cannot be merged into one. The factory loop ran once, at deployment (see S-06). The vault loop runs over
+at most 5 guardians (`vault/VaultConfig.sol:42`), and clearing every recovery vote on a proof of life is its purpose
+(`AtropyleVault.sol:253-261`).
+
+Mitigation: none needed.
+
+### unwrapped-modifier-logic (Code-size)
+
+| ID   | Location                   | Modifier       | Verdict       | Severity      |
+| ---- | -------------------------- | -------------- | ------------- | ------------- |
+| F-78 | `AtropyleVault.sol:64:5`   | `nonReentrant` | True positive | Informational |
+| F-79 | `AtropyleVault.sol:71:5`   | `notExpired`   | True positive | Informational |
+| F-80 | `AtropyleVault.sol:76:5`   | `notReleased`  | True positive | Informational |
+| F-81 | `AtropyleVault.sol:81:5`   | `onlyOwner`    | True positive | Informational |
+
+Reasoning: the compiler copies a modifier's code into every function that uses it, so moving these checks into
+internal functions would make the vault's runtime code smaller. That code is 15,516 bytes (see
+[What was analysed](#what-was-analysed)), below the limit of 24,576 bytes set by EIP-170. Every vault is an EIP-1167
+clone that delegates to the one implementation, so a smaller implementation would only lower the cost of its single
+deployment. It has no security impact.
+
+Mitigation: none.
+
 ## Dependency-only results
 
 Slither reports these in OpenZeppelin Contracts v5.0.2, unmodified, under `contracts/lib/openzeppelin-contracts`.
@@ -505,29 +637,42 @@ Static analysis of this repository does not cover:
 
 The `contracts` job in `.github/workflows/ci.yml` runs, after `forge build` and `forge test`:
 
-1. `forge lint src --deny notes`. It fails on any warning or note that the config and the inline comments in `src`
-   leave. Those comments are part of the deployed source, so they are the baseline for 35 findings.
-2. `forge lint src --json --only-lint unsafe-typecast`, then `python static-analysis-gate.py forge-lint`. It fails if
-   an `unsafe-typecast` finding is at a location that is not one of F-01 to F-13.
-3. Slither with the pinned versions above, then `python static-analysis-gate.py slither`. It fails on any result that
-   is not one of S-01 to S-29. A finding that disappears is printed as a note and does not fail the job.
+1. `python static-analysis-gate.test.py`, the unit tests of the gate script below.
+2. `forge lint src --deny warnings`. It runs the High, Medium and Low lints and fails on any warning that the config
+   and the inline comments in `src` leave. Those comments are part of the deployed source, so they are the baseline for
+   35 findings.
+3. `forge lint src --json --only-lint unsafe-typecast` and `forge lint src --json --severity info gas code-size`, then
+   `python static-analysis-gate.py forge-lint` on both reports. It fails unless the two reports hold exactly F-01 to
+   F-13 and F-49 to F-81, at their locations.
+4. Slither with the pinned versions above, then `python static-analysis-gate.py slither`. It fails unless the report
+   holds exactly S-01 to S-29.
 
-Both gates compare against `contracts/static-analysis.baseline.json`. The Slither gate does not use Slither's own
-result ids: in 0.11.6, the reentrancy-events result for `_distribute` (S-14) can list tied events in a different
-order from one run to the next, and its id was different in each of three consecutive runs. The gate fingerprints a
-result by its detector and the sorted lines of its description instead, which matched in all of these runs. Slither
-runs last because its compile cleans `contracts/out`. On the development machine, one Slither run took between 4 and
-20 seconds once uv had cached the tools; the first install took about 70 seconds. The time on GitHub's runners has
-not been measured yet.
+Both gates compare against `contracts/static-analysis.baseline.json`. A gate fails on:
+
+- a finding that is not in the baseline;
+- a baseline entry whose triage is still `untriaged` (see [Updating the baseline](#updating-the-baseline));
+- a baseline entry that is no longer reported. The deployed source cannot change and every tool version is pinned, so
+  this means a broken run, such as a compile that analysed nothing or an empty report;
+- a triage ID of the baseline that this page does not name.
+
+The Slither gate does not use Slither's own result ids: in 0.11.6, the reentrancy-events result for `_distribute`
+(S-14) can list tied events in a different order from one run to the next, and its id was different in each of three
+consecutive runs. The gate fingerprints a result by its detector and the sorted lines of its description instead,
+which matched in all of these runs. Slither runs last because its compile cleans `contracts/out`. On the development
+machine, one Slither run took between 4 and 20 seconds once uv had cached the tools; the first install took about 70
+seconds. The time on GitHub's runners has not been measured yet.
 
 To reproduce the CI gate locally, from `contracts/`:
 
 ```bash
-rm -f /tmp/slither.json
-uvx --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --fail-none --json /tmp/slither.json
-python3 static-analysis-gate.py slither /tmp/slither.json
+python3 static-analysis-gate.test.py
+forge lint src --deny warnings
 forge lint src --json --only-lint unsafe-typecast > /tmp/forge-lint-typecast.jsonl
-python3 static-analysis-gate.py forge-lint /tmp/forge-lint-typecast.jsonl
+forge lint src --json --severity info gas code-size > /tmp/forge-lint-notes.jsonl
+python3 static-analysis-gate.py forge-lint /tmp/forge-lint-typecast.jsonl /tmp/forge-lint-notes.jsonl
+rm -f /tmp/slither.json
+uvx --exclude-newer 2026-11-25T00:00:00Z --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --fail-none --json /tmp/slither.json
+python3 static-analysis-gate.py slither /tmp/slither.json
 ```
 
 Slither does not overwrite an existing `--json` file, hence the `rm -f`.
@@ -535,10 +680,11 @@ Slither does not overwrite an existing `--json` file, hence the `rm -f`.
 ## Updating the baseline
 
 A change to `contracts/src` means a new deployment, so the baseline should only change with one, or with a new pinned
-version of a tool. After such a change:
+version of a tool. A new tool version also comes with a new `--exclude-newer` date. After such a change:
 
 1. Run both tools and read every new finding.
 2. Rewrite the baseline with `--write` (`python3 static-analysis-gate.py slither /tmp/slither.json --write`, and the
-   same for `forge-lint`). Entries that are still reported keep their ID; new ones get `untriaged`.
-3. Triage each `untriaged` entry on this page, give it the next free ID in the baseline, and update the counts in the
-   summary.
+   same for `forge-lint` with both reports). Entries that are still reported keep their ID; new ones get `untriaged`,
+   and entries that are no longer reported are dropped.
+3. Triage each `untriaged` entry on this page, replace `untriaged` in the baseline with the next free ID, and update
+   the counts in the summary. Until then the gate fails.

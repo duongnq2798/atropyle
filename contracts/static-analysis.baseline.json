@@ -311,6 +311,204 @@
       "lint": "unsafe-typecast",
       "location": "src/PolicyCodec.sol:48:23",
       "fingerprint": "unsafe-typecast@src/PolicyCodec.sol:48:23"
+    },
+    {
+      "triage": "F-49",
+      "lint": "event-fields",
+      "location": "src/AtropyleVault.sol:50:11",
+      "fingerprint": "event-fields@src/AtropyleVault.sol:50:11"
+    },
+    {
+      "triage": "F-50",
+      "lint": "event-fields",
+      "location": "src/AtropyleVault.sol:52:11",
+      "fingerprint": "event-fields@src/AtropyleVault.sol:52:11"
+    },
+    {
+      "triage": "F-51",
+      "lint": "inline-assembly",
+      "location": "src/vault/VaultDistribution.sol:88:9",
+      "fingerprint": "inline-assembly@src/vault/VaultDistribution.sol:88:9"
+    },
+    {
+      "triage": "F-52",
+      "lint": "inline-assembly",
+      "location": "src/vault/VaultDistribution.sol:143:9",
+      "fingerprint": "inline-assembly@src/vault/VaultDistribution.sol:143:9"
+    },
+    {
+      "triage": "F-53",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:27:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:27:5"
+    },
+    {
+      "triage": "F-54",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:44:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:44:5"
+    },
+    {
+      "triage": "F-55",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:51:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:51:5"
+    },
+    {
+      "triage": "F-56",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:55:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:55:5"
+    },
+    {
+      "triage": "F-57",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:68:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:68:5"
+    },
+    {
+      "triage": "F-58",
+      "lint": "literal-instead-of-constant",
+      "location": "src/AtropyleVault.sol:315:26",
+      "fingerprint": "literal-instead-of-constant@src/AtropyleVault.sol:315:26"
+    },
+    {
+      "triage": "F-59",
+      "lint": "literal-instead-of-constant",
+      "location": "src/AtropyleVault.sol:315:31",
+      "fingerprint": "literal-instead-of-constant@src/AtropyleVault.sol:315:31"
+    },
+    {
+      "triage": "F-60",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:29",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:29"
+    },
+    {
+      "triage": "F-61",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:59",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:59"
+    },
+    {
+      "triage": "F-62",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:94",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:94"
+    },
+    {
+      "triage": "F-63",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:29:36",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:29:36"
+    },
+    {
+      "triage": "F-64",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:29:65",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:29:65"
+    },
+    {
+      "triage": "F-65",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:35:28",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:35:28"
+    },
+    {
+      "triage": "F-66",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:36:40",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:36:40"
+    },
+    {
+      "triage": "F-67",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:37:39",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:37:39"
+    },
+    {
+      "triage": "F-68",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:38:40",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:38:40"
+    },
+    {
+      "triage": "F-69",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:39:33",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:39:33"
+    },
+    {
+      "triage": "F-70",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:19:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:19:30"
+    },
+    {
+      "triage": "F-71",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:20:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:20:30"
+    },
+    {
+      "triage": "F-72",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:21:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:21:30"
+    },
+    {
+      "triage": "F-73",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:22:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:22:30"
+    },
+    {
+      "triage": "F-74",
+      "lint": "asm-keccak256",
+      "location": "src/AtropyleFactory.sol:137:16",
+      "fingerprint": "asm-keccak256@src/AtropyleFactory.sol:137:16"
+    },
+    {
+      "triage": "F-75",
+      "lint": "costly-loop",
+      "location": "src/AtropyleFactory.sol:59:13",
+      "fingerprint": "costly-loop@src/AtropyleFactory.sol:59:13"
+    },
+    {
+      "triage": "F-76",
+      "lint": "costly-loop",
+      "location": "src/AtropyleFactory.sol:60:13",
+      "fingerprint": "costly-loop@src/AtropyleFactory.sol:60:13"
+    },
+    {
+      "triage": "F-77",
+      "lint": "costly-loop",
+      "location": "src/AtropyleVault.sol:258:13",
+      "fingerprint": "costly-loop@src/AtropyleVault.sol:258:13"
+    },
+    {
+      "triage": "F-78",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:64:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:64:5"
+    },
+    {
+      "triage": "F-79",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:71:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:71:5"
+    },
+    {
+      "triage": "F-80",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:76:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:76:5"
+    },
+    {
+      "triage": "F-81",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:81:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:81:5"
     }
   ]
 }
