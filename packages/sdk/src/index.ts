@@ -104,9 +104,14 @@ export { httpTransport, readTransport } from './transports';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
 export type {
+  CodeCheck,
+  CpuCheck,
   IntegrityCheck,
   IntegrityReport,
   NetlistReport,
+  P9Mismatch,
+  P9OperatorResult,
+  P9Result,
   PolicyPart,
   PolicyVerification,
   PropertyName,

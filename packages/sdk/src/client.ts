@@ -176,18 +176,26 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
 
   // The verify code (simulator included) is loaded on first use, so the main entry stays small (spec §5.1).
   type VerifyModule = typeof import('./verify/index');
-  let verifyEnv: Promise<{ v: VerifyModule; vctx: ReadContext; rpcs: number }> | null = null;
+  type VerifyEnv = { v: VerifyModule; vctx: ReadContext; rpcs: number; operators: PublicClient[] };
+  let verifyEnv: Promise<VerifyEnv> | null = null;
   const loadVerify = () => {
-    const p = import('./verify/index').then((v) => {
+    const p = import('./verify/index').then((v): VerifyEnv => {
       const transports = options.verifyTransports ?? deployment.quorumRpcUrls.map((group) => readTransport(group));
-      const client = createPublicClient({
-        chain,
-        transport: v.quorumTransport(transports),
-        cacheTime: 0,
-        // Same reason as the read client: never follow an OffchainLookup to an attacker-chosen URL.
-        ccipRead: false,
-      }) as PublicClient;
-      return { v, vctx: createReadContext(deployment, client, options.logger), rpcs: transports.length };
+      const clientOf = (transport: Transport) =>
+        createPublicClient({
+          chain,
+          transport,
+          cacheTime: 0,
+          // Same reason as the read client: never follow an OffchainLookup to an attacker-chosen URL.
+          ccipRead: false,
+        }) as PublicClient;
+      return {
+        v,
+        vctx: createReadContext(deployment, clientOf(v.quorumTransport(transports)), options.logger),
+        rpcs: transports.length,
+        // P9 asks each operator on its own, so a wrong step() answer is pinned on the operator that gave it.
+        operators: transports.map(clientOf),
+      };
     });
     verifyEnv = p;
     // A failed load or setup must not stay cached.
@@ -197,25 +205,29 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     return p;
   };
   const verifyContext = () => verifyEnv ?? loadVerify();
-  let policyCache: Promise<PolicyVerification> | null = null;
-  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller.
+  let policyCache: { seed: bigint | undefined; p: Promise<PolicyVerification> } | null = null;
+  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller. A call without a seed
+  // reuses the cached run whatever its seed; a call with another seed runs again.
   const verifyPolicy = (o: VerifyPolicyOptions = {}): Promise<PolicyVerification> =>
     guard(async () => {
       const run = async () => {
-        const { v, vctx, rpcs } = await verifyContext();
+        const { v, vctx, rpcs, operators } = await verifyContext();
+        const seed = o.p9Seed ?? v.randomSeed();
+        v.checkSeed(seed);
         vctx.log({ type: 'verify', what: 'policy' });
-        return v.evaluatePolicyBundle(await v.readPolicyBundle(vctx.client, deployment, rpcs), o);
+        const bundle = await v.readPolicyBundle(vctx.client, deployment, rpcs, { p9: { operators, seed } });
+        return v.evaluatePolicyBundle(bundle, o);
       };
       if (o.blocks !== undefined) return run();
-      if (!policyCache) {
-        const p = run();
-        policyCache = p;
+      if (!policyCache || (o.p9Seed !== undefined && policyCache.seed !== o.p9Seed)) {
+        const entry = { seed: o.p9Seed, p: run() };
+        policyCache = entry;
         // A failure (a quorum outage, a dead RPC) must not stay cached: the next call asks again.
-        p.catch(() => {
-          if (policyCache === p) policyCache = null;
+        entry.p.catch(() => {
+          if (policyCache === entry) policyCache = null;
         });
       }
-      return policyCache;
+      return policyCache.p;
     });
 
   const px: PrepareContext = { ...ctx, suffix: builderCode ? builderCodeSuffix(builderCode) : null, engineFor };
