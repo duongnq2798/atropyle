@@ -1,9 +1,9 @@
 {
-  "description": "Public addresses the Atropyle team controls, per chain. Each entry has a role and a source anyone can check. The traction counters (SDK counters(), the web app, npm run daily:check) count a vault as a team vault when its owner is listed here, so every team wallet that could own a vault belongs in this list. To add a wallet, append an entry to the chain's members with one of the roles below and a public source (a transaction, a contract view or a deployment record). The keeper wallet is not listed yet: it does not exist. scripts/deployments-sync.ts copies the addresses and roles into packages/sdk/src/deployments/team.ts.",
+  "description": "Public addresses the Atropyle team controls, per chain. Each entry has a role and a source anyone can check. The traction counters (SDK counters(), the web app, npm run daily:check) count a vault as a team vault when its owner is listed here, so every team wallet that could own a vault belongs in this list. To add a wallet, append an entry to the chain's members with one of the roles below and a public source (a transaction, a contract view or a deployment record). scripts/deployments-sync.ts copies the addresses and roles into packages/sdk/src/deployments/team.ts.",
   "roles": {
     "deployer": "Signed the mainnet deployment transactions.",
     "treasury": "Receives every vault creation fee: AtropyleFactory.treasury(), fixed at construction.",
-    "keeper": "Signs the permissionless poke and distribute calls of the backend keeper. Planned: no keeper wallet exists yet."
+    "keeper": "Signs the permissionless poke and distribute calls of the backend keeper."
   },
   "chains": {
     "xlayer": {
@@ -18,6 +18,11 @@
           "address": "0x990221559B7EB3516204dc73535d6581391cFAa4",
           "role": "treasury",
           "source": "AtropyleFactory(0x7eCbBECA8F90A868A12aF48B766264bf9c87a651).treasury(), read at block 76825469 (2026-11-25 08:15:05 UTC); also the treasury field of deployments/xlayer.json."
+        },
+        {
+          "address": "0x2b1b3E6b62E9798fF5aC6470A341edFb3d882628",
+          "role": "keeper",
+          "source": "Sender of the backend keeper's first two poke() calls, both on the Drill vault 0x481F28748959036B48bc6779797228D74f15f4b9, which they released to its heir: tx 0xe1623813159e6102039cabb62c65cffd4ba1cd4727b92743a9f7384b0cda1e2b (block 76851449, nonce 0) and tx 0xa9d5e273a77ef8ebe8cb05e7d03121fe7aae511c990d4602f0009c294ee690a9 (block 76851568, nonce 1). Both read with eth_getTransactionByHash on rpc.xlayer.tech, 25 Nov 2026."
         }
       ]
     }
