@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { explorerTx } from '../lib/links';
 import { applyStep, failStep, type StepPhase, txView, warningKey } from '../lib/tx-view';
 import { useApp, useT } from './app-context';
-import { AddressText, Banner, CopyButton, ErrorBox } from './components';
+import { AddressText, Banner, CopyButton, ErrorBox, WarningText } from './components';
 import { messages } from './tx-runner.messages';
 import { useLeaveGuard } from './use-leave-guard';
 
@@ -119,7 +119,7 @@ export function TxRunner(props: {
       ) : null}
       {view.warnings.map((w) => (
         <Banner kind="warn" key={warningKey(w)} testid={`warning-${w.code}`}>
-          {w.message}
+          <WarningText warning={w} />
         </Banner>
       ))}
       <table class="table">

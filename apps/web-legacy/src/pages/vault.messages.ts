@@ -22,10 +22,10 @@ export const messages = defineMessages(
     guardians: 'Guardians',
     guardiansNone: 'No guardians.',
     guardiansK: '{k} of {n} must confirm.',
-    recoveryOnOwner:
-      'Recovery is on: {k} guardians who agree can move everything in the vault to a wallet they choose. You can stop it only by checking in before the window ends.',
-    recoveryOnOther:
-      'Recovery is on: {k} guardians who agree can move everything in the vault to a wallet they choose. The owner can stop it only by checking in before the window ends.',
+    recoveryPowerOwner:
+      'Wallet recovery is on: {k} of {n} guardians acting together can move 100% of the covered assets to any wallet they choose. You can stop it only by checking in before the {window} alarm window ends.',
+    recoveryPowerOther:
+      'Wallet recovery is on: {k} of {n} guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the {window} alarm window ends.',
     recoveryPending:
       'A recovery is pending. If it is not stopped, everything in the vault goes to this wallet, chosen by the guardians:',
     recoveryLeft: 'Time left: {time}.',
@@ -68,10 +68,10 @@ export const messages = defineMessages(
     guardians: 'Người giám hộ',
     guardiansNone: 'Không có người giám hộ.',
     guardiansK: 'Cần {k} trên {n} người xác nhận.',
-    recoveryOnOwner:
-      'Đã bật khôi phục: {k} người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
-    recoveryOnOther:
-      'Đã bật khôi phục: {k} người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    recoveryPowerOwner:
+      'Đã bật khôi phục ví: {k} trên {n} người giám hộ cùng hành động thì có thể chuyển 100% tài sản vault đang phủ sang bất kỳ ví nào họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động {window}.',
+    recoveryPowerOther:
+      'Đã bật khôi phục ví: {k} trên {n} người giám hộ cùng hành động thì có thể chuyển 100% tài sản vault đang phủ sang bất kỳ ví nào họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động {window}.',
     recoveryPending:
       'Đang chờ khôi phục. Nếu không bị ngăn lại, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
     recoveryLeft: 'Còn lại: {time}.',

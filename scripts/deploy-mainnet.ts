@@ -2,7 +2,7 @@
 //                           [--account atropyle-deployer] [--legacy] [--skip-balance-check]
 // npm run deploy:mainnet -- --rehearsal http://127.0.0.1:<port> --deployer <anvil account> --treasury <address> ...
 //
-// Runs stages 01-05 of contracts/README.md ("Triển khai mainnet") in order, from the deployer's own terminal.
+// Runs stages 01-05 of contracts/README.md ("Mainnet deployment") in order, from the deployer's own terminal.
 // Forge signs every transaction with the deployer's Foundry keystore (--account) and asks for its password itself:
 // this script never sees a key or a password, and never reads its own stdin (a short child process asks for the
 // confirmation), so forge's password prompt has the console to itself.
@@ -311,7 +311,7 @@ async function main(): Promise<void> {
     } else {
       progress.txs[s.id] = keepRecord(s, chainId, dir);
       const fix =
-        'Take the values from the receipts (contracts/README.md, "Đọc lại từ chain sau mỗi bước"), add them to ' +
+        'Take the values from the receipts (contracts/README.md, "Read back from the chain after each stage"), add them to ' +
         `${rel(progressFile)}, then run the same command again.`;
       let found: Progress['values'];
       try {
@@ -405,7 +405,7 @@ function keepRecord(s: Stage, chainId: number, dir: string, suffix = ''): string
 
 type Client = ReturnType<typeof createPublicClient>;
 
-/** contracts/README.md, "Đọc lại từ chain sau mỗi bước". Retries for a lagging RPC node, then stops. */
+/** contracts/README.md, "Read back from the chain after each stage". Retries for a lagging RPC node, then stops. */
 async function readBack(s: Stage, p: Progress, client: Client): Promise<void> {
   const v = p.values;
   const me = p.roles.deployer;
@@ -470,7 +470,7 @@ async function readBack(s: Stage, p: Progress, client: Client): Promise<void> {
   }
   stop(
     `stage ${s.id} is on chain, but reading it back failed: ${problems.join('; ')}. Someone may have taped out ` +
-      'in between. Take the real values from the receipts (contracts/README.md, "Đọc lại từ chain sau mỗi bước"), ' +
+      'in between. Take the real values from the receipts (contracts/README.md, "Read back from the chain after each stage"), ' +
       'correct them in progress.json, then run the same command again: it reads the stage back and never sends it ' +
       'again.',
   );

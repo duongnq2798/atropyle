@@ -12,7 +12,7 @@ import type { VaultAction } from './actions';
 import { toAddress } from './address';
 import { builderCodeSuffix } from './builder-code';
 import { chainOf } from './chain';
-import { type ChainName, type Deployment, getDeployment } from './deployments/index';
+import { type ChainName, type Deployment, getDeployment, getTeam } from './deployments/index';
 import { AtropyleError, decodeError } from './errors';
 import {
   type CastTx,
@@ -24,7 +24,7 @@ import {
   sendCallsParams,
   signLink,
 } from './handoff/index';
-import { inspectPayload, type SignRequestCheck } from './handoff/inspect';
+import { type InspectOptions, inspectPayload, type SignRequestCheck } from './handoff/inspect';
 import { planTemplate } from './plan/templates';
 import { PRESETS } from './plan/types';
 import { validatePlan } from './plan/validate';
@@ -35,6 +35,7 @@ import { prepareCreateVault } from './prepare/create';
 import type { CreateVaultOptions, PrepareContext, PrepareOptions, TxPlan, WhatIfReport } from './prepare/types';
 import { checkPlan, type PlanCheck } from './read/check-plan';
 import { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+import { type ChainCounters, type CountersOptions, readCounters } from './read/counters';
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
@@ -103,6 +104,11 @@ export interface AtropyleClient {
   }): Promise<Stats>;
   /** Vault creations and vault events since a cursor, for the Worker's cron and bots (spec §9.5). */
   scan(o?: ScanOptions): Promise<ScanResult>;
+  /**
+   * Traction counters from view functions at one block, each also outside the team (the owners listed in
+   * deployments/team.json unless `o.team` says otherwise). A few calls per vault read, no eth_getLogs.
+   */
+  counters(o?: CountersOptions): Promise<ChainCounters>;
   vault(address: string): VaultHandle;
   /** Exhaustive check of the on-chain policy netlist against this repository, read from two operators (spec §5.4). */
   verifyPolicy(o?: VerifyPolicyOptions): Promise<PolicyVerification>;
@@ -118,8 +124,11 @@ export interface AtropyleClient {
     cast(tx: CastTx, rpcUrl?: string): string;
     calls(plan: TxPlan | SignPayload): SendCallsParams;
     okx(tx: CastTx): string;
-    /** Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. */
-    inspect(request: SignPayload | string): Promise<SignRequestCheck>;
+    /**
+     * Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. A request
+     * that gives a Drill vault an allowance is `ok` only with `confirmed`: the addresses of `confirm`, typed again.
+     */
+    inspect(request: SignPayload | string, o?: InspectOptions): Promise<SignRequestCheck>;
   };
 }
 
@@ -176,18 +185,26 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
 
   // The verify code (simulator included) is loaded on first use, so the main entry stays small (spec §5.1).
   type VerifyModule = typeof import('./verify/index');
-  let verifyEnv: Promise<{ v: VerifyModule; vctx: ReadContext; rpcs: number }> | null = null;
+  type VerifyEnv = { v: VerifyModule; vctx: ReadContext; rpcs: number; operators: PublicClient[] };
+  let verifyEnv: Promise<VerifyEnv> | null = null;
   const loadVerify = () => {
-    const p = import('./verify/index').then((v) => {
+    const p = import('./verify/index').then((v): VerifyEnv => {
       const transports = options.verifyTransports ?? deployment.quorumRpcUrls.map((group) => readTransport(group));
-      const client = createPublicClient({
-        chain,
-        transport: v.quorumTransport(transports),
-        cacheTime: 0,
-        // Same reason as the read client: never follow an OffchainLookup to an attacker-chosen URL.
-        ccipRead: false,
-      }) as PublicClient;
-      return { v, vctx: createReadContext(deployment, client, options.logger), rpcs: transports.length };
+      const clientOf = (transport: Transport) =>
+        createPublicClient({
+          chain,
+          transport,
+          cacheTime: 0,
+          // Same reason as the read client: never follow an OffchainLookup to an attacker-chosen URL.
+          ccipRead: false,
+        }) as PublicClient;
+      return {
+        v,
+        vctx: createReadContext(deployment, clientOf(v.quorumTransport(transports)), options.logger),
+        rpcs: transports.length,
+        // P9 asks each operator on its own, so a wrong step() answer is pinned on the operator that gave it.
+        operators: transports.map(clientOf),
+      };
     });
     verifyEnv = p;
     // A failed load or setup must not stay cached.
@@ -197,25 +214,29 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
     return p;
   };
   const verifyContext = () => verifyEnv ?? loadVerify();
-  let policyCache: Promise<PolicyVerification> | null = null;
-  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller.
+  let policyCache: { seed: bigint | undefined; p: Promise<PolicyVerification> } | null = null;
+  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller. A call without a seed
+  // reuses the cached run whatever its seed; a call with another seed runs again.
   const verifyPolicy = (o: VerifyPolicyOptions = {}): Promise<PolicyVerification> =>
     guard(async () => {
       const run = async () => {
-        const { v, vctx, rpcs } = await verifyContext();
+        const { v, vctx, rpcs, operators } = await verifyContext();
+        const seed = o.p9Seed ?? v.randomSeed();
+        v.checkSeed(seed);
         vctx.log({ type: 'verify', what: 'policy' });
-        return v.evaluatePolicyBundle(await v.readPolicyBundle(vctx.client, deployment, rpcs), o);
+        const bundle = await v.readPolicyBundle(vctx.client, deployment, rpcs, { p9: { operators, seed } });
+        return v.evaluatePolicyBundle(bundle, o);
       };
       if (o.blocks !== undefined) return run();
-      if (!policyCache) {
-        const p = run();
-        policyCache = p;
+      if (!policyCache || (o.p9Seed !== undefined && policyCache.seed !== o.p9Seed)) {
+        const entry = { seed: o.p9Seed, p: run() };
+        policyCache = entry;
         // A failure (a quorum outage, a dead RPC) must not stay cached: the next call asks again.
-        p.catch(() => {
-          if (policyCache === p) policyCache = null;
+        entry.p.catch(() => {
+          if (policyCache === entry) policyCache = null;
         });
       }
-      return policyCache;
+      return policyCache.p;
     });
 
   const px: PrepareContext = { ...ctx, suffix: builderCode ? builderCodeSuffix(builderCode) : null, engineFor };
@@ -272,6 +293,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       ),
     stats: (o) => guard(() => readStats(ctx, o)),
     scan: (o) => guard(() => scanEvents(ctx, o)),
+    counters: (o) =>
+      guard(() => readCounters(ctx, { ...o, team: o?.team ?? getTeam(deployment).map((m) => m.address) })),
     vault,
     verifyPolicy,
     integrity: () =>
@@ -295,8 +318,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       cast: (tx, rpcUrl) => guardSync(() => castCommand(tx, rpcUrl ?? deployment.rpcUrls[0])),
       calls: (plan) => guardSync(() => sendCallsParams(plan)),
       okx: (tx) => guardSync(() => okxCommand(tx)),
-      inspect: (request) =>
-        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request)),
+      inspect: (request, o) =>
+        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request, o)),
     },
   };
 }

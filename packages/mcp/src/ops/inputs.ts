@@ -96,6 +96,11 @@ export const CheckPlanInputSchema = z.object({
 export const VerifyInputSchema = z.object({
   vault: addr('Vault to check as well').optional(),
   policy: z.boolean().optional().describe('false skips the 2^26 policy proof and only checks the vault'),
+  p9Seed: z
+    .string()
+    .regex(/^\d{1,20}$/)
+    .optional()
+    .describe('Seed of the P9 vectors, a decimal number below 2^64 (not a wallet seed); random when omitted'),
 });
 export const PrepareCreateVaultInputSchema = z.object({
   plan: PlanInputSchema,

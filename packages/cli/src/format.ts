@@ -204,6 +204,34 @@ export function briefPrepare(o: PrepareOutput, s: Style, okxNote = false): strin
 
 const yes = (b: boolean) => (b ? 'yes' : 'NO');
 
+type PolicyPart = NonNullable<VerifyOutput['policy']>;
+type CodePart = NonNullable<PolicyPart['cpuCheck']>['code'];
+
+/** The code hashes of the processor proxy and its implementation, against the SDK's pins. */
+function codeLines(c: CodePart | null): string[] {
+  if (c === null) return [];
+  const pinned = c.matches === null ? 'no pin for this processor' : `matches the pins: ${yes(c.matches)}`;
+  return [
+    `  code keccak: proxy ${c.proxyCodehash ?? 'none'}`,
+    `               implementation ${c.implementation} ${c.implementationCodehash ?? 'none'}`,
+    `               ${pinned}`,
+  ];
+}
+
+/** P9: the processor's step() against the simulator, per operator. */
+function p9Lines(p9: NonNullable<PolicyPart['p9']>, s: Style): string[] {
+  const lines = [
+    `P9: ${p9.vectors} vectors of seed ${p9.seed} through step() on the processor in ${(p9.ms / 1000).toFixed(1)} s (rerun them with --p9-seed ${p9.seed})`,
+  ];
+  for (const op of p9.operators) {
+    const via = op.multicall ? 'through Multicall3' : 'one at a time';
+    const line = `  operator #${op.operator} at block ${op.blockNumber}: ${op.matched} of ${p9.vectors} match the simulator (${op.calls} eth_call, ${via})`;
+    lines.push(op.matched === p9.vectors ? line : s.red(line));
+  }
+  for (const m of p9.mismatches) lines.push(s.red(`  P9 mismatch: ${JSON.stringify(m)}`));
+  return lines;
+}
+
 export function formatVerify(o: VerifyOutput, s: Style): string {
   const at = o.blockNumber === null ? '' : ` at block ${o.blockNumber}`;
   const lines = [
@@ -218,6 +246,13 @@ export function formatVerify(o: VerifyOutput, s: Style): string {
       const result = r.ok ? s.green('holds ') : r.violations === 0 ? s.yellow('not run') : s.red('FAILS ');
       lines.push(`${name.padEnd(9)} ${result} ${r.violations}`);
     }
+    const p9 = p.p9;
+    const p9Result = p9?.ok
+      ? s.green('holds ')
+      : p9 && p9.mismatches.length > 0
+        ? s.red('FAILS ')
+        : s.yellow('not run');
+    lines.push(`${'P9'.padEnd(9)} ${p9Result} ${p9?.mismatches.length ?? 0}`);
     lines.push('', 'Netlists');
     for (const n of p.netlists) {
       const dep = n.matchesDeployment === null ? '-' : yes(n.matchesDeployment);
@@ -227,7 +262,9 @@ export function formatVerify(o: VerifyOutput, s: Style): string {
     lines.push(
       `CPU ${p.cpu}, policy ${p.policyId}, beacon frozen: ${p.beaconFrozen === null ? 'unknown' : yes(p.beaconFrozen)}`,
     );
+    lines.push(...codeLines(p.cpuCheck?.code ?? null));
     lines.push(`Checked ${p.combos.toLocaleString('en-US')} combinations in ${(p.ms / 1000).toFixed(1)} s`);
+    if (p9) lines.push(...p9Lines(p9, s));
     for (const i of p.issues) lines.push(s.red(`  issue: ${i}`));
     for (const f of p.firstFailures) lines.push(s.red(`  counterexample: ${JSON.stringify(f)}`));
   } else if (o.policyError) {

@@ -1,6 +1,6 @@
 # @atropyle/sdk
 
-TypeScript SDK for [Atropyle](https://atropyle.xyz/): non-custodial inheritance and wallet-recovery vaults on X Layer, whose rules run as a frozen [TapeOut](https://tapeout.link) circuit that anyone can verify.
+TypeScript SDK for [Atropyle](https://atropyle.xyz/): non-custodial inheritance and wallet-recovery vaults on X Layer. A frozen [TapeOut](https://tapeout.link) circuit that anyone can verify decides every lifecycle transition of a vault, and so every release of its assets.
 
 - **Read** a vault at one pinned block: state, what happens next, and when.
 - **Predict** with the exact netlist the chain runs (`whatIf`, `timeline`).
@@ -69,7 +69,17 @@ atro.handoff.okx(tx.steps[0]); // onchainos wallet contract-call --chain 196 --t
 await atro.send(tx, walletClient, { onStep: (e) => console.log(e.index, e.phase, e.hash) });
 ```
 
-`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs.
+`atro.handoff.inspect(link)` decodes a signing link, refuses anything outside the Atropyle whitelist, rebuilds the summaries from calldata and re-simulates. This is what the `#/sign` page runs. Each `createVault` step gets `create`: the heirs, the guardians and `k`, and `exit`, the earliest time the assets can leave (`exitTimes` computes it from a config). A link creates at most one vault, only where none exists yet, and may not call it afterwards, so these terms are final.
+
+A link that creates a Drill, or approves tokens to one, and also grants a token allowance can empty a wallet within minutes. So can a link that changes the heirs of a Drill, or sets its guardians with recovery on, since the Drill may already hold allowances. For such a link `confirm` lists the addresses the signer must type again (`reason` is `DRILL_WITH_ALLOWANCE` or `DRILL_RECIPIENTS_CHANGED`), and `ok` stays false until they are passed back in order. These addresses hold whichever steps revert on chain, because `inspect` also refuses calldata in any but the canonical ABI encoding, a second call to the same setter of a vault, and an allowance to a Drill whose heirs or guardians the same link changes. An RPC without `eth_simulateV1`, such as the X Layer ones, cannot simulate a step after the ones before it and reports a later step that fails alone as `skipped`: a link that needs `confirm` stays `ok: false` while any step is `skipped`.
+
+```ts
+const check = await atro.handoff.inspect(payload);
+if (check.confirm && !check.confirm.confirmed) {
+  // typed: what the signer typed for each of check.confirm.addresses, from their own records
+  const again = await atro.handoff.inspect(payload, { confirmed: typed });
+}
+```
 
 ## Everyday actions
 
@@ -82,12 +92,14 @@ await vault.whatIf({ type: 'attestDeath', on: true }, { as: guardian }); // pred
 ## Verify
 
 ```ts
-const policy = await atro.verifyPolicy(); // P1-P8 over all 2^26 (state, input) combinations
-const deployment = await atro.integrity(); // factory, implementation, CPU, frozen beacon, netlist hashes
+const policy = await atro.verifyPolicy(); // P1-P8 over all 2^26 (state, input) combinations, then P9
+const deployment = await atro.integrity(); // factory, implementation, CPU, frozen beacon, code and netlist hashes
 const report = await vault.verify(); // proxy, binding, policy and timeline at one block
 ```
 
 All three read through a quorum of two RPC operators pinned to the same block, and fail with `RPC_DISAGREEMENT` if they differ. With one operator the result carries a `SINGLE_RPC` warning.
+
+P9 checks the simulator against the processor itself. `verifyPolicy` derives 64 (state, input) vectors from a seed, asks each RPC operator on its own for the processor's `step()` on every vector by `eth_call` at the same block (16 calls per Multicall3 `aggregate3` when Multicall3 has its canonical code, single calls otherwise), and compares every answer with the local simulator. The seed is random unless you pass `verifyPolicy({ p9Seed })` (0 to 2^64 - 1), and `policy.p9.seed` holds it, so a run can be repeated. `policy.cpuCheck.code` compares the keccak256 of the runtime code of the processor proxy and of its implementation with hashes pinned in the SDK. `policy.ok` also needs P9 to hold and, on X Layer, the code to match its pins. `readPolicyBundle` runs P9 only when you pass its `p9` option (`{ operators, seed }`, one client per operator).
 
 In a browser, keep the 2^26 enumeration off the main thread:
 

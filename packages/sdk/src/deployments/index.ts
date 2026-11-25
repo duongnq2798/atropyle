@@ -1,8 +1,11 @@
 import { AtropyleError } from '../errors';
 import { local } from './local';
+import { team } from './team';
+import type { TeamMember } from './teams';
 import { type Deployment, parseDeployment } from './types';
 import { xlayer } from './xlayer';
 
+export { TEAM_ROLES, type TeamChain, type TeamFile, type TeamMember, type TeamRole } from './teams';
 export * from './types';
 
 export type ChainName = 'xlayer' | 'local';
@@ -26,4 +29,14 @@ export function getDeployment(chain: ChainName | Deployment): Deployment {
     cache.set(chain, d);
   }
   return d;
+}
+
+/**
+ * Public team addresses of this deployment (same name and chain id) from deployments/team.json, which
+ * scripts/deployments-sync.ts validates before it copies them: none for the devnet or another chain.
+ */
+export function getTeam(chain: ChainName | Deployment): TeamMember[] {
+  const d = getDeployment(chain);
+  const c = Object.hasOwn(team.chains, d.name) ? team.chains[d.name] : undefined;
+  return c && c.chainId === d.chainId ? c.members.map((m) => ({ ...m })) : [];
 }

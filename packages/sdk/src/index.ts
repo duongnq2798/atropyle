@@ -21,9 +21,15 @@ export {
   type Deployment,
   deploymentToJson,
   getDeployment,
+  getTeam,
   parseDeployment,
   resolveDeployment,
   type TapeoutInfo,
+  TEAM_ROLES,
+  type TeamChain,
+  type TeamFile,
+  type TeamMember,
+  type TeamRole,
 } from './deployments/index';
 export { formatDuration, parseDuration } from './duration';
 export { assetsToAbi, heirsToAbi, paramsToAbi, timingToAbi } from './encode';
@@ -40,7 +46,15 @@ export {
   TRANSPORT_ERROR_CODES,
 } from './errors';
 export * from './handoff/index';
-export type { InspectedStep, SignRequestCheck } from './handoff/inspect';
+export {
+  type AddressConfirmation,
+  type ConfirmAddress,
+  type CreateTerms,
+  type InspectedStep,
+  type InspectOptions,
+  type SignRequestCheck,
+  typedAddressMatches,
+} from './handoff/inspect';
 export { parseBigInt, stringify, toJson } from './json';
 export {
   DISTRIBUTE_EVERY,
@@ -69,6 +83,14 @@ export {
   type PolicyEngine,
   programEngine,
 } from './policy/engine';
+export {
+  DRILL_LIFETIME_SECONDS,
+  type ExitRoute,
+  type ExitTerms,
+  type ExitTime,
+  type ExitTimes,
+  exitTimes,
+} from './policy/exit';
 export { type Applied, applyAction, deriveInputs, type EvalState, evalStateOf } from './policy/inputs';
 export { predictAction, type Recipient, recipientsFor, type WhatIfResult } from './policy/predict';
 export {
@@ -92,6 +114,13 @@ export type {
 } from './prepare/types';
 export type { PlanCheck, TokenCheck } from './read/check-plan';
 export { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+export {
+  type ChainCounters,
+  type CountersOptions,
+  type CountPair,
+  readCounters,
+  STABLECOIN_DECIMALS,
+} from './read/counters';
 export { DEFAULT_EVENTS_WINDOW, type VaultEvent } from './read/events';
 export type { FeeOption, FeeQuote } from './read/fees';
 export type { CreatedVault, ScanCursor, ScanOptions, ScanResult } from './read/scan';
@@ -104,9 +133,14 @@ export { httpTransport, readTransport } from './transports';
 export * from './types';
 export { type Untrusted, untrusted } from './untrusted';
 export type {
+  CodeCheck,
+  CpuCheck,
   IntegrityCheck,
   IntegrityReport,
   NetlistReport,
+  P9Mismatch,
+  P9OperatorResult,
+  P9Result,
   PolicyPart,
   PolicyVerification,
   PropertyName,

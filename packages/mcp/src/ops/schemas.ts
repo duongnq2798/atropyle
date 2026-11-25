@@ -42,7 +42,12 @@ export const ActionNameSchema = z.enum([
   'setApprovalForAll',
 ]);
 
-export const WarningSchema = z.object({ code: z.string(), message: z.string() });
+export const WarningSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  /** The typed numbers the message was built from, for clients that translate it (RECOVERY_POWER: k, guardians, window). */
+  params: z.record(z.string(), z.number()).optional(),
+});
 export const ErrorJsonSchema = z.object({
   code: z.enum(ERROR_CODES as [ErrorCode, ...ErrorCode[]]),
   message: z.string(),
@@ -253,6 +258,16 @@ export const IntegrityReportSchema = z.object({
   checks: z.array(IntegrityCheckSchema),
   warnings: z.array(WarningSchema),
 });
+export const CodeCheckSchema = z.object({
+  proxyCodehash: HexSchema.nullable().describe('keccak256 of the processor proxy runtime code; null when it has none'),
+  implementation: AddressSchema.describe("The beacon's implementation() at the same block"),
+  implementationCodehash: HexSchema.nullable().describe('keccak256 of the implementation runtime code'),
+  expected: z
+    .object({ proxyCodehash: HexSchema, implementation: AddressSchema, implementationCodehash: HexSchema })
+    .nullable()
+    .describe('The values pinned in the SDK; null when it pins none for this processor'),
+  matches: z.boolean().nullable().describe('All three equal their pins; null when nothing is pinned'),
+});
 export const CpuCheckSchema = z.object({
   ok: z.boolean(),
   isTapeoutCpu: z.boolean(),
@@ -262,7 +277,39 @@ export const CpuCheckSchema = z.object({
   beaconMatches: z.boolean(),
   beaconFrozen: z.boolean(),
   transistorsPaired: z.boolean(),
+  code: CodeCheckSchema,
 });
+export const P9MismatchSchema = z.object({
+  operator: IntSchema.describe('1-based RPC operator that gave the answer'),
+  index: IntSchema.describe('Position of the vector in the run, from 0'),
+  state: IntSchema,
+  inputs: IntSchema.describe('The 23 input bits'),
+  expectNext: HexSchema.describe('newState of the simulator'),
+  expectOut: HexSchema.describe('outputs of the simulator'),
+  next: HexSchema.nullable().describe('newState that step() returned; null with `error`'),
+  out: HexSchema.nullable(),
+  error: z.enum(['reverted', 'undecodable', 'missing']).nullable(),
+});
+export const P9Schema = z
+  .object({
+    ok: z.boolean(),
+    seed: UintSchema.describe('Seed of the vectors (not a wallet seed): pass it as p9Seed to rerun the same vectors'),
+    vectors: IntSchema,
+    operators: z.array(
+      z.object({
+        operator: IntSchema,
+        blockNumber: UintSchema,
+        multicall: z.boolean().describe('Multicall3 with its canonical code carried the calls'),
+        calls: IntSchema.describe('eth_call requests sent'),
+        matched: IntSchema,
+      }),
+    ),
+    mismatches: z.array(P9MismatchSchema),
+    ms: z.number(),
+  })
+  .describe(
+    "P9: the local simulator against the processor's own step() by eth_call, on seeded pseudo-random vectors, per operator",
+  );
 export const NetlistReportSchema = z.object({
   id: UintSchema,
   role: z.enum(['policy', 'kofn5', 'ge4', 'other']),
@@ -291,6 +338,7 @@ export const PolicyVerificationSchema = z.object({
   policyId: UintSchema,
   beaconFrozen: z.boolean().nullable(),
   cpuCheck: CpuCheckSchema.nullable(),
+  p9: P9Schema.nullable(),
   chainId: IntSchema,
   blockNumber: UintSchema,
   rpcs: IntSchema,

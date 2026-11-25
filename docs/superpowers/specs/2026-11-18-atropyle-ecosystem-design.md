@@ -4,7 +4,7 @@
 
 ## 0. Tóm tắt quyết định
 
-1. **Sản phẩm đi trước, công cụ developer phục vụ sản phẩm.** Các giải TapeOut và X Layer năm 2026 đều trao cho sản phẩm có người dùng thật; chưa giải nào trao cho SDK, CLI hay MCP. Mảng công cụ developer cũng đã có TapeAPI, TapeAI và Gavelock (§1.2). Vì vậy hệ sinh thái chỉ làm những gì vừa giúp người dùng thật, vừa củng cố câu chuyện "verifiable" của Atropyle. Phần còn lại hoặc cắt, hoặc để P1 (§3).
+1. **Sản phẩm đi trước, công cụ developer phục vụ sản phẩm.** Các giải TapeOut và X Layer năm 2026 đều trao cho sản phẩm có người dùng thật; chưa giải nào trao cho SDK, CLI hay MCP. Vì vậy hệ sinh thái chỉ làm những gì vừa giúp người dùng thật, vừa củng cố câu chuyện "verifiable" của Atropyle. Phần còn lại hoặc cắt, hoặc để P1 (§3).
 2. **Một engine, nhiều bề mặt.**
    - Web app, bot, keeper, CLI và MCP đều gọi `@atropyle/sdk`. SDK chạy cùng netlist với chain thông qua `@atropyle/circuits`.
    - SDK không phải việc làm thêm: đó là chính phần logic web app vốn phải có (ABI, luật cấu hình, giải mã lỗi, dự đoán trạng thái), chỉ được tách thành một gói publish được.
@@ -27,9 +27,9 @@
 
 ## 1. Mục tiêu và căn cứ
 
-### 1.1 Năm tiêu chí chấm, và phần này nâng điểm ở đâu
+### 1.1 Năm tiêu chí của cuộc thi, và hệ sinh thái đáp ứng ở đâu
 
-| Tiêu chí | Hệ sinh thái nâng điểm bằng cách |
+| Tiêu chí | Hệ sinh thái đáp ứng bằng cách |
 |---|---|
 | User Value & Commercial Potential | Keeper giúp người thừa kế nhận tài sản mà không phải thao tác. Docs riêng cho người thừa kế và giám hộ. SDK cho ví và dApp nhúng Atropyle, mở kênh B2B2C sau hackathon |
 | Innovation | Có thể "verify, don't trust" ở cấp policy lẫn cấp vault. Agent dự đoán chính xác kết quả trước khi ký. `KofN5`/`Ge4` dùng lại được, mở TapeOut sang dạng "policy engine" |
@@ -39,17 +39,9 @@
 
 ### 1.2 Căn cứ từ nghiên cứu ngày 18/11
 
-- **Các giải năm 2026:**
-  - Genesis: hạng 1 FabX, hạng 2 AlephTape, hạng 3 SonicMint. Cả ba đều là sản phẩm hoặc primitive có người dùng thật, và không dự án nào có SDK, CLI hay MCP.
-  - OKX loại các bài không còn chạy, và không trao giải doanh thu khi không bài nào đạt chuẩn.
-- **Bảng bình chọn Accelerate:**
-  - 32 dự án; top 3 (EmberWorld, TapeAI, TapeUp) chiếm 82% phiếu. Phiếu được tính theo lượng BEM, FAB và TapeCode-Test nắm giữ.
-  - **Chưa có dự án thừa kế hay khôi phục ví nào.** Tuy vậy, từ 17/11 đã có người đưa ra ý tưởng "circuit dead man's switch" và QuietKey (§19).
-- **Công cụ developer hiện có:**
-  - TapeAPI có SDK, CLI và MCP hosted, nhưng thiên về BNB và không có trên bảng.
-  - TapeAI có một skill marketplace dưới dạng gói prompt.
-  - Gavelock có MCP chỉ đọc với 5 tool, nhưng chưa lên mainnet.
-  - Chưa ai có quy trình agent ghi an toàn hoặc tính năng verify.
+- **Sản phẩm thật:** các đợt trước của TapeOut ưu tiên sản phẩm hoặc primitive có người dùng thật, và bài không còn chạy thì bị loại. Atropyle phải chạy trên mainnet suốt thời gian chấm.
+- **Mảng còn trống:** lúc viết, trong hệ sinh thái TapeOut chưa có sản phẩm thừa kế hay khôi phục ví nào.
+- **Công cụ developer:** chưa có quy trình agent ghi giao dịch an toàn (agent chuẩn bị, người dùng ký) và chưa có công cụ verify policy, nên SDK, CLI, MCP và Skills có chỗ đứng riêng.
 - **Thông điệp của OKX:** "verifiable applications", ứng dụng phục vụ nhu cầu thật, và biến ý tưởng thành sản phẩm dùng được. Tháng 10 và 11 không có bài nào đẩy MCP hay Skills cho sự kiện này.
 
 ### 1.3 Tiêu chí thành công (bổ sung §1 spec lõi)
@@ -80,7 +72,7 @@ Thang ưu tiên: **P0** làm trước khi khoá tính năng (2/12). **P1** chỉ
 | SDK TypeScript | **P0** | Web, bot, keeper, CLI và MCP cùng cần. Viết một lần, dùng cho tất cả |
 | SDK đa ngôn ngữ | **Cắt** | Chưa có ai cần. Đối thủ cũng không có |
 | CLI | **P0, 9 lệnh** | `verify` là cảnh demo mạnh nhất, và CLI là đường ngắn nhất cho agent không có MCP |
-| MCP server stdio | **P0, 7 tool** | Cần cho cảnh agent trong demo. Khác Gavelock ở chỗ có quy trình ghi an toàn và có verify |
+| MCP server stdio | **P0, 7 tool** | Cần cho cảnh agent trong demo. Có quy trình ghi an toàn (agent chuẩn bị, người dùng ký) và có verify |
 | MCP từ xa (HTTP) | **P1** | Rẻ nếu dùng `createMcpHandler`, nhưng thêm một bề mặt hosted phải test. Demo dùng stdio |
 | MCP theo TAP-15 | **Cắt** | Cần container, signer, provider TAP-13 và manifest, khoảng 2 ngày. Giá trị cho người dùng thấp |
 | Agent Skills + plugin Claude Code | **P0, 2 skill** | Rẻ, và cho agent quy trình thật thay vì chỉ có tool rời. Không làm marketplace |
@@ -772,7 +764,7 @@ Spec này được triển khai qua năm plan tiếp theo sau Plan 1. Mỗi plan
 
 | # | Việc | Khi nào | Ghi chú |
 |---|---|---|---|
-| 1 | **Đăng dự án lên bảng bình chọn Accelerate và đăng một bài teaser công khai** | **Tuần này** | Mảng thừa kế đang trống, nhưng đã có người đưa ra ý tưởng tương tự từ 17/11. Phiếu bầu tính theo lượng BEM, FAB và TapeCode-Test nắm giữ. Hỏi ban tổ chức xem có 3 đội thắng hay 11 giải |
+| 1 | **Đăng dự án lên bảng bình chọn Accelerate và đăng một bài teaser công khai** | **Tuần này** | Phiếu bầu tính theo lượng BEM, FAB và TapeCode-Test nắm giữ |
 | 2 | Tạo repo GitHub công khai (đề xuất org `atropyle`; tên này đang trống) | Trước khi chạy Plan 2 | Cần cho CI, Pages và tên trên MCP Registry |
 | 3 | Tạo org npm `atropyle`, bật 2FA, rồi cấu hình trusted publishing hoặc thêm token làm secret trên GitHub | Trước 2/12 | |
 | 4 | Tài khoản Cloudflare (Workers, D1). Thêm `CLOUDFLARE_API_TOKEN` làm secret trên GitHub | Trước Plan 5 | |

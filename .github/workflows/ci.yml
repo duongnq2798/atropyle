@@ -37,6 +37,33 @@ jobs:
         working-directory: contracts
       - run: forge test
         working-directory: contracts
+      # Static analysis, triaged in docs/security/static-analysis.md. The High, Medium and Low lints of forge lint have
+      # the inline forge-lint comments in src/ as their baseline. unsafe-typecast (excluded in foundry.toml), the Info,
+      # Gas and Code-size lints (not run by default) and Slither are pinned in contracts/static-analysis.baseline.json:
+      # the gate fails on a finding that is new, untriaged or no longer reported.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests of the static analysis gate
+        run: python static-analysis-gate.test.py
+        working-directory: contracts
+      - name: forge lint High, Medium and Low, any warning not suppressed in src/ fails
+        run: forge lint src --deny warnings
+        working-directory: contracts
+      - name: forge lint unsafe-typecast, Info, Gas and Code-size against the baseline
+        run: |
+          forge lint src --json --only-lint unsafe-typecast > "$RUNNER_TEMP/forge-lint-typecast.jsonl"
+          forge lint src --json --severity info gas code-size > "$RUNNER_TEMP/forge-lint-notes.jsonl"
+          python static-analysis-gate.py forge-lint "$RUNNER_TEMP/forge-lint-typecast.jsonl" "$RUNNER_TEMP/forge-lint-notes.jsonl"
+        working-directory: contracts
+      - run: pip install uv==0.11.8
+      # Last on purpose: crytic-compile runs forge clean, then rebuilds src/ and lib/ only, with build info.
+      # --exclude-newer pins Slither's transitive Python dependencies to PyPI as of that time.
+      - name: Slither against the baseline
+        run: |
+          uvx --exclude-newer 2026-11-25T00:00:00Z --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --fail-none --json "$RUNNER_TEMP/slither.json"
+          python static-analysis-gate.py slither "$RUNNER_TEMP/slither.json"
+        working-directory: contracts
 
   lint:
     runs-on: ubuntu-latest
