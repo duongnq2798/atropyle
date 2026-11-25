@@ -20,7 +20,7 @@ import type { LoadedVault, Sdk } from './types';
 export const CHAIN_ID: number = chainIdOf(ENV);
 
 /**
- * The query behind useSdk. Code that needs the SDK only on demand (the wallet, when it switches chain) calls
+ * The query behind useSdk (use-sdk.ts). Code that needs the SDK only on demand (the wallet, when it switches chain) calls
  * `queryClient.query(sdkQuery(crossCheck))`, so a page that never connects never loads the SDK chunk.
  */
 export function sdkQuery(crossCheck: boolean) {
@@ -40,12 +40,6 @@ export function sdkQuery(crossCheck: boolean) {
     networkMode: 'always',
     structuralSharing: false,
   });
-}
-
-/** The SDK client of this build's deployment, created once per cross-check setting. */
-export function useSdk(): UseQueryResult<Sdk> {
-  const { crossCheck } = useChainSettings();
-  return useQuery(sdkQuery(crossCheck));
 }
 
 /**

@@ -19,6 +19,7 @@ import {
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { type Address, encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { sendChunk } from '../../src/app/sign/send-chunk';
 import { SignPage } from '../../src/app/sign/sign-page';
 import type { Eip1193 } from '../../src/wallet/impl/wallet';
 import { WalletContext, type WalletValue } from '../../src/wallet/provider';
@@ -269,6 +270,32 @@ describe('SignPage: what the link asks', () => {
     expect(await screen.findByTestId('sign-guardian')).toBeTruthy();
     await screen.findByTestId('sign-tx');
     expect(screen.queryByTestId(`warning-${GUARDIAN_WARNING.code}`)).toBeNull();
+  });
+
+  it('keeps the checks when the chunk that signs fails to load, and its Retry loads it again', async () => {
+    // The chunk is cached by the module once a test has loaded it: this test sees a page that never had it. The page
+    // asks for it twice before it shows the error (on its first render, then when the checks mount), so the load
+    // fails until the Retry.
+    const real = sendChunk.load;
+    let online = false;
+    const peek = vi.spyOn(sendChunk, 'peek').mockReturnValue(null);
+    const load = vi
+      .spyOn(sendChunk, 'load')
+      .mockImplementation(() => (online ? real() : Promise.reject(new TypeError('Failed to fetch'))));
+    try {
+      link(payloadOf([{ to: V, data: CHECK_IN }]), checkOf([step()]));
+      show();
+      const error = await screen.findByTestId('error');
+      expect(screen.getByTestId('sign-checks')).toBeTruthy();
+      expect(screen.queryByTestId('sign-tx')).toBeNull();
+      online = true;
+      fireEvent.click(within(error).getByRole('button', { name: 'Retry' }));
+      await screen.findByTestId('sign-tx');
+      expect(screen.queryByTestId('error')).toBeNull();
+    } finally {
+      peek.mockRestore();
+      load.mockRestore();
+    }
   });
 });
 

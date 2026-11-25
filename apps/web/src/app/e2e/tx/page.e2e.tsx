@@ -22,7 +22,7 @@ import {
   maxUint256,
   toFunctionSelector,
 } from 'viem';
-import { useSdk } from '@/chain/hooks';
+import { useSdk } from '@/chain/use-sdk';
 import { useLocationHash } from '@/lib/hash';
 import { useMounted } from '@/lib/use-mounted';
 import { mirrorPlan } from '@/tx/impl/mirror';

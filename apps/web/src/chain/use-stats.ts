@@ -5,10 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useApiStats } from '@/api/hooks';
 import type { StatsResponse } from '@/api/types';
 import { useKV } from '@/lib/kv';
-import { sdkQuery, useSdk } from './hooks';
+import { sdkQuery } from './hooks';
 import { loadChainImpl } from './load';
 import { useChainSettings } from './provider';
 import type { CachedStats } from './types';
+import { useSdk } from './use-sdk';
 
 export interface StatsSummary {
   source: 'api' | 'chain';

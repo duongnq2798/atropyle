@@ -1,12 +1,13 @@
 'use client';
 
-import type { SignPayload, SignRequestCheck, TxPlan } from '@atropyle/sdk';
+import type { SignPayload, SignRequestCheck } from '@atropyle/sdk';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleQuestionMark, Link2Off, type LucideIcon, ShieldCheck, ShieldX, X } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
-import { CHAIN_ID, useInvalidateVault, useSdk } from '@/chain/hooks';
+import { type ReactNode, useCallback, useMemo } from 'react';
+import { CHAIN_ID } from '@/chain/hooks';
 import { chainKeys } from '@/chain/keys';
 import type { Sdk } from '@/chain/types';
+import { useSdk } from '@/chain/use-sdk';
 import type { FlowsImpl } from '@/flows/load';
 import { useFlows } from '@/flows/use-flows';
 import { useT } from '@/i18n/provider';
@@ -16,24 +17,17 @@ import { isFramed } from '@/lib/framed';
 import { useLocationHash } from '@/lib/hash';
 import { useMounted } from '@/lib/use-mounted';
 import { messages } from '@/messages/sign.messages';
-import { toSdkSignLink, vaultHref } from '@/routes';
-import { NavLink } from '@/shell/nav-link';
+import { toSdkSignLink } from '@/routes';
 import { ErrorBox } from '@/tx/error-box';
-import { planIsIrreversible } from '@/tx/irreversible';
 import type { MirrorToken } from '@/tx/mirror';
-import { TxCard } from '@/tx/tx-card';
-import { useTxRunner } from '@/tx/use-tx-runner';
 import { Address } from '@/ui/address';
-import { Banner } from '@/ui/banner';
-import { buttonClass } from '@/ui/button';
 import { Skeleton, SkeletonText } from '@/ui/skeleton';
 import { Spinner } from '@/ui/spinner';
 import { networkName } from '@/wallet/network';
 import { useWallet } from '@/wallet/provider';
-import { ConfirmGate, type ConfirmRow } from './confirm-gate';
+import { useSendChunk } from './send-chunk';
 import { SignStep } from './sign-step';
 import { TermsCard } from './terms-card';
-import { VoteGate, type VoteRow } from './vote-gate';
 
 type Decoded = { ok: true; payload: SignPayload } | { ok: false; error: unknown };
 type SignView = ReturnType<FlowsImpl['signView']>;
@@ -55,10 +49,6 @@ const CHECK_KEY = {
 const CHECK_IDS: readonly CheckId[] = ['decoded', 'whitelist', 'simulation', 'signer'];
 const NO_TOKENS: readonly MirrorToken[] = [];
 
-const errorCode = (e: unknown): string | null =>
-  typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string'
-    ? (e as { code: string }).code
-    : null;
 const bytesOf = (p: SignPayload, i: number) => Math.max(0, ((p.steps[i]?.data.length ?? 2) - 2) / 2);
 
 export function SignPage() {
@@ -183,6 +173,8 @@ function Invalid({ error }: { error: unknown }) {
 function SignRequest({ hash }: { hash: string }) {
   const sdkQuery = useSdk();
   const flowsQuery = useFlows();
+  // The send half starts loading now, beside the SDK and the flow logic, so it is there when inspect answers.
+  useSendChunk();
   const sdk = sdkQuery.data ?? null;
   // A link without `p=`, or no fragment at all, fails to parse like any broken link: LINK_INVALID.
   const decoded = useMemo<Decoded | null>(() => {
@@ -311,6 +303,8 @@ function SignChecked({
     [client, flows, hash, payload],
   );
   const failure = view.failed[0]?.simulation;
+  const send = useSendChunk();
+  const Send = send.data?.SignSend ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -368,10 +362,12 @@ function SignChecked({
       )}
 
       {plan ? (
-        tokens.isPending ? (
+        send.isError ? (
+          <ErrorBox error={send.error} onRetry={() => void send.refetch()} />
+        ) : tokens.isPending || Send === null ? (
           <SkeletonText lines={4} />
         ) : (
-          <SignSend
+          <Send
             plan={plan}
             payload={payload}
             check={check}
@@ -395,120 +391,6 @@ function SignChecked({
           </ol>
         </section>
       )}
-    </div>
-  );
-}
-
-function SignSend({
-  plan,
-  payload,
-  check,
-  flows,
-  tokens,
-  guardian,
-  onRefused,
-}: {
-  plan: TxPlan;
-  payload: SignPayload;
-  check: SignRequestCheck;
-  flows: FlowsImpl;
-  tokens: readonly MirrorToken[];
-  guardian: boolean;
-  onRefused(check: SignRequestCheck): void;
-}) {
-  const t = useT(messages);
-  const invalidate = useInvalidateVault();
-  // Typed by the signer, never filled from the link: the votes by step, the Drill recipients by confirmKey.
-  const [typed, setTyped] = useState<Record<number, string>>({});
-  const [retyped, setRetyped] = useState<Record<string, string>>({});
-  const voteSteps = useMemo(() => flows.voteSteps(payload, check), [flows, payload, check]);
-  const votes: VoteRow[] = voteSteps.map((v) => ({
-    index: v.index,
-    reason: flows.typedReason(typed[v.index] ?? '', v.target),
-  }));
-  const confirms: ConfirmRow[] = (check.confirm?.addresses ?? []).map((a, i) => {
-    const key = flows.confirmKey(a);
-    return { address: a, i, key, reason: flows.typedReason(retyped[key] ?? '', a.account) };
-  });
-  const open = votes.every((v) => v.reason === null) && confirms.every((r) => r.reason === null);
-  const sender = useMemo(
-    () =>
-      flows.signSenderWith({
-        typed: (a) => retyped[flows.confirmKey(a)] ?? '',
-        open: () => open,
-        refused: onRefused,
-      }),
-    [flows, retyped, open, onRefused],
-  );
-  const vault = check.vault;
-  const runner = useTxRunner({
-    plan,
-    sender,
-    handoff: false,
-    tokens,
-    onDone: () => {
-      if (vault) void invalidate(vault);
-    },
-  });
-  const done = runner.result !== null;
-  // Once the wallet holds something, what was typed is what is being sent: it stays as it is.
-  const locked = runner.busy || runner.committed;
-  const n = plan.steps.length;
-  const resumeRefused = !done && runner.offset > 0 && errorCode(runner.error) === 'LINK_INVALID';
-  return (
-    <div className="flex flex-col gap-6">
-      {guardian && !done ? (
-        <Banner tone="warn" title={t('guardianTitle')} testId="sign-guardian">
-          {t('guardianPlain')}
-        </Banner>
-      ) : null}
-      {votes.length > 0 && !done ? (
-        <VoteGate rows={votes} typed={typed} locked={locked} onType={(i, v) => setTyped((s) => ({ ...s, [i]: v }))} />
-      ) : null}
-      {confirms.length > 0 && !done ? (
-        <ConfirmGate
-          rows={confirms}
-          typed={retyped}
-          locked={locked}
-          recipients={check.confirm?.reason === 'DRILL_RECIPIENTS_CHANGED'}
-          onType={(k, v) => setRetyped((s) => ({ ...s, [k]: v }))}
-        />
-      ) : null}
-      <TxCard
-        runner={runner}
-        label={n === 1 ? t('signOne') : t('signMany', { n })}
-        // TxCard's own done title ("Signed and recorded") names the Receipt: the page's title only names the steps.
-        title={done ? undefined : t('txTitle')}
-        tone={planIsIrreversible(plan) ? 'danger' : 'thread'}
-        disabled={!open}
-        testId="sign-tx"
-        receiptFooter={
-          vault ? (
-            <NavLink
-              href={vaultHref(vault)}
-              data-testid="sign-open-vault"
-              className={buttonClass({ variant: 'secondary' })}
-            >
-              {t('openVault')}
-            </NavLink>
-          ) : null
-        }
-      />
-      {resumeRefused ? (
-        <Banner
-          tone="info"
-          testId="sign-resume-blocked"
-          action={
-            vault ? (
-              <NavLink href={vaultHref(vault)} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
-                {t('openVaultToFinish')}
-              </NavLink>
-            ) : undefined
-          }
-        >
-          {t('resumeBlocked')}
-        </Banner>
-      ) : null}
     </div>
   );
 }

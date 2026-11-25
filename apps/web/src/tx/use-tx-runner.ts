@@ -3,7 +3,7 @@
 import type { AtropyleClient, SendResult, TxPlan } from '@atropyle/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Hex, WalletClient } from 'viem';
-import { useSdk } from '@/chain/hooks';
+import { useSdk } from '@/chain/use-sdk';
 import { sameAddress } from '@/lib/address';
 import { useHaptics } from '@/motion/haptics';
 import type { CallsResult } from '@/wallet/impl/send-calls';

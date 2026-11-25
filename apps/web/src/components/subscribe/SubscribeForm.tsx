@@ -7,7 +7,7 @@ import { flushSync } from 'react-dom';
 import { apiErrorCode } from '@/api/errors';
 import { useSubscribe } from '@/api/hooks';
 import type { OkResponse, SubscribeRequest } from '@/api/types';
-import { useSdk } from '@/chain/hooks';
+import { useSdk } from '@/chain/use-sdk';
 import { IS_VERCEL } from '@/config/env';
 import type { Lang } from '@/i18n/core';
 import { useLang, useT } from '@/i18n/provider';
