@@ -51,8 +51,9 @@ async function expectHome(page: Page): Promise<void> {
   await expectSeen(main.locator('a[href="/proof/"]').first());
   const facts = main.getByTestId('hero-facts');
   await expectSeen(facts.getByText('Your tokens stay in your wallet'));
-  // The e2e build is DeWEB: without JavaScript the live fact stays text (ExternalLink, Quyết định 16).
-  await expectSeen(facts.getByText(/^Live on X Layer mainnet since \d{1,2} [A-Z][a-z]{2} \d{4}$/));
+  // The e2e build is DeWEB: without JavaScript the live fact stays text (ExternalLink, Quyết định 16). A regex reads
+  // the raw text, and home.messages.ts glues "X Layer" and "since {date}" with no-break spaces: \s matches them.
+  await expectSeen(facts.getByText(/^Live on X\sLayer mainnet since\s\d{1,2} [A-Z][a-z]{2} \d{4}$/));
   await expectSeen(facts.locator('a[href="/verify/"]'));
 }
 

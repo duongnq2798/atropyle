@@ -28,6 +28,12 @@ vi.mock('next/navigation', () => ({
 const root = document.documentElement;
 afterEach(() => root.removeAttribute('data-theme'));
 
+/**
+ * Text as a reader hears it. The hero glues words with no-break spaces (glue() in home.messages.ts): text and names
+ * are compared with every space read as one, as a screen reader says them and as getByText already reads text.
+ */
+const spoken = (s: string | null | undefined): string => (s ?? '').replace(/\s+/g, ' ');
+
 describe('Frame', () => {
   it('skips to the main content without touching the hash', () => {
     window.history.replaceState(null, '', '/vault/#0xabc');
@@ -187,7 +193,7 @@ describe('pages', () => {
     const drill = screen.getByRole('link', { name: home.en.heroDrill });
     expect(drill.getAttribute('href')).toBe('/create/#drill');
     const note = document.getElementById(drill.getAttribute('aria-describedby') ?? '');
-    expect(note?.textContent).toBe('No Atropyle fee. You pay only X Layer network gas, in OKB.');
+    expect(spoken(note?.textContent)).toBe('No Atropyle fee. You pay only X Layer network gas, in OKB.');
     expect(screen.getByRole('link', { name: 'See the proof' }).getAttribute('href')).toBe('/proof/');
     const lead = screen.getByText(/^Nothing, unless you plan for it\./);
     // True for a vault without guardians too (spec §18.4.1 item 4).
@@ -198,7 +204,7 @@ describe('pages', () => {
     expect(items).toHaveLength(3);
     expect(items[0].textContent).toBe('Your tokens stay in your wallet');
     const live = within(items[1]).getByRole('link');
-    expect(live.textContent).toContain('Live on X Layer mainnet since 22 Nov 2026');
+    expect(spoken(live.textContent)).toContain('Live on X Layer mainnet since 22 Nov 2026');
     expect(live.getAttribute('href')).toBe(`${XLAYER_EXPLORER}/address/${MAINNET_FACTORY}`);
     expect(live.getAttribute('target')).toBe('_blank');
     const door = within(items[2]).getByRole('link', { name: 'Named as an heir or a guardian? Start here' });
@@ -207,9 +213,7 @@ describe('pages', () => {
 
   it('the home page speaks Vietnamese', async () => {
     renderWithProviders(<HomeHero art={<WeaveArt />} />, { lang: 'vi' });
-    // The hero glues Vietnamese words with no-break spaces (home.messages.ts): names are compared with every space
-    // read as one, as a screen reader says them and as getByText already reads text.
-    const named = (text: string) => (name: string) => name.replace(/\s+/g, ' ') === text;
+    const named = (text: string) => (name: string) => spoken(name) === text;
     expect(
       await screen.findByRole('heading', {
         level: 1,
@@ -221,7 +225,7 @@ describe('pages', () => {
     expect(screen.getByText('Token của bạn nằm yên trong ví')).toBeTruthy();
     expect(
       screen.getByRole('link', {
-        name: (n) => /^Đang chạy trên mainnet X Layer từ 22\/11\/2026/.test(n.replace(/\s+/g, ' ')),
+        name: (n) => /^Đang chạy trên mainnet X Layer từ 22\/11\/2026/.test(spoken(n)),
       }),
     ).toBeTruthy();
     const door = screen.getByRole('link', { name: named('Bạn là người thừa kế hay giám hộ? Bắt đầu ở đây') });
