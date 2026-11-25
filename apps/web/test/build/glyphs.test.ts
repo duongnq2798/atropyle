@@ -14,10 +14,17 @@ function htmlFiles(dir: string): string[] {
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
-/** The text a reader sees: scripts, styles and tags removed, entities decoded. */
+/** A field's placeholder, which the page draws in its own font. */
+const PLACEHOLDER = /\splaceholder="([^"]*)"/gi;
+
+/**
+ * The text a reader sees in the page's fonts: scripts, styles, templates and the tab title (the browser's own UI
+ * draws it) removed, placeholders kept, entities decoded. React escapes only the entities below and numeric ones.
+ */
 function visibleText(html: string): string {
-  return html
-    .replace(/<(script|style|template)\b[\s\S]*?<\/\1>/gi, ' ')
+  const placeholders = [...html.matchAll(PLACEHOLDER)].map((m) => m[1]).join(' ');
+  return `${html} ${placeholders}`
+    .replace(/<(script|style|template|title)\b[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))

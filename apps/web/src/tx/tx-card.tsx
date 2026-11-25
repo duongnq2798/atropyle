@@ -152,7 +152,8 @@ function StepItem({
             <dd className="text-ink">{sim}</dd>
             <dt className="text-ink-muted">{t('gas')}</dt>
             <dd className="font-mono text-ink tabular-nums">
-              {row.gas !== null ? `≈ ${formatAmount(row.gas, 0)}` : row.simulation === 'failed' ? '—' : t('noGas')}
+              {/* The label says "estimate"; no `≈`, which no self-hosted subset has (plan rule 20). */}
+              {row.gas !== null ? formatAmount(row.gas, 0) : row.simulation === 'failed' ? '—' : t('noGas')}
             </dd>
           </dl>
         </details>
