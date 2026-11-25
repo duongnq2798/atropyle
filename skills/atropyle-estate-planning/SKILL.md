@@ -115,7 +115,7 @@ npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 - `status.state` should be `active`. `grace` means the alarm went off: the owner must check in before `status.windowEndsAt`. `recovery` means guardians voted to move everything to `status.recoveryTarget`: if the owner did not ask for that, they must check in before `status.windowEndsAt`.
 - `explanation` holds plain sentences you can repeat to the user.
 - The warning `COVERAGE_BELOW_100` means some tokens are not fully approved, so the heirs would get only the approved part.
-- `verify` exits 0 when the policy is proven and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
+- `verify` exits 0 when the policy is proven, `step()` on the processor matches the simulator on 64 seeded vectors (P9), the processor's code hashes match their pins and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
 
 To check in:
 
