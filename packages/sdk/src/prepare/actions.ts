@@ -6,7 +6,7 @@ import { appendSuffix } from '../builder-code';
 import { assetsToAbi, heirsToAbi, timingToAbi } from '../encode';
 import { AtropyleError } from '../errors';
 import type { GuardianPart, PlanIssue } from '../plan/types';
-import { planError, resolveTiming, validateSection } from '../plan/validate';
+import { planError, recoveryPowerWarning, resolveTiming, validateSection } from '../plan/validate';
 import { predictAction } from '../policy/predict';
 import { isRegistered } from '../read/registered';
 import { readSnapshot } from '../read/snapshot';
@@ -220,12 +220,17 @@ async function build(
         functionName: 'setGuardians',
         args: [g.guardians, g.k, g.recoveryEnabled],
       });
-      return { drafts: [call(data, summarize.setGuardians(v, g.guardians, g.k, g.recoveryEnabled))], warnings };
+      const draft = call(data, summarize.setGuardians(v, g.guardians, g.k, g.recoveryEnabled));
+      if (g.recoveryEnabled) draft.warnings.push(recoveryPowerWarning(g.k, g.guardians.length, c.timing.window));
+      return { drafts: [draft], warnings };
     }
     case 'setTiming': {
       const t = resolveTiming(action.timing, c.drill);
       const data = encodeFunctionData({ abi: vaultAbi, functionName: 'setTiming', args: [timingToAbi(t)] });
-      return { drafts: [call(data, summarize.setTiming(v, t))], warnings };
+      const draft = call(data, summarize.setTiming(v, t));
+      // The window is how long the owner has to stop a recovery: a new window changes that power.
+      if (c.recoveryEnabled && c.k > 0) draft.warnings.push(recoveryPowerWarning(c.k, c.guardians.length, t.window));
+      return { drafts: [draft], warnings };
     }
     case 'setAssets': {
       const assets = checkedAssets(snap, action);

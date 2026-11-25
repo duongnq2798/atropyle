@@ -44,7 +44,7 @@ Ask one question at a time. Copy wallet addresses exactly; never guess one.
 
 1. **Heirs**, 1 to 5: who inherits, and what share. Shares add up to 100%. On the command line, give a share to every `--heir`, or to none for equal shares; in a plan file only a single heir may leave the share out.
 2. **Guardians**, optional, up to 5: people who can confirm a death early, and how many must agree (`k`). Guardians change the fallback: without them, the heirs are paid after the alarm and the window; with them, the heirs are paid then only if `k` guardians attest, and otherwise payment waits until the owner has missed the maximum number of periods (15). Step 4 shows the real dates.
-3. **Recovery**, only with guardians, off unless the owner says yes. `k` guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet after a loss. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` of them with everything.
+3. **Recovery**, only with guardians, off unless the owner says yes. `k` guardians who agree can move everything in the vault to a wallet they choose, meant for the owner's new wallet after a loss. The owner can stop it only by checking in before the window ends. Offer it only if the owner would trust any `k` of them with everything. With recovery on, `plan check`, `simulate --plan`, `prepare create-vault`, `prepare set-guardians`, `prepare set-timing` and `status` carry the warning `RECOVERY_POWER`, which says this with the real `k`, number of guardians and window: read it to the owner each time.
 4. **Timing**: `sixMonths` (check in every 30 days, alarm after 6 missed check-ins, 14 days to cancel) or `twelveMonths` (alarm after 12, 30 days to cancel). A Drill uses `drill`: 1 minute, 2 missed, 2 minutes to cancel.
 5. **Assets**: the ERC-20 tokens and NFTs the vault covers. They stay in the owner's wallet. The vault takes them only when it pays the heirs, up to what the owner approved.
 
@@ -90,6 +90,8 @@ npx -y atropyle@0.1.0 prepare create-vault <PLAN_FILE> --json
 
 Without `--drill`, an approval of the fee comes first, only when the allowance is short. Then comes `createVault`, then one approval per asset so the vault can take it at release. The address of the vault is known before it exists (`vault`), so those approvals can be prepared now. The owner signs every step: without the asset approvals the vault covers nothing, and `status` warns `COVERAGE_BELOW_100`.
 
+The signing page decodes the link itself. For each `createVault` step it states the earliest time the assets can leave the owner's wallet, every way they can leave, the heirs with their shares, and the guardians with `k`. It refuses a second `createVault`, a vault that already exists and any call to the vault the same link creates, so these terms are final. A Drill pays out within minutes, so a link that creates a Drill and also approves a token is held: Sign stays off until the owner types every heir again, and every guardian too when recovery is on. The Drill links this skill prepares with assets are such links. Tell the owner before you hand over the link, so they have the addresses ready from their own records. Never paste the addresses for them, and never send them with the link: retyping them is what catches a link that names someone else's wallet.
+
 ### With the OKX Agentic Wallet
 
 Only when the user chose to sign with their OKX Agentic Wallet (`onchainos`). The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet. A vault created this way is owned by that account, and its check-ins must come from it. It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
@@ -115,6 +117,7 @@ npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 - `status.state` should be `active`. `grace` means the alarm went off: the owner must check in before `status.windowEndsAt`. `recovery` means guardians voted to move everything to `status.recoveryTarget`: if the owner did not ask for that, they must check in before `status.windowEndsAt`.
 - `explanation` holds plain sentences you can repeat to the user.
 - The warning `COVERAGE_BELOW_100` means some tokens are not fully approved, so the heirs would get only the approved part.
+- The warning `RECOVERY_POWER` means wallet recovery is on: `k` guardians acting together can move 100% of the covered assets to any wallet they choose, and the owner can stop it only by checking in before the alarm window ends. Repeat it each time you report on the vault. If the owner no longer trusts any `k` of the guardians with everything, prepare `set-guardians` with recovery off.
 - `verify` exits 0 when the policy is proven and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
 
 To check in:
@@ -129,7 +132,7 @@ To show what would happen if the owner stopped checking in, simulate a `poke` fr
 npx -y atropyle@0.1.0 simulate <VAULT> poke --as <HEIR_1> --at +200d --json
 ```
 
-Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle@0.1.0 prepare --help` lists their flags. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
+Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle@0.1.0 prepare --help` lists their flags. On a Drill, the signing page holds a `set-heirs` link, and a `set-guardians` link with recovery on, as it holds a Drill link with approvals: the owner types every heir again, and every guardian too when recovery is on. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
 
 ## Exit codes
 

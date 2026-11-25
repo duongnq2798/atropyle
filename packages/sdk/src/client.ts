@@ -24,7 +24,7 @@ import {
   sendCallsParams,
   signLink,
 } from './handoff/index';
-import { inspectPayload, type SignRequestCheck } from './handoff/inspect';
+import { type InspectOptions, inspectPayload, type SignRequestCheck } from './handoff/inspect';
 import { planTemplate } from './plan/templates';
 import { PRESETS } from './plan/types';
 import { validatePlan } from './plan/validate';
@@ -124,8 +124,11 @@ export interface AtropyleClient {
     cast(tx: CastTx, rpcUrl?: string): string;
     calls(plan: TxPlan | SignPayload): SendCallsParams;
     okx(tx: CastTx): string;
-    /** Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. */
-    inspect(request: SignPayload | string): Promise<SignRequestCheck>;
+    /**
+     * Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. A request
+     * that gives a Drill vault an allowance is `ok` only with `confirmed`: the addresses of `confirm`, typed again.
+     */
+    inspect(request: SignPayload | string, o?: InspectOptions): Promise<SignRequestCheck>;
   };
 }
 
@@ -303,8 +306,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       cast: (tx, rpcUrl) => guardSync(() => castCommand(tx, rpcUrl ?? deployment.rpcUrls[0])),
       calls: (plan) => guardSync(() => sendCallsParams(plan)),
       okx: (tx) => guardSync(() => okxCommand(tx)),
-      inspect: (request) =>
-        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request)),
+      inspect: (request, o) =>
+        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request, o)),
     },
   };
 }

@@ -51,6 +51,57 @@ test('a guardian signs a vote link only after typing the wallet it votes for', a
   expect((await atro.vault(vault).status()).recVotes).toContainEqual({ guardian, target });
 });
 
+test('a Drill link that approves a token signs only after the owner types every heir again', async ({
+  page,
+  atro,
+  state,
+  wallet,
+}) => {
+  const heir = ANVIL[2];
+  const usdt0 = atro.deployment.feeTokens[0];
+  const plan = await atro.prepare.createVault(
+    atro.plan.template('simple', {
+      heirs: [{ account: heir }],
+      drill: true,
+      assets: [{ kind: 'erc20', token: usdt0 }],
+    }),
+    { owner: OWNER, drill: true },
+  );
+  if (!plan.vault) throw new Error('no predicted vault');
+  const w = await wallet({ account: OWNER });
+  await page.goto(atro.handoff.link(plan, state.siteUrl));
+  await page.getByTestId('connect').click();
+
+  const create = plan.steps.findIndex((s) => s.action === 'createVault');
+  const terms = page.getByTestId(`sign-terms-${create}`);
+  await expect(terms).toContainText(plan.vault);
+  // A Simple Drill pays its heir 4 minutes after creation, with nobody signing.
+  await expect(page.getByTestId(`sign-terms-${create}-earliest`)).toHaveAttribute('data-after', '240');
+  await expect(page.getByTestId(`sign-terms-${create}-heirs`)).toContainText(`${heir} 100%`);
+  await expect(page.getByTestId(`sign-terms-${create}-guardians`)).toHaveText('No guardians.');
+
+  await expect(page.getByTestId('sign-confirm')).toBeVisible();
+  await expect(page.getByTestId('sign-confirm-0')).toHaveValue('');
+  await expect(page.getByTestId('sign-confirm-1')).toHaveCount(0);
+  await expect(page.getByTestId('sign-send')).toBeDisabled();
+  await page.getByLabel(/^Heir 1 \(100%\)/).fill(ANVIL[7]);
+  await expect(page.getByTestId('sign-confirm-0-error')).toHaveAttribute('data-reason', 'mismatch');
+  await expect(page.getByTestId('sign-confirm-0')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByTestId('sign-send')).toBeDisabled();
+  await page.getByLabel(/^Heir 1 \(100%\)/).fill(heir.toLowerCase());
+  await expect(page.getByTestId('sign-confirm-count')).toHaveText('1 of 1 addresses match.');
+  await expect(page.getByTestId('sign-send')).toBeEnabled();
+  expect(w.calls.map((c) => c.method)).not.toContain('eth_sendTransaction');
+
+  await page.getByTestId('sign-send').click();
+  await expect(page.getByTestId('sign-done')).toBeVisible();
+  expect(await atro.vault(plan.vault).config()).toMatchObject({
+    owner: OWNER,
+    drill: true,
+    heirs: [{ account: heir }],
+  });
+});
+
 test('a tampered link is refused', async ({ page, atro, state, wallet }) => {
   const vault = state.seeded.simple;
   const usdc = atro.deployment.feeTokens[1];

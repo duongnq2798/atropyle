@@ -344,8 +344,22 @@ function parseAssets(v: unknown, heirCount: number | null, issues: Issues): Asse
   return issues.list.length > before ? null : out;
 }
 
-function planWarnings(c: PlanConfig): Warning[] {
+/**
+ * Wallet recovery is the strongest power in a vault: k guardians need no death, no lateness and no heir to move
+ * everything the vault covers, and only the owner's check-in inside the alarm window stops them.
+ */
+export function recoveryPowerWarning(k: number, guardians: number, window: number): Warning {
+  return {
+    code: 'RECOVERY_POWER',
+    message: `Wallet recovery is on: ${k} of ${guardians} guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the ${formatDuration(window)} alarm window ends.`,
+    params: { k, guardians, window },
+  };
+}
+
+/** The warnings of a valid plan; handoff inspection rebuilds the same ones from createVault calldata. */
+export function planWarnings(c: Omit<PlanConfig, 'owner' | 'assets' | 'heirs'>): Warning[] {
   const w: Warning[] = [];
+  if (c.recoveryEnabled && c.k > 0) w.push(recoveryPowerWarning(c.k, c.guardians.length, c.timing.window));
   if (c.k === 0) {
     w.push({
       code: 'NO_GUARDIANS',

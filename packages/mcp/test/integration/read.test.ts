@@ -25,6 +25,20 @@ describe('read operations on the devnet', () => {
     expect(out.summary).toContain(devnet().vaults.grace);
   });
 
+  it('getVault warns RECOVERY_POWER for a vault with recovery on, and only for it', async () => {
+    const guarded = await getVault(atropyle(), { vault: devnet().vaults.guarded });
+    expect(guarded.config.recoveryEnabled).toBe(true);
+    const power = guarded.warnings.find((w) => w.code === 'RECOVERY_POWER');
+    expect(power).toEqual({
+      code: 'RECOVERY_POWER',
+      message:
+        'Wallet recovery is on: 2 of 3 guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the 2m alarm window ends.',
+      params: { k: 2, guardians: 3, window: 120 },
+    });
+    const simple = await getVault(atropyle(), { vault: devnet().vaults.simple });
+    expect(simple.warnings.map((w) => w.code)).not.toContain('RECOVERY_POWER');
+  });
+
   it('token names from hostile contracts end up only in untrusted', async () => {
     const out = await getVault(atropyle(), { vault: devnet().vaults.hostile });
     expect(out.status.assets.map((a) => [a.token.symbol, a.token.name])).toEqual([

@@ -1,8 +1,14 @@
 // @vitest-environment happy-dom
 import {
+  type AddressConfirmation,
   AtropyleError,
+  type ConfirmAddress,
+  type CreateTerms,
+  exitTimes,
   GUARDIAN_WARNING,
   type InspectedStep,
+  type InspectOptions,
+  PRESETS,
   type SignPayload,
   type SignRequestCheck,
   sendCallsParams,
@@ -33,6 +39,7 @@ function step(over: Partial<InspectedStep> = {}): InspectedStep {
     reason: null,
     builderCodes: null,
     simulation: { ok: true, gas: 50_000n },
+    create: null,
     ...over,
   };
 }
@@ -44,6 +51,7 @@ function page(steps: InspectedStep[], over: Partial<SignRequestCheck> = {}) {
     from: A,
     vault: V,
     steps,
+    confirm: null,
     ...over,
   };
   const sdk = {
@@ -429,5 +437,240 @@ describe('SignPage sends exactly the decoded payload', () => {
     await screen.findByTestId('sign-done');
     expect(sent.plan).toBeUndefined();
     expect(sent.calls).toEqual(payload.steps.map((s) => ({ to: s.to, data: s.data, value: '0x0' })));
+  });
+});
+
+// A Drill link that creates a vault and approves a token: the shape a phishing link would take.
+const DRILL: Address = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
+const TOKEN: Address = '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720';
+const HEIR_A: Address = '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f';
+const HEIR_B: Address = '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955';
+const GUARD: Address = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
+const READ_AT = 1_800_000_000n;
+
+const terms: CreateTerms = {
+  vault: DRILL,
+  drill: true,
+  heirs: [
+    { account: HEIR_A, bps: 7000 },
+    { account: HEIR_B, bps: 3000 },
+  ],
+  guardians: [GUARD],
+  k: 1,
+  recoveryEnabled: true,
+  timing: PRESETS.drill,
+  exit: exitTimes({ drill: true, guardians: [GUARD], k: 1, recoveryEnabled: true, timing: PRESETS.drill }),
+  readAt: READ_AT,
+  earliestAt: READ_AT + 120n,
+};
+
+const toType: ConfirmAddress[] = [
+  { step: 0, vault: DRILL, role: 'heir', index: 0, account: HEIR_A, bps: 7000 },
+  { step: 0, vault: DRILL, role: 'heir', index: 1, account: HEIR_B, bps: 3000 },
+  { step: 0, vault: DRILL, role: 'guardian', index: 0, account: GUARD, bps: null },
+];
+
+function drillPage(
+  lang: 'en' | 'vi' = 'en',
+  reason: AddressConfirmation['reason'] = 'DRILL_WITH_ALLOWANCE',
+  drill: { skipped?: boolean } = {},
+) {
+  const options: (InspectOptions | undefined)[] = [];
+  const sent: unknown[] = [];
+  const sdk = {
+    atro: {
+      chain: { id: 196 },
+      handoff: {
+        parse: () => ({
+          chainId: 196,
+          from: A,
+          steps: [
+            { to: V, data: '0x01', value: 0n },
+            { to: TOKEN, data: '0x02', value: 0n },
+          ],
+        }),
+        inspect: async (_p: SignPayload, o?: InspectOptions) => {
+          options.push(o);
+          const typed = o?.confirmed ?? [];
+          const confirmed = toType.every((a, i) => typed[i]?.trim().toLowerCase() === a.account.toLowerCase());
+          return {
+            ok: confirmed && !drill.skipped,
+            chainId: 196,
+            from: A,
+            vault: DRILL,
+            steps: [
+              step({ index: 0, action: 'createVault', summary: 'Create a Drill vault.', create: terms }),
+              step({
+                index: 1,
+                to: TOKEN,
+                action: 'approve',
+                summary: 'Approve the vault.',
+                ...(drill.skipped
+                  ? { simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } as const }
+                  : {}),
+              }),
+            ],
+            confirm: { reason, addresses: toType, confirmed },
+          } satisfies SignRequestCheck;
+        },
+      },
+      send: async (plan: unknown) => {
+        sent.push(plan);
+        return { vault: DRILL, steps: [] };
+      },
+    },
+    deployment: { explorerUrl: null },
+  } as unknown as Sdk;
+  const provider = {
+    request: async () => {
+      throw Object.assign(new Error('no'), { code: 4200 });
+    },
+  };
+  const value = {
+    lang,
+    env: { docsPath: null },
+    sdk,
+    wallet: { account: A, chainId: 196, option: { provider } },
+    walletClient: () => ({}),
+  } as unknown as NonNullable<ContextType<typeof AppContext>>;
+  render(
+    <AppContext.Provider value={value}>
+      <SignPage sdk={sdk} />
+    </AppContext.Provider>,
+  );
+  return { options, sent };
+}
+
+const retype = (i: number, v: string) =>
+  fireEvent.input(screen.getByTestId(`sign-confirm-${i}`), { target: { value: v } });
+
+describe('SignPage createVault terms', () => {
+  it('states the earliest time the assets can leave, every route, the heirs with shares and the guardians with k', async () => {
+    drillPage();
+    const card = await screen.findByTestId('sign-terms-0');
+    const earliest = screen.getByTestId('sign-terms-0-earliest');
+    expect(earliest.textContent).toBe(
+      'Earliest time the assets can leave your wallet: 2m after the vault is created, so not before 2027-01-15 08:02 UTC.',
+    );
+    expect(earliest.getAttribute('data-route')).toBe('recovery');
+    const routes = [...screen.getByTestId('sign-terms-0-routes').querySelectorAll('li')];
+    expect(routes.map((li) => [li.getAttribute('data-route'), li.getAttribute('data-after')])).toEqual([
+      ['recovery', '120'],
+      ['heirs', '240'],
+      ['heirsFallback', '900'],
+    ]);
+    expect(routes[0].textContent).toContain('To any wallet the guardians choose: 2m after 1 of them vote');
+    expect(card.textContent).toContain(
+      'This is a Drill: it releases within minutes and expires 7d after it is created.',
+    );
+    const heirs = screen.getByTestId('sign-terms-0-heirs').textContent ?? '';
+    expect(heirs).toContain(`${HEIR_A} 70%`);
+    expect(heirs).toContain(`${HEIR_B} 30%`);
+    const guardians = screen.getByTestId('sign-terms-0-guardians').textContent ?? '';
+    expect(guardians).toContain(GUARD);
+    expect(guardians).toContain('1 of 1 must confirm. Wallet recovery is on.');
+    expect(card.textContent).toContain('Check in every 1m. Alarm after 2 missed check-ins, then 2m to cancel it.');
+    // Only the createVault step has a terms card.
+    expect(screen.queryByTestId('sign-terms-1')).toBeNull();
+  });
+});
+
+describe('SignPage Drill retype gate', () => {
+  const sendButton = () => screen.getByTestId('sign-send') as HTMLButtonElement;
+
+  it('keeps Sign off until every heir and guardian is typed again, then sends what was typed', async () => {
+    const { options, sent } = drillPage();
+    const gate = await screen.findByTestId('sign-confirm');
+    // Nothing is filled in from the link, and the labels name the role, never the address.
+    for (const i of [0, 1, 2]) expect((screen.getByTestId(`sign-confirm-${i}`) as HTMLInputElement).value).toBe('');
+    expect(gate.querySelector('label')?.textContent).not.toContain(HEIR_A);
+    expect(sendButton().disabled).toBe(true);
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('0 of 3 addresses match.');
+
+    retype(0, HEIR_A);
+    retype(1, HEIR_B.toLowerCase());
+    expect(sendButton().disabled).toBe(true);
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('2 of 3 addresses match.');
+    retype(2, ` ${GUARD} `);
+    expect(sendButton().disabled).toBe(false);
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('3 of 3 addresses match.');
+
+    fireEvent.click(sendButton());
+    await screen.findByTestId('sign-done');
+    expect(sent).toHaveLength(1);
+    // The first inspect shows the page; the one right before signing carries the typed addresses, in order.
+    expect(options.at(-1)).toEqual({ confirmed: [HEIR_A, HEIR_B.toLowerCase(), ` ${GUARD} `] });
+  });
+
+  it('says which typed address is wrong or invalid, for a screen reader too', async () => {
+    drillPage();
+    await screen.findByTestId('sign-confirm');
+    const input = screen.getByLabelText(/^Heir 1 \(70%\) of the vault in step 1/) as HTMLInputElement;
+    expect(input).toBe(screen.getByTestId('sign-confirm-0'));
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+
+    retype(0, HEIR_B);
+    const error = screen.getByTestId('sign-confirm-0-error');
+    expect(error.getAttribute('data-reason')).toBe('mismatch');
+    expect(error.textContent).toBe('This is not the address in this link. Do not sign if you do not know whose it is.');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe(error.id);
+
+    // A mixed-case address with a broken checksum is a typo, not the same wallet.
+    retype(0, `${HEIR_A.slice(0, 12)}${HEIR_A.slice(12, 20).toUpperCase()}${HEIR_A.slice(20)}`);
+    expect(screen.getByTestId('sign-confirm-0-error').getAttribute('data-reason')).toBe('invalid');
+    expect(sendButton().disabled).toBe(true);
+
+    retype(0, HEIR_A);
+    expect(screen.queryByTestId('sign-confirm-0-error')).toBeNull();
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+    expect(screen.getByTestId('sign-confirm-count').getAttribute('aria-live')).toBe('polite');
+    expect(screen.getByLabelText(/^Guardian 1 of the vault in step 1/)).toBe(screen.getByTestId('sign-confirm-2'));
+  });
+
+  it('speaks Vietnamese', async () => {
+    drillPage('vi');
+    const gate = await screen.findByTestId('sign-confirm');
+    expect(gate.querySelector('h2')?.textContent).toBe('Gõ lại các địa chỉ trước khi ký');
+    expect(screen.getByLabelText(/^Người thừa kế 2 \(30%\) của vault ở bước 1/)).toBe(
+      screen.getByTestId('sign-confirm-1'),
+    );
+    retype(1, HEIR_A);
+    expect(screen.getByTestId('sign-confirm-1-error').textContent).toBe(
+      'Đây không phải địa chỉ trong link này. Đừng ký nếu bạn không biết địa chỉ này của ai.',
+    );
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('0 trên 3 địa chỉ đã khớp.');
+    expect(screen.getByTestId('sign-terms-0-earliest').textContent).toContain('2m sau khi vault được tạo');
+  });
+
+  it('says why when the link gives a Drill new heirs or recovery guardians, in English and Vietnamese', async () => {
+    drillPage('en', 'DRILL_RECIPIENTS_CHANGED');
+    const gate = await screen.findByTestId('sign-confirm');
+    expect(gate.getAttribute('aria-describedby')).toBe('sign-confirm-intro');
+    expect(screen.getByTestId('sign-confirm').querySelector('#sign-confirm-intro')?.textContent).toMatch(
+      /^This link changes who can receive the assets of a Drill vault\. A Drill releases within minutes and can use every allowance you already gave it/,
+    );
+    expect(sendButton().disabled).toBe(true);
+    cleanup();
+    drillPage('vi', 'DRILL_RECIPIENTS_CHANGED');
+    await screen.findByTestId('sign-confirm');
+    expect(screen.getByTestId('sign-confirm').querySelector('#sign-confirm-intro')?.textContent).toMatch(
+      /^Link này đổi người có thể nhận tài sản của một vault Drill\./,
+    );
+  });
+
+  it('asks for no address and offers no Sign when the network could not simulate every step in order', async () => {
+    drillPage('en', 'DRILL_WITH_ALLOWANCE', { skipped: true });
+    const banner = await screen.findByTestId('sign-unproven');
+    expect(banner.textContent).toMatch(/^The network could not simulate each step after the ones before it/);
+    expect(screen.queryByTestId('sign-confirm')).toBeNull();
+    expect(screen.queryByTestId('sign-send')).toBeNull();
+    // The terms of the vault are still stated.
+    expect(screen.getByTestId('sign-terms-0')).toBeTruthy();
+    cleanup();
+    drillPage('vi', 'DRILL_WITH_ALLOWANCE', { skipped: true });
+    expect((await screen.findByTestId('sign-unproven')).textContent).toMatch(
+      /^Mạng không mô phỏng được từng bước sau các bước trước nó/,
+    );
   });
 });

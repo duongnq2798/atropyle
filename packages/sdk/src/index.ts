@@ -46,7 +46,15 @@ export {
   TRANSPORT_ERROR_CODES,
 } from './errors';
 export * from './handoff/index';
-export type { InspectedStep, SignRequestCheck } from './handoff/inspect';
+export {
+  type AddressConfirmation,
+  type ConfirmAddress,
+  type CreateTerms,
+  type InspectedStep,
+  type InspectOptions,
+  type SignRequestCheck,
+  typedAddressMatches,
+} from './handoff/inspect';
 export { parseBigInt, stringify, toJson } from './json';
 export {
   DISTRIBUTE_EVERY,
@@ -75,6 +83,14 @@ export {
   type PolicyEngine,
   programEngine,
 } from './policy/engine';
+export {
+  DRILL_LIFETIME_SECONDS,
+  type ExitRoute,
+  type ExitTerms,
+  type ExitTime,
+  type ExitTimes,
+  exitTimes,
+} from './policy/exit';
 export { type Applied, applyAction, deriveInputs, type EvalState, evalStateOf } from './policy/inputs';
 export { predictAction, type Recipient, recipientsFor, type WhatIfResult } from './policy/predict';
 export {
