@@ -142,8 +142,9 @@ function StepItem({
             </span>
           ) : null}
         </div>
-        {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. */}
-        <p lang="en" className="text-ink-muted text-small">
+        {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. A
+            full address has no break point, so it may wrap anywhere rather than run past a phone's edge. */}
+        <p lang="en" className="text-ink-muted text-small wrap-anywhere">
           {row.summary}
         </p>
         <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-small', phase.tone)}>
@@ -225,7 +226,7 @@ function Unsettled({ runner, testId }: { runner: TxRunner; testId: string }) {
           <>
             <p>{tf('stepUnknownBody', { n: u.index + 1 })}</p>
             {runner.explorer ? (
-              <ExternalLink href={explorerTx(runner.explorer, u.hash)} className="mt-2 inline-flex">
+              <ExternalLink href={explorerTx(runner.explorer, u.hash)} className="mt-2 min-h-6">
                 {t('viewTx')}
               </ExternalLink>
             ) : (

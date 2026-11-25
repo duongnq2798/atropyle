@@ -92,10 +92,13 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
                   className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-muted"
                 >
                   <span>{t('receiptDecided')}</span>
-                  <StateBadge state={c.from} size="sm" />
-                  <ArrowRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                  <VisuallyHidden>{t('receiptTo')}</VisuallyHidden>
-                  <StateBadge state={c.to} size="sm" />
+                  {/* The change reads as one unit: on a phone the label may wrap, never the arrow between states. */}
+                  <span className="inline-flex items-center gap-2">
+                    <StateBadge state={c.from} size="sm" />
+                    <ArrowRight aria-hidden="true" size={14} strokeWidth={1.5} />
+                    <VisuallyHidden>{t('receiptTo')}</VisuallyHidden>
+                    <StateBadge state={c.to} size="sm" />
+                  </span>
                 </p>
               ))}
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
@@ -122,7 +125,7 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
               </dd>
             </dl>
             {explorer ? (
-              <ExternalLink href={explorerTx(explorer, g.hash)} className="self-start">
+              <ExternalLink href={explorerTx(explorer, g.hash)} className="min-h-6 self-start">
                 {t('receiptView', { name: explorerName(explorer) })}
               </ExternalLink>
             ) : null}

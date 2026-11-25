@@ -110,6 +110,8 @@ describe('MirrorBox', () => {
     });
     const box = screen.getByTestId('tx-mirror-bundle');
     expect(within(box).getByText('Ví của bạn phải hiện 2 lệnh này cùng lúc')).toBeTruthy();
+    // One bundle goes to one network: the wallet names it once, and so does the mirror.
+    expect(within(box).getAllByText('X Layer (196)')).toHaveLength(1);
     expect(within(box).getByTestId('tx-mirror-0')).toBeTruthy();
     expect(within(box).getByTestId('tx-mirror-1-danger-all')).toBeTruthy();
     expect(within(box).getByText('MỌI token của bộ này')).toBeTruthy();

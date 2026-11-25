@@ -41,10 +41,17 @@ const DANGER_KEY = {
  */
 const NATIVE = 'OKB';
 
+/**
+ * Label and value side by side while the box has room; in a narrow box (a phone, inside a step) the label sits above
+ * its value, so a full address keeps the width and wraps in two or three lines instead of ten.
+ */
+const FIELDS =
+  'grid grid-cols-1 gap-y-0.5 text-small @sm:grid-cols-[auto_minmax(0,1fr)] @sm:items-baseline @sm:gap-x-4 @sm:gap-y-2';
+
 function Field({ label, testId, children }: { label: string; testId?: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-ink-muted">{label}</dt>
+      <dt className="mt-2 text-ink-muted first:mt-0 @sm:mt-0">{label}</dt>
       <dd data-testid={testId} className="min-w-0 text-ink">
         {children}
       </dd>
@@ -95,16 +102,33 @@ function Approves({ call }: { call: MirrorCall }) {
   }
 }
 
-function CallFields({ call, explorer, testId }: { call: MirrorCall; explorer: string | null; testId: string }) {
+function Network({ chainId }: { chainId: number }) {
+  const t = useT(messages);
+  return (
+    <Field label={t('mirrorNetwork')}>
+      <span className="voice-ledger">{`${networkName(chainId)} (${chainId})`}</span>
+    </Field>
+  );
+}
+
+function CallFields({
+  call,
+  explorer,
+  testId,
+  network = true,
+}: {
+  call: MirrorCall;
+  explorer: string | null;
+  testId: string;
+  network?: boolean;
+}) {
   const t = useT(messages);
   const a = call.approval;
   const spender = a ? approvalSpender(a) : null;
   return (
     <>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 text-small">
-        <Field label={t('mirrorNetwork')}>
-          <span className="voice-ledger">{`${networkName(call.chainId)} (${call.chainId})`}</span>
-        </Field>
+      <dl className={FIELDS}>
+        {network ? <Network chainId={call.chainId} /> : null}
         <Field label={t('mirrorContract')}>
           <Party address={call.to} role={call.role} explorer={explorer} />
         </Field>
@@ -172,25 +196,34 @@ export function MirrorBox({
   const headingId = useId();
   const first = calls[0];
   if (!first) return null;
+  // wallet_sendCalls takes one chainId for the whole bundle, so its calls share it; named once, as the wallet does.
+  const oneNetwork = bundle && calls.every((c) => c.chainId === first.chainId);
   return (
     <section
       aria-labelledby={headingId}
       data-testid={bundle ? `${testId}-mirror-bundle` : `${testId}-mirror-${first.index}`}
-      className="mt-2 flex flex-col gap-3 rounded-2xl border border-line-strong bg-surface-2/60 p-4"
+      className="@container mt-2 flex flex-col gap-3 rounded-2xl border border-line-strong bg-surface-2/60 p-4"
     >
       <h4 id={headingId} className="font-medium text-ink text-small">
         {bundle ? t('mirrorBundle', { n: calls.length }) : t('mirrorTitle')}
       </h4>
+      {oneNetwork ? (
+        <dl className={FIELDS}>
+          <Network chainId={first.chainId} />
+        </dl>
+      ) : null}
       {bundle ? (
         <ol className="flex flex-col gap-4">
           {calls.map((c, i) => (
             <li
               key={c.index}
               data-testid={`${testId}-mirror-${c.index}`}
-              className="flex flex-col gap-2 border-line border-t pt-3 first:border-t-0 first:pt-0"
+              className="flex flex-col gap-2 border-line border-t pt-3"
             >
-              <p className="text-caption text-ink-muted">{t('mirrorCall', { n: i + 1 })}</p>
-              <CallFields call={c} explorer={explorer} testId={testId} />
+              <p className="font-medium text-caption text-ink-muted uppercase tracking-[0.16em]">
+                {t('mirrorCall', { n: i + 1 })}
+              </p>
+              <CallFields call={c} explorer={explorer} testId={testId} network={!oneNetwork} />
             </li>
           ))}
         </ol>
