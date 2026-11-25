@@ -8,4 +8,7 @@ export const chainKeys = {
   me: (chainId: number, account: string) => ['atropyle', chainId, 'me', account.toLowerCase()] as const,
   health: (chainId: number) => ['atropyle', chainId, 'health'] as const,
   history: (chainId: number, vault: string) => ['atropyle', chainId, 'history', vault.toLowerCase()] as const,
+  /** A signing link, by its fragment: what inspect said about it, and the tokens its mirror names. */
+  sign: (chainId: number, hash: string) => ['atropyle', chainId, 'sign', hash] as const,
+  signTokens: (chainId: number, hash: string) => ['atropyle', chainId, 'sign', hash, 'tokens'] as const,
 };
