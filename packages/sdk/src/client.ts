@@ -12,7 +12,7 @@ import type { VaultAction } from './actions';
 import { toAddress } from './address';
 import { builderCodeSuffix } from './builder-code';
 import { chainOf } from './chain';
-import { type ChainName, type Deployment, getDeployment } from './deployments/index';
+import { type ChainName, type Deployment, getDeployment, getTeam } from './deployments/index';
 import { AtropyleError, decodeError } from './errors';
 import {
   type CastTx,
@@ -35,6 +35,7 @@ import { prepareCreateVault } from './prepare/create';
 import type { CreateVaultOptions, PrepareContext, PrepareOptions, TxPlan, WhatIfReport } from './prepare/types';
 import { checkPlan, type PlanCheck } from './read/check-plan';
 import { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+import { type ChainCounters, type CountersOptions, readCounters } from './read/counters';
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
@@ -103,6 +104,11 @@ export interface AtropyleClient {
   }): Promise<Stats>;
   /** Vault creations and vault events since a cursor, for the Worker's cron and bots (spec §9.5). */
   scan(o?: ScanOptions): Promise<ScanResult>;
+  /**
+   * Traction counters from view functions at one block, each also outside the team (the owners listed in
+   * deployments/team.json unless `o.team` says otherwise). A few calls per vault read, no eth_getLogs.
+   */
+  counters(o?: CountersOptions): Promise<ChainCounters>;
   vault(address: string): VaultHandle;
   /** Exhaustive check of the on-chain policy netlist against this repository, read from two operators (spec §5.4). */
   verifyPolicy(o?: VerifyPolicyOptions): Promise<PolicyVerification>;
@@ -272,6 +278,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       ),
     stats: (o) => guard(() => readStats(ctx, o)),
     scan: (o) => guard(() => scanEvents(ctx, o)),
+    counters: (o) =>
+      guard(() => readCounters(ctx, { ...o, team: o?.team ?? getTeam(deployment).map((m) => m.address) })),
     vault,
     verifyPolicy,
     integrity: () =>
