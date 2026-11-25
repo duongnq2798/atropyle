@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { expectAccessible, expectAccessibleInBothThemes, openSettings, setStoredLang } from './helpers.ts';
+import {
+  expectAccessible,
+  expectAccessibleInBothThemes,
+  openSettings,
+  setStoredLang,
+  setStoredTheme,
+} from './helpers.ts';
 import { captureScreens, SCREEN_MATRIX, shouldCapture } from './screens.ts';
 
 const XLAYER = JSON.parse(readFileSync(new URL('../../../../deployments/xlayer.json', import.meta.url), 'utf8')) as {
@@ -25,11 +31,27 @@ const harnessUrl = (siteUrl: string, hash = '') => new URL(`e2e/proof/${hash}`, 
 const scrollsSideways = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
-/** A passed full proof, every row lit (the stagger takes about 1.3 s). */
+/** The map's plate: the role="img" that holds the canvas, named by its count of cases. */
+const mapPlate = (page: Page) => page.getByTestId('proof-map').getByRole('img', { name: /cases checked/ });
+
+/**
+ * The reader reaches the rows: they light only once the list is on screen (useRowsSeen), and a run that '#auto'
+ * started, with no press to bring the map up, ends with the rows under the fold.
+ */
+async function readRows(page: Page): Promise<void> {
+  await page.locator('#proof-props-title').evaluate((e) => e.scrollIntoView({ block: 'start' }));
+}
+
+/**
+ * A passed full proof, every row lit (the stagger takes about 1.3 s once the reader reaches the rows), then back at the
+ * top: the rows stay lit, and a full-page shot shows the sticky map where it starts.
+ */
 async function passed(page: Page): Promise<void> {
   await expect(page.getByTestId('proof-verdict')).toHaveAttribute('data-ok', 'true', { timeout: FULL_RUN_MS });
   await expect(page.getByTestId('proof-verdict')).toHaveAttribute('data-full', 'true');
+  await readRows(page);
   for (const row of ROWS) await expect(page.getByTestId(`proof-prop-${row}`)).toHaveAttribute('data-state', 'holds');
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 test('/proof/ on the devnet reads, passes axe in both themes, and a run ends in the typed error', async ({
@@ -61,25 +83,57 @@ test('at 390 px the Run button is on the first screen, and nothing scrolls sidew
   expect(await scrollsSideways(page)).toBe(false);
 });
 
-test('at 390 px a press on Run brings the map up, and on a desktop the page stays where it is', async ({
+test('at 390 px a press on Run brings the whole map up, with the count under its title', async ({ page, state }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(proofUrl(state.siteUrl));
+  const plate = mapPlate(page);
+  await expect(plate).not.toBeInViewport({ ratio: 0.5 });
+  await page.getByTestId('proof-start').click();
+  // The devnet run ends in its typed error at once; the map came up on the press, with the count under its title.
+  await expect(plate).toBeInViewport({ ratio: 1 });
+  await expect(page.getByTestId('proof-map-progress')).toBeInViewport();
+});
+
+test('on a laptop a press on Run brings the whole map on screen, and P1 lights beside it without a scroll', async ({
   page,
   state,
 }, info) => {
+  test.skip(info.project.name !== 'desktop', 'a laptop screen');
+  // A MacBook's 1440 x 900 and the most common laptop screen, 1366 x 768 (the 7C-T3 review, round 2): before, the
+  // plate ran past the fold and no row was on screen.
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 1366, height: 768 },
+  ]) {
+    await page.setViewportSize(size);
+    // A fresh document each time: the same URL again would only be a same-page hash change, on the finished run.
+    await page.goto('about:blank');
+    await page.goto(harnessUrl(state.siteUrl, '#blocks=4096'));
+    const plate = mapPlate(page);
+    await expect(page.getByTestId('proof-start')).toBeVisible();
+    await expect(plate, `${size.width}x${size.height} before the press`).not.toBeInViewport({ ratio: 1 });
+    await page.getByTestId('proof-start').click();
+    await expect(plate, `${size.width}x${size.height}`).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId('proof-prop-P1'), `${size.width}x${size.height}`).toBeInViewport();
+    // The run lights the rows where the reader looks, and the button to run again stays on screen.
+    await expect(page.getByTestId('proof-prop-P1')).toHaveAttribute('data-state', 'holds', { timeout: 60_000 });
+    await expect(page.getByTestId('proof-prop-P1')).toBeInViewport();
+    await expect(page.getByTestId('proof-again')).toBeInViewport({ ratio: 1 });
+  }
+});
+
+test('on a phone the rows light only once the reader reaches them, after the map', async ({ page, state }) => {
   await page.setViewportSize(PHONE);
-  await page.goto(proofUrl(state.siteUrl));
-  const canvas = page.getByTestId('proof-canvas');
-  await expect(canvas).not.toBeInViewport({ ratio: 0.5 });
+  await page.goto(harnessUrl(state.siteUrl, '#blocks=4096'));
   await page.getByTestId('proof-start').click();
-  // The devnet run ends in its typed error at once; the map came up on the press, with the count under its title.
-  await expect(canvas).toBeInViewport({ ratio: 0.5 });
-  await expect(page.getByTestId('proof-map-progress')).toBeInViewport();
-  if (info.project.name !== 'desktop') return;
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(proofUrl(state.siteUrl));
-  await expect(page.getByTestId('proof-start')).toBeVisible();
-  await page.getByTestId('proof-start').click();
-  await expect(page.getByTestId('error')).toBeVisible();
-  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByTestId('proof-verdict')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+  // The rows sit under the map and its key: off screen, they wait, longer than the whole stagger (9 x 140 ms) takes.
+  await expect(page.getByTestId('proof-prop-P1')).not.toBeInViewport();
+  await page.waitForTimeout(2_000);
+  for (const row of ROWS) await expect(page.getByTestId(`proof-prop-${row}`)).toHaveAttribute('data-state', 'pending');
+  await page.locator('#proof-props-title').evaluate((e) => e.scrollIntoView({ block: 'start' }));
+  await expect(page.getByTestId('proof-prop-P1')).toHaveAttribute('data-state', 'holds');
+  await expect(page.getByTestId('proof-prop-P9')).toHaveAttribute('data-state', 'holds');
 });
 
 test('from lg the sticky map keeps its key on screen, and a short screen lets it scroll', async ({
@@ -193,6 +247,7 @@ test('a processor that answers one P9 case differently fails the proof, and noth
   await page.goto(harnessUrl(state.siteUrl, '#auto&blocks=4096&lie'));
   const verdict = page.getByTestId('proof-verdict');
   await expect(verdict).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+  await readRows(page);
   await expect(page.getByTestId('proof-prop-P9')).toHaveAttribute('data-state', 'broken');
   await expect(page.getByTestId('proof-prop-P1')).toHaveAttribute('data-state', 'holds');
   await expect(verdict).toContainText('P9: 1 of 64 vectors differ between the simulator and step() on RPC operator #2');
@@ -204,6 +259,7 @@ test('a partial run with one operator and no P9 says so, and certifies nothing',
   await page.goto(harnessUrl(state.siteUrl, '#auto&blocks=4096&nop9&rpcs=1'));
   const verdict = page.getByTestId('proof-verdict');
   await expect(verdict).toHaveAttribute('data-full', 'false', { timeout: 60_000 });
+  await readRows(page);
   await expect(page.getByTestId('proof-prop-P9')).toHaveAttribute('data-state', 'not-run');
   await expect(verdict).toContainText('One operator only');
   await expect(page.getByTestId('proof-certificate')).toHaveCount(0);
@@ -216,12 +272,20 @@ test('a finished run passes axe in both themes, and in Vietnamese at 390 px noth
   // '#auto' runs again after each reload of the theme and language switches; 4096 blocks keep each run short.
   await page.goto(harnessUrl(state.siteUrl, '#auto&blocks=4096'));
   const verdict = page.getByTestId('proof-verdict');
-  await expect(verdict).toBeVisible({ timeout: 60_000 });
-  await expectAccessibleInBothThemes(page, verdict);
+  const p9 = page.getByTestId('proof-prop-P9');
+  // expectAccessibleInBothThemes, with the rows lit before each axe pass: they light once the reader reaches them.
+  for (const theme of ['light', 'dark'] as const) {
+    await setStoredTheme(page, theme);
+    await expect(verdict).toBeVisible({ timeout: 60_000 });
+    await readRows(page);
+    await expect(p9).toHaveAttribute('data-state', 'holds');
+    await expectAccessible(page);
+  }
   await page.setViewportSize(PHONE);
   await setStoredLang(page, 'vi');
   await expect(verdict).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('proof-prop-P9')).toHaveAttribute('data-state', 'holds');
+  await readRows(page);
+  await expect(p9).toHaveAttribute('data-state', 'holds');
   // The longest words of the page are Vietnamese: the Run again row, the seal, the code hashes, the verdict.
   expect(await scrollsSideways(page)).toBe(false);
   await setStoredLang(page, 'en');
@@ -292,7 +356,9 @@ test('screens of /proof/: idle, failed on the devnet, passed', async ({ page, st
   await captureScreens(page, 'proof-broken', {
     ready: async (p) => {
       await expect(p.getByTestId('proof-verdict')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+      await readRows(p);
       await expect(p.getByTestId('proof-prop-P9')).toHaveAttribute('data-state', 'broken');
+      await p.evaluate(() => window.scrollTo(0, 0));
     },
   });
 });

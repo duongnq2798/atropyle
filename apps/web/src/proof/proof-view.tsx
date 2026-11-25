@@ -3,7 +3,7 @@
 import type { P9Result, PropertyName, StateName } from '@atropyle/sdk';
 import { BadgeCheck, Check, Minus, Play, RotateCcw, ShieldCheck, ShieldHalf, ShieldX, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { Fragment, type ReactNode, useCallback, useRef, useState } from 'react';
+import { Fragment, type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react';
 import { ENV, explorerUrlOf } from '@/config/env';
 import { COMMANDS, NODE_MIN } from '@/content/commands';
 import type { Lang, Params } from '@/i18n/core';
@@ -11,6 +11,7 @@ import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { formatCount } from '@/lib/count';
 import { explorerBlock, explorerName } from '@/lib/links';
+import { useInView } from '@/lib/use-in-view';
 import { useWakeLock } from '@/lib/use-wake-lock';
 import { messages as labels, STATE_KEY } from '@/messages/labels.messages';
 import { messages } from '@/messages/proof.messages';
@@ -267,10 +268,13 @@ function Properties({
   result,
   lit,
   reduced,
+  listRef,
 }: {
   result: PolicyVerification | undefined;
   lit: number;
   reduced: boolean;
+  /** The list the stagger waits to see on screen (useRowsSeen). */
+  listRef: Ref<HTMLOListElement>;
 }) {
   const t = useT(messages);
   const { lang } = useLang();
@@ -279,7 +283,10 @@ function Properties({
       <h2 id="proof-props-title" className="font-display text-title">
         {t('propsTitle')}
       </h2>
-      <ol className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface-1">
+      <ol
+        ref={listRef}
+        className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface-1"
+      >
         {PROOF_ROWS.map((row, i) => {
           const state: RowState = result && i < lit ? rowState(result, row) : 'pending';
           const violations = row !== 'P9' && result ? result.properties[row].violations : 0;
@@ -506,23 +513,45 @@ function Terminal() {
   );
 }
 
-/** Tailwind's lg: from here the map holds the left column, beside the run card. */
-const WIDE = '(min-width: 64rem)';
-
 /**
- * Below lg the map sits under the run card, below a phone's first screen (the 7C-T3 review): a press that starts a run
- * brings it up, so the reader watches it fill in. It follows the reader's own press, and only when the map's top is in
- * the lower half of the screen or below it; from lg the map is beside the button already.
+ * A press that starts a run brings the whole plate of the map on screen, so the reader watches it fill in. Below lg the
+ * map sits under the run card, below a phone's first screen; from lg it sits beside the card, but its plate still runs
+ * past the fold of a laptop (1440 x 900: 592 to 1092; 1366 x 768: half of it; the 7C-T3 review, rounds 1 and 2). It
+ * follows the reader's own press, and only when part of the plate is off screen. scroll-mt-20 keeps the map's title
+ * under the header; from lg the run card shares the map's grid row, so it scrolls up with it and its button stays on
+ * screen, and the sticky block is sized to fit the screen (STICKY).
  */
 function useBringMap(reduced: boolean) {
   const ref = useRef<HTMLElement>(null);
   const bring = useCallback(() => {
     const map = ref.current;
-    if (!map || window.matchMedia(WIDE).matches) return;
-    if (map.getBoundingClientRect().top <= window.innerHeight * 0.5) return;
+    if (!map) return;
+    const { top, bottom } = (map.querySelector('[role="img"]') ?? map).getBoundingClientRect();
+    if (top >= 0 && bottom <= window.innerHeight) return;
     map.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
   }, [reduced]);
   return { ref, bring };
+}
+
+/**
+ * The rows count as seen once the list reaches the upper three quarters of the screen: a margin of the screen, not a
+ * share of the list, whose height changes with the language, the width and P9's detail.
+ */
+const ROWS_ON_SCREEN = '0px 0px -25% 0px';
+
+/**
+ * Whether the reader has had the rows on screen since this result came (the 7C-T3 review, round 2): the stagger waits
+ * for it, so P1 to P9 light where the reader sees them, not under the fold of a phone (under the map and its key) while
+ * the reader still watches the map. Seen once is enough: a reader who scrolls on still gets every row.
+ */
+function useRowsSeen(result: PolicyVerification | undefined) {
+  const ref = useRef<HTMLOListElement>(null);
+  const inView = useInView(ref, ROWS_ON_SCREEN);
+  const [seenFor, setSeenFor] = useState<PolicyVerification>();
+  useEffect(() => {
+    if (result && inView) setSeenFor(result);
+  }, [result, inView]);
+  return { ref, seen: result !== undefined && (inView || seenFor === result) };
 }
 
 /**
@@ -538,9 +567,10 @@ const STICKY_PLATE = 'lg:[@media(min-height:45rem)]:w-[min(100%,calc(100svh-25re
  * /proof/ (spec §4.6.1, §18.4.3 Task 3). The whole layout is on the first paint (§18 principle 6), never in italic
  * (R18.10). Voices: Proclaim is font-display; Ledger is font-mono with tabular figures (7B's voice utilities are not on
  * this branch). The run card comes first in the DOM (the control before what it fills); from lg the map holds the
- * left column beside the card and the rows, sticky on a screen tall enough for all of it (STICKY); below lg a press on
- * Run brings it up (useBringMap). A finished run lights P1 to P9 one by one, unless the page had the
- * result when it mounted or the reader prefers reduced motion. The screen stays on while the proof reads and runs.
+ * left column beside the card and the rows, sticky on a screen tall enough for all of it (STICKY); a press on Run
+ * brings the whole plate on screen (useBringMap). A finished run lights P1 to P9 one by one once the reader has the
+ * rows on screen (useRowsSeen), unless the page had the result when it mounted or the reader prefers reduced motion:
+ * then all at once. The screen stays on while the proof reads and runs.
  */
 export function ProofView({ run }: { run: ProofRun }) {
   const t = useT(messages);
@@ -548,67 +578,73 @@ export function ProofView({ run }: { run: ProofRun }) {
   const reduced = usePrefersReducedMotion();
   const [doneAtMount] = useState(() => run.status === 'done');
   const result = run.status === 'done' ? run.result : undefined;
-  const lit = useStagger(PROOF_ROWS.length, result !== undefined, reduced || (doneAtMount && run.runs === 0));
+  const instant = reduced || (doneAtMount && run.runs === 0);
+  const rows = useRowsSeen(result);
+  const lit = useStagger(PROOF_ROWS.length, result !== undefined && (instant || rows.seen), instant);
   const wake = useWakeLock(run.status === 'loading' || run.status === 'running');
   const total = formatCount(TOTAL_CASES, lang);
   const cases = Math.min(run.doneBlocks * 32, TOTAL_CASES);
   const map = useBringMap(reduced);
   const progress = t('progress', { done: formatCount(cases, lang), total });
   return (
-    <article className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-12 sm:gap-20 sm:px-6 sm:py-16">
-      <header className="flex max-w-3xl flex-col gap-4">
-        <p className="font-mono text-caption text-thread uppercase tracking-[0.14em]">{t('eyebrow')}</p>
-        <h1 className="font-display text-h1">{t('title')}</h1>
-        <p className="text-ink-muted text-lead">{t('lead', { total, vectors: P9_CASES })}</p>
-      </header>
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-x-12">
-        <RunCard
-          run={run}
-          cases={cases}
-          wake={wake}
-          onStart={() => {
-            run.start();
-            map.bring();
-          }}
-          onAgain={() => {
-            run.again();
-            map.bring();
-          }}
-          onRetry={() => {
-            run.retry();
-            map.bring();
-          }}
-        />
-        <section
-          ref={map.ref}
-          data-testid="proof-map"
-          aria-labelledby="proof-map-title"
-          className={cn('flex scroll-mt-20 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1', STICKY)}
-        >
-          <div className="flex flex-col gap-1">
-            <h2 id="proof-map-title" className="font-display text-title">
-              {t('mapTitle')}
-            </h2>
-            {/* Below lg the run card's count scrolls away once the map is up: the count again, beside the paint. The
-                map's own label says it to a screen reader. */}
-            <p
-              data-testid="proof-map-progress"
-              aria-hidden="true"
-              className="font-mono text-ink-muted text-small tabular-nums lg:hidden"
-            >
-              {progress}
-            </p>
-          </div>
-          <ProofCanvas
-            comboBits={BITS}
-            doneBlocks={run.doneBlocks}
-            label={t('mapLabel', { done: formatCount(cases, lang), total, perDot: CASES_PER_DOT })}
-            className={STICKY_PLATE}
+    <article className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-12 sm:gap-20 sm:px-6 sm:py-16 lg:pt-10">
+      {/* From lg the stage sits closer to the title, so less of it starts under a laptop's fold; the chapters after it
+          keep the page's rhythm. */}
+      <div className="flex flex-col gap-16 sm:gap-20 lg:gap-14">
+        <header className="flex max-w-3xl flex-col gap-4">
+          <p className="font-mono text-caption text-thread uppercase tracking-[0.14em]">{t('eyebrow')}</p>
+          <h1 className="font-display text-h1">{t('title')}</h1>
+          <p className="text-ink-muted text-lead">{t('lead', { total, vectors: P9_CASES })}</p>
+        </header>
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-x-12">
+          <RunCard
+            run={run}
+            cases={cases}
+            wake={wake}
+            onStart={() => {
+              run.start();
+              map.bring();
+            }}
+            onAgain={() => {
+              run.again();
+              map.bring();
+            }}
+            onRetry={() => {
+              run.retry();
+              map.bring();
+            }}
           />
-          <p className="text-ink-muted text-small">{t('mapCaption', { perDot: CASES_PER_DOT })}</p>
-          <Legend />
-        </section>
-        <Properties result={result} lit={lit} reduced={reduced} />
+          <section
+            ref={map.ref}
+            data-testid="proof-map"
+            aria-labelledby="proof-map-title"
+            className={cn('flex scroll-mt-20 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1', STICKY)}
+          >
+            <div className="flex flex-col gap-1">
+              <h2 id="proof-map-title" className="font-display text-title">
+                {t('mapTitle')}
+              </h2>
+              {/* Below lg the run card's count scrolls away once the map is up: the count again, beside the paint. The
+                map's own label says it to a screen reader. */}
+              <p
+                data-testid="proof-map-progress"
+                aria-hidden="true"
+                className="font-mono text-ink-muted text-small tabular-nums lg:hidden"
+              >
+                {progress}
+              </p>
+            </div>
+            <ProofCanvas
+              comboBits={BITS}
+              doneBlocks={run.doneBlocks}
+              label={t('mapLabel', { done: formatCount(cases, lang), total, perDot: CASES_PER_DOT })}
+              className={STICKY_PLATE}
+            />
+            <p className="text-ink-muted text-small">{t('mapCaption', { perDot: CASES_PER_DOT })}</p>
+            <Legend />
+          </section>
+          <Properties result={result} lit={lit} reduced={reduced} listRef={rows.ref} />
+        </div>
       </div>
       <Seal result={result} />
       {result ? <Verdict result={result} /> : null}

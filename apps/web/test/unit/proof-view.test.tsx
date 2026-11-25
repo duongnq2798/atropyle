@@ -7,6 +7,7 @@ import { PROOF_BLOCKS } from '../../src/proof/paint';
 import { ProofView, verdictOf } from '../../src/proof/proof-view';
 import type { ProofRun } from '../../src/proof/use-proof-run';
 import type { PolicyVerification } from '../../src/verify/types';
+import { FakeObserver, stubIntersection } from '../helpers/intersection';
 import { renderWithProviders } from '../helpers/render';
 import { okResult, P9_OK } from './proof-result';
 
@@ -39,6 +40,12 @@ function runOf(over: Partial<ProofRun> = {}): ProofRun {
 const done = (result: PolicyVerification = okResult(), over: Partial<ProofRun> = {}) =>
   runOf({ status: 'done', doneBlocks: Math.floor(result.combos / 32), result, ...over });
 const rowState = (row: string) => screen.getByTestId(`proof-prop-${row}`).getAttribute('data-state');
+/** The <ol> of P1 to P9, which the stagger waits to see on screen. */
+function rowsList(): HTMLOListElement {
+  const list = screen.getByTestId('proof-prop-P1').closest('ol');
+  if (!list) throw new Error('the rows are not in a list');
+  return list;
+}
 /** Text as a reader hears it: a no-break space (glue() in proof.messages.ts) is a space. */
 const words = (text: string | null | undefined) => (text ?? '').replaceAll('\u00A0', ' ');
 const live = () => words(screen.getByTestId('proof-live').textContent);
@@ -61,6 +68,7 @@ function stubReducedMotion() {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('ProofView', () => {
@@ -110,7 +118,8 @@ describe('ProofView', () => {
   });
 
   it('lights every row of a passed proof, seals it and offers the certificate', () => {
-    // A result the page already had when it mounted: every row at once.
+    // A result the page already had when it mounted: every row at once, wherever the list is.
+    stubIntersection();
     renderWithProviders(<ProofView run={done()} />);
     for (const row of ROWS) {
       expect(rowState(row)).toBe('holds');
@@ -145,13 +154,44 @@ describe('ProofView', () => {
     fireEvent.click(screen.getByTestId('proof-again'));
   });
 
-  it('lights the rows one by one when a run finishes on the page', () => {
+  it('lights the rows one by one only once the reader has the list on screen, and finishes if they scroll on', () => {
+    const show = stubIntersection();
     vi.useFakeTimers();
     const { rerender } = renderWithProviders(
       <ProofView run={runOf({ status: 'running', doneBlocks: PROOF_BLOCKS })} />,
     );
     rerender(<ProofView run={done()} />);
+    // The run finished while the list was off screen (a phone: under the map and its key): the rows wait for the reader.
+    act(() => {
+      vi.advanceTimersByTime(140 * 12);
+    });
+    for (const row of ROWS) expect(rowState(row)).toBe('pending');
+    const list = rowsList();
+    expect(FakeObserver.all.some((o) => o.targets.has(list) && o.options.rootMargin === '0px 0px -25% 0px')).toBe(true);
+    show(list, true);
     expect(rowState('P1')).toBe('pending');
+    act(() => {
+      vi.advanceTimersByTime(140);
+    });
+    expect(rowState('P1')).toBe('holds');
+    expect(rowState('P2')).toBe('pending');
+    // Seen once is enough: a reader who scrolls on still gets every row.
+    show(list, false);
+    act(() => {
+      vi.advanceTimersByTime(140 * 8);
+    });
+    for (const row of ROWS) expect(rowState(row)).toBe('holds');
+  });
+
+  it('starts the stagger as the run ends when the list is on screen already, then waits again for a new run', () => {
+    const show = stubIntersection();
+    vi.useFakeTimers();
+    const { rerender } = renderWithProviders(
+      <ProofView run={runOf({ status: 'running', doneBlocks: PROOF_BLOCKS })} />,
+    );
+    // A laptop: the press brought the map up, and the rows beside it are on screen before the result comes.
+    show(rowsList(), true);
+    rerender(<ProofView run={done()} />);
     act(() => {
       vi.advanceTimersByTime(140);
     });
@@ -161,16 +201,25 @@ describe('ProofView', () => {
       vi.advanceTimersByTime(140 * 8);
     });
     for (const row of ROWS) expect(rowState(row)).toBe('holds');
+    // Run again, with the list scrolled away: the next result waits for the reader.
+    show(rowsList(), false);
+    rerender(<ProofView run={runOf({ status: 'running', doneBlocks: 4096, runs: 1 })} />);
+    rerender(<ProofView run={done(okResult(), { runs: 1 })} />);
+    act(() => {
+      vi.advanceTimersByTime(140 * 9);
+    });
+    for (const row of ROWS) expect(rowState(row)).toBe('pending');
   });
 
-  it('lights every row at once for a reader who prefers reduced motion', () => {
+  it('lights every row at once for a reader who prefers reduced motion, wherever the list is', () => {
     stubReducedMotion();
+    stubIntersection();
     vi.useFakeTimers();
     const { rerender } = renderWithProviders(
       <ProofView run={runOf({ status: 'running', doneBlocks: PROOF_BLOCKS })} />,
     );
     rerender(<ProofView run={done()} />);
-    // No timer advanced: the stagger is off.
+    // No timer advanced and the list never on screen: the stagger is off, and the live region has said the verdict.
     for (const row of ROWS) expect(rowState(row)).toBe('holds');
   });
 
@@ -297,73 +346,66 @@ describe('ProofView', () => {
   });
 });
 
-/** A phone (below lg) or a wider screen, with or without reduced motion; afterEach restores matchMedia. */
-function stubScreen({ wide, reduced = false }: { wide: boolean; reduced?: boolean }) {
-  vi.spyOn(window, 'matchMedia').mockImplementation(
-    (q: string) =>
-      ({
-        matches: q.includes('reduce') ? reduced : q.includes('min-width: 64rem') ? wide : false,
-        media: q,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }) as unknown as MediaQueryList,
-  );
-}
-
-/** Puts the map's top at `share` of the window's height, and records where the page scrolls it. */
-function mapAt(share: number) {
+/**
+ * Puts the map's plate between `top` and `bottom` (shares of the window's height) and records where the page scrolls
+ * the map. The plate is the map's role="img": the 7C-T3 review (round 2) measured it running past a laptop's fold.
+ */
+function plateAt(top: number, bottom: number) {
   const map = screen.getByTestId('proof-map');
-  vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({ top: window.innerHeight * share } as DOMRect);
+  const plate = within(map).getByRole('img', { name: /cases checked/ });
+  const h = window.innerHeight;
+  vi.spyOn(plate, 'getBoundingClientRect').mockReturnValue({ top: h * top, bottom: h * bottom } as DOMRect);
   const scroll = vi.fn();
   map.scrollIntoView = scroll;
   return scroll;
 }
 
-describe('ProofView brings the map up on a phone', () => {
-  it('scrolls the map to the top on a press of Run, when the map sits below the middle of a phone screen', () => {
-    stubScreen({ wide: false });
+describe('ProofView brings the whole map on screen when a run starts', () => {
+  it('scrolls the map up on a press of Run when its plate runs past the bottom of the screen, phone or laptop', () => {
     const run = runOf();
-    renderWithProviders(<ProofView run={run} />);
-    const scroll = mapAt(1.04);
+    const { unmount } = renderWithProviders(<ProofView run={run} />);
+    // A phone: the map sits under the run card, below the first screen.
+    const phone = plateAt(1.04, 1.5);
     fireEvent.click(screen.getByTestId('proof-start'));
     expect(run.start).toHaveBeenCalledTimes(1);
-    expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'smooth' });
+    expect(phone).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'smooth' });
+    unmount();
+    // A laptop (1440 x 900): the map is beside the button, but its plate runs from 592 to 1092.
+    const laptop = runOf();
+    renderWithProviders(<ProofView run={laptop} />);
+    const beside = plateAt(592 / 900, 1092 / 900);
+    fireEvent.click(screen.getByTestId('proof-start'));
+    expect(laptop.start).toHaveBeenCalledTimes(1);
+    expect(beside).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'smooth' });
   });
 
   it('jumps for a reader who prefers reduced motion, and Run again and Retry bring it up too', async () => {
-    stubScreen({ wide: false, reduced: true });
+    stubReducedMotion();
     const finished = done();
     const { unmount } = renderWithProviders(<ProofView run={finished} />);
-    const again = mapAt(0.8);
+    const again = plateAt(0.8, 1.3);
     fireEvent.click(screen.getByTestId('proof-again'));
     expect(finished.again).toHaveBeenCalledTimes(1);
     expect(again).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'auto' });
     unmount();
     const failed = runOf({ status: 'error', error: new AtropyleError('POLICY_UNAVAILABLE') });
     renderWithProviders(<ProofView run={failed} />);
-    const retry = mapAt(0.8);
+    const retry = plateAt(0.8, 1.3);
     fireEvent.click(within(await screen.findByTestId('error')).getByRole('button', { name: 'Retry' }));
     expect(failed.retry).toHaveBeenCalledTimes(1);
     expect(retry).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'auto' });
   });
 
-  it('leaves the page where it is from lg, where the map is beside the button, or when the map is high enough', () => {
-    stubScreen({ wide: true });
-    const wide = runOf();
-    const { unmount } = renderWithProviders(<ProofView run={wide} />);
-    const beside = mapAt(1.04);
+  it('leaves the page where it is when the whole plate is on screen, and brings it back when its top is cut off', () => {
+    const run = runOf();
+    renderWithProviders(<ProofView run={run} />);
+    const whole = plateAt(0.15, 0.7);
     fireEvent.click(screen.getByTestId('proof-start'));
-    expect(wide.start).toHaveBeenCalledTimes(1);
-    expect(beside).not.toHaveBeenCalled();
-    unmount();
-    vi.restoreAllMocks();
-    stubScreen({ wide: false });
-    const phone = runOf();
-    renderWithProviders(<ProofView run={phone} />);
-    const high = mapAt(0.5);
+    expect(run.start).toHaveBeenCalledTimes(1);
+    expect(whole).not.toHaveBeenCalled();
+    const cut = plateAt(-0.1, 0.5);
     fireEvent.click(screen.getByTestId('proof-start'));
-    expect(phone.start).toHaveBeenCalledTimes(1);
-    expect(high).not.toHaveBeenCalled();
+    expect(cut).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'smooth' });
   });
 
   it('keeps the count under the map heading, below lg only, and leaves it to the map label for a screen reader', () => {
