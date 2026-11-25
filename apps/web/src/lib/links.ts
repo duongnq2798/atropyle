@@ -14,6 +14,10 @@ export function explorerTx(base: string, hash: string): string {
   return `${trim(base)}/tx/${hash}`;
 }
 
+export function explorerBlock(base: string, block: bigint | number): string {
+  return `${trim(base)}/block/${block.toString(10)}`;
+}
+
 export function explorerName(base: string): string {
   try {
     return new URL(base).hostname.endsWith('oklink.com') ? 'OKLink' : 'Explorer';

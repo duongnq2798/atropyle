@@ -2,13 +2,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deployedNetlists } from '@atropyle/circuits';
+import { keccak256 } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { KEEPER_CADENCE_S, MAINNET_SINCE, POLICY_NETLIST_KECCAK } from '../../src/config/facts';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const deployment = JSON.parse(readFileSync(join(ROOT, 'deployments/xlayer.json'), 'utf8')) as {
   factoryBlock: string | number;
-  circuits: { netlistKeccak: { policy: string } };
+  cpu: string;
+  circuits: { kofn5: string; ge4: string; netlistKeccak: { policy: string } };
 };
 
 /** The schedule of the `atropyle-tick` job. Migrations run in name order, and the last schedule wins. */
@@ -43,6 +46,12 @@ describe('facts', () => {
   it('shows the policy netlist keccak of the X Layer deployment', () => {
     expect(POLICY_NETLIST_KECCAK).toBe(deployment.circuits.netlistKeccak.policy);
     expect(POLICY_NETLIST_KECCAK).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it('is the keccak of the policy netlist this repository builds for that processor and those circuit ids', () => {
+    // The seal of /proof/ calls the top row "built from this repository's source": this test is why it may.
+    const ids = [BigInt(deployment.circuits.kofn5), BigInt(deployment.circuits.ge4)] as const;
+    expect(keccak256(deployedNetlists(deployment.cpu, ids).policy)).toBe(POLICY_NETLIST_KECCAK);
   });
 
   it('dates mainnet from the factory block it was deployed at', () => {
