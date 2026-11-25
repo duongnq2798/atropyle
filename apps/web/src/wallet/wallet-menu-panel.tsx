@@ -16,6 +16,14 @@ import { useWallet } from './provider';
 
 const EXPLORER = explorerUrlOf(ENV);
 
+/**
+ * 22rem keeps the full address in two rows of five groups beside the copy and OKLink buttons (X Layer): "0x" and five
+ * groups take 23.8ch, 200 px at text-small, and the row leaves the groups 220 px (204 px in the 336 px of a 360 px
+ * phone). At w-80 they got 188 px and the address broke into three ragged lines. Test 1 of e2e/wallet.spec.ts keeps
+ * the 40 px of the OKLink button free on anvil, where the explorer is null.
+ */
+const WIDTH = 'w-[22rem] max-w-[calc(100vw-1.5rem)]';
+
 /** The content of WalletMenu, in its own chunk: the full address, the network and Disconnect. */
 export function WalletMenuPanel({
   id,
@@ -38,7 +46,7 @@ export function WalletMenuPanel({
       open={open}
       onOpenChange={onOpenChange}
       label={t('walletMenu')}
-      className="w-80 max-w-[calc(100vw-1.5rem)]"
+      className={WIDTH}
       onCloseAutoFocus={(event) => {
         // Disconnect, or a wallet that went away, removes this menu together with its button; focus goes to the
         // Connect button that takes its place, not to the page. While connected, focus goes back to the button.

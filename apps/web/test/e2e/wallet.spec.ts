@@ -81,10 +81,20 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   expect(drawn.weight).toBe('650');
   expect(drawn.at650.widths).toHaveLength(11);
   expect(drawn.at400).toEqual(drawn.at650);
-  // The address wraps in the menu (about 387 px of text in 320 px), and each wrapped line starts in the column of
+  // The address wraps in the menu (about 387 px of text in 352 px), and each wrapped line starts in the column of
   // the first group, not 0.45ch off it.
   expect(drawn.lineStarts.length).toBeGreaterThan(0);
   for (const dx of drawn.lineStarts) expect(Math.abs(dx)).toBeLessThan(0.5);
+  // On X Layer the row also carries the OKLink button (gap-2 and size-8 in ExternalLink), which this anvil build
+  // cannot show: the explorer URL of a local deployment is null. The groups must keep 40 px beside "0x" and five
+  // groups, or the address on the real site breaks into three ragged lines instead of two rows of five.
+  const room = await groups.evaluate((g) => {
+    const s = [...g.querySelectorAll(':scope > span')];
+    const first = s[0]?.getBoundingClientRect().left ?? 0;
+    const fifth = s[5]?.getBoundingClientRect().right ?? Number.POSITIVE_INFINITY;
+    return g.getBoundingClientRect().width - (fifth - first);
+  });
+  expect(room).toBeGreaterThanOrEqual(40);
   await expectAccessible(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
   const connect = page.getByRole('button', { name: 'Connect wallet' });
