@@ -3,7 +3,16 @@ import { dirname, join } from 'node:path';
 import { validatePlan } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { isCollection, parse, parseDocument, visit } from 'yaml';
-import { commandsOf, PLACEHOLDERS, SKILL_NAMES, SKILLS_DIR, skillFiles, splitFrontmatter } from '../skills-lib';
+import {
+  CLI,
+  CLI_VERSION,
+  commandsOf,
+  PLACEHOLDERS,
+  SKILL_NAMES,
+  SKILLS_DIR,
+  skillFiles,
+  splitFrontmatter,
+} from '../skills-lib';
 
 const ALLOWED = ['name', 'description', 'license', 'compatibility', 'metadata'];
 const read = (f: string) => readFileSync(f, 'utf8');
@@ -56,7 +65,8 @@ describe.each(SKILL_NAMES)('%s', (skill) => {
     const commands = skillFiles(skill).flatMap((f) => commandsOf(read(f)));
     expect(commands.length).toBeGreaterThan(3);
     for (const c of commands) {
-      expect(c, c).toMatch(/^npx -y atropyle [a-z]/);
+      expect(c.startsWith(`${CLI} `), c).toBe(true);
+      expect(c.slice(CLI.length + 1), c).toMatch(/^[a-z]/);
       expect(c.split(/\s+/), c).toContain('--json');
       for (const p of c.match(/<[^>]+>/g) ?? []) expect(PLACEHOLDERS as readonly string[], c).toContain(p);
       // Known placeholders removed first: any other < or > would be a shell redirection.
@@ -134,6 +144,9 @@ describe('skill content', () => {
       'clear yes to sign it',
       // The OKX path is not self-custody: say who holds the key.
       "The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet.",
+      // The agent prepares; the user runs every onchainos command.
+      'Never run them yourself: the user runs each one in their own terminal',
+      'Never suggest `--force` for a first run',
     ]) {
       expect(planning).toContain(phrase);
     }
@@ -145,6 +158,16 @@ describe('skill content', () => {
       expect(text, f).toContain('checking in before the window ends');
     }
     expect(read(join(SKILLS_DIR, 'atropyle-guardian', 'SKILL.md'))).toContain('NO_EFFECT');
+  });
+
+  it('pins every CLI command to the current release', () => {
+    for (const skill of SKILL_NAMES) {
+      const text = all(skill);
+      expect(text, skill).not.toMatch(/npx (-y )?atropyle(?![@\w-])/);
+      const pinned = [...text.matchAll(/npx -y atropyle@([^\s`]+)/g)].map((m) => m[1]);
+      expect(pinned.length, skill).toBeGreaterThan(3);
+      for (const v of pinned) expect(v, skill).toBe(CLI_VERSION);
+    }
   });
 
   it('explains the three outcomes of prepare and the deployment flag', () => {

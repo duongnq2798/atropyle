@@ -6,7 +6,7 @@ const PREFIX = 'https://web3.okx.com/download?deeplink=';
 
 describe('okxAppLink', () => {
   it('wraps an https signing link in the OKX App universal link, encoded twice', () => {
-    const link = 'https://duongnq2798.github.io/atropyle/#/sign?p=AbC_-09';
+    const link = 'https://atropyle.xyz/#/sign?p=AbC_-09';
     const out = okxAppLink(link) as string;
     expect(out.startsWith(PREFIX)).toBe(true);
     const deeplink = decodeURIComponent(out.slice(PREFIX.length));

@@ -92,7 +92,7 @@ describe('decodeError', () => {
       code: 'DRILL_EXPIRED',
       message: ERROR_INFO.DRILL_EXPIRED.message,
       hint: ERROR_INFO.DRILL_EXPIRED.hint,
-      docsUrl: 'https://duongnq2798.github.io/atropyle/docs/reference/errors.html#drill_expired',
+      docsUrl: 'https://atropyle.xyz/docs/reference/errors.html#drill_expired',
     });
   });
 

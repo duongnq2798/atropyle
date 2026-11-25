@@ -11,7 +11,11 @@ import { formatPlanCheck, formatPlanInit } from '../format';
 import type { Io } from '../io';
 import { emit } from '../output';
 import { type PlanInitOutput, PlanInitOutputSchema } from '../schemas';
+import { VERSION } from '../version';
 import { askPlan, canAsk, ensureWritable } from './plan-wizard';
+
+/** The next steps name this release, so whoever follows them runs the version that wrote the plan. */
+const NPX = `npx -y atropyle@${VERSION}`;
 
 export interface PlanInitFlags {
   template?: 'simple' | 'guarded';
@@ -100,9 +104,9 @@ export async function planInit(io: Io, f: PlanInitFlags): Promise<{ out: PlanIni
     config: c,
     issues: [],
     next: [
-      `npx -y atropyle plan check ${file}${as}`,
-      `npx -y atropyle simulate --plan ${file}${as}`,
-      `npx -y atropyle prepare create-vault ${file}${as}`,
+      `${NPX} plan check ${file}${as}`,
+      `${NPX} simulate --plan ${file}${as}`,
+      `${NPX} prepare create-vault ${file}${as}`,
     ],
     summary: `Wrote ${f.out}: ${plural(c.heirs.length, 'heir')}${guardians}, ${plural(c.assets.length, 'asset')}${c.drill ? ', as a Drill' : ''}. Check it next, then simulate it and prepare it for signing.`,
     warnings: result.warnings,

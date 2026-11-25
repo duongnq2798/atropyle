@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "TypeScript SDK for Atropyle: verifiable inheritance and wallet-recovery vaults on X Layer.",
   "license": "MIT",
+  "homepage": "https://atropyle.xyz/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/duongnq2798/atropyle.git",

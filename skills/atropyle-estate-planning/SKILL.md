@@ -30,10 +30,10 @@ This skill drives the `atropyle` CLI. With `--json`, every command prints exactl
 
 The default chain is X Layer mainnet, where Atropyle is deployed. Add `--deployment <file>` to every command only to work against another deployment, such as a local devnet.
 
-`npx -y atropyle` works once the maintainer publishes the package to npm. Until then, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`). On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
+`npx -y atropyle@0.1.0` needs the package on npm. Until the maintainer publishes it, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`) with the same arguments. On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
 
 ```bash
-npx -y atropyle doctor --json
+npx -y atropyle@0.1.0 doctor --json
 ```
 
 `ok: true` means Node.js, the RPCs and the deployment are fine. Exit code 4 is a network problem: try again later. Pass `--rpc <url>` only if a `read` RPC failed; it does not replace the `verify` RPCs. Exit code 3 means the integrity check of the deployment failed: stop and tell the user.
@@ -55,7 +55,7 @@ The plan format and its limits are in [references/plan-file.md](references/plan-
 Start with a Drill:
 
 ```bash
-npx -y atropyle plan init --heir <HEIR_1>:70 --heir <HEIR_2>:30 --guardian <GUARDIAN_1> --guardian <GUARDIAN_2> --k 2 --asset erc20:<TOKEN> --owner <OWNER> --drill --json
+npx -y atropyle@0.1.0 plan init --heir <HEIR_1>:70 --heir <HEIR_2>:30 --guardian <GUARDIAN_1> --guardian <GUARDIAN_2> --k 2 --asset erc20:<TOKEN> --owner <OWNER> --drill --json
 ```
 
 Without guardians, leave out `--guardian` and `--k`. Add `--recovery` only if the owner said yes to recovery in step 3 of the interview. For the real vault, run the command again without `--drill`, with `--preset sixMonths` or `--preset twelveMonths`, and with `--force` to replace the file.
@@ -65,7 +65,7 @@ The output has `ok`, `issues` and `next`. With `ok: false` nothing was written a
 ## 3. Check it on chain
 
 ```bash
-npx -y atropyle plan check <PLAN_FILE> --json
+npx -y atropyle@0.1.0 plan check <PLAN_FILE> --json
 ```
 
 This checks every token (`tokens[].isContract`, decimals, what the owner holds), heirs that are contracts (`contractHeirs`), and the fee to create the vault (`fees`). Exit code 1 means the plan has issues.
@@ -73,7 +73,7 @@ This checks every token (`tokens[].isContract`, decimals, what the owner holds),
 ## 4. Show the timeline
 
 ```bash
-npx -y atropyle simulate --plan <PLAN_FILE> --json
+npx -y atropyle@0.1.0 simulate --plan <PLAN_FILE> --json
 ```
 
 Explain `timeline.events` in plain words: when the alarm would go off and when the heirs would be paid if the owner never checked in again. Each check-in restarts the clock.
@@ -81,7 +81,7 @@ Explain `timeline.events` in plain words: when the alarm would go off and when t
 ## 5. Prepare and hand over
 
 ```bash
-npx -y atropyle prepare create-vault <PLAN_FILE> --json
+npx -y atropyle@0.1.0 prepare create-vault <PLAN_FILE> --json
 ```
 
 1. Read `summary`, then each step of `plan.steps`: `action`, `summary` and `simulation`.
@@ -94,12 +94,11 @@ Without `--drill`, an approval of the fee comes first, only when the allowance i
 
 Only when the user chose to sign with their OKX Agentic Wallet (`onchainos`). The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet. A vault created this way is owned by that account, and its check-ins must come from it. It signs from its own account, so prepare with `--as` set to its address. `handoff.okx` then holds one `onchainos wallet contract-call` command per step, in order; it is null when a step sends native value. As with the link, show the user the `summary` and every entry of `warnings` before you hand over any command.
 
-These commands sign and broadcast from the Agentic Wallet, so the user's yes comes before every run. For an existing vault, run `verify --vault` first, as in §6. For create-vault, the Agentic Wallet becomes the vault's owner, because `createVault` uses the sender: its address belongs in `plan init --owner`, and its tokens are what the vault covers.
+These commands sign and broadcast from the Agentic Wallet. Never run them yourself: the user runs each one in their own terminal, after their yes. For an existing vault, run `verify --vault` first, as in §6. For create-vault, the Agentic Wallet becomes the vault's owner, because `createVault` uses the sender: its address belongs in `plan init --owner`, and its tokens are what the vault covers.
 
-1. Show the user the step (its `action`, `summary` and `simulation`), the `summary` and every entry of `warnings`, and ask for a clear yes to sign it. Run its command only after that yes.
-2. The command may answer `confirming` and exit with code 2, with a message for the user. Show that message to the user and wait for a clear yes.
-3. Only then run the same command again with `--force`. Never add `--force` on the first run.
-4. Repeat for the next step, with its own yes.
+1. Show the user the step (its `action`, `summary` and `simulation`), the `summary` and every entry of `warnings`, and ask for a clear yes to sign it. Only after that yes, give them its command.
+2. The command may answer `confirming` and exit with code 2, with a message. The user reads that message. If they agree, they run the same command again with `--force`. Never suggest `--force` for a first run.
+3. Repeat for the next step, with its own yes.
 
 This path is not tested end to end. Two points are not verified: the Agentic Wallet may be a smart account (ERC-4337), and OKX Builder Codes do not support ERC-4337 user operations yet; and it is unknown whether the backend keeps the Builder Code suffix in the calldata. The attribution may be lost on this path. The vault works the same.
 
@@ -108,9 +107,9 @@ This path is not tested end to end. Two points are not verified: the Agentic Wal
 Run these every few weeks, or whenever the user asks how their vault is doing:
 
 ```bash
-npx -y atropyle vaults <OWNER> --json
-npx -y atropyle status <VAULT> --as <OWNER> --json
-npx -y atropyle verify --vault <VAULT> --json
+npx -y atropyle@0.1.0 vaults <OWNER> --json
+npx -y atropyle@0.1.0 status <VAULT> --as <OWNER> --json
+npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 ```
 
 - `status.state` should be `active`. `grace` means the alarm went off: the owner must check in before `status.windowEndsAt`. `recovery` means guardians voted to move everything to `status.recoveryTarget`: if the owner did not ask for that, they must check in before `status.windowEndsAt`.
@@ -121,16 +120,16 @@ npx -y atropyle verify --vault <VAULT> --json
 To check in:
 
 ```bash
-npx -y atropyle prepare check-in <VAULT> --as <OWNER> --json
+npx -y atropyle@0.1.0 prepare check-in <VAULT> --as <OWNER> --json
 ```
 
 To show what would happen if the owner stopped checking in, simulate a `poke` from someone else (a `poke` signed by the owner is a check-in):
 
 ```bash
-npx -y atropyle simulate <VAULT> poke --as <HEIR_1> --at +200d --json
+npx -y atropyle@0.1.0 simulate <VAULT> poke --as <HEIR_1> --at +200d --json
 ```
 
-Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle prepare --help` lists their flags. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
+Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, `set-guardians`, `set-timing`, `set-assets` and `revoke-all`. `npx -y atropyle@0.1.0 prepare --help` lists their flags. In `prepare`, `--at` only predicts the effect in the output; the steps are simulated now.
 
 ## Exit codes
 
@@ -142,4 +141,4 @@ Other changes follow the same pattern with `--as <OWNER>`: `prepare set-heirs`, 
 | 3    | Verification failed (`verify`, or the integrity check of `doctor`)             |
 | 4    | Network or RPC error: try again                                                |
 
-An MCP client can use the same operations as tools through `npx -y atropyle mcp`. This skill does not need it.
+An MCP client can use the same operations as tools through `npx -y atropyle@0.1.0 mcp`. This skill does not need it.

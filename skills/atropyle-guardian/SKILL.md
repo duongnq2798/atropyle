@@ -38,14 +38,14 @@ Scammers know this. They pretend to be the owner, or the owner's family, and pus
 
 The default chain is X Layer mainnet, where Atropyle is deployed. Add `--deployment <file>` to every command only to work against another deployment, such as a local devnet.
 
-`npx -y atropyle` works once the maintainer publishes the package to npm. Until then, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`). On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
+`npx -y atropyle@0.1.0` needs the package on npm. Until the maintainer publishes it, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`) with the same arguments. On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
 
 Every command below prints one JSON object with `--json`. Exit code 4 is a network problem: try again later. `--rpc <url>` replaces only the read RPC, not the RPCs that `verify` compares.
 
 ## 1. Find the vaults
 
 ```bash
-npx -y atropyle vaults <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 vaults <GUARDIAN_1> --json
 ```
 
 `vaults[].roles` says whether the user is a guardian, an heir or both. What each role can do is in [references/roles.md](references/roles.md).
@@ -53,7 +53,7 @@ npx -y atropyle vaults <GUARDIAN_1> --json
 ## 2. Check that the vault is genuine
 
 ```bash
-npx -y atropyle verify --vault <VAULT> --json
+npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 ```
 
 This proves the policy circuit and checks that the vault was made by the Atropyle factory and runs the proven policy. Exit code 0 and `ok: true` mean it is genuine. Act on a vault only after `verify` exits 0 with `ok: true`. With exit code 3, stop: do not act on this vault, and tell the user what failed from `summary` and `vault.checks`. With exit code 4 the check could not run: try again, and do not act on the vault until it passes. Exit code 1, for example from a bad deployment file, also means stop. Heirs run this check too, before they prepare anything.
@@ -61,7 +61,7 @@ This proves the policy circuit and checks that the vault was made by the Atropyl
 ## 3. Read the state and the timeline
 
 ```bash
-npx -y atropyle status <VAULT> --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 status <VAULT> --as <GUARDIAN_1> --json
 ```
 
 - `roles` must contain `guardian` for steps 4 and 5.
@@ -74,8 +74,8 @@ npx -y atropyle status <VAULT> --as <GUARDIAN_1> --json
 Only after every item of the checklist. Preview it, then prepare it:
 
 ```bash
-npx -y atropyle simulate <VAULT> attest-death --as <GUARDIAN_1> --json
-npx -y atropyle prepare attest-death <VAULT> --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 simulate <VAULT> attest-death --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 prepare attest-death <VAULT> --as <GUARDIAN_1> --json
 ```
 
 `effect` in the simulation says whether this vote changes the state. Show `summary` and every warning, then `handoff.link`. When `handoff.link` is null, `handoff.notes` says why.
@@ -83,7 +83,7 @@ npx -y atropyle prepare attest-death <VAULT> --as <GUARDIAN_1> --json
 If the owner turns out to be alive, or the user acted too soon, withdraw the attestation:
 
 ```bash
-npx -y atropyle prepare attest-death <VAULT> --off --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 prepare attest-death <VAULT> --off --as <GUARDIAN_1> --json
 ```
 
 ## 5. Vote for recovery
@@ -91,21 +91,21 @@ npx -y atropyle prepare attest-death <VAULT> --off --as <GUARDIAN_1> --json
 Only when the owner, in person or on a call where the user recognises them, says they lost their wallet and gives the new address. Read the address back character by character.
 
 ```bash
-npx -y atropyle prepare vote-recovery <VAULT> --target <NEW_WALLET> --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 prepare vote-recovery <VAULT> --target <NEW_WALLET> --as <GUARDIAN_1> --json
 ```
 
 When `blocked` is set, the vote would fail: recovery may be off for this vault, or the account is not a guardian. Explain `blocked.error`. To withdraw a vote:
 
 ```bash
-npx -y atropyle prepare vote-recovery <VAULT> --withdraw --as <GUARDIAN_1> --json
+npx -y atropyle@0.1.0 prepare vote-recovery <VAULT> --withdraw --as <GUARDIAN_1> --json
 ```
 
 ## 6. For heirs: receive the inheritance
 
 ```bash
-npx -y atropyle status <GRACE_VAULT> --as <HEIR_1> --json
-npx -y atropyle prepare poke <GRACE_VAULT> --as <HEIR_1> --json
-npx -y atropyle prepare distribute <GRACE_VAULT> --as <HEIR_1> --json
+npx -y atropyle@0.1.0 status <GRACE_VAULT> --as <HEIR_1> --json
+npx -y atropyle@0.1.0 prepare poke <GRACE_VAULT> --as <HEIR_1> --json
+npx -y atropyle@0.1.0 prepare distribute <GRACE_VAULT> --as <HEIR_1> --json
 ```
 
 - When `status.pending` differs from `status.state`, the policy already allows the next state, and `poke` records it. Anyone but the owner can send that `poke`: signed by the owner, `poke` (and `distribute` before a release) is a check-in.

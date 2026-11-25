@@ -29,10 +29,15 @@ test('siteProblems on pages requires .nojekyll', () => {
   expect(siteProblems(dir, 'pages')).toEqual([]);
 });
 
-test('siteProblems on vercel needs only index.html', () => {
+test('siteProblems on vercel needs index.html and the error reference', () => {
   const dir = temp();
   expect(siteProblems(dir, 'vercel')).toHaveLength(1);
   writeFileSync(join(dir, 'index.html'), '<!doctype html>');
+  expect(siteProblems(dir, 'vercel')).toEqual([
+    'docs/reference/errors.html is missing: the docsUrl of every SDK error points there',
+  ]);
+  mkdirSync(join(dir, 'docs', 'reference'), { recursive: true });
+  writeFileSync(join(dir, 'docs', 'reference', 'errors.html'), '<!doctype html>');
   expect(siteProblems(dir, 'vercel')).toEqual([]);
 });
 

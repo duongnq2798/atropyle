@@ -1,8 +1,20 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SKILLS_DIR = fileURLToPath(new URL('../../../skills/', import.meta.url));
+/** The skills pin the CLI to its current release, so an agent runs the version the skill was written for. */
+export const CLI_VERSION: string = (
+  JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+).version;
+export const CLI = `npx -y atropyle@${CLI_VERSION}`;
+
+/** A skill command without its `npx -y atropyle@<version> ` prefix: the arguments the CLI receives. */
+export function argsOf(command: string): string {
+  if (!command.startsWith(`${CLI} `)) throw new Error(`not a pinned atropyle command: ${command}`);
+  return command.slice(CLI.length + 1);
+}
+
 export const SKILL_NAMES = ['atropyle-estate-planning', 'atropyle-guardian'] as const;
 export const PLACEHOLDERS = [
   '<OWNER>',

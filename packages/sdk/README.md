@@ -1,6 +1,6 @@
 # @atropyle/sdk
 
-TypeScript SDK for [Atropyle](https://duongnq2798.github.io/atropyle/): non-custodial inheritance and wallet-recovery vaults on X Layer, whose rules run as a frozen [TapeOut](https://tapeout.link) circuit that anyone can verify.
+TypeScript SDK for [Atropyle](https://atropyle.xyz/): non-custodial inheritance and wallet-recovery vaults on X Layer, whose rules run as a frozen [TapeOut](https://tapeout.link) circuit that anyone can verify.
 
 - **Read** a vault at one pinned block: state, what happens next, and when.
 - **Predict** with the exact netlist the chain runs (`whatIf`, `timeline`).

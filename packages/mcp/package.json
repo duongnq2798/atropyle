@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "MCP server for Atropyle inheritance vaults on X Layer: read, simulate, verify and prepare. Never signs.",
   "license": "MIT",
+  "homepage": "https://atropyle.xyz/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/duongnq2798/atropyle.git",

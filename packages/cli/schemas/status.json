@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://duongnq2798.github.io/atropyle/docs/schemas/status.json",
+  "$id": "https://atropyle.xyz/docs/schemas/status.json",
   "title": "atropyle status --json",
   "anyOf": [
     {

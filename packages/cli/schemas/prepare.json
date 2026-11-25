@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://duongnq2798.github.io/atropyle/docs/schemas/prepare.json",
+  "$id": "https://atropyle.xyz/docs/schemas/prepare.json",
   "title": "atropyle prepare --json",
   "anyOf": [
     {
