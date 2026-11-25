@@ -4,7 +4,7 @@ This vault was released
 
 The inheritance window closed without a check-in, so the vault now belongs to its heirs.
 
-Assets are paid out by distribute, which anyone can call, our keeper included. You get another email when a payout lands.
+Assets are paid out by distribute, which anyone can call, our keeper included. Whoever receives the assets gets another email when a payout lands.
 
 Transaction: 0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12
 

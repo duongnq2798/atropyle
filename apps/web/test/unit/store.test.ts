@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memoryKV, readJson, safeKV, writeJson } from '../../src/lib/store';
+import { jsonStringify, KEYS, memoryKV, readJson, safeKV, writeJson } from '../../src/lib/store';
 
 describe('store', () => {
   it('keeps values in memory', () => {
@@ -24,6 +24,44 @@ describe('store', () => {
     expect(kv.get('b')).toBe('2');
   });
 
+  it('falls back to memory when every storage call throws (quota, blocked site data)', () => {
+    const broken = {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+      removeItem: () => {
+        throw new Error('blocked');
+      },
+    } as unknown as Storage;
+    const kv = safeKV(() => broken);
+    kv.set('c', '3');
+    expect(kv.get('c')).toBe('3');
+    kv.remove('c');
+    expect(kv.get('c')).toBeNull();
+  });
+
+  it('keeps the newer memory copy when a later write hits the quota', () => {
+    const stored = new Map<string, string>();
+    let writes = 0;
+    const full = {
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        if (++writes > 1) throw new Error('QuotaExceededError');
+        stored.set(k, v);
+      },
+      removeItem: (k: string) => {
+        stored.delete(k);
+      },
+    } as unknown as Storage;
+    const kv = safeKV(() => full);
+    kv.set(KEYS.stats, '{"block":"1"}');
+    kv.set(KEYS.stats, '{"block":"2"}');
+    expect(kv.get(KEYS.stats)).toBe('{"block":"2"}');
+  });
+
   it('writes bigint values as strings and drops corrupt entries', () => {
     const kv = memoryKV();
     writeJson(kv, 'x', { n: 10n });
@@ -35,5 +73,16 @@ describe('store', () => {
     kv.set('old', '{"v":0}');
     expect(readJson(kv, 'old', () => null)).toBeNull();
     expect(kv.get('old')).toBeNull();
+  });
+
+  it('serialises bytes as 0x hex and drops undefined members', () => {
+    expect(jsonStringify({ b: new Uint8Array([0, 15, 255]), u: undefined, a: [1n] })).toBe(
+      '{"b":"0x000fff","a":["1"]}',
+    );
+  });
+
+  it('namespaces every key', () => {
+    for (const key of Object.values(KEYS)) expect(key).toMatch(/^atropyle:[a-zA-Z]+$/);
+    expect(new Set(Object.values(KEYS)).size).toBe(Object.values(KEYS).length);
   });
 });

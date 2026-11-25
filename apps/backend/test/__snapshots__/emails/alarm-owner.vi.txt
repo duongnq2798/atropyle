@@ -2,18 +2,18 @@ Subject: Vault 0x5FbD…0aa3 của bạn đang báo động
 
 Vault của bạn đang báo động
 
-Vault của bạn đã lỡ hạn check-in, nên cửa sổ thừa kế đã bắt đầu.
+Vault của bạn đã quá hạn điểm danh, nên cửa sổ thừa kế đã bắt đầu.
 
-Nếu bạn đang đọc thư này, hãy check-in trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam). Một lần check-in từ ví chủ sẽ huỷ báo động, và không tài sản nào bị chuyển đi.
+Nếu bạn đang đọc thư này, hãy điểm danh trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam). Một lần điểm danh từ ví chủ sẽ huỷ báo động, và không tài sản nào bị chuyển đi.
 
 Hạn chót: 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam)
 
-Check-in để huỷ: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+Điểm danh để huỷ: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
 
 Nếu bạn không lường trước chuyện này, trước hết hãy kiểm tra xem ai đang giữ khoá ví của bạn.
 
 Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Vai trò của bạn: chủ ví
+Vai trò của bạn: chủ vault
 Hãy đối chiếu địa chỉ này với địa chỉ trên trang vault trước khi làm gì.
 
 --

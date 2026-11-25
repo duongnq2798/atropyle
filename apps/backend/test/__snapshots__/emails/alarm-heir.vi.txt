@@ -2,9 +2,9 @@ Subject: Vault 0x5FbD…0aa3: cửa sổ thừa kế đã bắt đầu
 
 Cửa sổ thừa kế đã bắt đầu
 
-Chủ của vault này đã lỡ hạn check-in, nên báo động đã bật. Nếu họ check-in trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam), mọi thứ giữ nguyên.
+Chủ của vault này đã quá hạn điểm danh, nên báo động đã bật. Nếu họ điểm danh trước 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam), mọi thứ giữ nguyên.
 
-Nếu không, sau mốc đó vault sẽ giải phóng tài sản cho người thừa kế. Bạn chưa cần làm gì, và sẽ không ai yêu cầu bạn ký hay trả tiền.
+Nếu không, sau mốc đó vault sẽ trao tài sản cho người thừa kế. Bạn chưa cần làm gì, và sẽ không ai yêu cầu bạn ký hay trả tiền.
 
 Hạn chót: 09:30 UTC, 25/11/2026 (16:30, 25/11/2026 giờ Việt Nam)
 

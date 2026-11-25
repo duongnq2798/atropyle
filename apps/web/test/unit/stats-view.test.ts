@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadStats, reviveCache, saveStats, statsKey, statsTiles, toCache } from '../../src/lib/stats-view';
+import { loadStats, reviveCache, saveStats, statsKey, statsTiles, toCache } from '../../src/chain/impl/stats-view';
 import { memoryKV } from '../../src/lib/store';
 import { fixtureStats } from './fixtures';
 

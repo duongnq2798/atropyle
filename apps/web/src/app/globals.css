@@ -1,0 +1,434 @@
+@import "tailwindcss";
+
+/*
+ * Atropyle tokens (spec §4.3, §4.4, Quyết định 7, 10, 11 of Plan 7A). The default palette and type scale are
+ * replaced, not extended: only Atropyle colours and steps exist.
+ */
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.5;
+  --text-body: clamp(1rem, 0.9792rem + 0.0926vw, 1.0625rem);
+  --text-body--line-height: 1.6;
+  --text-lead: clamp(1.125rem, 1.0625rem + 0.2778vw, 1.3125rem);
+  --text-lead--line-height: 1.5;
+  --text-title: clamp(1.375rem, 1.25rem + 0.5556vw, 1.75rem);
+  --text-title--line-height: 1.25;
+  --text-h2: clamp(1.75rem, 1.5rem + 1.1111vw, 2.5rem);
+  --text-h2--line-height: 1.1;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h1: clamp(2.25rem, 1.6667rem + 2.5926vw, 4rem);
+  --text-h1--line-height: 1.04;
+  --text-h1--letter-spacing: -0.015em;
+  --text-display: clamp(2.75rem, 1.6667rem + 4.8148vw, 6rem);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.02em;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
+  /* stiffness 380, damping 32, mass 1, sampled over 443 ms (springStops() in src/motion/tokens.ts). */
+  --ease-spring: linear(
+    0,
+    0.0531,
+    0.1741,
+    0.321,
+    0.4681,
+    0.601,
+    0.7132,
+    0.8031,
+    0.872,
+    0.9225,
+    0.958,
+    0.9817,
+    0.9966,
+    1.0052,
+    1.0095,
+    1.0109,
+    1.0106,
+    1.0095,
+    1.0079,
+    1.0063,
+    1.0048,
+    1.0035,
+    1.0024,
+    1.0016,
+    1
+  );
+
+  --animate-thread-pulse: thread-pulse 2.4s var(--ease-in-out-sine) infinite;
+  --animate-thread-pulse-mid: thread-pulse 1.6s var(--ease-in-out-sine) infinite;
+  --animate-thread-pulse-fast: thread-pulse 1s var(--ease-in-out-sine) infinite;
+  --animate-thread-tremble: thread-tremble 0.9s var(--ease-in-out-sine) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  /* HoldButton's one shake on an early release: DURATION.slow, motion's easeOut. Used only under motion-safe:. */
+  --animate-shake: atro-shake 420ms ease-out;
+
+  @keyframes thread-pulse {
+    0%,
+    100% {
+      opacity: 0.22;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+  @keyframes thread-tremble {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    25% {
+      transform: translateY(-0.6px);
+    }
+    75% {
+      transform: translateY(0.6px);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes atro-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-5px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+}
+
+/* Colours and families resolve at use, so one class works in both themes and with the self-hosted fonts. */
+@theme inline {
+  --color-bg: var(--atro-bg);
+  --color-surface-1: var(--atro-surface-1);
+  --color-surface-2: var(--atro-surface-2);
+  --color-surface-3: var(--atro-surface-3);
+  --color-ink: var(--atro-ink);
+  --color-ink-muted: var(--atro-ink-muted);
+  --color-thread: var(--atro-thread);
+  --color-on-thread: var(--atro-on-thread);
+  --color-alive: var(--atro-alive);
+  --color-grace: var(--atro-grace);
+  --color-recovery: var(--atro-recovery);
+  --color-release: var(--atro-release);
+  --color-danger: var(--atro-danger);
+  --color-on-danger: var(--atro-on-danger);
+  --color-line: var(--atro-line);
+  --color-line-strong: var(--atro-line-strong);
+
+  --font-display: "Atropyle Fraunces", "Atropyle Fraunces Fallback", ui-serif, Georgia, serif;
+  --font-sans: "Atropyle Inter", "Atropyle Inter Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Atropyle Mono", "Atropyle Mono Fallback", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Metric-adjusted fallback faces, so the swap to the self-hosted fonts does not shift layout. Generator: the formula of
+   next/font 16.4.6's getFallbackMetricsFromFontFile, run with next's bundled fontkit. Inputs: the Latin file of each
+   family in src/fonts/files (Fontsource 5.3.0) against Times New Roman and Arial (next's own fallback fonts), and
+   against Courier New for the mono face (0.6 em advance, from next's bundled capsize metrics). Each face then names
+   metric-compatible aliases for Linux and Chrome OS. test/unit/font-fallback.test.ts recomputes every value from the
+   files and fails on any drift. */
+@font-face {
+  font-family: "Atropyle Fraunces Fallback";
+  src: local("Times New Roman"), local("Liberation Serif"), local("Tinos");
+  ascent-override: 76.84%;
+  descent-override: 20.04%;
+  line-gap-override: 0%;
+  size-adjust: 127.27%;
+}
+@font-face {
+  font-family: "Atropyle Inter Fallback";
+  src: local("Arial"), local("Liberation Sans"), local("Arimo");
+  ascent-override: 89.79%;
+  descent-override: 22.36%;
+  line-gap-override: 0%;
+  size-adjust: 107.89%;
+}
+@font-face {
+  font-family: "Atropyle Mono Fallback";
+  src: local("Courier New"), local("Liberation Mono"), local("Cousine");
+  ascent-override: 102.02%;
+  descent-override: 30.00%;
+  line-gap-override: 0%;
+  size-adjust: 99.98%;
+}
+
+/* Themes (R18.1). Night is the default and needs no attribute: :root carries it. Vellum is data-theme="light", on
+   <html> or on any one element (a letter, a print sheet). Match device is data-theme="system" on <html>: vellum
+   while the device prefers light, night otherwise. test/unit/contrast.test.ts reads the marker comments below. */
+/* tokens:dark */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --atro-bg: #0b0d12;
+  --atro-surface-1: #12151c;
+  --atro-surface-2: #181c25;
+  --atro-surface-3: #20252f;
+  --atro-ink: #ece7dd;
+  --atro-ink-muted: #a59f94;
+  --atro-thread: #e8b65a;
+  --atro-on-thread: #0b0d12;
+  --atro-alive: #5cc8b0;
+  --atro-grace: #f0a23b;
+  --atro-recovery: #7fa8ff;
+  --atro-release: #b7a6ff;
+  --atro-danger: #ff6b5e;
+  --atro-on-danger: #0b0d12;
+  --atro-line: #2a303c;
+  --atro-line-strong: #737985;
+  --avatar-l: 0.78;
+}
+
+/* tokens:light */
+[data-theme="light"] {
+  color-scheme: light;
+  --atro-bg: #f6f1e7;
+  --atro-surface-1: #fffdf8;
+  --atro-surface-2: #f0eadf;
+  --atro-surface-3: #e7dfd1;
+  --atro-ink: #16130f;
+  --atro-ink-muted: #5e574c;
+  --atro-thread: #86590e;
+  --atro-on-thread: #fffdf8;
+  --atro-alive: #106f5a;
+  --atro-grace: #945100;
+  --atro-recovery: #2e5bc7;
+  --atro-release: #5b44c9;
+  --atro-danger: #b42318;
+  --atro-on-danger: #fffdf8;
+  --atro-line: #ddd3c2;
+  --atro-line-strong: #80766a;
+  --avatar-l: 0.52;
+}
+
+/* tokens:light-system */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    color-scheme: light;
+    --atro-bg: #f6f1e7;
+    --atro-surface-1: #fffdf8;
+    --atro-surface-2: #f0eadf;
+    --atro-surface-3: #e7dfd1;
+    --atro-ink: #16130f;
+    --atro-ink-muted: #5e574c;
+    --atro-thread: #86590e;
+    --atro-on-thread: #fffdf8;
+    --atro-alive: #106f5a;
+    --atro-grace: #945100;
+    --atro-recovery: #2e5bc7;
+    --atro-release: #5b44c9;
+    --atro-danger: #b42318;
+    --atro-on-danger: #fffdf8;
+    --atro-line: #ddd3c2;
+    --atro-line-strong: #80766a;
+    --avatar-l: 0.52;
+  }
+}
+
+/* Vietnamese stacks diacritics (ặ, ỗ, ữ): headings never go below 1.15 (spec §4.2). */
+:root:lang(vi) {
+  --text-display--line-height: 1.15;
+  --text-h1--line-height: 1.15;
+  --text-h2--line-height: 1.18;
+  --text-title--line-height: 1.3;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  /* Scoped vellum paints its own paper and ink: inherited night ink would sit on vellum paper. */
+  [data-theme="light"] {
+    background-color: var(--atro-bg);
+    color: var(--atro-ink);
+  }
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings:
+      "SOFT" var(--soft, 30),
+      "WONK" var(--wonk, 0);
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  /* The theme tokens, not --color-*: --color-thread resolves once on :root and scoped vellum would inherit night's
+     gold, a 1.66:1 focus ring on vellum paper. */
+  ::selection {
+    background-color: color-mix(in oklab, var(--atro-thread) 35%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--atro-thread);
+    outline-offset: 2px;
+  }
+}
+
+/* Shared-element and theme transitions (src/motion/view-transition.tsx). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease-out-expo);
+}
+::view-transition-group(atropyle-thread) {
+  animation-duration: 443ms;
+  animation-timing-function: var(--ease-spring);
+}
+/* Two pages draw the thread at different widths: it keeps its height and slides from the left, never stretches. */
+::view-transition-old(atropyle-thread),
+::view-transition-new(atropyle-thread) {
+  height: 100%;
+  width: auto;
+  object-fit: none;
+  object-position: left center;
+}
+::view-transition-image-pair(atropyle-thread) {
+  overflow: clip;
+}
+/* The header and the footer stay put while the page between them changes. */
+.site-header {
+  view-transition-name: site-header;
+}
+.site-footer {
+  view-transition-name: site-footer;
+}
+/* A named group paints above the root picture, and an open sheet, its dimming and a popover are in the root: while
+   one is mounted (a closing one too, which waits for the transition), the header and the footer stay in the root. */
+:root:has(:is(.atro-overlay, .atro-pop)) :is(.site-header, .site-footer) {
+  view-transition-name: none;
+}
+
+/* Radix overlays animate on `data-state` (tooltips open as `delayed-open` or `instant-open`); Radix waits for the
+   closing animation before it unmounts. Closing, they let a press through to the page: the dimming carries an inline
+   `pointer-events: auto` from Radix, so a tap on Connect right after Escape closed the Menu sheet was lost on it. */
+.atro-overlay[data-state="closed"],
+.atro-dialog[data-state="closed"],
+.atro-pop[data-state="closed"] {
+  /* biome-ignore lint/complexity/noImportantStyles: it must beat the inline pointer-events that Radix writes. */
+  pointer-events: none !important;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .atro-overlay[data-state="open"] {
+    animation: atro-fade-in 240ms var(--ease-out-expo);
+  }
+  .atro-overlay[data-state="closed"] {
+    animation: atro-fade-out 160ms var(--ease-out-expo);
+  }
+  .atro-dialog[data-state="open"] {
+    animation: atro-rise-in 443ms var(--ease-spring);
+  }
+  .atro-dialog[data-state="closed"] {
+    animation: atro-rise-out 160ms var(--ease-out-expo);
+  }
+  .atro-pop:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+    animation: atro-pop-in 240ms var(--ease-out-expo);
+  }
+  .atro-pop[data-state="closed"] {
+    animation: atro-fade-out 90ms linear;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 39.999rem) {
+  .atro-sheet[data-state="open"] {
+    animation: atro-sheet-in 443ms var(--ease-spring);
+  }
+  .atro-sheet[data-state="closed"] {
+    animation: atro-sheet-out 240ms var(--ease-out-expo);
+  }
+}
+
+/* Reduced motion: every transition becomes a 120 ms crossfade and nothing moves (spec §4.4). The view transitions
+   still run (src/motion/view-transition.tsx): their groups stand still, and old and new crossfade. `(root)` is named
+   again because a name outranks `*`, and the 240 ms rule above names it. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+  .atro-overlay[data-state="open"],
+  .atro-dialog[data-state="open"],
+  .atro-sheet[data-state="open"],
+  .atro-pop:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+    animation: atro-fade-in 120ms linear;
+  }
+  .atro-overlay[data-state="closed"],
+  .atro-dialog[data-state="closed"],
+  .atro-sheet[data-state="closed"],
+  .atro-pop[data-state="closed"] {
+    animation: atro-fade-out 120ms linear;
+  }
+}
+
+@keyframes atro-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes atro-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes atro-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes atro-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+@keyframes atro-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes atro-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes atro-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}

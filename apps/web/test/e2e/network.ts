@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test';
-import { ONCHAIN_RPCS } from '../../src/lib/rpc.ts';
+import { RPC_HOSTS } from '../../../../scripts/lib/onchain-check.ts';
 
-/** The only chain nodes the DeWEB gateway counts as on-chain. */
-export const OKX_ORIGINS: readonly string[] = ONCHAIN_RPCS;
+/** The only chain nodes the DeWEB gateway counts as on-chain: its own list, which the site check also reads. */
+export const OKX_ORIGINS: readonly string[] = RPC_HOSTS.map((host) => `https://${host}`);
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -10,6 +10,7 @@ const CORS = {
   'access-control-allow-methods': 'POST, OPTIONS',
 };
 
+/** The page talks to the OKX origins, like the real deweb site; every such request is answered by anvil. */
 export async function routeRpcToAnvil(page: Page, rpcUrl: string): Promise<void> {
   await page.route(
     (url) => OKX_ORIGINS.includes(url.origin),

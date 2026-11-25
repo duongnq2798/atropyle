@@ -1,17 +1,17 @@
-Subject: Đã tới hạn check-in, vault 0x5FbD…0aa3
+Subject: Đã tới hạn điểm danh, vault 0x5FbD…0aa3
 
-Đã tới hạn check-in
+Đã tới hạn điểm danh
 
-Hạn check-in là 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam). Từ giờ, bất kỳ ai cũng có thể bật báo động cho vault này.
+Hạn điểm danh là 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam). Từ giờ, bất kỳ ai cũng có thể bật báo động cho vault này.
 
-Hãy check-in từ ví chủ ngay bây giờ để chặn báo động trước khi nó bắt đầu.
+Hãy điểm danh từ ví chủ ngay bây giờ để chặn báo động trước khi nó bắt đầu.
 
 Hạn chót: 14:05 UTC, 23/11/2026 (21:05, 23/11/2026 giờ Việt Nam)
 
-Check-in ngay: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
+Điểm danh ngay: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
 
 Vault: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Vai trò của bạn: chủ ví
+Vai trò của bạn: chủ vault
 Hãy đối chiếu địa chỉ này với địa chỉ trên trang vault trước khi làm gì.
 
 --

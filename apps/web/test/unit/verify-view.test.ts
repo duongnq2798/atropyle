@@ -1,7 +1,7 @@
 import { AtropyleError, type PolicyVerification } from '@atropyle/sdk';
 import type { IntegrityCheck, VaultVerification } from '@atropyle/sdk/verify';
 import { describe, expect, it } from 'vitest';
-import { PROPERTY_ORDER, proofSummary, vaultVerifyRows } from '../../src/lib/verify-view';
+import { PROPERTY_ORDER, proofSummary, vaultVerifyRows } from '../../src/verify/verify-view';
 
 const V = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
 const ok = (name: string): IntegrityCheck => ({ name, ok: true });

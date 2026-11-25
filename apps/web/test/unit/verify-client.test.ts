@@ -1,6 +1,6 @@
 import { AtropyleError, type PolicyVerification } from '@atropyle/sdk';
 import type { PolicyBundle } from '@atropyle/sdk/verify';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   evaluateInWorker,
   proofKey,
@@ -8,7 +8,7 @@ import {
   type WorkerIn,
   type WorkerLike,
   type WorkerOut,
-} from '../../src/lib/verify-client';
+} from '../../src/verify/impl/verify-client';
 import { fixtureDeployment } from './fixtures';
 
 function fakeWorker(
@@ -78,6 +78,48 @@ describe('evaluateInWorker', () => {
       code: 'UNKNOWN',
       message: 'The proof worker stopped: the proof worker failed to load',
     });
+  });
+});
+
+describe('evaluateInWorker abort (ruling R14)', () => {
+  it('terminates the worker and rejects with an AbortError when the signal aborts', async () => {
+    let send: (o: WorkerOut) => void = () => undefined;
+    const w = fakeWorker((_m, s) => {
+      send = s;
+      s({ type: 'progress', done: 1, total: 4 });
+    });
+    const ac = new AbortController();
+    const progress: [number, number][] = [];
+    const p = evaluateInWorker(bundle, {
+      worker: w.factory,
+      signal: ac.signal,
+      onProgress: (d, t) => progress.push([d, t]),
+    });
+    await vi.waitFor(() => expect(progress).toEqual([[1, 4]]));
+    expect(w.terminated()).toBe(false);
+    ac.abort();
+    expect(w.terminated()).toBe(true);
+    await expect(p).rejects.toBeInstanceOf(DOMException);
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' });
+    // A message the worker sent before it stopped is dropped.
+    send({ type: 'progress', done: 2, total: 4 });
+    expect(progress).toEqual([[1, 4]]);
+  });
+
+  it('starts no worker when the signal has already aborted', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    let made = 0;
+    const w = fakeWorker(() => {});
+    const p = evaluateInWorker(bundle, {
+      worker: () => {
+        made += 1;
+        return w.factory();
+      },
+      signal: ac.signal,
+    });
+    expect(made).toBe(0);
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
 

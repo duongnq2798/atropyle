@@ -25,10 +25,34 @@ describe('email copy (spec §9.4: every template in EN and VI)', () => {
       const vi = COPY.vi.kinds[kind];
       expect(vi.body.length, kind).toBe(en.body.length);
       expect(vi.note === undefined, kind).toBe(en.note === undefined);
-      expect(slots(vi.subject).sort(), kind).toEqual(slots(en.subject).sort());
-      expect(slots(vi.body.join(' ')).sort(), kind).toEqual(slots(en.body.join(' ')).sort());
     }
     expect(Object.keys(COPY.vi.fragments).sort()).toEqual(Object.keys(COPY.en.fragments).sort());
+  });
+
+  it('keeps the same placeholders in every string of both languages', () => {
+    // Field by field, as the web's i18n test checks every key: a VI preheader or note that dropped {{deadline}}
+    // would pass the known-names check below, which catches only names that do not exist.
+    const pairs: [string, string, string][] = [];
+    for (const kind of EMAIL_KINDS) {
+      const en = COPY.en.kinds[kind];
+      const vi = COPY.vi.kinds[kind];
+      for (const field of ['subject', 'preheader', 'eyebrow', 'heading', 'cta', 'note'] as const) {
+        pairs.push([`${kind}.${field}`, en[field] ?? '', vi[field] ?? '']);
+      }
+      en.body.forEach((line, i) => {
+        pairs.push([`${kind}.body.${i}`, line, vi.body[i] ?? '']);
+      });
+    }
+    for (const group of ['roles', 'labels', 'footer', 'fragments'] as const) {
+      const en: Record<string, string> = COPY.en[group];
+      const vi: Record<string, string> = COPY.vi[group];
+      expect(Object.keys(vi).sort(), group).toEqual(Object.keys(en).sort());
+      for (const key of Object.keys(en)) pairs.push([`${group}.${key}`, en[key], vi[key] ?? '']);
+    }
+    const differ = pairs
+      .filter(([, en, vi]) => slots(vi).sort().join() !== slots(en).sort().join())
+      .map(([path, en, vi]) => `${path}: en {${slots(en).sort().join()}} vi {${slots(vi).sort().join()}}`);
+    expect(differ, `strings whose VI placeholders differ from EN:\n${differ.join('\n')}`).toEqual([]);
   });
 
   it('translates every subject, heading and body', () => {

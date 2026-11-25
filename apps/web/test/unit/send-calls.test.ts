@@ -1,7 +1,7 @@
 import type { SendCallsParams } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { CallsUnsupported, normalizeStatus, sendCalls, supportsSendCalls } from '../../src/lib/send-calls';
-import type { Eip1193 } from '../../src/lib/wallet';
+import { CallsUnsupported, normalizeStatus, sendCalls, supportsSendCalls } from '../../src/wallet/impl/send-calls';
+import type { Eip1193 } from '../../src/wallet/impl/wallet';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 const H1 = `0x${'01'.repeat(32)}` as const;

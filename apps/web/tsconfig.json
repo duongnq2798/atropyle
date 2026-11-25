@@ -3,9 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "jsxImportSource": "preact",
-    "types": ["vite/client", "node"],
+    "types": ["node"],
+    "paths": { "@/*": ["./src/*"] },
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "build", "test", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": ["src", "test", "scripts", "*.ts"]
 }

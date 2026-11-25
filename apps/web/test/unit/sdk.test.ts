@@ -1,6 +1,6 @@
 import { deploymentToJson } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { createSdk, loadDeployment } from '../../src/lib/sdk';
+import { createSdk, loadDeployment } from '../../src/chain/impl/sdk';
 import { DRPC, fixtureDeployment, OKX } from './fixtures';
 
 describe('sdk', () => {

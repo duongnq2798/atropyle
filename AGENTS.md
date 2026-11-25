@@ -6,20 +6,21 @@ Guidance for coding agents that work in this repository.
 
 Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every state change of a vault, and anyone can prove it with `npx atropyle verify`.
 
-| Path                                                | What                                                                                                                 |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `contracts/`                                        | Solidity contracts (Foundry)                                                                                         |
-| `circuits/`                                         | The policy circuit and its netlists                                                                                  |
-| `packages/sdk/`                                     | `@atropyle/sdk`: read, simulate, verify and prepare                                                                  |
-| `packages/mcp/`                                     | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                              |
-| `packages/cli/`                                     | `atropyle`: the CLI                                                                                                  |
-| `skills/`                                           | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                      |
-| `.claude-plugin/`                                   | Claude Code marketplace and plugin                                                                                   |
-| `examples/`                                         | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines |
-| `apps/web/` (Worker and docs come with later plans) | The web app (Vite + Preact); the Worker and docs are not in the repository yet                                       |
-| `deployments/`                                      | Deployed addresses, per chain                                                                                        |
-| `apps/backend/`                                     | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper      |
-| `supabase/`                                         | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                           |
+| Path               | What                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `contracts/`       | Solidity contracts (Foundry)                                                                                         |
+| `circuits/`        | The policy circuit and its netlists                                                                                  |
+| `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                  |
+| `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                              |
+| `packages/cli/`    | `atropyle`: the CLI                                                                                                  |
+| `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                      |
+| `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                   |
+| `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines |
+| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                |
+| `apps/web-legacy/` | The previous web app (Vite + Preact), tested in CI until the v2 cutover, then deleted                                |
+| `deployments/`     | Deployed addresses, per chain                                                                                        |
+| `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper      |
+| `supabase/`        | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                           |
 
 ## Setup
 
@@ -30,6 +31,8 @@ git submodule update --init --recursive
 npm ci
 ```
 
+On Windows, npm drops some `@emnapi` entries from `package-lock.json`, and `npm ci` on Linux then fails. Run `npm run lockfile:check -- --fix` after every `npm install` and commit `package-lock.json`.
+
 ## Build
 
 The order matters: circuits, then the SDK, then the MCP server, then the CLI. Each package tests against the built `dist` of the packages it depends on.
@@ -39,7 +42,7 @@ cd contracts && forge build && cd ..
 npm run build
 npm run build -w packages/mcp
 npm run build -w packages/cli
-npm run build -w apps/web
+npm run build -w apps/web-legacy
 npm run build -w apps/backend
 ```
 
@@ -53,23 +56,38 @@ cd contracts && forge test && cd ..
 npm run test:integration -w packages/mcp
 npm run test:e2e -w packages/mcp
 npm run test:e2e -w packages/cli
-npm test -w apps/web
+npm test -w apps/web-legacy
 npm run test:e2e -w apps/backend
 ```
 
-The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web` needs Chromium, which `npm run playwright:install -w apps/web` installs once. The site build and check run for both targets, DeWEB and GitHub Pages. The size budget reads the built web app.
+The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for both targets, DeWEB and GitHub Pages. The size budget reads the built web app.
 
 ```bash
 cd contracts && forge build && cd ..
 npm run test:site
-npm run playwright:install -w apps/web
-npm run e2e -w apps/web
+npm run playwright:install -w apps/web-legacy
+npm run e2e -w apps/web-legacy
 npm run site:build -- --target deweb --no-docs
 npm run site:check -- --target deweb
 npm run site:build -- --target pages --no-docs
 npm run site:check -- --target pages
+npm run build -w apps/web-legacy
+npm run size -w apps/web-legacy
+```
+
+The web app v2 in `apps/web` has its own checks. `test:build`, `worker:check`, `e2e` and `lighthouse` need Chromium, which `npm run playwright:install -w apps/web` installs once; the e2e, like the legacy one, also needs the output of `forge build` in `contracts/`. `worker:check` and `e2e` leave their own build in `apps/web/out`, and `size` and `lighthouse` read the production build there, so run `npm run build -w apps/web` right before them. CI also checks the size budget on the vercel build of `test:build`.
+
+```bash
+npm run typecheck -w apps/web
+npm test -w apps/web
+npm run playwright:install -w apps/web
+npm run test:build -w apps/web
+SIZE_OUT=test/build/.out/vercel npm run size -w apps/web
+npm run worker:check -w apps/web
+npm run e2e -w apps/web
 npm run build -w apps/web
 npm run size -w apps/web
+npm run lighthouse -w apps/web
 ```
 
 Integration and e2e tests start their own anvil devnet (chain 31337). `npm run devnet` starts one on port 8545 for manual work and writes `deployments/local.json`. That file is tracked in git and regenerated by `npm run devnet`; stage it only when the change is intended.

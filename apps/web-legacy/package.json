@@ -1,0 +1,31 @@
+{
+  "name": "@atropyle/web-legacy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json",
+    "playwright:install": "playwright install --with-deps chromium",
+    "size": "size-limit"
+  },
+  "dependencies": {
+    "@atropyle/sdk": "0.1.0",
+    "preact": "10.29.8",
+    "viem": "2.58.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@size-limit/file": "14.3.0",
+    "@testing-library/preact": "3.2.6",
+    "happy-dom": "21.0.4",
+    "size-limit": "14.3.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.8",
+    "vitest": "3.2.7"
+  }
+}

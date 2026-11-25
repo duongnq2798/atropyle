@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { rpcPlan } from '../../src/lib/rpc';
+import { rpcPlan } from '../../src/chain/impl/rpc';
 import { DRPC, fixtureDeployment, OKX } from './fixtures';
 
 describe('rpcPlan', () => {
-  it('keeps every operator on GitHub Pages', () => {
-    expect(rpcPlan(fixtureDeployment(), 'pages', false)).toEqual({
+  it('keeps every operator on Vercel', () => {
+    expect(rpcPlan(fixtureDeployment(), 'vercel', false)).toEqual({
       read: OKX,
       verify: [OKX, [DRPC]],
       crossCheck: true,

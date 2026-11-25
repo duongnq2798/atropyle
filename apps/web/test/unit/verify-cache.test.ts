@@ -1,7 +1,7 @@
 import { AtropyleError, type PolicyVerification } from '@atropyle/sdk';
 import type { PolicyBundle } from '@atropyle/sdk/verify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Sdk } from '../../src/lib/sdk';
+import type { Sdk } from '../../src/chain/types';
 import {
   evaluateInWorker,
   runProof,
@@ -9,7 +9,7 @@ import {
   type WorkerIn,
   type WorkerLike,
   type WorkerOut,
-} from '../../src/lib/verify-client';
+} from '../../src/verify/impl/verify-client';
 import { fixtureDeployment } from './fixtures';
 
 const mocks = vi.hoisted(() => ({
@@ -39,18 +39,23 @@ function sdkOf(): Sdk {
 /** A worker the test drives by hand. */
 function manualWorker() {
   const started: WorkerLike[] = [];
+  const terminated: boolean[] = [];
   const factory = () => {
+    const i = started.length;
+    terminated.push(false);
     const w: WorkerLike = {
       onmessage: null,
       onerror: null,
       postMessage: (_m: WorkerIn) => {},
-      terminate: () => {},
+      terminate: () => {
+        terminated[i] = true;
+      },
     };
     started.push(w);
     return w;
   };
   const send = (i: number, o: WorkerOut) => started[i]?.onmessage?.({ data: o });
-  return { factory, started, send };
+  return { factory, started, send, terminated };
 }
 
 /** The proof starts after dynamic imports, so wait for the worker instead of one tick. */
@@ -133,6 +138,50 @@ describe('runProof cache', () => {
     expect(first).toEqual(both);
     expect(late).toEqual(both);
     expect(w.started).toHaveLength(1);
+  });
+});
+
+describe('runProof abort (ruling R14)', () => {
+  it('runs a proof with a signal on its own worker, so aborting it leaves the session proof running', async () => {
+    const sdk = sdkOf();
+    const w = manualWorker();
+    const shared = runProof(sdk, { worker: w.factory });
+    await started(w, 1);
+    const ac = new AbortController();
+    const own = runProof(sdk, { worker: w.factory, signal: ac.signal });
+    await started(w, 2);
+    ac.abort();
+    await expect(own).rejects.toMatchObject({ name: 'AbortError' });
+    expect(w.terminated).toEqual([false, true]);
+    w.send(0, { type: 'result', result: proof });
+    expect(await shared).toBe(proof);
+    // The aborted run did not replace the session proof.
+    expect(await runProof(sdk, { worker: w.factory })).toBe(proof);
+    expect(w.started).toHaveLength(2);
+  });
+
+  it('reads nothing for a signal that has already aborted, and starts no worker after an abort during the read', async () => {
+    const w = manualWorker();
+    const before = new AbortController();
+    before.abort();
+    await expect(runProof(sdkOf(), { worker: w.factory, signal: before.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(mocks.readPolicyBundle).not.toHaveBeenCalled();
+
+    let read: (b: PolicyBundle) => void = () => undefined;
+    mocks.readPolicyBundle.mockReturnValueOnce(
+      new Promise<PolicyBundle>((resolve) => {
+        read = resolve;
+      }),
+    );
+    const during = new AbortController();
+    const p = runProof(sdkOf(), { worker: w.factory, signal: during.signal });
+    await vi.waitFor(() => expect(mocks.readPolicyBundle).toHaveBeenCalledTimes(1));
+    during.abort();
+    read(bundle);
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' });
+    expect(w.started).toHaveLength(0);
   });
 });
 

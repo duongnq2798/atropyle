@@ -123,7 +123,7 @@ test('jsUrls accepts bracketed IPv6 hosts and ports', () => {
 });
 
 test('RPC_HOSTS equals the hosts of the web ONCHAIN_RPCS', () => {
-  const src = readFileSync(fileURLToPath(new URL('../../../apps/web/src/lib/rpc.ts', import.meta.url)), 'utf8');
+  const src = readFileSync(fileURLToPath(new URL('../../../apps/web-legacy/src/lib/rpc.ts', import.meta.url)), 'utf8');
   const list = /ONCHAIN_RPCS[^=]*=\s*\[([^\]]*)\]/.exec(src);
   expect(list).not.toBeNull();
   const hosts = [...(list?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => new URL(m[1]).hostname);

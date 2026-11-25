@@ -1,4 +1,4 @@
-import { formatDuration } from '@atropyle/sdk';
+import { formatDuration } from './duration';
 
 function group(digits: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');

@@ -2,9 +2,9 @@ Subject: Đã bật thông báo cho vault 0x5FbD…0aa3
 
 Chúng tôi sẽ báo khi có việc quan trọng
 
-Thông báo đã bật cho vault này, với vai trò người thừa kế của bạn.
+Thông báo đã bật cho vault này, dành cho bạn với vai trò người thừa kế.
 
-Chúng tôi viết khi sắp tới hạn check-in, khi có báo động, khi người giám hộ bỏ phiếu, và khi tài sản được giải phóng hoặc chi trả. Ngoài ra không có gì khác.
+Chúng tôi viết khi sắp tới hạn điểm danh, khi có báo động, khi người giám hộ bỏ phiếu, và khi vault trao hoặc chi trả tài sản. Ngoài ra không có gì khác.
 
 Mở vault: https://atropyle.test/vault/#0x5FbDB2315678afecb367f032d93F642f64180aa3
 

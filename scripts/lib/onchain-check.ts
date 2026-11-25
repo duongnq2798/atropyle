@@ -112,7 +112,7 @@ export function collectReferences(text: string, kind: 'html' | 'css', fromDir = 
 
 /**
  * The only chain nodes the gateway counts as the site's own on X Layer (Plan 4, decision 4).
- * Mirrors ONCHAIN_RPCS in apps/web/src/lib/rpc.ts; a test keeps the two in step.
+ * Mirrors ONCHAIN_RPCS in apps/web-legacy/src/lib/rpc.ts; a test keeps the two in step.
  */
 export const RPC_HOSTS = ['rpc.xlayer.tech', 'xlayerrpc.okx.com'] as const;
 

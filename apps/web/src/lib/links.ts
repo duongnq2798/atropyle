@@ -1,6 +1,10 @@
-import { DOCS_BASE_URL } from '@atropyle/sdk';
+import { DOCS_BASE_URL } from './docs';
 
 const trim = (base: string) => base.replace(/\/+$/, '');
+
+export const REPO_URL = 'https://github.com/duongnq2798/atropyle';
+export const LICENSE_URL = `${REPO_URL}/blob/main/packages/sdk/LICENSE`;
+export const XLAYER_URL = 'https://web3.okx.com/xlayer';
 
 export function explorerAddress(base: string, address: string): string {
   return `${trim(base)}/address/${address}`;
@@ -16,11 +20,6 @@ export function explorerName(base: string): string {
   } catch {
     return 'Explorer';
   }
-}
-
-/** Spec §15: `https://t.me/<bot>?start=<vault>-<role>`, vault in lowercase. */
-export function telegramLink(bot: string, vault: string, role: 'owner' | 'guardian' | 'heir'): string {
-  return `https://t.me/${bot}?start=${vault.toLowerCase()}-${role}`;
 }
 
 export function docsHome(docsPath: string | null): string {

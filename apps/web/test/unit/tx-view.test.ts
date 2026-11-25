@@ -1,6 +1,6 @@
 import { AtropyleError, type PreparedTx, type TxPlan, type Warning } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { applyStep, failStep, txView } from '../../src/lib/tx-view';
+import { applyStep, failStep, txView } from '../../src/tx/tx-view';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 const V = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';

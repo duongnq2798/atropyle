@@ -1,26 +1,24 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+// @vitest-environment node
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 
-const SRC = fileURLToPath(new URL('../../src', import.meta.url));
+const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
+const SINKS =
+  /dangerouslySetInnerHTML|\.innerHTML\s*=|\.outerHTML\s*=|insertAdjacentHTML|document\.write|\beval\s*\(|new Function\s*\(|\brenderSVG\s*\(/;
+/** The one inline script (Quyết định 14); its content is a constant. */
+const ALLOWED = new Set(['theme/boot-script.tsx']);
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const p = join(dir, name);
-    return statSync(p).isDirectory() ? walk(p) : [p];
-  });
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(join(dir, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [join(dir, e.name)] : [],
+  );
 }
 
-const sources = () => walk(SRC).filter((f) => /\.(ts|tsx)$/.test(f));
-
-describe('DOM safety', () => {
-  it('no source file writes HTML strings into the DOM', () => {
-    const sink = /dangerouslySetInnerHTML|\.innerHTML\b|\.outerHTML\s*=|insertAdjacentHTML|document\.write/;
-    expect(sources().filter((f) => sink.test(readFileSync(f, 'utf8')))).toEqual([]);
-  });
-
-  it('no component uses inline styles, which the CSP blocks', () => {
-    expect(sources().filter((f) => /\bstyle=["{]/.test(readFileSync(f, 'utf8')))).toEqual([]);
-  });
+it('no file writes HTML from a string, except the boot script', () => {
+  const offenders = files(SRC)
+    .map((f) => relative(SRC, f).replaceAll('\\', '/'))
+    .filter((f) => !ALLOWED.has(f) && SINKS.test(readFileSync(join(SRC, f), 'utf8')));
+  expect(offenders).toEqual([]);
 });

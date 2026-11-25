@@ -9,10 +9,10 @@ dist/
 *.tsbuildinfo
 
 site-dist/
-apps/web/dist-e2e/
-apps/web/test-results/
-apps/web/playwright-report/
-apps/web/test/e2e/.state.json
+apps/web-legacy/dist-e2e/
+apps/web-legacy/test-results/
+apps/web-legacy/playwright-report/
+apps/web-legacy/test/e2e/.state.json
 # Calls written by npm run deweb:publish -- --emit; only the forge test fixtures are committed.
 contracts/deweb-calls/*
 !contracts/deweb-calls/test/
@@ -22,3 +22,12 @@ apps/backend/.preview/
 supabase/functions/
 supabase/.temp/
 supabase/.branches/
+apps/web/.next/
+apps/web/next-env.d.ts
+apps/web/test/build/.out/
+apps/web/test/e2e/.site/
+apps/web/test/e2e/.state.json
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/lighthouse-report/
+apps/web/.size/

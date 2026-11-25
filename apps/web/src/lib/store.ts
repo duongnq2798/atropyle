@@ -1,5 +1,3 @@
-import { stringify } from '@atropyle/sdk';
-
 export interface KV {
   get(key: string): string | null;
   set(key: string, value: string): void;
@@ -42,7 +40,12 @@ export function safeKV(storage: () => Storage | null | undefined): KV {
       try {
         s()?.setItem(k, v);
       } catch {
-        // the memory copy above is enough
+        // The memory copy above is enough, once an older stored copy cannot hide it: get() reads storage first.
+        try {
+          s()?.removeItem(k);
+        } catch {
+          // nothing stored
+        }
       }
     },
     remove: (k) => {
@@ -54,6 +57,31 @@ export function safeKV(storage: () => Storage | null | undefined): KV {
       }
     },
   };
+}
+
+const HEX = '0123456789abcdef';
+
+function toJson(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString(10);
+  if (value instanceof Uint8Array) {
+    let s = '0x';
+    for (const b of value) s += HEX[b >> 4] + HEX[b & 15];
+    return s;
+  }
+  if (Array.isArray(value)) return value.map(toJson);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v !== undefined) out[k] = toJson(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Same output as `stringify` of @atropyle/sdk (bigint → decimal string, bytes → 0x hex), without loading the SDK. */
+export function jsonStringify(value: unknown, space?: number): string {
+  return JSON.stringify(toJson(value), null, space);
 }
 
 export function readJson<T>(kv: KV, key: string, revive: (raw: unknown) => T | null): T | null {
@@ -70,7 +98,14 @@ export function readJson<T>(kv: KV, key: string, revive: (raw: unknown) => T | n
 }
 
 export function writeJson(kv: KV, key: string, value: unknown): void {
-  kv.set(key, stringify(value));
+  kv.set(key, jsonStringify(value));
 }
 
-export const KEYS = { lang: 'atropyle:lang', crossCheck: 'atropyle:crossCheck' } as const;
+export const KEYS = {
+  lang: 'atropyle:lang',
+  crossCheck: 'atropyle:crossCheck',
+  theme: 'atropyle:theme',
+  haptics: 'atropyle:haptics',
+  wallet: 'atropyle:wallet',
+  stats: 'atropyle:stats',
+} as const;

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { defineMessages, detectLang, format, type Messages, placeholders, translate } from '../../src/lib/i18n';
+import { defineMessages, detectLang, format, type Messages, placeholders, translate } from '../../src/i18n/core';
+
+/**
+ * Vite's `import.meta.glob`, which vitest compiles away. Typed here rather than through `vite/client`, a type library
+ * that would type `import.meta.env` and `import.meta.glob` in all of src, where Next supports neither.
+ */
+type EagerGlob = <T>(pattern: string, options: { eager: true }) => Record<string, T>;
 
 describe('i18n', () => {
   it('fills placeholders and keeps unknown ones', () => {
@@ -27,7 +33,10 @@ describe('i18n', () => {
   });
 
   it('every messages file has the same keys and placeholders in en and vi', () => {
-    const mods = import.meta.glob<{ messages: Messages<string> }>('../../src/**/*.messages.ts', { eager: true });
+    const mods = (import.meta as ImportMeta & { glob: EagerGlob }).glob<{ messages: Messages<string> }>(
+      '../../src/**/*.messages.ts',
+      { eager: true },
+    );
     const files = Object.keys(mods);
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {

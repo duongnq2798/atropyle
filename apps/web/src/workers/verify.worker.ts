@@ -1,6 +1,6 @@
 import { decodeError } from '@atropyle/sdk';
 import { evaluatePolicyBundle } from '@atropyle/sdk/verify';
-import type { WorkerIn, WorkerOut } from '../lib/verify-client';
+import type { WorkerIn, WorkerOut } from '../verify/impl/verify-client';
 
 // Compute only (Plan 4, decision 8): this file makes no network request. Typed by hand because the WebWorker lib
 // clashes with the DOM lib of this project.

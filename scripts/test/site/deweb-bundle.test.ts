@@ -10,7 +10,7 @@ import { siteProblems } from '../../lib/site-check';
 import { loadSite } from '../../lib/site-files';
 
 // Builds the real web app twice. Needs `npm run build` at the root first (the web app imports the built SDK).
-const WEB = fileURLToPath(new URL('../../../apps/web', import.meta.url));
+const WEB = fileURLToPath(new URL('../../../apps/web-legacy', import.meta.url));
 const VITE_BIN = join(dirname(createRequire(join(WEB, 'package.json')).resolve('vite/package.json')), 'bin', 'vite.js');
 const SENTINEL_HOST = 'health.atropyle.invalid';
 const dirs: Record<SiteTarget, string> = { deweb: '', pages: '' };

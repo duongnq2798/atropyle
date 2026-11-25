@@ -1,54 +1,58 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startAnvil } from '../../../../scripts/lib/anvil.ts';
+import { buildApp, OUT_DIR } from '../../scripts/lib/run-next.ts';
+import { siteHeaders } from '../../scripts/lib/site-headers.ts';
+import { startStaticServer } from '../../scripts/lib/static-server.ts';
 import { OKX_ORIGINS } from './network.ts';
 import { type E2EState, rpcCall, writeState } from './state.ts';
-import { startStaticServer } from './static-server.ts';
 
-const WEB = fileURLToPath(new URL('../..', import.meta.url));
-const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
-/** Must never reach the DeWEB bundle (Task 7 checks the same sentinel). */
-export const WORKER_SENTINEL = 'https://health.atropyle.invalid';
+const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+/** The e2e build, copied out of out/ so that a later `npm run build` cannot change it under a running suite. */
+const SITE = fileURLToPath(new URL('./.site', import.meta.url));
 
-/** One-shot command that finishes before setup returns; npx is a .cmd on Windows, so it runs through a shell (never anvil, see startAnvil). */
-function run(command: string, cwd: string, env: NodeJS.ProcessEnv = process.env): void {
-  const r = spawnSync(command, { cwd, env, encoding: 'utf8', shell: true, windowsHide: true });
-  if (r.status !== 0)
-    throw new Error(`${command} failed:
-${r.stdout}
-${r.stderr}`);
+/** Deploys the contracts and seeds the demo vaults; its own process, because it imports repo sources directly. */
+function prepareDevnet(rpcUrl: string): Pick<E2EState, 'deployment' | 'seeded'> {
+  const out = join(mkdtempSync(join(tmpdir(), 'atropyle-e2e-')), 'devnet.json');
+  const r = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/e2e-devnet-prep.ts', rpcUrl, out], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (r.status !== 0) throw new Error(`e2e-devnet-prep failed:\n${r.stdout}\n${r.stderr}`);
+  return JSON.parse(readFileSync(out, 'utf8')) as Pick<E2EState, 'deployment' | 'seeded'>;
 }
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const anvil = await startAnvil();
   let server: Awaited<ReturnType<typeof startStaticServer>> | undefined;
   try {
-    const out = join(mkdtempSync(join(tmpdir(), 'atropyle-e2e-')), 'devnet.json');
-    run(`npx tsx scripts/e2e-devnet-prep.ts ${anvil.url} "${out}"`, ROOT);
-    const devnet = JSON.parse(readFileSync(out, 'utf8')) as Pick<E2EState, 'deployment' | 'seeded'>;
-
+    const devnet = prepareDevnet(anvil.url);
+    // The deweb build, pointed at the OKX origins that every test routes to anvil (network.ts).
     const site = {
       ...devnet.deployment,
-      rpcUrls: OKX_ORIGINS,
-      quorumRpcUrls: [OKX_ORIGINS, ['https://xlayer.drpc.org']],
+      rpcUrls: [...OKX_ORIGINS],
+      quorumRpcUrls: [[...OKX_ORIGINS], ['https://xlayer.drpc.org']],
       webUrl: null,
     };
-    run('npx vite build', WEB, {
+    const env: NodeJS.ProcessEnv = {
       ...process.env,
-      VITE_TARGET: 'deweb',
-      VITE_CHAIN: 'local',
-      VITE_DEPLOYMENT: JSON.stringify(site),
-      VITE_WORKER_URL: WORKER_SENTINEL,
-      VITE_TELEGRAM_BOT: 'atropyle_test_bot',
-      WEB_OUT_DIR: 'dist-e2e',
-    });
-
-    server = await startStaticServer(join(WEB, 'dist-e2e'));
+      NEXT_PUBLIC_TARGET: 'deweb',
+      NEXT_PUBLIC_CHAIN: 'local',
+      NEXT_PUBLIC_DEPLOYMENT: JSON.stringify(site),
+      ATROPYLE_E2E: '1',
+    };
+    const built = await buildApp({ env, quiet: true });
+    if (built.code !== 0) throw new Error(`next build (e2e) failed:\n${built.output}`);
+    rmSync(SITE, { recursive: true, force: true });
+    cpSync(OUT_DIR, SITE, { recursive: true });
+    // Served with the headers of vercel.json, so the header policy and each page's meta policy apply together.
+    server = await startStaticServer(SITE, 0, siteHeaders());
     const snapshot = (await rpcCall(anvil.url, 'evm_snapshot')) as string;
-    writeState({ rpcUrl: anvil.url, siteUrl: `http://127.0.0.1:${server.port}/`, snapshot, ...devnet });
+    writeState({ rpcUrl: anvil.url, siteUrl: `${server.url}/`, snapshot, ...devnet });
     const started = server;
     return async () => {
       await started.close();
