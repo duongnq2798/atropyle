@@ -9,11 +9,16 @@ test('parseSiteArgs reads target, --no-docs and --out', () => {
     docs: false,
     dir: 'tmp/site',
   });
+  expect(parseSiteArgs(['--target', 'vercel', '--no-docs'])).toEqual({
+    target: 'vercel',
+    docs: false,
+    dir: 'site-dist/vercel',
+  });
 });
 
 test('parseSiteArgs rejects a missing or unknown target', () => {
-  expect(() => parseSiteArgs([])).toThrow('--target must be deweb or pages');
-  expect(() => parseSiteArgs(['--target', 'ipfs'])).toThrow('--target must be deweb or pages');
+  expect(() => parseSiteArgs([])).toThrow('--target must be deweb, pages or vercel');
+  expect(() => parseSiteArgs(['--target', 'ipfs'])).toThrow('--target must be deweb, pages or vercel');
   expect(() => parseSiteArgs(['--target', 'deweb', '--out'])).toThrow('--out needs a value');
   expect(() => parseSiteArgs(['--target', 'deweb', '--yes'])).toThrow('unknown argument: --yes');
 });
@@ -39,10 +44,12 @@ test('webEnv strips the Worker URL from DeWEB builds and pins mainnet', () => {
     VITE_CHAIN: 'xlayer',
     VITE_WORKER_URL: 'https://w.example',
   });
+  // The production host is an https build with neither the cut Worker nor the cut Telegram bot.
+  expect(webEnv('vercel', false, base)).toEqual({ PATH: '/bin', VITE_TARGET: 'vercel', VITE_CHAIN: 'xlayer' });
 });
 
 test('docsEnv sets DOCS_BASE per target', () => {
-  expect(DOCS_BASE).toEqual({ deweb: '/docs/', pages: '/atropyle/docs/' });
+  expect(DOCS_BASE).toEqual({ deweb: '/docs/', pages: '/atropyle/docs/', vercel: '/docs/' });
   expect(docsEnv('deweb', { PATH: '/bin' })).toEqual({ PATH: '/bin', DOCS_BASE: '/docs/' });
   expect(docsEnv('pages', {})).toEqual({ DOCS_BASE: '/atropyle/docs/' });
 });

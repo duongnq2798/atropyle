@@ -45,6 +45,6 @@ export const xlayer: unknown = {
     "symbol": "ATRO"
   },
   "builderCode": null,
-  "webUrl": "https://duongnq2798.github.io/atropyle/",
+  "webUrl": "https://atropyle.xyz/",
   "logsBlockRange": 100
 };

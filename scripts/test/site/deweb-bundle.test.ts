@@ -13,9 +13,11 @@ import { loadSite } from '../../lib/site-files';
 const WEB = fileURLToPath(new URL('../../../apps/web-legacy', import.meta.url));
 const VITE_BIN = join(dirname(createRequire(join(WEB, 'package.json')).resolve('vite/package.json')), 'bin', 'vite.js');
 const SENTINEL_HOST = 'health.atropyle.invalid';
-const dirs: Record<SiteTarget, string> = { deweb: '', pages: '' };
+// vercel builds the web app as pages does (vite.config: every target but deweb is pages), so two builds cover all three.
+type Built = Exclude<SiteTarget, 'vercel'>;
+const dirs: Record<Built, string> = { deweb: '', pages: '' };
 
-function build(target: SiteTarget): void {
+function build(target: Built): void {
   const out = mkdtempSync(join(tmpdir(), `atropyle-${target}-`));
   dirs[target] = out;
   // The sentinel is set directly (not through webEnv) to prove vite.config itself drops it for DeWEB.

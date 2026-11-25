@@ -55,7 +55,7 @@ function readArgs() {
     return parseArgs({
       options: {
         'builder-code': { type: 'string' },
-        'web-url': { type: 'string', default: 'https://duongnq2798.github.io/atropyle/' },
+        'web-url': { type: 'string', default: 'https://atropyle.xyz/' },
         factory: { type: 'string' },
         'factory-block': { type: 'string' },
       },

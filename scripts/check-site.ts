@@ -1,4 +1,4 @@
-// npm run site:check -- --target deweb|pages [--out <dir>]
+// npm run site:check -- --target deweb|pages|vercel [--out <dir>]
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSiteArgs } from './lib/site-build';

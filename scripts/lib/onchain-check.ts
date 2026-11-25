@@ -124,6 +124,7 @@ export const TEXT_ONLY_HOSTS: Readonly<Record<string, string>> = {
   'www.oklink.com': 'explorer links (<a href>) built from deployment.explorerUrl; navigation, not a request',
   't.me': 'Telegram deep links to the bot; navigation, not a request',
   'duongnq2798.github.io': 'docs links (DOCS_BASE_URL) and the Pages mirror; navigation, not a request',
+  'atropyle.xyz': 'the production site (deployment.webUrl) in share and handoff links; navigation, not a request',
   'github.com': 'repository links on #/developers and in error hints; navigation, not a request',
   'www.npmjs.com': 'package links on #/developers; navigation, not a request',
   '*.tapekit.org': 'the site own gateway URL (deployment.webUrl) used in share links; navigation, not a request',

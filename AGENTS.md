@@ -6,21 +6,21 @@ Guidance for coding agents that work in this repository.
 
 Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every state change of a vault, and anyone can prove it with `npx atropyle verify`.
 
-| Path               | What                                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `contracts/`       | Solidity contracts (Foundry)                                                                                         |
-| `circuits/`        | The policy circuit and its netlists                                                                                  |
-| `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                  |
-| `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                              |
-| `packages/cli/`    | `atropyle`: the CLI                                                                                                  |
-| `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                      |
-| `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                   |
-| `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines |
-| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                |
-| `apps/web-legacy/` | The previous web app (Vite + Preact), tested in CI until the v2 cutover, then deleted                                |
-| `deployments/`     | Deployed addresses, per chain                                                                                        |
-| `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper      |
-| `supabase/`        | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                           |
+| Path               | What                                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts/`       | Solidity contracts (Foundry)                                                                                                      |
+| `circuits/`        | The policy circuit and its netlists                                                                                               |
+| `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                               |
+| `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                           |
+| `packages/cli/`    | `atropyle`: the CLI                                                                                                               |
+| `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                                   |
+| `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                                |
+| `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines              |
+| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                             |
+| `apps/web-legacy/` | The previous web app (Vite + Preact). Until the v2 cutover it is the production site at https://atropyle.xyz (root `vercel.json`) |
+| `deployments/`     | Deployed addresses, per chain                                                                                                     |
+| `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper                   |
+| `supabase/`        | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                                        |
 
 ## Setup
 
@@ -60,7 +60,7 @@ npm test -w apps/web-legacy
 npm run test:e2e -w apps/backend
 ```
 
-The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for both targets, DeWEB and GitHub Pages. The size budget reads the built web app.
+The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for three targets: DeWEB, GitHub Pages and Vercel (production, built by the root `vercel.json`). The size budget reads the built web app.
 
 ```bash
 cd contracts && forge build && cd ..
@@ -71,6 +71,8 @@ npm run site:build -- --target deweb --no-docs
 npm run site:check -- --target deweb
 npm run site:build -- --target pages --no-docs
 npm run site:check -- --target pages
+npm run site:build -- --target vercel --no-docs
+npm run site:check -- --target vercel
 npm run build -w apps/web-legacy
 npm run size -w apps/web-legacy
 ```

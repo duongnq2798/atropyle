@@ -29,6 +29,13 @@ test('siteProblems on pages requires .nojekyll', () => {
   expect(siteProblems(dir, 'pages')).toEqual([]);
 });
 
+test('siteProblems on vercel needs only index.html', () => {
+  const dir = temp();
+  expect(siteProblems(dir, 'vercel')).toHaveLength(1);
+  writeFileSync(join(dir, 'index.html'), '<!doctype html>');
+  expect(siteProblems(dir, 'vercel')).toEqual([]);
+});
+
 test('siteProblems on deweb reports external references and broken docs links', () => {
   const dir = temp();
   writeFileSync(join(dir, 'index.html'), '<img src="https://cdn.example/logo.png">');

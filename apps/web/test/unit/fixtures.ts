@@ -21,7 +21,7 @@ export function fixtureDeployment(over: Partial<Deployment> = {}): Deployment {
     circuits: null,
     tapeout: null,
     builderCode: null,
-    webUrl: 'https://duongnq2798.github.io/atropyle/',
+    webUrl: 'https://atropyle.xyz/',
     logsBlockRange: 100,
     ...over,
   };
