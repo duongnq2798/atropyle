@@ -1,7 +1,7 @@
 /** Resource atropyle://policy/spec. Keep in sync with §3 of docs/superpowers/specs/2026-11-18-atropyle-design.md. */
 export const POLICY_SPEC_MD = `# Atropyle policy v1
 
-The policy is a circuit on an X Layer TapeOut processor. A vault calls \`step(policyId, [state], inputs)\` on every state change, and the circuit returns the next state and three output flags. \`npx atropyle verify\` checks the properties P1-P8 below over all 2^26 combinations of state and inputs.
+The policy is a circuit on an X Layer TapeOut processor. Every lifecycle transition of a vault goes through \`step(policyId, [state], inputs)\`: the circuit returns the next state and three output flags, so it decides every release of the vault's assets. Who receives how much is decided by the vault's Solidity code, not by the circuit. \`npx atropyle verify\` checks the properties P1-P8 below over all 2^26 combinations of state and inputs.
 
 ## States (three latches A, R, X)
 
