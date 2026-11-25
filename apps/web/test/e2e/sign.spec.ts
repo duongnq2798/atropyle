@@ -4,6 +4,7 @@ import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom, disconnect, flipCase } from './flows.ts';
 import { expectAccessibleInBothThemes } from './helpers.ts';
+import { OKX_ORIGINS } from './network.ts';
 import { captureScreens, shouldCapture } from './screens.ts';
 import { warp } from './state.ts';
 
@@ -219,20 +220,77 @@ test('wrong account, then the right one on the wrong network', async ({ page, at
   expect(methods(w)).toContain('eth_sendTransaction');
 });
 
-test('screens of the sign page: a vote, a Drill typed again, a refusal, a broken link', async ({
-  page,
-  atro,
-  state,
-  wallet,
-}, info) => {
+/**
+ * Ready for a full-page shot: the header's wallet button has come back (the shell is settled) and the page is at its
+ * top, so the sticky header is drawn where it belongs and not over the card a field scrolled into view.
+ */
+async function atTop(page: Page, o: { wallet?: boolean } = {}): Promise<void> {
+  // "Wallet 0x…" in English, "Ví 0x…" in Vietnamese.
+  if (o.wallet !== false) await expect(page.getByRole('button', { name: /^(Wallet|Ví) 0x/ })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+test('screens of the sign page: every state, from checking to signed', async ({ page, atro, state, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
-  test.setTimeout(240_000);
+  test.setTimeout(420_000);
+
+  // Checking: inspect has not answered yet. Every chain request waits until the three shots are taken.
+  const checkIn = await atro.vault(state.seeded.simple).prepare({ type: 'checkIn' }, { as: OWNER });
+  const w = await wallet({ account: OWNER, sendCalls: true });
+  const gate: { open?: () => void } = {};
+  const held = new Promise<void>((resolve) => {
+    gate.open = resolve;
+  });
+  const hold = (url: URL) => OKX_ORIGINS.includes(url.origin);
+  await page.route(hold, async (route) => {
+    await held;
+    // A request of a page already reloaded away has nobody left to answer.
+    await route.fallback().catch(() => undefined);
+  });
+  await page.goto(signUrl(state.siteUrl, toPayload(checkIn)));
+  await captureScreens(page, 'sign-checking', {
+    ready: async () => {
+      await expect(page.getByTestId('sign-checking')).toBeVisible();
+      await atTop(page, { wallet: false });
+    },
+  });
+  gate.open?.();
+  await page.unroute(hold);
+
+  // Signed: a check-in through wallet_sendCalls, then the Receipt. Every shot reloads the page, so ready signs again.
+  await page.goto(signUrl(state.siteUrl, toPayload(checkIn)));
+  await connectFrom(page, cardConnect(page));
+  await captureScreens(page, 'sign-done', {
+    ready: async () => {
+      const done = page.getByTestId('sign-tx-done');
+      if (!(await done.isVisible())) {
+        // A later block for each check-in, as the bundle test does.
+        await warp(state, 30);
+        await expect(page.getByTestId('sign-tx-send')).toBeEnabled();
+        await page.getByTestId('sign-tx-send').click();
+        await expect(done).toBeVisible();
+      }
+      await expect(page.getByTestId('sign-open-vault')).toBeVisible();
+      await atTop(page);
+    },
+  });
+
+  // Would fail: a check-in signed by someone who does not own the vault.
+  const stranger = ANVIL[4];
+  w.setAccount(stranger);
+  await page.goto(signUrl(state.siteUrl, { ...toPayload(checkIn), from: stranger }));
+  await captureScreens(page, 'sign-sim-failed', {
+    ready: async () => {
+      await expect(page.getByTestId('sign-sim-error')).toHaveAttribute('data-code', /.+/);
+      await atTop(page, { wallet: false });
+    },
+  });
+
   const vote = await atro
     .vault(state.seeded.guarded)
     .prepare({ type: 'voteRecovery', target: ANVIL[6] }, { as: ANVIL[3] });
-  const w = await wallet({ account: ANVIL[3] });
+  w.setAccount(ANVIL[3]);
   await page.goto(signUrl(state.siteUrl, toPayload(vote)));
-  await connectFrom(page, cardConnect(page));
   // Every shot reloads the page, which forgets what was typed: ready types the wrong wallet again, so the gate shows
   // its error next to the mirror.
   await captureScreens(page, 'sign-vote', {
@@ -241,6 +299,7 @@ test('screens of the sign page: a vote, a Drill typed again, a refusal, a broken
       await expect(field).toBeVisible();
       if ((await field.inputValue()) === '') await field.fill(ANVIL[7]);
       await expect(page.getByTestId('sign-vote-target-0-error')).toBeVisible();
+      await atTop(page);
     },
   });
 
@@ -253,12 +312,23 @@ test('screens of the sign page: a vote, a Drill typed again, a refusal, a broken
       await expect(field).toBeVisible();
       if ((await field.inputValue()) === '') await field.fill(ANVIL[2].toLowerCase());
       await expect(page.getByTestId('sign-tx-send')).toBeEnabled();
+      await atTop(page);
     },
   });
 
   await page.goto(signUrl(state.siteUrl, outsideWhitelist(atro)));
-  await captureScreens(page, 'sign-refused', { ready: () => expect(page.getByTestId('sign-refused')).toBeVisible() });
+  await captureScreens(page, 'sign-refused', {
+    ready: async () => {
+      await expect(page.getByTestId('sign-refused')).toBeVisible();
+      await atTop(page);
+    },
+  });
 
   await page.goto(`${new URL('sign/', state.siteUrl).href}#p=AAAAAAAAAAAA`);
-  await captureScreens(page, 'sign-invalid', { ready: () => expect(page.getByTestId('sign-invalid')).toBeVisible() });
+  await captureScreens(page, 'sign-invalid', {
+    ready: async () => {
+      await expect(page.getByTestId('error')).toHaveAttribute('data-code', 'LINK_INVALID');
+      await atTop(page);
+    },
+  });
 });
