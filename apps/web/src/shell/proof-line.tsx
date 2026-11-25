@@ -37,15 +37,15 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
   return (
     <span data-variant={variant} className={variant === 'wide' ? 'hidden md:inline' : 'md:hidden'}>
       {before}
-      {/* No prefetch (7C T3, the R16 fallback): the static export of Next 16.4.6 writes /proof/__next.proof/__PAGE__.txt,
-          while the router asks for /proof/__next.proof.__PAGE__.txt, so every prefetch of /proof/ logs a 404 on every
-          static host and costs / its best-practices score. NavLink, like the footer's "Known limits": a plain next/link
-          would leave without the route's view transition (Task 15, outcome B). */}
-      <NavLink href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={GOLD}>
+      {/* Prefetched (spec §18 rule 12, 7C T3): /proof/ is one tap from every page. A Windows build needs the postbuild
+          step of scripts/lib/segments.ts for that, or the prefetch file of /proof/ lands in a folder and every
+          prefetch logs a 404. NavLink, like the footer's "Known limits": a plain next/link would leave without the
+          route's view transition (Task 15, outcome B). */}
+      <NavLink href={ROUTES.proof} title={POLICY_NETLIST_KECCAK} className={GOLD}>
         {SHORT}
       </NavLink>
       {between}
-      <NavLink href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
+      <NavLink href={LIMITS_HREF} className={variant === 'wide' ? GOLD : MUTED}>
         {limits}
         <ArrowRight aria-hidden="true" strokeWidth={2} className={ARROW} />
       </NavLink>

@@ -26,10 +26,9 @@ export function Footer() {
           <div className="flex max-w-md flex-col items-start gap-3">
             <Wordmark />
             <p className="text-ink-muted text-small">{t('footer')}</p>
-            {/* No prefetch: the 404 of a prefetched /proof/ segment in the static export (proof-line.tsx, R16). */}
+            {/* Prefetched, as the proof line's links (proof-line.tsx); the other links wait for their routes (7B). */}
             <NavLink
               href={LIMITS_HREF}
-              prefetch={false}
               className="rounded-sm font-medium text-small text-thread underline decoration-thread/40 underline-offset-4 transition-colors duration-150 hover:decoration-thread"
             >
               {t('knownLimits')}
