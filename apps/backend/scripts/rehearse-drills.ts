@@ -4,7 +4,9 @@
 // Rehearses the two mainnet Drills of the submission video on an anvil fork of X Layer mainnet that this script
 // starts itself, against the deployed factory, vault implementation and ATRO processor:
 //   0. the keeper's first tick after a deploy, then the team's old Drill (owner silent since 22 Nov 2026): poked
-//      and released by the keeper before it expires;
+//      and released by the keeper before it expires. Once the real keeper is deployed it does this on mainnet first,
+//      so a later fork starts with the old Drill in grace or released and expects one keeper poke or none
+//      (old-drill.ts);
 //   A. inheritance: the owner creates a Drill and approves one token, then goes silent; the keeper raises the
 //      alarm, releases and distributes; the heir signs nothing;
 //   B. recovery: 2 of 3 guardians vote for a new wallet; the keeper releases and moves the assets there.
@@ -70,6 +72,7 @@ import {
   guardFetch,
   XLAYER_CHAIN_ID,
 } from './drill-guards';
+import { oldDrillExpectation } from './old-drill';
 
 const DEPLOYMENT_FILE = new URL('../../../deployments/xlayer.json', import.meta.url);
 const DEFAULT_UPSTREAM = 'https://rpc.xlayer.tech';
@@ -81,8 +84,11 @@ const OLD_DRILL: Address = '0x481F28748959036B48bc6779797228D74f15f4b9';
 const CRON_SECONDS = 60;
 /** Seconds from the cron's whole minute to the head the tick reads (pg_net, function start); an assumption. */
 const TICK_LAG = 2n;
-/** The old Drill has a 60 s window, so two keeper ticks finish it; five leave room. */
-const OLD_DRILL_TICKS = 5;
+/**
+ * Ticks after the first one for the old Drill to end released. Its timing is 1m/2/1m: from an alarm, three ticks at
+ * most; from an owner check-in on mainnet, lateAt and the window take about six. Eight leave room.
+ */
+const OLD_DRILL_TICKS = 8;
 const OKB = 10n ** 18n;
 const GAS_MONEY = OKB / 100n; // 0.01 OKB for each owner and guardian
 const KEEPER_FUNDS = (OKB * 2n) / 100n; // 0.02 OKB, what apps/backend/README.md asks for
@@ -150,7 +156,9 @@ const iso = (t: bigint) => new Date(Number(t) * 1000).toISOString();
 function parseTiming(raw: string, flag: string): { period: number; threshold: number; window: number } {
   const parts = raw.split(',').map((x) => Number(x.trim()));
   if (parts.length !== 3 || parts.some((x) => !Number.isSafeInteger(x) || x <= 0)) {
-    throw new Error(`${flag} takes period,threshold,window in seconds, periods and seconds, such as 60,2,120`);
+    throw new Error(
+      `${flag} takes period,threshold,window: the period and the window in seconds, the threshold in missed periods, such as 60,2,120`,
+    );
   }
   const [period, threshold, window] = parts;
   return { period, threshold, window };
@@ -435,8 +443,13 @@ async function rehearse(
     const drill = 'old Drill';
     const s = await atro.vault(OLD_DRILL).status();
     console.log(`old Drill ${OLD_DRILL}: ${s.state}, pending ${s.pending}, expires ${iso(s.expiresAt ?? 0n)}`);
+    // What the keeper has left to do depends on the fork block: after the real deploy, the real keeper has already
+    // poked the old Drill on mainnet, or released it, and from 29 Nov 08:28:06 UTC it has expired.
+    const want = oldDrillExpectation(s);
     // The first tick after a deploy starts at factoryBlock, exactly like production: the old Drill was created 16
-    // blocks after the factory, so the very first tick indexes it and its keeper phase already pokes it.
+    // blocks after the factory, so the very first tick indexes it, and its keeper phase pokes it if anything is due.
+    // pg_cron starts it on a whole minute, like every later tick.
+    await passMinute();
     const first = await tick(drill);
     const firstAt = ticks[ticks.length - 1].at;
     check(
@@ -447,23 +460,21 @@ async function rehearse(
     // The rest of the backfill (factoryBlock to the fork block) is the 4-5 hours a real deploy spends catching up.
     // The rehearsal jumps the cursor to the fork block instead.
     await setCursor(db, fork.forkBlock, new Date().toISOString());
-    if (s.expired) {
-      check('old Drill', true, 'already expired at the fork block: nothing left for the keeper to do');
+    if (want.keeperTxs === 0) {
+      // Nothing is due: one more tick shows that the keeper still sends nothing.
+      await passMinute();
+      await tick(drill);
     } else {
-      const changed = await cronUntil(
-        drill,
-        async () => (await atro.vault(OLD_DRILL).status()).state !== s.state,
-        OLD_DRILL_TICKS,
-      );
-      const after = await atro.vault(OLD_DRILL).status();
       await cronUntil(drill, async () => isReleased((await atro.vault(OLD_DRILL).status()).state), OLD_DRILL_TICKS);
-      const end = await atro.vault(OLD_DRILL).status();
-      const kt = keeperTxs(drill);
-      check(
-        'old Drill: keeper poked, then released it',
-        changed && isReleased(end.state) && kt.length === 2,
-        `${s.state} -> ${after.state} -> ${end.state}; keeper sent ${kt.map((t) => t.action).join(', ')}`,
-      );
+    }
+    const end = await atro.vault(OLD_DRILL).status();
+    const kt = keeperTxs(drill);
+    check(
+      want.check,
+      kt.length === want.keeperTxs && (want.ends === 'released' ? isReleased(end.state) : end.state === s.state),
+      `${s.state} (pending ${s.pending}) -> ${end.state}; keeper sent ${kt.length} tx (${kt.map((t) => t.action).join(', ') || 'none'}), expected ${want.keeperTxs}`,
+    );
+    if (kt.length > 0) {
       timelines.push(timelineOf(drill, OLD_DRILL, null, 'first keeper tick', firstAt, end, kt.at(-1)?.at ?? null));
     }
   }
