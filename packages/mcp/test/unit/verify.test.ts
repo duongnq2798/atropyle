@@ -16,6 +16,17 @@ const POLICY = {
   policyId: 1n,
   beaconFrozen: true,
   cpuCheck: null,
+  p9: {
+    ok: true,
+    seed: 18_446_744_073_709_551_615n,
+    vectors: 64,
+    operators: [
+      { operator: 1, blockNumber: 123n, multicall: true, calls: 4, matched: 64 },
+      { operator: 2, blockNumber: 123n, multicall: true, calls: 4, matched: 64 },
+    ],
+    mismatches: [],
+    ms: 900,
+  },
   chainId: 196,
   blockNumber: 123n,
   rpcs: 2,
@@ -23,6 +34,7 @@ const POLICY = {
   firstFailures: [],
   warnings: [],
 } as unknown as PolicyVerification;
+const P9 = POLICY.p9 as NonNullable<PolicyVerification['p9']>;
 
 function stub(verifyPolicy: (o: { onProgress?: (d: number, t: number) => void }) => Promise<PolicyVerification>) {
   return {
@@ -51,6 +63,53 @@ describe('verify', () => {
     expect(out.operators).toEqual([['rpc.xlayer.tech'], ['xlayer.drpc.org']]);
     expect(JSON.stringify(out)).not.toContain('key-abc123');
     expect(out.summary).toContain('P1-P8 hold on all 67,108,864 combinations');
+    expect(out.summary).toContain('matches the simulator on 64 seeded vectors (P9, seed 18446744073709551615)');
+    expect(out.policy?.p9).toMatchObject({
+      ok: true,
+      seed: '18446744073709551615',
+      operators: [{ blockNumber: '123' }, { blockNumber: '123' }],
+    });
+  });
+
+  it('passes the P9 seed to the SDK as a bigint, and only with the policy proof', async () => {
+    let asked: unknown;
+    const atro = stub(async (o) => {
+      asked = (o as { p9Seed?: bigint }).p9Seed;
+      return POLICY;
+    });
+    await verify(atro, { p9Seed: '42' });
+    expect(asked).toBe(42n);
+    await expect(verify(atro, { p9Seed: '42', policy: false, vault: A(9) })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
+  });
+
+  it('a P9 mismatch fails the result, names P9 and keeps the vector', async () => {
+    const mismatch = {
+      operator: 2,
+      index: 5,
+      state: 1,
+      inputs: 4_684_137,
+      expectNext: '0x01',
+      expectOut: '0x00',
+      next: '0x05',
+      out: '0x00',
+      error: null,
+    };
+    const bad = {
+      ...POLICY,
+      ok: false,
+      issues: ['P9: 1 of 64 vectors differ between the simulator and step() on RPC operator #2'],
+      p9: { ...P9, ok: false, mismatches: [mismatch] },
+    } as PolicyVerification;
+    const out = await verify(
+      stub(async () => bad),
+      {},
+    );
+    expect(VerifyOutputSchema.parse(out)).toEqual(out);
+    expect(out.ok).toBe(false);
+    expect(out.summary).toContain('FAILED: P9 does not hold');
+    expect(out.policy?.p9?.mismatches).toEqual([mismatch]);
   });
 
   it('an unreadable policy is a failed verification, not an error', async () => {
@@ -77,7 +136,7 @@ describe('verify', () => {
       {},
     );
     expect(out.ok).toBe(false);
-    expect(out.summary).toContain('P3 do not hold');
+    expect(out.summary).toContain('P3 does not hold');
   });
 
   it('a proof that never ran does not blame P1-P8', async () => {
@@ -96,7 +155,7 @@ describe('verify', () => {
     );
     expect(out.ok).toBe(false);
     expect(out.summary).not.toMatch(/P\d/);
-    expect(out.summary).not.toContain('do not hold');
+    expect(out.summary).not.toContain('not hold');
     expect(out.summary).toContain('1 issue found');
   });
 

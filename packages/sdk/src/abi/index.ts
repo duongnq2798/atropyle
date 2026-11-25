@@ -39,6 +39,7 @@ export const erc1155Abi = [
 
 export const beaconAbi = [
   { type: 'function', name: 'owner', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'implementation', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
 ] as const;
 
 export const tapeoutFactoryAbi = [

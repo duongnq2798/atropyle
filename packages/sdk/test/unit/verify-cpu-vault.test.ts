@@ -47,6 +47,7 @@ type Answers = Record<string, unknown>;
 function client(a: Answers): PublicClient {
   return {
     getStorageAt: async () => `0x${'00'.repeat(12)}${BEACON.slice(2)}`,
+    getCode: async () => '0x6000',
     readContract: async ({ functionName }: { functionName: string }) => {
       const v = a[functionName];
       if (v instanceof Error) throw v;

@@ -76,6 +76,17 @@ export async function readIntegrity(c: PublicClient, d: Deployment, rpcs: number
         { name: 'beacon.frozen', ok: cc.beaconFrozen },
         { name: 'cpu.transistors', ok: cc.transistorsPaired },
       );
+      const code = cc.code;
+      if (code.expected) {
+        checks.push(
+          eqCheck('cpu.codehash', code.expected.proxyCodehash, code.proxyCodehash ?? 'no code'),
+          eqCheck('cpuImpl.address', code.expected.implementation, code.implementation),
+          eqCheck('cpuImpl.codehash', code.expected.implementationCodehash, code.implementationCodehash ?? 'no code'),
+        );
+      } else if (d.chainId === MAINNET_CHAIN_ID) {
+        // On mainnet the processor's code must be pinned: a CPU this SDK does not know is not verifiable.
+        checks.push({ name: 'cpu.codehash', ok: false, expected: 'pinned', actual: code.proxyCodehash ?? 'no code' });
+      }
     } else if (d.chainId === MAINNET_CHAIN_ID) {
       // Without TapeOut info the frozen-CPU check cannot run: not verifiable.
       checks.push({ name: 'deployment.tapeout', ok: false, expected: 'present', actual: 'missing' });

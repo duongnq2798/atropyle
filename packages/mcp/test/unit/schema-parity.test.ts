@@ -27,7 +27,7 @@ import type {
   Warning,
   WhatIfResult,
 } from '@atropyle/sdk';
-import type { CpuCheck } from '@atropyle/sdk/verify';
+import type { CodeCheck, CpuCheck, P9Mismatch, P9OperatorResult, P9Result } from '@atropyle/sdk/verify';
 import { describe, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/v4';
 import type * as S from '../../src/ops/schemas';
@@ -75,6 +75,13 @@ describe('schemas mirror the SDK types field for field', () => {
     expectTypeOf<SameKeys<typeof S.IntegrityCheckSchema, IntegrityCheck>>().toEqualTypeOf<true>();
     expectTypeOf<SameKeys<typeof S.IntegrityReportSchema, IntegrityReport>>().toEqualTypeOf<true>();
     expectTypeOf<SameKeys<typeof S.CpuCheckSchema, CpuCheck>>().toEqualTypeOf<true>();
+    expectTypeOf<SameKeys<typeof S.CodeCheckSchema, CodeCheck>>().toEqualTypeOf<true>();
+    expectTypeOf<
+      SameKeys<ReturnType<typeof S.CodeCheckSchema.shape.expected.unwrap>, NonNullable<CodeCheck['expected']>>
+    >().toEqualTypeOf<true>();
+    expectTypeOf<SameKeys<typeof S.P9Schema, P9Result>>().toEqualTypeOf<true>();
+    expectTypeOf<SameKeys<typeof S.P9Schema.shape.operators.element, P9OperatorResult>>().toEqualTypeOf<true>();
+    expectTypeOf<SameKeys<typeof S.P9MismatchSchema, P9Mismatch>>().toEqualTypeOf<true>();
     expectTypeOf<SameKeys<typeof S.NetlistReportSchema, NetlistReport>>().toEqualTypeOf<true>();
     expectTypeOf<SameKeys<typeof S.PolicyVerificationSchema, PolicyVerification>>().toEqualTypeOf<true>();
     expectTypeOf<SameKeys<typeof S.FailureSchema, Elem<PolicyVerification['firstFailures']>>>().toEqualTypeOf<true>();
