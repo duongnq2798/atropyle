@@ -97,7 +97,8 @@ export function withCsp(html: string, csp: string): string {
   return `${html.slice(0, end)}<meta http-equiv="Content-Security-Policy" content="${csp}"/>${html.slice(end)}`;
 }
 
-function htmlFiles(dir: string): string[] {
+/** Every .html file under `dir`, at any depth. */
+export function htmlFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const path = join(dir, e.name);
     if (e.isDirectory()) return htmlFiles(path);
