@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tests of static-analysis-gate.py on synthetic reports. Run from anywhere: python3 static-analysis-gate.test.py
+"""Tests of static-analysis-gate.py on synthetic reports, and of the doc's dependency-only locations against the
+OpenZeppelin source. Run from anywhere: python3 static-analysis-gate.test.py
 
 Standard library only.
 """
@@ -8,6 +9,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -37,9 +39,19 @@ class GateTest(unittest.TestCase):
         self.baseline = self.dir / "baseline.json"
         self.doc = self.dir / "doc.md"
         self.doc.write_text("| F-01 | ... |\n| F-02 | ... |\n| S-01 | ... |\n", encoding="utf8")
+        # The Solidity sources that the slither mode checks for CRLF line endings, LF here.
+        self.contracts = self.dir / "contracts"
+        self.source("src/C.sol", b"pragma solidity 0.8.24;\ncontract C {}\n")
+        self.source("lib/dep/contracts/D.sol", b"pragma solidity ^0.8.20;\ncontract D {}\n")
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def source(self, name: str, data: bytes) -> Path:
+        path = self.contracts / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path
 
     def report(self, name: str, text: str) -> Path:
         path = self.dir / name
@@ -54,6 +66,7 @@ class GateTest(unittest.TestCase):
 
     def run_gate(self, tool: str, *reports: Path, write: bool = False) -> tuple[int, str]:
         argv = [tool, *map(str, reports), "--baseline", str(self.baseline), "--doc", str(self.doc)]
+        argv += ["--contracts", str(self.contracts)]
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = gate.main(argv + (["--write"] if write else []))
@@ -156,11 +169,85 @@ class GateTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("GONE slither finding S-01", out)
 
+    def pin_one_slither_result(self) -> Path:
+        result = slither_result("timestamp", "C.f() (src/C.sol#1-2) uses timestamp for comparisons\n")
+        full = self.slither_report("full.json", result)
+        self.run_gate("slither", full, write=True)
+        self.set_triage("slither", "S-01")
+        return full
+
+    def test_slither_fails_when_a_source_in_lib_has_crlf_line_endings(self):
+        # A Windows checkout with core.autocrlf=true writes CRLF in the submodules, where the superproject's
+        # .gitattributes does not apply, and Slither then reports other line numbers than on the LF checkout of CI.
+        full = self.pin_one_slither_result()
+        self.source("lib/dep/contracts/D.sol", b"pragma solidity ^0.8.20;\r\ncontract D {}\r\n")
+        code, out = self.run_gate("slither", full)
+        self.assertEqual(code, 1, out)
+        self.assertIn("1 Solidity file has CRLF line endings under src/ or lib/: lib/dep/contracts/D.sol.", out)
+        self.assertIn("core.autocrlf false", out)
+        self.assertNotIn("reported,", out)
+
+    def test_slither_fails_when_a_source_in_src_has_crlf_line_endings(self):
+        full = self.pin_one_slither_result()
+        self.source("src/nested/E.sol", b"contract E {}\r\n")
+        code, out = self.run_gate("slither", full)
+        self.assertEqual(code, 1, out)
+        self.assertIn("src/nested/E.sol", out)
+
+    def test_slither_write_refuses_crlf_sources_and_keeps_the_baseline(self):
+        full = self.pin_one_slither_result()
+        before = self.baseline.read_bytes()
+        self.source("lib/dep/contracts/D.sol", b"contract D {}\r\n")
+        code, out = self.run_gate("slither", full, write=True)
+        self.assertEqual(code, 1, out)
+        self.assertIn("CRLF", out)
+        self.assertEqual(self.baseline.read_bytes(), before)
+
+    def test_forge_lint_does_not_check_line_endings(self):
+        a, b = self.pin_two_lints()
+        self.source("lib/dep/contracts/D.sol", b"contract D {}\r\n")
+        code, out = self.run_gate("forge-lint", a, b)
+        self.assertEqual(code, 0, out)
+
     def test_slither_report_of_a_failed_run_is_rejected(self):
         failed = self.report("failed.json", json.dumps({"success": False, "error": "compile failed", "results": {}}))
         with self.assertRaises(SystemExit) as raised:
             self.run_gate("slither", failed)
         self.assertIn("compile failed", str(raised.exception.code))
+
+
+class DependencyLocationsTest(unittest.TestCase):
+    """The D-xx rows of the doc cite the lines of the OpenZeppelin source that Slither reports on an LF checkout.
+
+    This reads the real doc and lib/openzeppelin-contracts, so it needs the submodules (CI checks them out). The line
+    numbers of a file do not depend on its line endings, but a Slither run on CRLF reports them shifted (D-01 at 29-36
+    instead of 30-37), so a location copied from such a run fails here.
+    """
+
+    ROW = re.compile(r"^\| (D-\d\d) +\| ([\w-]+) \(\w+\) *\| `([\w/.]+\.sol):(\d+)(?:-(\d+))?`", re.MULTILINE)
+    # What the first cited line holds, for the results that cite one statement or declaration.
+    ONE_LINE = {
+        "low-level-calls": r"\.(call|staticcall|delegatecall)\b",
+        "naming-convention": r"\bfunction \w+\(",
+        "too-many-digits": r"0x[0-9a-f]{40,}",
+    }
+
+    def test_each_location_starts_and_ends_where_the_reported_element_does(self):
+        doc = gate.DOC.read_text(encoding="utf8")
+        root = GATE_PATH.parent / "lib" / "openzeppelin-contracts" / "contracts"
+        rows = self.ROW.findall(doc)
+        # D-05 names 9 files and no lines.
+        self.assertEqual([r[0] for r in rows], [f"D-{i:02}" for i in range(1, 14) if i != 5])
+        for triage, detector, file, first, last in rows:
+            with self.subTest(triage=triage, location=f"{file}:{first}-{last or first}"):
+                lines = (root / file).read_text(encoding="utf8").splitlines()
+                start, end = int(first), int(last or first)
+                if detector == "assembly":
+                    self.assertRegex(lines[start - 1], r"\bassembly \{")
+                    self.assertEqual(lines[end - 1].strip(), "}")
+                else:
+                    self.assertEqual(start, end, "Slither cites this element on one line")
+                    self.assertRegex(lines[start - 1], self.ONE_LINE[detector])
 
 
 if __name__ == "__main__":

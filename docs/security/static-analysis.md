@@ -120,8 +120,16 @@ Notes:
   matches: that would also have hidden S-26, which names files in `src` and in `lib`. Nothing in `src` is silenced:
   there is no `slither-disable` comment, and the run with the config keeps all 29 results that the run without it
   reports for `src`.
-- Run Slither on a checkout with LF line endings. On a copy with CRLF line endings, Slither 0.11.6 reported the same
-  findings at shifted line numbers, and the CI gate then counts them as new.
+- Run Slither on a checkout with LF line endings, as CI has. With CRLF line endings, Slither 0.11.6 reports some lines
+  in `lib` shifted: D-01 at `Clones.sol:29-36` instead of `30-37`, and S-26, which names files in `src` and in `lib`,
+  with other lines, so the gate counts it as new and the baseline entry as gone. The gate's slither mode therefore fails
+  first if a `.sol` file under `src` or `lib` has CRLF. On Windows, `core.autocrlf=true` writes CRLF in the submodules,
+  where this repository's `.gitattributes` (`eol=lf`) does not apply. Before running Slither there, set
+  `core.autocrlf false` in the submodules and check them out again, from the repository root:
+
+  ```bash
+  git -C contracts submodule foreach --recursive 'git config core.autocrlf false && git rm -rq --cached . && git reset -q --hard'
+  ```
 
 ## Slither findings in `contracts/src`
 
@@ -577,19 +585,19 @@ Slither reports these in OpenZeppelin Contracts v5.0.2, unmodified, under `contr
 
 | ID   | Detector                         | Location                                                  | Verdict            | Severity      |
 | ---- | -------------------------------- | --------------------------------------------------------- | ------------------ | ------------- |
-| D-01 | assembly (Informational)         | `proxy/Clones.sol:29-36`, `clone`                         | Accepted by design | Informational |
-| D-02 | assembly (Informational)         | `proxy/Clones.sol:51-58`, `cloneDeterministic`            | Accepted by design | Informational |
-| D-03 | assembly (Informational)         | `proxy/Clones.sol:72-81`, `predictDeterministicAddress`   | Accepted by design | Informational |
-| D-04 | assembly (Informational)         | `utils/Address.sol:148-151`, `_revert`                    | Accepted by design | Informational |
+| D-01 | assembly (Informational)         | `proxy/Clones.sol:30-37`, `clone`                         | Accepted by design | Informational |
+| D-02 | assembly (Informational)         | `proxy/Clones.sol:52-59`, `cloneDeterministic`            | Accepted by design | Informational |
+| D-03 | assembly (Informational)         | `proxy/Clones.sol:74-83`, `predictDeterministicAddress`   | Accepted by design | Informational |
+| D-04 | assembly (Informational)         | `utils/Address.sol:151-154`, `_revert`                    | Accepted by design | Informational |
 | D-05 | solc-version (Informational)     | `pragma ^0.8.20` in 9 OpenZeppelin files                  | False positive     | None          |
-| D-06 | low-level-calls (Informational)  | `utils/Address.sol:43-46`, `sendValue`                    | Accepted by design | Informational |
-| D-07 | low-level-calls (Informational)  | `token/ERC20/utils/SafeERC20.sol:112-113`, `_callOptionalReturnBool` | Accepted by design | Informational |
-| D-08 | low-level-calls (Informational)  | `utils/Address.sol:104`, `functionDelegateCall`           | Accepted by design | Informational |
-| D-09 | low-level-calls (Informational)  | `utils/Address.sol:95`, `functionStaticCall`              | Accepted by design | Informational |
-| D-10 | low-level-calls (Informational)  | `utils/Address.sol:84-86`, `functionCallWithValue`        | Accepted by design | Informational |
-| D-11 | naming-convention (Informational) | `token/ERC20/extensions/IERC20Permit.sol:86-88`, `DOMAIN_SEPARATOR` | Accepted by design | Informational |
-| D-12 | too-many-digits (Informational)  | `proxy/Clones.sol:32-33`, the clone bytecode constant     | Accepted by design | Informational |
-| D-13 | too-many-digits (Informational)  | `proxy/Clones.sol:54-55`, the clone bytecode constant     | Accepted by design | Informational |
+| D-06 | low-level-calls (Informational)  | `utils/Address.sol:46`, `sendValue`                       | Accepted by design | Informational |
+| D-07 | low-level-calls (Informational)  | `token/ERC20/utils/SafeERC20.sol:115`, `_callOptionalReturnBool` | Accepted by design | Informational |
+| D-08 | low-level-calls (Informational)  | `utils/Address.sol:105`, `functionDelegateCall`           | Accepted by design | Informational |
+| D-09 | low-level-calls (Informational)  | `utils/Address.sol:96`, `functionStaticCall`              | Accepted by design | Informational |
+| D-10 | low-level-calls (Informational)  | `utils/Address.sol:87`, `functionCallWithValue`           | Accepted by design | Informational |
+| D-11 | naming-convention (Informational) | `token/ERC20/extensions/IERC20Permit.sol:89`, `DOMAIN_SEPARATOR` | Accepted by design | Informational |
+| D-12 | too-many-digits (Informational)  | `proxy/Clones.sol:33`, the clone bytecode constant        | Accepted by design | Informational |
+| D-13 | too-many-digits (Informational)  | `proxy/Clones.sol:55`, the clone bytecode constant        | Accepted by design | Informational |
 
 Reasoning: these are deliberate patterns of the library (EIP-1167 clone code, `Address` helpers, the EIP-2612 name
 `DOMAIN_SEPARATOR`). The factory uses `Clones` and `SafeERC20`; nothing in `src` uses `delegatecall` or sends native
@@ -637,7 +645,8 @@ Static analysis of this repository does not cover:
 
 The `contracts` job in `.github/workflows/ci.yml` runs, after `forge build` and `forge test`:
 
-1. `python static-analysis-gate.test.py`, the unit tests of the gate script below.
+1. `python static-analysis-gate.test.py`, the unit tests of the gate script below. It also checks that each D-xx
+   location on this page starts and ends where the reported element does in the OpenZeppelin source.
 2. `forge lint src --deny warnings`. It runs the High, Medium and Low lints and fails on any warning that the config
    and the inline comments in `src` leave. Those comments are part of the deployed source, so they are the baseline for
    35 findings.
@@ -645,7 +654,8 @@ The `contracts` job in `.github/workflows/ci.yml` runs, after `forge build` and 
    `python static-analysis-gate.py forge-lint` on both reports. It fails unless the two reports hold exactly F-01 to
    F-13 and F-49 to F-81, at their locations.
 4. Slither with the pinned versions above, then `python static-analysis-gate.py slither`. It fails unless the report
-   holds exactly S-01 to S-29.
+   holds exactly S-01 to S-29, and before comparing, if a `.sol` file under `contracts/src` or `contracts/lib` has CRLF
+   line endings (see the notes under [Commands](#commands)).
 
 Both gates compare against `contracts/static-analysis.baseline.json`. A gate fails on:
 

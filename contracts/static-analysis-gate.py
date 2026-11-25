@@ -28,6 +28,10 @@ different id from one run to the next. The fingerprint here is the detector name
 description, which name every element with its file and lines but do not depend on that order. Run Slither from
 contracts/, so that the file names in the descriptions are relative to it.
 
+Those line numbers come from a checkout with LF line endings, as CI has. With CRLF, Slither 0.11.6 reports some of them
+shifted, so the slither mode (with or without --write) first fails if a .sol file under src/ or lib/ has CRLF. On
+Windows, core.autocrlf=true writes CRLF in the submodules, where the superproject's .gitattributes does not apply.
+
 forge lint reports only what the config and the inline forge-lint comments leave. Its High, Medium and Low lints run
 by default and the inline comments in src/ are their baseline, except unsafe-typecast, which foundry.toml excludes.
 That lint and the Info, Gas and Code-size lints, which forge lint does not run by default, are pinned here by location.
@@ -46,6 +50,34 @@ HERE = Path(__file__).resolve().parent
 BASELINE = HERE / "static-analysis.baseline.json"
 DOC = HERE.parent / "docs" / "security" / "static-analysis.md"
 UNTRIAGED = "untriaged"
+# Turns the submodules of a Windows checkout to LF. Run from the repository root.
+LF_SUBMODULES = (
+    "git -C contracts submodule foreach --recursive "
+    "'git config core.autocrlf false && git rm -rq --cached . && git reset -q --hard'"
+)
+
+
+def crlf_sources(contracts: Path) -> list[str]:
+    """The .sol files under src/ and lib/ that contain CRLF, relative to contracts/ and with forward slashes."""
+    found = []
+    for folder in ("src", "lib"):
+        for path in (contracts / folder).rglob("*.sol"):
+            if path.is_file() and b"\r\n" in path.read_bytes():
+                found.append(path.relative_to(contracts).as_posix())
+    return sorted(found)
+
+
+def check_line_endings(contracts: Path) -> bool:
+    crlf = crlf_sources(contracts)
+    if not crlf:
+        return True
+    shown = ", ".join(crlf[:3]) + (f" and {len(crlf) - 3} more" if len(crlf) > 3 else "")
+    files = "1 Solidity file has" if len(crlf) == 1 else f"{len(crlf)} Solidity files have"
+    print(f"error: {files} CRLF line endings under src/ or lib/: {shown}.")
+    print("Slither then reports other line numbers than on the LF checkout of CI, so the baseline would not match.")
+    print("On Windows, set core.autocrlf false in the submodules and check them out again, from the repository root:")
+    print(f"  {LF_SUBMODULES}")
+    return False
 
 
 def slither_fingerprint(result: dict) -> str:
@@ -109,7 +141,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", action="store_true", help="rewrite this tool's part of the baseline")
     parser.add_argument("--baseline", type=Path, default=BASELINE, help=argparse.SUPPRESS)
     parser.add_argument("--doc", type=Path, default=DOC, help=argparse.SUPPRESS)
+    parser.add_argument("--contracts", type=Path, default=HERE, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+
+    if args.tool == "slither" and not check_line_endings(args.contracts):
+        return 1
 
     key, read, fields = TOOLS[args.tool]
     baseline = json.loads(args.baseline.read_text(encoding="utf8")) if args.baseline.exists() else {}

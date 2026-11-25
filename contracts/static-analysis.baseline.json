@@ -206,7 +206,7 @@
       "impact": "Informational",
       "confidence": "High",
       "summary": "2 different versions of Solidity are used:",
-      "fingerprint": "310cbb608a9ea8905eeca8b2e3e2afa10601a9051d1359660ab20c2b4a44fd5c"
+      "fingerprint": "7a45a12fe0e0d0151112a0009ae579d24820ff5905425f4b3aa88f5cd5d76da3"
     },
     {
       "triage": "S-27",
