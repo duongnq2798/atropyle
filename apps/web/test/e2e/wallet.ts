@@ -103,6 +103,11 @@ export async function installWallet(page: Page, o: WalletOptions): Promise<TestW
             gasUsed: Hex;
             logs: unknown[];
           }[];
+          // anvil can answer eth_sendTransaction before the block with it is mined (scripts/lib/anvil.ts polls for
+          // the same reason): until every call has a receipt the bundle is pending (100), as an EIP-5792 wallet says.
+          if (receipts.some((r) => !r)) {
+            return { result: { version: '2.0.0', id: params[0], chainId: hex(chainId), atomic: false, status: 100 } };
+          }
           const ok = receipts.every((r) => r?.status === '0x1');
           return {
             result: {
