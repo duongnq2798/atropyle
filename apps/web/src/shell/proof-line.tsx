@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowRight } from 'lucide-react';
 import { POLICY_NETLIST_KECCAK } from '@/config/facts';
 import { useT } from '@/i18n/provider';
 import { messages as shell } from '@/messages/shell.messages';
@@ -12,6 +13,13 @@ const LINK = 'rounded-sm underline underline-offset-2 transition-colors duration
 const GOLD = `${LINK} text-thread decoration-thread/40 hover:decoration-thread`;
 /** "unaudited →" on a phone: R21 keeps the word in the line's own muted ink, with no accent. */
 const MUTED = `${LINK} text-ink-muted decoration-line-strong hover:text-ink`;
+/**
+ * The arrow after "limits" is an icon, not the character `→`: no self-hosted subset has U+2192, so the browser would
+ * draw it in a system font, and on Linux the first such fallback blocks the main thread at first paint (CI Lighthouse:
+ * TBT 826 ms). test/unit/glyphs.test.ts keeps every message inside the fonts. 1em wide plus half a space: about the
+ * two characters that ` →` took in the mono line.
+ */
+const ARROW = 'ml-[0.5ch] inline-block size-[1em] align-[-0.125em]';
 
 /**
  * Splits a template at `{keccak}` and `{limits}`, so both links sit inside one translated sentence. A template
@@ -37,6 +45,7 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
       {between}
       <NavLink href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
         {limits}
+        <ArrowRight aria-hidden="true" strokeWidth={1.5} className={ARROW} />
       </NavLink>
       {after}
     </span>

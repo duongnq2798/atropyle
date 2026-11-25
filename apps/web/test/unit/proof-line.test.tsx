@@ -10,8 +10,12 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ 
 const KECCAK = deployment.circuits.netlistKeccak.policy;
 const SHORT = `${KECCAK.slice(0, 6)}…${KECCAK.slice(-4)}`;
 
-/** Characters as a reader counts them: `…`, `→` and each Vietnamese letter are one. */
-const length = (s: string | null) => Array.from((s ?? '').normalize('NFC')).length;
+/**
+ * Characters as a reader counts them: `…` and each Vietnamese letter are one, and the arrow icon with its gap counts
+ * as the two characters ` →` took before it became an icon.
+ */
+const length = (el: HTMLElement) =>
+  Array.from((el.textContent ?? '').normalize('NFC')).length + 2 * el.querySelectorAll('svg').length;
 
 function variants() {
   const line = screen.getByTestId('proof-line');
@@ -27,8 +31,8 @@ describe('ProofLine', () => {
     const { line, wide, narrow } = variants();
     expect(line.tagName).toBe('P');
     expect(line.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-6', 'font-mono', 'text-caption']));
-    expect(wide.textContent).toBe(`Rules frozen in netlist ${SHORT} on X Layer · unaudited · limits →`);
-    expect(narrow.textContent).toBe(`Rules ${SHORT} · unaudited →`);
+    expect(wide.textContent).toBe(`Rules frozen in netlist ${SHORT} on X Layer · unaudited · limits`);
+    expect(narrow.textContent).toBe(`Rules ${SHORT} · unaudited`);
     expect(wide.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'md:inline']));
     expect(narrow.className.split(/\s+/)).toContain('md:hidden');
     for (const v of [wide, narrow]) {
@@ -43,11 +47,29 @@ describe('ProofLine', () => {
 
   it('speaks Vietnamese in sentence case', async () => {
     renderWithProviders(<ProofLine />, { lang: 'vi' });
-    await waitFor(() => expect(variants().narrow.textContent).toBe(`Luật ${SHORT} · chưa kiểm toán →`));
+    await waitFor(() => expect(variants().narrow.textContent).toBe(`Luật ${SHORT} · chưa kiểm toán`));
     expect(variants().wide.textContent).toBe(
-      `Luật đóng băng trong netlist ${SHORT} trên X Layer · chưa kiểm toán · giới hạn →`,
+      `Luật đóng băng trong netlist ${SHORT} trên X Layer · chưa kiểm toán · giới hạn`,
     );
     expect(screen.getByRole('complementary', { name: 'Bằng chứng về luật' })).toContainElement(variants().line);
+  });
+
+  it('ends each limits link with an arrow icon that a screen reader skips, never the character →', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const { unmount } = renderWithProviders(<ProofLine />, { lang });
+      const { line, wide, narrow } = variants();
+      expect(line.textContent).not.toContain('→');
+      for (const v of [wide, narrow]) {
+        const [keccak, limits] = Array.from(v.querySelectorAll('a'));
+        expect(keccak.querySelector('svg')).toBeNull();
+        const icons = limits.querySelectorAll('svg');
+        expect(icons, `${lang} ${v.dataset.variant}`).toHaveLength(1);
+        expect(limits.lastElementChild).toBe(icons[0]);
+        expect(icons[0].getAttribute('aria-hidden')).toBe('true');
+        expect(icons[0].getAttribute('class')).toContain('lucide-arrow-right');
+      }
+      unmount();
+    }
   });
 
   it('is a landmark of its own, so a reader who moves by landmarks reaches it', () => {
@@ -61,7 +83,7 @@ describe('ProofLine', () => {
     const { wide, narrow } = variants();
     const classes = (a: Element) => (a.getAttribute('class') ?? '').split(/\s+/);
     const [keccak, unaudited] = Array.from(narrow.querySelectorAll('a'));
-    expect(unaudited.textContent).toBe('unaudited →');
+    expect(unaudited.textContent).toBe('unaudited');
     expect(classes(unaudited)).toEqual(expect.arrayContaining(['text-ink-muted', 'underline', 'hover:text-ink']));
     expect(classes(unaudited).filter((c) => c.includes('thread'))).toEqual([]);
     for (const a of [keccak, ...Array.from(wide.querySelectorAll('a'))]) expect(classes(a)).toContain('text-thread');
@@ -80,8 +102,8 @@ describe('ProofLine', () => {
       const { unmount } = renderWithProviders(<ProofLine />, { lang });
       await waitFor(() => expect(variants().narrow.textContent).toContain(lang === 'vi' ? 'Luật' : 'Rules'));
       const { wide, narrow } = variants();
-      expect(length(narrow.textContent), `${lang} narrow`).toBeLessThanOrEqual(36);
-      expect(length(wide.textContent), `${lang} wide`).toBeLessThanOrEqual(96);
+      expect(length(narrow), `${lang} narrow`).toBeLessThanOrEqual(36);
+      expect(length(wide), `${lang} wide`).toBeLessThanOrEqual(96);
       unmount();
     }
   });
