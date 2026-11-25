@@ -29,6 +29,11 @@ export interface VerifyReport {
 export interface VerifyOptions {
   maxFailures?: number;
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Blocks between two onProgress calls: a positive whole number, 65 536 by default (32 calls for the full proof).
+   * The last block always reports, so a run ends at done === total.
+   */
+  progressEvery?: number;
   /** Test hook: enumerate only the first `blocks` blocks of 32 combinations. */
   blocks?: number;
 }
@@ -42,6 +47,10 @@ export function verifyPolicy(p: Program, opts: VerifyOptions = {}): VerifyReport
   const t0 = performance.now();
   const blocks = opts.blocks ?? FULL_BLOCKS;
   const maxFailures = opts.maxFailures ?? 16;
+  const every = opts.progressEvery ?? 0x10000;
+  if (!Number.isSafeInteger(every) || every < 1) {
+    throw new Error(`progressEvery must be a positive whole number, got ${every}`);
+  }
   const buf = lanes(p);
   const state = Int32Array.of(LANE[0], LANE[1], LANE[2]);
   const inputs = new Int32Array(23);
@@ -71,7 +80,7 @@ export function verifyPolicy(p: Program, opts: VerifyOptions = {}): VerifyReport
         firstFailures.push({ state: s, inputs: v, next, out, expectNext: code & 7, expectOut: code >>> 3, violations: vio });
       }
     }
-    if (opts.onProgress && ((blk + 1) & 0xffff) === 0) opts.onProgress(blk + 1, blocks);
+    if (opts.onProgress && ((blk + 1) % every === 0 || blk + 1 === blocks)) opts.onProgress(blk + 1, blocks);
   }
   return { combos: blocks * 32, mismatches, violations: counts, firstFailures, ms: performance.now() - t0 };
 }

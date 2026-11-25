@@ -198,7 +198,7 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
   };
   const verifyContext = () => verifyEnv ?? loadVerify();
   let policyCache: Promise<PolicyVerification> | null = null;
-  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller.
+  // Note: a run that is cached or already in flight ignores the `onProgress` and `progressEvery` of a later caller.
   const verifyPolicy = (o: VerifyPolicyOptions = {}): Promise<PolicyVerification> =>
     guard(async () => {
       const run = async () => {
