@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom, disconnect, flipCase } from './flows.ts';
-import { expectAccessibleInBothThemes } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
 import { captureScreens, shouldCapture } from './screens.ts';
 import { warp } from './state.ts';
@@ -134,12 +134,16 @@ test('a Drill link that approves a token signs only after the owner types every 
   await expect(page.locator('[data-testid^="sign-tx-mirror-"][data-testid$="-danger-unknownCall"]')).toHaveCount(0);
 
   await expect(page.getByTestId('sign-confirm')).toBeVisible();
+  // The gate at rest in both themes; the reload keeps the link in the hash and the wallet reconnects by itself.
+  await expectAccessibleInBothThemes(page, page.getByTestId('sign-confirm-0'));
   await expect(page.getByTestId('sign-confirm-0')).toHaveValue('');
   await expect(page.getByTestId('sign-confirm-1')).toHaveCount(0);
   await expect(page.getByTestId('sign-tx-send')).toBeDisabled();
   await page.getByLabel(/^Heir 1 \(100%\)/).fill(ANVIL[7]);
   await expect(page.getByTestId('sign-confirm-0-error')).toHaveAttribute('data-reason', 'mismatch');
   await expect(page.getByTestId('sign-confirm-0')).toHaveAttribute('aria-invalid', 'true');
+  // The error state too: its message, its live region and the field's described-by.
+  await expectAccessible(page);
   await expect(page.getByTestId('sign-tx-send')).toBeDisabled();
   await page.getByLabel(/^Heir 1 \(100%\)/).fill(heir.toLowerCase());
   await expect(page.getByTestId('sign-confirm-count')).toHaveText('1 of 1 addresses match.');
