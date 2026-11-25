@@ -10,6 +10,7 @@ import { KEYS, type KV, memoryKV } from '../../src/lib/store';
 import type { WalletWindow } from '../../src/lib/wallet';
 import { StatusPage } from '../../src/pages/status';
 import { AppProvider } from '../../src/ui/app-context';
+import { fixtureCounters } from './counters-fixture';
 import { DRPC, fixtureDeployment, OKX } from './fixtures';
 
 afterEach(cleanup);
@@ -56,7 +57,7 @@ function renderStatus(vars: Record<string, string>, sdk: Sdk, fetchFn: FetchFn, 
   const env = readEnv({ VITE_DEPLOYMENT: JSON.stringify(deploymentToJson(d)), ...vars });
   render(
     <AppProvider env={env} kv={kv} win={new EventTarget() as WalletWindow} languages={['en']}>
-      <StatusPage sdk={sdk} probe={probe} fetchFn={fetchFn} />
+      <StatusPage sdk={sdk} probe={probe} fetchFn={fetchFn} counters={async () => fixtureCounters()} />
     </AppProvider>,
   );
   return kv;
@@ -146,4 +147,13 @@ test('a failed Worker answer shows the error and the Pages build without a Worke
     throw new Error('must not be called');
   });
   expect(await screen.findByTestId('status-worker-none')).toBeTruthy();
+});
+
+test('the status page shows the chain counters with how each one is counted', async () => {
+  renderStatus({ VITE_TARGET: 'deweb' }, fakeSdk('deweb'), async () => new Response('{}', { status: 200 }));
+  expect((await screen.findByTestId('counter-vaults')).getAttribute('data-value')).toBe('1234');
+  expect(screen.getByTestId('counters-as-of').textContent).toContain('block 76825469, 2026-11-25 08:15 UTC');
+  const defs = screen.getByTestId('counters-definitions');
+  expect(defs.textContent).toContain('nonce minus one');
+  expect(defs.textContent).toContain('deployments/team.json');
 });

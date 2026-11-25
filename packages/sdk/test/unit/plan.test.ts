@@ -60,7 +60,25 @@ describe('validatePlan', () => {
     ]);
     expect(r.config.owner).toBe(OWNER);
     expect(r.config.drill).toBe(false);
-    expect(r.warnings).toEqual([]);
+    // Recovery is on in `base`: the only warning is the power it gives the guardians.
+    expect(r.warnings).toEqual([
+      {
+        code: 'RECOVERY_POWER',
+        message:
+          'Wallet recovery is on: 2 of 3 guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the 14d alarm window ends.',
+        params: { k: 2, guardians: 3, window: 14 * 86400 },
+      },
+    ]);
+  });
+
+  it('warns RECOVERY_POWER only when recovery is on', () => {
+    const off = validatePlan({ ...base, recoveryEnabled: false }, { owner: OWNER });
+    expect(off.ok && off.warnings).toEqual([]);
+    const drill = validatePlan({ ...base, timing: 'drill' }, { owner: OWNER, drill: true });
+    expect(drill.ok && drill.warnings.map((w) => w.code)).toEqual(['RECOVERY_POWER', 'DRILL_NOT_FOR_REAL_ASSETS']);
+    expect(drill.ok && drill.warnings[0].message).toContain('before the 2m alarm window ends');
+    const one = validatePlan({ ...base, guardians: [C], k: 1 }, { owner: OWNER });
+    expect(one.ok && one.warnings[0].message).toContain('1 of 1 guardians acting together can move 100%');
   });
 
   it.each([
@@ -441,8 +459,19 @@ describe('templates and sections', () => {
     expect(g.recoveryEnabled).toBe(true);
     const r = validatePlan(g, { owner: OWNER });
     expect(r.ok).toBe(true);
+    expect(r.ok && r.warnings.map((w) => w.code)).toEqual(['RECOVERY_POWER']);
     const drill = planTemplate('simple', { heirs: [{ account: A }], drill: true });
     expect(validatePlan(drill, { owner: OWNER }).ok && drill.timing).toBe('drill');
+  });
+
+  it('guarded gives the owner at least 7 days to stop a recovery', () => {
+    const g = planTemplate('guarded', { heirs: [{ account: A }], guardians: [C, D, E] });
+    const r = validatePlan(g, { owner: OWNER });
+    expect(r.ok && r.config.timing.window).toBeGreaterThanOrEqual(7 * 86400);
+    expect(r.ok && r.config.timing).toEqual(PRESETS.sixMonths);
+    // Only a Drill, which lives 7 days, runs on minutes.
+    const drill = planTemplate('guarded', { heirs: [{ account: A }], guardians: [C, D, E], drill: true });
+    expect(drill.timing).toBe('drill');
   });
 
   it('resolveTiming throws PLAN_INVALID with issues', () => {

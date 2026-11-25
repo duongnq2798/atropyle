@@ -7,6 +7,7 @@ import { type FetchFn, fetchHealth, type Health } from '../lib/health';
 import type { Sdk } from '../lib/sdk';
 import { uniqueWarnings, warningKey } from '../lib/tx-view';
 import { useApp, useT } from '../ui/app-context';
+import { ChainCountersCard, type CountersLoad, STATUS_MAX_VAULTS } from '../ui/chain-counters';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, Banner, CopyButton, ErrorBox, UntrustedText } from '../ui/components';
 import { type AsyncState, useAsync } from '../ui/use-async';
@@ -187,8 +188,13 @@ function HealthView({ health }: { health: Health }) {
   );
 }
 
-/** Spec section 14. `probe` and `fetchFn` are seams for unit tests; the app uses the defaults. */
-export function StatusPage(props: { sdk: Sdk; probe?: (url: string) => Promise<bigint>; fetchFn?: FetchFn }) {
+/** Spec section 14. `probe`, `fetchFn` and `counters` are seams for unit tests; the app uses the defaults. */
+export function StatusPage(props: {
+  sdk: Sdk;
+  probe?: (url: string) => Promise<bigint>;
+  fetchFn?: FetchFn;
+  counters?: CountersLoad;
+}) {
   const { sdk } = props;
   const app = useApp();
   const t = useT(messages);
@@ -239,6 +245,7 @@ export function StatusPage(props: { sdk: Sdk; probe?: (url: string) => Promise<b
         <h2>{t('integrityTitle')}</h2>
         <AsyncView state={integrity}>{(r) => <IntegrityView report={r} />}</AsyncView>
       </section>
+      <ChainCountersCard sdk={sdk} detail maxVaults={STATUS_MAX_VAULTS} load={props.counters} />
       <section class="card stack">
         <h2>{t('rpcTitle')}</h2>
         <AsyncView state={probes}>{(list) => <ProbeTable probes={list} />}</AsyncView>

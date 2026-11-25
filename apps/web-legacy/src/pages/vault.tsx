@@ -107,12 +107,19 @@ function StatusCard(props: {
               </li>
             ))}
           </ul>
-          <p class="muted">
-            {t('guardiansK', { k: c.k, n: c.guardians.length })}{' '}
-            {c.recoveryEnabled ? t(owner ? 'recoveryOnOwner' : 'recoveryOnOther', { k: c.k }) : null}
-          </p>
+          <p class="muted">{t('guardiansK', { k: c.k, n: c.guardians.length })}</p>
         </>
       )}
+      {/* RECOVERY_POWER: released or expired, the guardians can no longer vote a recovery. */}
+      {c.recoveryEnabled && c.k > 0 && !view.released && !view.expired ? (
+        <Banner kind="warn" testid="vault-recovery-power">
+          {t(owner ? 'recoveryPowerOwner' : 'recoveryPowerOther', {
+            k: c.k,
+            n: c.guardians.length,
+            window: formatDuration(c.timing.window),
+          })}
+        </Banner>
+      ) : null}
       <h3>{t('timing')}</h3>
       <p>
         {t('timingLine', {

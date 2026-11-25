@@ -98,7 +98,8 @@ export async function prepareCreateVault(x: PrepareContext, plan: unknown, opts:
       args: [paramsToAbi(toVaultParams(cfg)), salt, cfg.drill, feeToken],
     }),
     summary: createSummary,
-    warnings: [],
+    // The step carries the plan's warnings too, as handoff inspection rebuilds them from this calldata.
+    warnings: r.warnings,
   });
   const ap = await approvalDrafts(
     { client: c, token: (a) => x.token(a, blockNumber), blockNumber },

@@ -105,29 +105,47 @@ describe('vault page', () => {
     expect(screen.queryByTestId('vault-not-registered')).toBeNull();
   });
 
-  it('states the power of recovery with k, in words that fit the viewer, in both languages', async () => {
-    const power = 'Recovery is on: 2 guardians who agree can move everything in the vault to a wallet they choose.';
+  it('states the power of recovery with k of n and the window, in words that fit the viewer, in both languages', async () => {
+    const power =
+      'Wallet recovery is on: 2 of 3 guardians acting together can move 100% of the covered assets to any wallet they choose.';
     for (const viewer of [null, PEOPLE.stranger, PEOPLE.g1]) {
       mount(fixtureSnapshot(), viewer);
-      const text = (await screen.findByTestId('vault-status')).textContent;
-      expect(text).toContain(`${power} The owner can stop it only by checking in before the window ends.`);
-      expect(text).not.toContain('You can stop it');
+      const banner = await screen.findByTestId('vault-recovery-power');
+      expect(banner.getAttribute('role')).toBe('alert');
+      expect(banner.textContent).toBe(
+        `${power} The owner can stop it only by checking in before the 2m alarm window ends.`,
+      );
+      expect(screen.getByTestId('vault-status').contains(banner)).toBe(true);
       cleanup();
     }
     mount(fixtureSnapshot(), PEOPLE.owner);
-    expect((await screen.findByTestId('vault-status')).textContent).toContain(
-      `${power} You can stop it only by checking in before the window ends.`,
+    expect((await screen.findByTestId('vault-recovery-power')).textContent).toBe(
+      `${power} You can stop it only by checking in before the 2m alarm window ends.`,
     );
     cleanup();
     mount(fixtureSnapshot(), null, 'vi');
-    expect((await screen.findByTestId('vault-status')).textContent).toContain(
-      'Đã bật khôi phục: 2 người giám hộ cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang một ví do họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    expect((await screen.findByTestId('vault-recovery-power')).textContent).toBe(
+      'Đã bật khôi phục ví: 2 trên 3 người giám hộ cùng hành động thì có thể chuyển 100% tài sản vault đang phủ sang bất kỳ ví nào họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động 2m.',
     );
     cleanup();
     mount(fixtureSnapshot(), PEOPLE.owner, 'vi');
-    expect((await screen.findByTestId('vault-status')).textContent).toContain(
-      'Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
+    expect((await screen.findByTestId('vault-recovery-power')).textContent).toContain(
+      'Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động 2m.',
     );
+  });
+
+  it('drops the recovery power warning once the vault is released, and with k = 0', async () => {
+    const released = fixtureSnapshot();
+    released.status.state = 'releasedInherit';
+    mount(released, null);
+    await screen.findByTestId('vault-status');
+    expect(screen.queryByTestId('vault-recovery-power')).toBeNull();
+    cleanup();
+    const noK = fixtureSnapshot();
+    noK.config.k = 0;
+    mount(noK, null);
+    await screen.findByTestId('vault-status');
+    expect(screen.queryByTestId('vault-recovery-power')).toBeNull();
   });
 
   it('warns every viewer about a pending recovery, with its wallet and the time left', async () => {
@@ -180,7 +198,8 @@ describe('vault page', () => {
     snap.config.recoveryEnabled = false;
     mount(snap, PEOPLE.stranger);
     const status = await screen.findByTestId('vault-status');
-    expect(status.textContent).not.toContain('Recovery is on');
+    expect(status.textContent).not.toContain('recovery is on');
+    expect(screen.queryByTestId('vault-recovery-power')).toBeNull();
     expect(screen.getByTestId('vault-state').getAttribute('data-state')).toBe('active');
     expect(screen.queryByTestId('owner-panel')).toBeNull();
     expect(screen.getByTestId('vault-roles').textContent).toContain('no role');

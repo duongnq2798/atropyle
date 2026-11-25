@@ -1,15 +1,17 @@
-import { decodeError, GUARDIAN_WARNING, type SignPayload } from '@atropyle/sdk';
+import { type CreateTerms, decodeError, formatDuration, GUARDIAN_WARNING, type SignPayload } from '@atropyle/sdk';
 import { useMemo, useState } from 'preact/hooks';
 import type { Hex } from 'viem';
+import { formatBps, formatTimestamp } from '../lib/format';
 import { confirmTarget, type TargetCheck } from '../lib/guardian';
 import { explorerTx } from '../lib/links';
 import { href } from '../lib/route';
 import type { Sdk } from '../lib/sdk';
 import type { CallsStatus } from '../lib/send-calls';
-import { isGuardianStep, type SignOutcome, sendSignRequest, signView, voteSteps } from '../lib/sign';
+import { confirmKey, isGuardianStep, type SignOutcome, sendSignRequest, signView, voteSteps } from '../lib/sign';
 import { uniqueWarnings, warningKey } from '../lib/tx-view';
 import { useApp, useT } from '../ui/app-context';
-import { AddressText, Banner, ErrorBox } from '../ui/components';
+import { AddressText, Banner, ErrorBox, WarningText } from '../ui/components';
+import { messages as labels } from '../ui/labels.messages';
 import { useAsync } from '../ui/use-async';
 import { useHash } from '../ui/use-hash';
 import { useLeaveGuard } from '../ui/use-leave-guard';
@@ -26,6 +28,97 @@ function parse(sdk: Sdk, hash: string): { payload: SignPayload | null; error: un
 /** A vote whose calldata does not decode: no typed address can match it, so it can never be signed here. */
 const UNDECODED: TargetCheck = { ok: false, reason: 'invalid' };
 const VOTE_REASON = { invalid: 'voteInvalid', mismatch: 'voteMismatch' } as const;
+const CONFIRM_REASON = { invalid: 'confirmInvalid', mismatch: 'confirmMismatch' } as const;
+
+/** Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses a second
+ * createVault, a vault that already exists and any later call to that vault in the same link, so these terms are
+ * final. */
+function TermsCard({ index, terms, explorer }: { index: number; terms: CreateTerms; explorer: string | null }) {
+  const t = useT(messages);
+  const l = useT(labels);
+  const e = terms.exit;
+  const id = `sign-terms-${index}`;
+  const tm = terms.timing;
+  return (
+    <section class="card stack" data-testid={id} aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`}>
+        {t('termsTitle', { n: index + 1 })} {terms.drill ? <span class="badge">{l('drill')}</span> : null}
+      </h2>
+      <div>
+        <AddressText address={terms.vault} explorer={explorer} />
+      </div>
+      {e.earliest && terms.earliestAt !== null ? (
+        <p data-testid={`${id}-earliest`} data-after={String(e.earliest.after)} data-route={e.earliest.route}>
+          <strong>
+            {t('earliest', { time: formatDuration(e.earliest.after), date: formatTimestamp(terms.earliestAt) })}
+          </strong>
+        </p>
+      ) : (
+        <p data-testid={`${id}-earliest`} data-after="none">
+          <strong>{t('earliestNone')}</strong>
+        </p>
+      )}
+      {terms.drill && e.expiresAfter !== null ? (
+        <p>{t('termsDrill', { time: formatDuration(e.expiresAfter) })}</p>
+      ) : null}
+      {e.routes.length > 0 ? (
+        <>
+          <h3>{t('routesTitle')}</h3>
+          <ul data-testid={`${id}-routes`}>
+            {e.routes.map((r) => {
+              const time = formatDuration(r.after);
+              const text =
+                r.route === 'recovery'
+                  ? t('routeRecovery', { time, k: r.guardians })
+                  : r.route === 'heirsFallback'
+                    ? t('routeFallback', { time })
+                    : r.guardians === 0
+                      ? t('routeHeirs', { time })
+                      : t('routeHeirsGuardians', { time, k: r.guardians });
+              return (
+                <li key={r.route} data-route={r.route} data-after={String(r.after)}>
+                  {text}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : null}
+      <h3>{t('heirsTitle')}</h3>
+      <ul data-testid={`${id}-heirs`}>
+        {terms.heirs.map((h) => (
+          <li key={h.account}>
+            <AddressText address={h.account} /> {formatBps(h.bps)}
+          </li>
+        ))}
+      </ul>
+      <h3>{t('guardiansTitle')}</h3>
+      {terms.guardians.length === 0 ? (
+        <p class="muted" data-testid={`${id}-guardians`}>
+          {t('guardiansNone')}
+        </p>
+      ) : (
+        <div data-testid={`${id}-guardians`}>
+          <ul>
+            {terms.guardians.map((g) => (
+              <li key={g}>
+                <AddressText address={g} />
+              </li>
+            ))}
+          </ul>
+          <p>{t(terms.recoveryEnabled ? 'guardiansOn' : 'guardiansOff', { k: terms.k, n: terms.guardians.length })}</p>
+        </div>
+      )}
+      <p>
+        {t('timingLine', {
+          period: formatDuration(tm.period),
+          threshold: tm.threshold,
+          window: formatDuration(tm.window),
+        })}
+      </p>
+    </section>
+  );
+}
 
 function outcomeHashes(o: SignOutcome): Hex[] {
   if (o.kind === 'sendCalls') return o.result.hashes;
@@ -57,6 +150,8 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
   const [resumeBlocked, setResumeBlocked] = useState(false);
   // What the guardian typed for each vote step, by step index. Always empty on load: never read from the link.
   const [typed, setTyped] = useState<Record<number, string>>({});
+  // What the signer typed for each address the SDK asks to confirm, by confirmKey. Also never read from the link.
+  const [retyped, setRetyped] = useState<Record<string, string>>({});
   // Closing the tab mid-send, or with confirmed steps and steps left, loses the only copy of what remains to sign.
   const finished =
     outcome !== null && (outcome.kind === 'sequential' || (outcome.kind === 'sendCalls' && outcome.result.ok));
@@ -88,9 +183,16 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
     check: v.target ? confirmTarget(typed[v.index] ?? '', v.target) : UNDECODED,
   }));
   const votesConfirmed = votes.every((v) => v.check.ok);
+  // A Drill that can move tokens, or gets new heirs or recovery guardians: every heir (and guardian, with recovery)
+  // is typed again before Sign turns on.
+  const confirmRows = view.confirm.map((a, i) => {
+    const key = confirmKey(a);
+    return { a, i, key, check: confirmTarget(retyped[key] ?? '', a.account) };
+  });
+  const addressesConfirmed = confirmRows.every((r) => r.check.ok);
 
   const sign = async () => {
-    if (!app.wallet || !votesConfirmed) return;
+    if (!app.wallet || !votesConfirmed || !addressesConfirmed) return;
     setBusy(true);
     setError(null);
     setStatus('signing');
@@ -102,6 +204,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
         { atro: sdk.atro, provider: app.wallet.option.provider, walletClient: app.walletClient() },
         request,
         {
+          confirm: (addresses) => addresses.map((a) => retyped[confirmKey(a)] ?? ''),
           onStatus: setStatus,
           onStep: (e) => {
             setStatus(e.phase === 'signing' ? 'signing' : 'pending');
@@ -189,9 +292,13 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
         </tbody>
       </table>
 
+      {check.steps.map((s) =>
+        s.create ? <TermsCard key={s.index} index={s.index} terms={s.create} explorer={explorer} /> : null,
+      )}
+
       {warnings.map((w) => (
         <Banner kind="warn" key={warningKey(w)} testid={`warning-${w.code}`}>
-          {w.message}
+          <WarningText warning={w} />
         </Banner>
       ))}
       {view.guardianWarning ? (
@@ -229,6 +336,56 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           ))}
         </div>
       ) : null}
+      {confirmRows.length > 0 && view.verdict !== 'refused' && view.verdict !== 'unproven' ? (
+        <section
+          class="card stack"
+          data-testid="sign-confirm"
+          aria-labelledby="sign-confirm-title"
+          aria-describedby="sign-confirm-intro"
+        >
+          <h2 id="sign-confirm-title">{t('confirmTitle')}</h2>
+          <p id="sign-confirm-intro">
+            {t(check.confirm?.reason === 'DRILL_RECIPIENTS_CHANGED' ? 'confirmIntroRecipients' : 'confirmIntro')}
+          </p>
+          {confirmRows.map((r) => {
+            const reason = !r.check.ok && r.check.reason !== 'empty' ? r.check.reason : null;
+            const errorId = `sign-confirm-${r.i}-error`;
+            return (
+              <div class="stack" key={r.key}>
+                <label class="field">
+                  <span>
+                    {r.a.role === 'heir'
+                      ? t('confirmHeir', { n: r.a.index + 1, share: formatBps(r.a.bps ?? 0), step: r.a.step + 1 })
+                      : t('confirmGuardian', { n: r.a.index + 1, step: r.a.step + 1 })}
+                  </span>
+                  <input
+                    data-testid={`sign-confirm-${r.i}`}
+                    value={retyped[r.key] ?? ''}
+                    placeholder={'0x\u{2026}'}
+                    spellcheck={false}
+                    autocomplete="off"
+                    readOnly={busy}
+                    aria-invalid={reason ? 'true' : undefined}
+                    aria-describedby={reason ? errorId : undefined}
+                    onInput={(ev) => {
+                      const value = (ev.target as HTMLInputElement).value;
+                      setRetyped((x) => ({ ...x, [r.key]: value }));
+                    }}
+                  />
+                </label>
+                {reason ? (
+                  <p class="field-error" id={errorId} data-testid={errorId} data-reason={reason}>
+                    {t(CONFIRM_REASON[reason])}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+          <p class="muted" aria-live="polite" data-testid="sign-confirm-count">
+            {t('confirmCount', { done: confirmRows.filter((r) => r.check.ok).length, total: confirmRows.length })}
+          </p>
+        </section>
+      ) : null}
 
       {view.verdict === 'refused' ? (
         <Banner kind="error" testid="sign-refused">
@@ -240,6 +397,11 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           <Banner kind="error">{t('simFailedAll')}</Banner>
           {firstFailure && firstFailure.ok === false ? <ErrorBox error={firstFailure.error} /> : null}
         </div>
+      ) : null}
+      {view.verdict === 'unproven' ? (
+        <Banner kind="error" testid="sign-unproven">
+          {t('unproven')}
+        </Banner>
       ) : null}
       {view.verdict === 'connect' ? <p data-testid="sign-connect">{t('connect')}</p> : null}
       {view.verdict === 'wrongAccount' && wallet ? (
@@ -253,7 +415,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           type="button"
           class="btn btn-primary btn-big"
           data-testid="sign-send"
-          disabled={busy || !votesConfirmed}
+          disabled={busy || !votesConfirmed || !addressesConfirmed}
           onClick={sign}
         >
           {busy

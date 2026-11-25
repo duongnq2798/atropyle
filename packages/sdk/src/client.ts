@@ -12,7 +12,7 @@ import type { VaultAction } from './actions';
 import { toAddress } from './address';
 import { builderCodeSuffix } from './builder-code';
 import { chainOf } from './chain';
-import { type ChainName, type Deployment, getDeployment } from './deployments/index';
+import { type ChainName, type Deployment, getDeployment, getTeam } from './deployments/index';
 import { AtropyleError, decodeError } from './errors';
 import {
   type CastTx,
@@ -24,7 +24,7 @@ import {
   sendCallsParams,
   signLink,
 } from './handoff/index';
-import { inspectPayload, type SignRequestCheck } from './handoff/inspect';
+import { type InspectOptions, inspectPayload, type SignRequestCheck } from './handoff/inspect';
 import { planTemplate } from './plan/templates';
 import { PRESETS } from './plan/types';
 import { validatePlan } from './plan/validate';
@@ -35,6 +35,7 @@ import { prepareCreateVault } from './prepare/create';
 import type { CreateVaultOptions, PrepareContext, PrepareOptions, TxPlan, WhatIfReport } from './prepare/types';
 import { checkPlan, type PlanCheck } from './read/check-plan';
 import { createReadContext, type ReadContext, type SdkEvent } from './read/context';
+import { type ChainCounters, type CountersOptions, readCounters } from './read/counters';
 import { readEvents, type VaultEvent } from './read/events';
 import { type FeeQuote, readFees } from './read/fees';
 import { netlistSource } from './read/netlists';
@@ -103,6 +104,11 @@ export interface AtropyleClient {
   }): Promise<Stats>;
   /** Vault creations and vault events since a cursor, for the Worker's cron and bots (spec §9.5). */
   scan(o?: ScanOptions): Promise<ScanResult>;
+  /**
+   * Traction counters from view functions at one block, each also outside the team (the owners listed in
+   * deployments/team.json unless `o.team` says otherwise). A few calls per vault read, no eth_getLogs.
+   */
+  counters(o?: CountersOptions): Promise<ChainCounters>;
   vault(address: string): VaultHandle;
   /** Exhaustive check of the on-chain policy netlist against this repository, read from two operators (spec §5.4). */
   verifyPolicy(o?: VerifyPolicyOptions): Promise<PolicyVerification>;
@@ -118,8 +124,11 @@ export interface AtropyleClient {
     cast(tx: CastTx, rpcUrl?: string): string;
     calls(plan: TxPlan | SignPayload): SendCallsParams;
     okx(tx: CastTx): string;
-    /** Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. */
-    inspect(request: SignPayload | string): Promise<SignRequestCheck>;
+    /**
+     * Decodes, whitelists and re-simulates a signing request (spec §15). Accepts a payload or a full link. A request
+     * that gives a Drill vault an allowance is `ok` only with `confirmed`: the addresses of `confirm`, typed again.
+     */
+    inspect(request: SignPayload | string, o?: InspectOptions): Promise<SignRequestCheck>;
   };
 }
 
@@ -284,6 +293,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       ),
     stats: (o) => guard(() => readStats(ctx, o)),
     scan: (o) => guard(() => scanEvents(ctx, o)),
+    counters: (o) =>
+      guard(() => readCounters(ctx, { ...o, team: o?.team ?? getTeam(deployment).map((m) => m.address) })),
     vault,
     verifyPolicy,
     integrity: () =>
@@ -307,8 +318,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
       cast: (tx, rpcUrl) => guardSync(() => castCommand(tx, rpcUrl ?? deployment.rpcUrls[0])),
       calls: (plan) => guardSync(() => sendCallsParams(plan)),
       okx: (tx) => guardSync(() => okxCommand(tx)),
-      inspect: (request) =>
-        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request)),
+      inspect: (request, o) =>
+        guard(() => inspectPayload(ctx, typeof request === 'string' ? parseSignLink(request) : request, o)),
     },
   };
 }

@@ -9,7 +9,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: { default: 'Atropyle: inheritance and wallet recovery on X Layer', template: '%s · Atropyle' },
   description:
-    'A vault for crypto inheritance and wallet recovery on X Layer. A circuit decides every step, and anyone can prove it.',
+    'A vault for crypto inheritance and wallet recovery on X Layer. A circuit decides every lifecycle transition of a vault, and so every release of its assets. Anyone can prove it.',
   applicationName: 'Atropyle',
   // iOS would otherwise turn long numbers (amounts, block numbers) into phone links.
   formatDetection: { telephone: false, address: false, email: false },

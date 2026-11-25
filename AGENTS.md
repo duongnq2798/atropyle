@@ -4,7 +4,7 @@ Guidance for coding agents that work in this repository.
 
 ## What this is
 
-Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every state change of a vault, and anyone can prove it with `npx atropyle verify`.
+Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every lifecycle transition of a vault, and so every release of its assets; the Solidity contracts decide who receives how much. Anyone can prove the circuit with `npx atropyle verify`.
 
 | Path               | What                                                                                                                              |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |

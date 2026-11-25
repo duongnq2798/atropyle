@@ -42,7 +42,12 @@ export const ActionNameSchema = z.enum([
   'setApprovalForAll',
 ]);
 
-export const WarningSchema = z.object({ code: z.string(), message: z.string() });
+export const WarningSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  /** The typed numbers the message was built from, for clients that translate it (RECOVERY_POWER: k, guardians, window). */
+  params: z.record(z.string(), z.number()).optional(),
+});
 export const ErrorJsonSchema = z.object({
   code: z.enum(ERROR_CODES as [ErrorCode, ...ErrorCode[]]),
   message: z.string(),
