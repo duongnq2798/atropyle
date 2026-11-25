@@ -101,6 +101,17 @@ describe('signView', () => {
     expect(signView(check([step()]), ready, 196).confirm).toEqual([]);
   });
 
+  it('holds a Drill link with a step the network did not simulate after the earlier ones, typed or not', () => {
+    const skipped = step({ index: 1, simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } });
+    for (const confirmed of [false, true]) {
+      const confirm = { reason: 'DRILL_WITH_ALLOWANCE' as const, addresses: [heirToType], confirmed };
+      const v = signView(check([step(), skipped], { ok: false, confirm }), ready, 196);
+      expect(v).toMatchObject({ verdict: 'unproven', canSign: false });
+    }
+    // Without the gate, a skipped step is what a paid creation shows on such an endpoint: it stays signable.
+    expect(signView(check([step(), skipped]), ready, 196)).toMatchObject({ verdict: 'ready', canSign: true });
+  });
+
   it('keys an address to confirm by its vault, role and position, never by the step', () => {
     expect(confirmKey(heirToType)).toBe(`${V.toLowerCase()}:heir:0`);
     expect(confirmKey({ ...heirToType, step: 3 })).toBe(confirmKey(heirToType));

@@ -30,8 +30,9 @@ const UNDECODED: TargetCheck = { ok: false, reason: 'invalid' };
 const VOTE_REASON = { invalid: 'voteInvalid', mismatch: 'voteMismatch' } as const;
 const CONFIRM_REASON = { invalid: 'confirmInvalid', mismatch: 'confirmMismatch' } as const;
 
-/** Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses any later call
- * to that vault in the same link, so these terms are final. */
+/** Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses a second
+ * createVault, a vault that already exists and any later call to that vault in the same link, so these terms are
+ * final. */
 function TermsCard({ index, terms, explorer }: { index: number; terms: CreateTerms; explorer: string | null }) {
   const t = useT(messages);
   const l = useT(labels);
@@ -335,7 +336,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           ))}
         </div>
       ) : null}
-      {confirmRows.length > 0 && view.verdict !== 'refused' ? (
+      {confirmRows.length > 0 && view.verdict !== 'refused' && view.verdict !== 'unproven' ? (
         <section
           class="card stack"
           data-testid="sign-confirm"
@@ -396,6 +397,11 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           <Banner kind="error">{t('simFailedAll')}</Banner>
           {firstFailure && firstFailure.ok === false ? <ErrorBox error={firstFailure.error} /> : null}
         </div>
+      ) : null}
+      {view.verdict === 'unproven' ? (
+        <Banner kind="error" testid="sign-unproven">
+          {t('unproven')}
+        </Banner>
       ) : null}
       {view.verdict === 'connect' ? <p data-testid="sign-connect">{t('connect')}</p> : null}
       {view.verdict === 'wrongAccount' && wallet ? (

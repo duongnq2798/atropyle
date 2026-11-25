@@ -1,4 +1,15 @@
-import { type Address, decodeFunctionData, erc20Abi, type Hex, isAddress, maxUint256, toFunctionSelector } from 'viem';
+import {
+  type Abi,
+  type Address,
+  decodeFunctionData,
+  type EncodeFunctionDataParameters,
+  encodeFunctionData,
+  erc20Abi,
+  type Hex,
+  isAddress,
+  maxUint256,
+  toFunctionSelector,
+} from 'viem';
 import { erc1155Abi, factoryAbi, vaultAbi } from '../abi/index';
 import { sameAddress, ZERO_ADDRESS } from '../address';
 import { isBuilderCode, parseBuilderCodeSuffix } from '../builder-code';
@@ -15,8 +26,9 @@ import { ASSET_KINDS, type Asset, type Heir, type Timing, type Warning } from '.
 import { parsePayloadBytes, payloadBytes, type SignPayload } from './payload';
 
 /**
- * The terms of the vault a createVault step creates, decoded from its calldata. They are final: the same request may
- * not call that vault afterwards, so no later step can change its heirs, guardians, timing or assets.
+ * The terms of the vault a createVault step creates, decoded from its calldata. They are final: a request creates at
+ * most one vault, only at an address where none exists yet, and may not call that vault afterwards, so no later step
+ * can change or replace its heirs, guardians, timing or assets.
  */
 export interface CreateTerms {
   vault: Address;
@@ -83,7 +95,11 @@ export interface AddressConfirmation {
 }
 
 export interface SignRequestCheck {
-  /** Every step allowed, chain matches, no simulation failed, and any required address confirmation given. */
+  /**
+   * Every step allowed, chain matches, no simulation failed, and any required address confirmation given. A request
+   * that needs one must also have no simulation skipped: the addresses are read from what each step sets, which holds
+   * only if every step is shown to run after the ones before it.
+   */
   ok: boolean;
   chainId: number;
   from: Address;
@@ -166,6 +182,25 @@ const OTHER_ALLOWANCES = new Map<string, string>(
   ].map(([sig, name]) => [toFunctionSelector(sig), name]),
 );
 const SKIPPED: Simulation = { ok: 'skipped', reason: 'NOT_ALLOWED' };
+// The vault settings a request may change at most once per vault.
+const SETTINGS: ReadonlySet<string> = new Set(['setHeirs', 'setGuardians', 'setTiming', 'setAssets']);
+const NON_CANONICAL = 'the calldata is not in canonical ABI encoding (dirty padding or extra bytes)';
+
+// True when `data` is exactly what the encoder writes for the call decoded from it. viem reads past dirty padding (an
+// address word with its high bytes set) and extra bytes that Solidity's decoder rejects, so such a step would decode
+// here as one call and revert on chain.
+function isCanonical(abi: Abi, call: { functionName: string; args?: readonly unknown[] }, data: Hex): boolean {
+  try {
+    const again = encodeFunctionData({
+      abi,
+      functionName: call.functionName,
+      args: call.args,
+    } as EncodeFunctionDataParameters);
+    return again.toLowerCase() === data.toLowerCase();
+  } catch {
+    return false;
+  }
+}
 
 const toAssets = (a: readonly { kind: number; token: Address; id: bigint; heir: number }[]): Asset[] =>
   a.map((x) => ({ kind: ASSET_KINDS[x.kind], token: x.token, id: x.id, heir: x.heir }));
@@ -194,9 +229,11 @@ function confirmationOf(
 /**
  * The whitelist of spec §15: the factory's createVault; any call to a vault the factory created; approving a fee
  * token to the factory (at most the full fee); approving an asset to a vault owned by the signer (including the one
- * the same link creates). Everything else is refused, including any call to the vault the same request creates. A
- * request that gives a Drill vault the power to move tokens, or new recipients, also needs `confirm` (see
- * AddressConfirmation).
+ * the same link creates). Everything else is refused, including calldata in any encoding but the canonical one, a
+ * second createVault, a createVault of a vault that already exists, any call to the vault the same request creates, a
+ * second call to the same setter of a vault, and an allowance to a Drill vault whose heirs or guardians the same
+ * request changes. A request that gives a Drill vault the power to move tokens, or new recipients, also needs
+ * `confirm` (see AddressConfirmation). The Atropyle encoder never writes any of the refused requests.
  */
 export async function inspectPayload(
   ctx: ReadContext,
@@ -210,6 +247,12 @@ export async function inspectPayload(
   const blockNumber = chainOk ? await c.getBlockNumber() : 0n;
   const known = new Map<string, KnownVault | null>();
   let readAt: bigint | null = null;
+  // What the allowed steps so far do: the vault each createVault creates, each allowance to a vault, each Drill whose
+  // recipients change, and the step that calls each setter of each vault (`vault:function`).
+  const created: Point[] = [];
+  const grants: Point[] = [];
+  const repoints: Point[] = [];
+  const settings = new Map<string, number>();
 
   async function vaultInfo(a: Address): Promise<KnownVault | null> {
     const key = a.toLowerCase();
@@ -269,6 +312,10 @@ export async function inspectPayload(
       return { refuse: 'unknown factory call' };
     }
     if (call.functionName !== 'createVault') return { refuse: `factory function ${call.functionName} is not allowed` };
+    if (!isCanonical(factoryAbi, call, data)) return { refuse: NON_CANONICAL };
+    // Only the first createVault of a salt lands; a second one reverts on chain, but its terms would be read here.
+    const first = created[0];
+    if (first) return { refuse: `step ${first.step + 1} already creates a vault, and a request creates at most one` };
     const [cfg, salt, drill, feeTokenArg] = call.args;
     const vault = await c.readContract({
       address: d.factory,
@@ -277,6 +324,8 @@ export async function inspectPayload(
       args: [p.from, salt],
       blockNumber,
     });
+    // The vault on chain keeps its own terms, and every later step of the request acts on it.
+    if (await vaultInfo(vault)) return { refuse: `vault ${vault} already exists, so this createVault would revert` };
     const assets = toAssets(cfg.assets);
     const people: VaultPeople = {
       drill,
@@ -286,7 +335,6 @@ export async function inspectPayload(
       recoveryEnabled: cfg.recoveryEnabled,
       timing: { period: cfg.timing.period, threshold: cfg.timing.threshold, window: cfg.timing.window },
     };
-    known.set(vault.toLowerCase(), { owner: p.from, assets, people });
     let fee = 0n;
     let feeDecimals: number | null = null;
     if (!drill) {
@@ -301,6 +349,7 @@ export async function inspectPayload(
       });
       feeDecimals = (await ctx.token(feeTokenArg, blockNumber)).decimals;
     }
+    known.set(vault.toLowerCase(), { owner: p.from, assets, people });
     const summary = summarize.createVault(vault, p.from, {
       ...people,
       assets,
@@ -322,12 +371,36 @@ export async function inspectPayload(
     return { action: 'createVault', summary, vault, warnings: planWarnings(people), create };
   }
 
+  // A Drill that gets an allowance keeps the heirs and guardians the chain has, which are the ones to type again. Were
+  // the same request to change them, a step that reverts on chain could leave the old ones in place.
+  function grantTo(vault: Address): Point | undefined {
+    return grants.find((g) => sameAddress(g.vault, vault));
+  }
+
+  // A step of the request that changes the heirs or the guardians of `vault`, if any.
+  function recipientsChange(vault: Address): number | undefined {
+    const key = vault.toLowerCase();
+    return settings.get(`${key}:setHeirs`) ?? settings.get(`${key}:setGuardians`);
+  }
+
+  const grantClash = (g: Point, vault: Address) =>
+    `step ${g.step + 1} gives Drill vault ${vault} an allowance, and a request may not also change who receives from it`;
+
   async function vaultCall(to: Address, data: Hex, info: KnownVault): Promise<Verdict> {
     let call: ReturnType<typeof decodeFunctionData<typeof vaultAbi>>;
     try {
       call = decodeFunctionData({ abi: vaultAbi, data });
     } catch {
       return { refuse: 'unknown vault call' };
+    }
+    if (!isCanonical(vaultAbi, call, data)) return { refuse: NON_CANONICAL };
+    // The checks below read what each setter leaves. Were a request to call one twice, the first could land while the
+    // second, the one read here, reverts on chain.
+    const earlier = settings.get(`${to.toLowerCase()}:${call.functionName}`);
+    if (earlier !== undefined) {
+      return {
+        refuse: `step ${earlier + 1} already calls ${call.functionName} on vault ${to}, and a request changes each setting of a vault at most once`,
+      };
     }
     switch (call.functionName) {
       case 'checkIn':
@@ -338,6 +411,8 @@ export async function inspectPayload(
         // Only the signer's own vault takes these calls (onlyOwner); for any other the simulation fails.
         if (sameAddress(info.owner, p.from)) {
           const people = await peopleOf(to, info);
+          const g = people.drill ? grantTo(to) : undefined;
+          if (g) return { refuse: grantClash(g, to) };
           people.heirs = heirs;
           // New heirs of a Drill can be paid within minutes, with every allowance the Drill already holds.
           repoint = people.drill;
@@ -355,6 +430,9 @@ export async function inspectPayload(
         let repoint = false;
         if (sameAddress(info.owner, p.from)) {
           const people = await peopleOf(to, info);
+          // Recovery off counts too: were that step to revert, the guardians on chain would keep it.
+          const grant = people.drill ? grantTo(to) : undefined;
+          if (grant) return { refuse: grantClash(grant, to) };
           Object.assign(people, { guardians: [...g], k, recoveryEnabled });
           if (recoveryEnabled && k > 0) {
             warnings.push(recoveryPowerWarning(k, g.length, people.timing.window));
@@ -420,13 +498,27 @@ export async function inspectPayload(
   }
 
   async function tokenCall(to: Address, data: Hex): Promise<Verdict> {
+    const v = await tokenVerdict(to, data);
+    // An allowance to a vault: refused for a Drill whose heirs or guardians an earlier step of the request changes.
+    if ('refuse' in v || !v.grant || !v.vault) return v;
+    const info = await vaultInfo(v.vault);
+    if (!info || !(await peopleOf(v.vault, info)).drill) return v;
+    const change = recipientsChange(v.vault);
+    if (change === undefined) return v;
+    return {
+      refuse: `step ${change + 1} changes who receives from Drill vault ${v.vault}, and a request may not also give it an allowance`,
+    };
+  }
+
+  async function tokenVerdict(to: Address, data: Hex): Promise<Verdict> {
     const selector = data.slice(0, 10).toLowerCase();
     const other = OTHER_ALLOWANCES.get(selector);
     if (other) return { refuse: `${other} is not allowed: Atropyle only asks for approve and setApprovalForAll` };
     try {
       if (selector === APPROVE) {
-        const { args } = decodeFunctionData({ abi: erc20Abi, data });
-        const [spender, amount] = args as readonly [Address, bigint];
+        const call = decodeFunctionData({ abi: erc20Abi, data });
+        if (!isCanonical(erc20Abi, call, data)) return { refuse: NON_CANONICAL };
+        const [spender, amount] = call.args as readonly [Address, bigint];
         if (sameAddress(spender, d.factory)) {
           if (!d.feeTokens.some((t) => sameAddress(t, to)))
             return { refuse: `it approves the factory on ${to}, which is not a fee token` };
@@ -469,8 +561,9 @@ export async function inspectPayload(
         return { refuse: `token ${to} is not an ERC-20 or ERC-721 asset of vault ${spender}` };
       }
       if (selector === SET_APPROVAL_FOR_ALL) {
-        const { args } = decodeFunctionData({ abi: erc1155Abi, data });
-        const [operator, approved] = args as readonly [Address, boolean];
+        const call = decodeFunctionData({ abi: erc1155Abi, data });
+        if (!isCanonical(erc1155Abi, call, data)) return { refuse: NON_CANONICAL };
+        const [operator, approved] = call.args as readonly [Address, boolean];
         const v = await signerVault(operator);
         if (typeof v === 'string') return { refuse: v };
         if (!approved)
@@ -492,12 +585,12 @@ export async function inspectPayload(
     return { refuse: `unknown call to ${to}` };
   }
 
-  /**
-   * The Drill vaults a request involves: every Drill it creates, as soon as it grants any allowance; every Drill
-   * vault already on chain that it grants one to; and every Drill whose heirs, or recovery guardians, it changes.
-   * Their final heirs and, with recovery on, guardians (after every setHeirs and setGuardians of the request) are
-   * what the signer must type again.
-   */
+  // The Drill vaults a request involves: every Drill it creates, as soon as it grants any allowance; every Drill vault
+  // already on chain that it grants one to; and every Drill whose heirs, or recovery guardians, it changes. Their heirs
+  // and, with recovery on, guardians after the request are what the signer must type again. These hold whichever steps
+  // revert on chain: a created Drill keeps its createVault terms, a Drill given an allowance keeps the ones on chain
+  // (the request may not change them), and a Drill with new recipients gets them from its one setHeirs or
+  // setGuardians, or keeps the ones it has, to which the request gives no allowance.
   async function drillConfirmation(
     made: Point[],
     given: Point[],
@@ -543,9 +636,6 @@ export async function inspectPayload(
   }
 
   const steps: InspectedStep[] = [];
-  const created: Point[] = [];
-  const grants: Point[] = [];
-  const repoints: Point[] = [];
   let vault: Address | null = null;
   for (const [index, s] of p.steps.entries()) {
     const parsed = parseBuilderCodeSuffix(s.data);
@@ -581,6 +671,7 @@ export async function inspectPayload(
       if (v.create) created.push({ step: index, vault: v.create.vault });
       if (v.grant) grants.push({ step: index, vault: v.grant });
       if (v.repoint) repoints.push({ step: index, vault: v.repoint });
+      if (v.vault && SETTINGS.has(v.action)) settings.set(`${v.vault.toLowerCase()}:${v.action}`, index);
       steps.push({
         ...base,
         action: v.action,
@@ -599,8 +690,12 @@ export async function inspectPayload(
       steps[i].simulation = sim;
     });
   }
+  // Without eth_simulateV1 a later step that fails alone is skipped, not failed. The addresses to confirm are read from
+  // what each step sets, so a request that needs them must show that every step runs.
+  const proven = steps.every((s) => s.simulation.ok !== 'skipped');
   return {
-    ok: steps.every((s) => s.allowed && s.simulation.ok !== false) && (confirm === null || confirm.confirmed),
+    ok:
+      steps.every((s) => s.allowed && s.simulation.ok !== false) && (confirm === null || (confirm.confirmed && proven)),
     chainId: p.chainId,
     from: p.from,
     vault,

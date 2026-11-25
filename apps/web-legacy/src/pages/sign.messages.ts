@@ -27,6 +27,8 @@ export const messages = defineMessages(
     builderCodes: 'Builder codes: {codes}',
     refused: 'This link asks for something Atropyle never asks for. Do not sign it, and do not trust whoever sent it.',
     simFailedAll: 'At least one step would fail right now, so nothing can be signed.',
+    unproven:
+      'The network could not simulate each step after the ones before it, so this page cannot tell who could receive the assets of the Drill vault if a step failed on chain. Nothing can be signed from this link.',
     connect: 'Connect the signer wallet shown above to continue.',
     wrongAccount: 'Your wallet is {account}. Only the signer shown above can sign this request.',
     sign: 'Sign {n} step(s)',
@@ -99,6 +101,8 @@ export const messages = defineMessages(
     builderCodes: 'Builder code: {codes}',
     refused: 'Link này yêu cầu một việc mà Atropyle không bao giờ yêu cầu. Đừng ký, và đừng tin người gửi link.',
     simFailedAll: 'Có ít nhất một bước sẽ lỗi ngay lúc này, nên không ký được gì.',
+    unproven:
+      'Mạng không mô phỏng được từng bước sau các bước trước nó, nên trang này không biết ai có thể nhận tài sản của vault Drill nếu một bước lỗi trên chain. Không ký được gì từ link này.',
     connect: 'Kết nối ví của người ký ở trên để tiếp tục.',
     wrongAccount: 'Ví của bạn là {account}. Chỉ người ký ở trên mới ký được yêu cầu này.',
     sign: 'Ký {n} bước',

@@ -470,7 +470,11 @@ const toType: ConfirmAddress[] = [
   { step: 0, vault: DRILL, role: 'guardian', index: 0, account: GUARD, bps: null },
 ];
 
-function drillPage(lang: 'en' | 'vi' = 'en', reason: AddressConfirmation['reason'] = 'DRILL_WITH_ALLOWANCE') {
+function drillPage(
+  lang: 'en' | 'vi' = 'en',
+  reason: AddressConfirmation['reason'] = 'DRILL_WITH_ALLOWANCE',
+  drill: { skipped?: boolean } = {},
+) {
   const options: (InspectOptions | undefined)[] = [];
   const sent: unknown[] = [];
   const sdk = {
@@ -490,13 +494,21 @@ function drillPage(lang: 'en' | 'vi' = 'en', reason: AddressConfirmation['reason
           const typed = o?.confirmed ?? [];
           const confirmed = toType.every((a, i) => typed[i]?.trim().toLowerCase() === a.account.toLowerCase());
           return {
-            ok: confirmed,
+            ok: confirmed && !drill.skipped,
             chainId: 196,
             from: A,
             vault: DRILL,
             steps: [
               step({ index: 0, action: 'createVault', summary: 'Create a Drill vault.', create: terms }),
-              step({ index: 1, to: TOKEN, action: 'approve', summary: 'Approve the vault.' }),
+              step({
+                index: 1,
+                to: TOKEN,
+                action: 'approve',
+                summary: 'Approve the vault.',
+                ...(drill.skipped
+                  ? { simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } as const }
+                  : {}),
+              }),
             ],
             confirm: { reason, addresses: toType, confirmed },
           } satisfies SignRequestCheck;
@@ -644,6 +656,21 @@ describe('SignPage Drill retype gate', () => {
     await screen.findByTestId('sign-confirm');
     expect(screen.getByTestId('sign-confirm').querySelector('#sign-confirm-intro')?.textContent).toMatch(
       /^Link này đổi người có thể nhận tài sản của một vault Drill\./,
+    );
+  });
+
+  it('asks for no address and offers no Sign when the network could not simulate every step in order', async () => {
+    drillPage('en', 'DRILL_WITH_ALLOWANCE', { skipped: true });
+    const banner = await screen.findByTestId('sign-unproven');
+    expect(banner.textContent).toMatch(/^The network could not simulate each step after the ones before it/);
+    expect(screen.queryByTestId('sign-confirm')).toBeNull();
+    expect(screen.queryByTestId('sign-send')).toBeNull();
+    // The terms of the vault are still stated.
+    expect(screen.getByTestId('sign-terms-0')).toBeTruthy();
+    cleanup();
+    drillPage('vi', 'DRILL_WITH_ALLOWANCE', { skipped: true });
+    expect((await screen.findByTestId('sign-unproven')).textContent).toMatch(
+      /^Mạng không mô phỏng được từng bước sau các bước trước nó/,
     );
   });
 });

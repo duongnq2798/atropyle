@@ -18,7 +18,19 @@ import { type Address, decodeFunctionData, type Hex, type WalletClient } from 'v
 import { type CallsResult, type CallsStatus, CallsUnsupported, sendCalls, supportsSendCalls } from './send-calls';
 import type { Eip1193 } from './wallet';
 
-export type SignVerdict = 'refused' | 'simulationFailed' | 'connect' | 'wrongAccount' | 'wrongChain' | 'ready';
+/**
+ * unproven: the request needs addresses typed again, and a step was not simulated after the ones before it (an
+ * endpoint without eth_simulateV1 skips a later step that fails alone). The SDK keeps such a request from `ok`
+ * whatever is typed, since the addresses hold only if every step runs.
+ */
+export type SignVerdict =
+  | 'refused'
+  | 'simulationFailed'
+  | 'unproven'
+  | 'connect'
+  | 'wrongAccount'
+  | 'wrongChain'
+  | 'ready';
 
 export interface SignView {
   verdict: SignVerdict;
@@ -73,9 +85,12 @@ export function signView(
   const refused = check.steps.filter((s) => !s.allowed);
   const failed = check.steps.filter((s) => s.simulation.ok === false);
   const awaitingConfirm = check.confirm?.confirmed === false;
+  const unproven = check.confirm !== null && check.steps.some((s) => s.simulation.ok === 'skipped');
   let verdict: SignVerdict;
   if (refused.length > 0 || check.chainId !== appChainId || check.steps.length === 0) verdict = 'refused';
-  else if (failed.length > 0 || (!check.ok && !awaitingConfirm)) verdict = 'simulationFailed';
+  else if (failed.length > 0) verdict = 'simulationFailed';
+  else if (unproven) verdict = 'unproven';
+  else if (!check.ok && !awaitingConfirm) verdict = 'simulationFailed';
   else if (!wallet) verdict = 'connect';
   else if (!sameAddress(wallet.account, check.from)) verdict = 'wrongAccount';
   else if (wallet.chainId !== check.chainId) verdict = 'wrongChain';

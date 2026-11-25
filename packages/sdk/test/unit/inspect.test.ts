@@ -7,6 +7,7 @@ import {
   maxUint256,
   type PublicClient,
   parseAbi,
+  RpcRequestError,
   stringToHex,
 } from 'viem';
 import { describe, expect, it } from 'vitest';
@@ -70,14 +71,47 @@ const people: Record<string, Record<string, unknown>> = {
   },
 };
 
-function fakeCtx(): ReadContext {
+interface FakeOptions {
+  /**
+   * The endpoint has no eth_simulateV1, like the X Layer RPCs of deployments/xlayer.json (OKX answers -32601): each
+   * step is estimated alone against the head state, and a later step that fails alone is reported as skipped.
+   */
+  noSimulateV1?: boolean;
+  /** Calldata whose estimate, alone against the head state, reverts. */
+  reverts?: readonly Hex[];
+  /** More vaults on chain, by address: their owner and their heirs, guardians and timing. */
+  vaults?: Record<string, { owner: Address; people: Record<string, unknown> }>;
+}
+
+function fakeCtx(o: FakeOptions = {}): ReadContext {
+  const extra = Object.fromEntries(Object.entries(o.vaults ?? {}).map(([a, v]) => [a.toLowerCase(), v]));
+  const ownerOf = (a: string) => owners[a] ?? extra[a]?.owner;
+  const peopleOf = (a: string) => people[a] ?? extra[a]?.people;
+  const reverts = new Set((o.reverts ?? []).map((d) => d.toLowerCase()));
   const client = {
     getBlockNumber: async () => 10n,
     getBlock: async () => ({ timestamp: NOW }),
-    estimateGas: async () => 90_000n,
-    simulateCalls: async ({ calls }: { calls: unknown[] }) => ({
-      results: calls.map(() => ({ status: 'success', gasUsed: 90_000n })),
-    }),
+    estimateGas: async ({ data }: { data: Hex }) => {
+      if (reverts.has(data.toLowerCase())) {
+        throw new RpcRequestError({
+          body: { method: 'eth_estimateGas' },
+          error: { code: 3, message: 'execution reverted' },
+          url: 'https://rpc.example',
+        });
+      }
+      return 90_000n;
+    },
+    simulateCalls: async ({ calls }: { calls: unknown[] }) => {
+      if (o.noSimulateV1) {
+        throw new RpcRequestError({
+          status: 403,
+          body: { method: 'eth_simulateV1' },
+          error: { code: -32601, message: 'rpc method is not whitelisted' },
+          url: 'https://rpc.example',
+        });
+      }
+      return { results: calls.map(() => ({ status: 'success', gasUsed: 90_000n })) };
+    },
     readContract: async ({
       address,
       functionName,
@@ -88,13 +122,14 @@ function fakeCtx(): ReadContext {
       args: unknown[];
     }) => {
       const key = address.toLowerCase();
-      if (functionName === 'isVault') return (args[0] as string).toLowerCase() in owners;
-      if (functionName === 'owner') return owners[key];
+      if (functionName === 'isVault') return ownerOf((args[0] as string).toLowerCase()) !== undefined;
+      if (functionName === 'owner') return ownerOf(key);
       if (functionName === 'assets') return ASSETS;
       if (functionName === 'fullFee') return FULL_FEE;
       if (functionName === 'currentFee') return FULL_FEE;
       if (functionName === 'predictVault') return PREDICTED;
-      if (key in people && functionName in people[key]) return people[key][functionName];
+      const p = peopleOf(key);
+      if (p && functionName in p) return p[functionName];
       throw new Error(`unexpected read ${functionName}`);
     },
   } as unknown as PublicClient;
@@ -438,7 +473,8 @@ describe('a Drill with a token allowance is blocked until the signer types the a
     expect(check.ok).toBe(false);
   });
 
-  it('asks for the heirs and guardians the same request leaves behind', async () => {
+  it('refuses new heirs or guardians for a Drill in the request that gives it an allowance', async () => {
+    // Were setGuardians to revert on chain, G1 would keep recovery with the new allowance, and nobody typed G1.
     const setHeirs = encodeFunctionData({
       abi: vaultAbi,
       functionName: 'setHeirs',
@@ -453,8 +489,19 @@ describe('a Drill with a token allowance is blocked until the signer types the a
         [DRILL_VAULT, off],
       ]),
     );
-    expect(check.confirm?.addresses.map((a) => [a.role, a.account])).toEqual([['heir', ATTACKER]]);
-    expect(check.confirm?.reason).toBe('DRILL_WITH_ALLOWANCE');
+    expect(check.ok).toBe(false);
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, false, false]);
+    for (const i of [1, 2]) {
+      expect(check.steps[i].reason).toBe(
+        `step 1 gives Drill vault ${DRILL_VAULT} an allowance, and a request may not also change who receives from it`,
+      );
+    }
+    // The refused steps changed nothing: what is typed again is what the chain holds.
+    expect(check.confirm?.addresses.map((a) => [a.role, a.account])).toEqual([
+      ['heir', HEIR_A],
+      ['heir', HEIR_B],
+      ['guardian', G1],
+    ]);
   });
 
   it('lets revocations, Drills without allowances and paid vaults through', async () => {
@@ -632,5 +679,251 @@ describe('RECOVERY_POWER on the signing page', () => {
       [VAULT, timing],
     ]);
     expect((await warnings(both)).flat()).toEqual([]);
+  });
+});
+
+const checkIn = encodeFunctionData({ abi: vaultAbi, functionName: 'checkIn' });
+const ERC20_ONLY = [{ kind: 'erc20' as const, token: TOKEN, id: 0n, heir: 0 }];
+/** The fastest Drill there is, paying `account` everything, with an ERC-20 as its asset. */
+const fastDrillFor = (account: Address) =>
+  createVault(
+    cfgOf({ heirs: [{ account, bps: 10_000 }], timing: { period: 60, threshold: 1, window: 60 }, assets: ERC20_ONLY }),
+    true,
+  );
+/**
+ * `data` with the 12 high bytes of the word that holds `account` set to ff. viem still reads `account` from it;
+ * Solidity's ABI decoder reverts on it.
+ */
+const dirty = (data: Hex, account: Address): Hex => {
+  const at = data.toLowerCase().indexOf(account.slice(2).toLowerCase()) - 24;
+  return `${data.slice(0, at)}${'ff'.repeat(12)}${data.slice(at + 24)}` as Hex;
+};
+const setAssetsTo = (assets: { kind: number; token: Address; id: bigint; heir: number }[]) =>
+  encodeFunctionData({ abi: vaultAbi, functionName: 'setAssets', args: [assets] });
+// The X Layer RPCs answer eth_simulateV1 with -32601: every step is estimated alone, against the head state.
+const xlayer = (o: Omit<FakeOptions, 'noSimulateV1'> = {}) => fakeCtx({ ...o, noSimulateV1: true });
+
+describe('a request creates at most one vault, and only one that does not exist yet', () => {
+  it('refuses a second createVault with the same salt, which reverts on chain and leaves the first terms', async () => {
+    // Each step estimates fine alone. On chain the third collides with the first (CREATE2) and reverts, so the
+    // Drill that lands pays the attacker; the approval still lands with it.
+    const payload = many([
+      [FACTORY, fastDrillFor(ATTACKER)],
+      [TOKEN, approve20(PREDICTED, maxUint256)],
+      [FACTORY, fastDrillFor(HEIR_A)],
+    ]);
+    const check = await inspectPayload(xlayer(), payload, { confirmed: [HEIR_A] });
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, true, false]);
+    expect(check.steps[2]).toMatchObject({ action: null, create: null });
+    expect(check.steps[2].reason).toBe('step 1 already creates a vault, and a request creates at most one');
+    expect(check.ok).toBe(false);
+    // The heir to type again is the one of the vault that lands.
+    expect(check.steps[0].create?.heirs).toEqual([{ account: ATTACKER, bps: 10_000 }]);
+    expect(check.confirm?.addresses.map((a) => a.account)).toEqual([ATTACKER]);
+  });
+
+  it('refuses a createVault whose vault already exists, and asks for the heirs on chain', async () => {
+    // The Drill at PREDICTED came from an earlier link without allowances, so nobody typed its heir.
+    const vaults = {
+      [PREDICTED]: {
+        owner: OWNER,
+        people: {
+          drill: true,
+          heirs: [{ account: ATTACKER, bps: 10_000 }],
+          guardians: [],
+          k: 0,
+          recoveryEnabled: false,
+          timing: DRILL_TIMING,
+        },
+      },
+    };
+    const create = fastDrillFor(HEIR_A);
+    const payload = many([
+      [VAULT, checkIn],
+      [FACTORY, create],
+      [TOKEN, approve20(PREDICTED, maxUint256)],
+    ]);
+    const check = await inspectPayload(xlayer({ reverts: [create], vaults }), payload, { confirmed: [HEIR_A] });
+    expect(check.steps[1]).toMatchObject({ allowed: false, action: null, create: null });
+    expect(check.steps[1].reason).toBe(`vault ${PREDICTED} already exists, so this createVault would revert`);
+    expect(check.ok).toBe(false);
+    expect(check.confirm?.addresses.map((a) => a.account)).toEqual([ATTACKER]);
+  });
+});
+
+describe('a request changes each setting of a vault at most once', () => {
+  const calls: [string, Hex, Hex][] = [
+    ['setHeirs', setHeirsTo(HEIR_A), setHeirsTo(HEIR_B)],
+    ['setGuardians', setGuardiansTo([G1], 1, true), setGuardiansTo([], 0, false)],
+    ['setTiming', setTimingTo(SIX_MONTHS), setTimingTo({ period: 86400, threshold: 3, window: 7 * 86400 })],
+    ['setAssets', setAssetsTo([ASSETS[0]]), setAssetsTo([])],
+  ];
+
+  it.each(calls)('refuses a second %s on the same vault', async (name, first, second) => {
+    const check = await inspectPayload(
+      fakeCtx(),
+      many([
+        [VAULT, first],
+        [VAULT, checkIn],
+        [VAULT, second],
+      ]),
+    );
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, true, false]);
+    expect(check.steps[2].reason).toBe(
+      `step 1 already calls ${name} on vault ${VAULT}, and a request changes each setting of a vault at most once`,
+    );
+    expect(check.ok).toBe(false);
+  });
+
+  it('refuses the heirs a step would restore after the attacker, when an earlier step makes it revert', async () => {
+    // On chain the last step reverts with InvalidHeirs (the NFT points at heir #2), so the attacker stays an heir of a
+    // Drill that holds allowances. Alone, against the head state, every step estimates fine.
+    const payload = many([
+      [
+        DRILL_VAULT,
+        encodeFunctionData({
+          abi: vaultAbi,
+          functionName: 'setHeirs',
+          args: [
+            [
+              { account: ATTACKER, bps: 5000 },
+              { account: HEIR_B, bps: 5000 },
+            ],
+          ],
+        }),
+      ],
+      [DRILL_VAULT, setAssetsTo([ASSETS[0], { kind: 1, token: NFT, id: 1n, heir: 1 }])],
+      [DRILL_VAULT, setHeirsTo(HEIR_A)],
+    ]);
+    const check = await inspectPayload(xlayer(), payload, { confirmed: [HEIR_A, G1] });
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, true, false]);
+    expect(check.ok).toBe(false);
+    expect(check.confirm?.addresses.filter((a) => a.role === 'heir').map((a) => a.account)).toEqual([ATTACKER, HEIR_B]);
+  });
+});
+
+describe('only calldata in canonical ABI encoding is read', () => {
+  const nonCanonical: [string, Address, Hex][] = [
+    ['a createVault with a dirty heir address', FACTORY, dirty(createVault(cfgOf(), true), HEIR_A)],
+    ['a setHeirs with a dirty heir address', DRILL_VAULT, dirty(setHeirsTo(HEIR_A), HEIR_A)],
+    ['an approve with a dirty spender', TOKEN, dirty(approve20(VAULT, 5n), VAULT)],
+    ['a setApprovalForAll with a dirty operator', MULTI, dirty(forAll(VAULT, true), VAULT)],
+    ['an approve with extra bytes', TOKEN, `${approve20(VAULT, 5n)}00000000`],
+    ['a checkIn with extra bytes', VAULT, `${checkIn}deadbeef`],
+  ];
+
+  it.each(nonCanonical)('refuses %s', async (_name, to, data) => {
+    const check = await inspectPayload(fakeCtx(), one(to, data));
+    expect(check.steps[0]).toMatchObject({ allowed: false, action: null, summary: null });
+    expect(check.steps[0].reason).toContain('not in canonical ABI encoding');
+    expect(check.ok).toBe(false);
+  });
+
+  it('refuses a setHeirs that viem reads as the heir the signer types but Solidity reverts on', async () => {
+    // Step 2 alone reverts, so without eth_simulateV1 it is "skipped", not failed. Read as HEIR_A, it would hide the
+    // attacker that step 1 leaves as the heir.
+    const restore = dirty(setHeirsTo(HEIR_A), HEIR_A);
+    const payload = many([
+      [DRILL_VAULT, setHeirsTo(ATTACKER)],
+      [DRILL_VAULT, restore],
+    ]);
+    const check = await inspectPayload(xlayer({ reverts: [restore] }), payload, { confirmed: [HEIR_A, G1] });
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, false]);
+    expect(check.ok).toBe(false);
+    expect(check.confirm?.addresses.filter((a) => a.role === 'heir').map((a) => a.account)).toEqual([ATTACKER]);
+  });
+
+  it('reads calldata with a builder code suffix as canonical', async () => {
+    const check = await inspectPayload(fakeCtx(), one(TOKEN, suffixed(approve20(VAULT, 5n))));
+    expect(check.steps[0]).toMatchObject({ allowed: true, builderCodes: ['atropyle'] });
+  });
+});
+
+describe('a request that needs addresses typed again has every step simulated', () => {
+  it('stays blocked while a step was skipped, even once every address is typed', async () => {
+    // createVault fails alone here; without eth_simulateV1 it is skipped. Were it to revert on chain, the approval
+    // would still land on an empty address that a later link could fill with a Drill nobody typed.
+    const create = fastDrillFor(HEIR_A);
+    const payload = many([
+      [VAULT, checkIn],
+      [FACTORY, create],
+      [TOKEN, approve20(PREDICTED, maxUint256)],
+    ]);
+    const skipped = await inspectPayload(xlayer({ reverts: [create] }), payload, { confirmed: [HEIR_A] });
+    expect(skipped.steps.every((s) => s.allowed)).toBe(true);
+    expect(skipped.steps[1].simulation).toEqual({ ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' });
+    expect(skipped.confirm?.confirmed).toBe(true);
+    expect(skipped.ok).toBe(false);
+    // Every step simulated: typing the heir is enough.
+    expect((await inspectPayload(xlayer(), payload, { confirmed: [HEIR_A] })).ok).toBe(true);
+  });
+
+  it('still lets a paid creation through when its createVault only fails before the fee approval', async () => {
+    const create = createVault(cfgOf({ timing: SIX_MONTHS, assets: ERC20_ONLY }), false, FEE_TOKEN);
+    const check = await inspectPayload(
+      xlayer({ reverts: [create] }),
+      many([
+        [FEE_TOKEN, approve20(FACTORY, FULL_FEE)],
+        [FACTORY, create],
+        [TOKEN, approve20(PREDICTED, 5n)],
+      ]),
+    );
+    expect(check.steps[1].simulation.ok).toBe('skipped');
+    expect(check.confirm).toBeNull();
+    expect(check.ok).toBe(true);
+  });
+});
+
+describe('a Drill that gets an allowance keeps the heirs and guardians that were typed', () => {
+  // An earlier link created this Drill without allowances, so nobody typed its heirs.
+  const EARLY_DRILL = '0x5555555555555555555555555555555555555555' as Address;
+  const vaults = {
+    [EARLY_DRILL]: {
+      owner: OWNER,
+      people: {
+        drill: true,
+        heirs: [
+          { account: ATTACKER, bps: 5000 },
+          { account: HEIR_B, bps: 5000 },
+        ],
+        guardians: [],
+        k: 0,
+        recoveryEnabled: false,
+        timing: DRILL_TIMING,
+      },
+    },
+  };
+
+  it('refuses an allowance to a Drill whose heirs the same request changes', async () => {
+    // On chain setHeirs reverts (the NFT now points at heir #2), so the heirs on chain would get the allowance.
+    const payload = many([
+      [EARLY_DRILL, setAssetsTo([ASSETS[0], { kind: 1, token: NFT, id: 1n, heir: 1 }])],
+      [EARLY_DRILL, setHeirsTo(HEIR_A)],
+      [TOKEN, approve20(EARLY_DRILL, maxUint256)],
+    ]);
+    const check = await inspectPayload(xlayer({ vaults }), payload, { confirmed: [HEIR_A] });
+    expect(check.steps.map((s) => s.allowed)).toEqual([true, true, false]);
+    expect(check.steps[2].reason).toBe(
+      `step 2 changes who receives from Drill vault ${EARLY_DRILL}, and a request may not also give it an allowance`,
+    );
+    expect(check.ok).toBe(false);
+  });
+
+  it('lets an allowance go with new assets for a Drill, and with new heirs for a paid vault', async () => {
+    const drill = many([
+      [DRILL_VAULT, setAssetsTo([ASSETS[0]])],
+      [TOKEN, approve20(DRILL_VAULT, 5n)],
+    ]);
+    const a = await inspectPayload(xlayer(), drill, { confirmed: [HEIR_A, HEIR_B, G1] });
+    expect(a.steps.every((s) => s.allowed)).toBe(true);
+    expect(a.confirm?.reason).toBe('DRILL_WITH_ALLOWANCE');
+    expect(a.ok).toBe(true);
+    const paid = many([
+      [VAULT, setHeirsTo(HEIR_B)],
+      [TOKEN, approve20(VAULT, 5n)],
+    ]);
+    const b = await inspectPayload(xlayer(), paid);
+    expect(b.confirm).toBeNull();
+    expect(b.ok).toBe(true);
   });
 });
