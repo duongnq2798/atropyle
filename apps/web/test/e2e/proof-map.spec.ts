@@ -117,7 +117,47 @@ function hairline(page: Page): Promise<string> {
     .evaluate((el) => getComputedStyle(el).borderRightColor);
 }
 
-test('the idle map keys the five states, and the key gives way to the first dots and comes back for a new run', async ({
+/**
+ * 1 600 000 blocks: 100 000 dots per region, past 98 304 (three quarters), where the dots enter the bottom band of
+ * each region and the key gives way. AT, two thirds of the run, is short of it.
+ */
+const PAST_KEY = 1_600_000;
+/** The whole proof, 2^21 blocks. */
+const FULL = 2 ** 21;
+
+/** Pixels of the map under the glyph's box that are not `base`: a count, so a failure prints one number. */
+async function paintedUnder(map: Locator, glyph: Locator, base: number[]): Promise<number> {
+  const box = await glyph.boundingBox();
+  if (!box) throw new Error('the glyph is not laid out');
+  return map.evaluate(
+    (canvas: HTMLCanvasElement, [r, b]) => {
+      // Both boxes are in CSS pixels of the viewport; the canvas holds `width` dots across its box.
+      const m = canvas.getBoundingClientRect();
+      const k = canvas.width / m.width;
+      const x = Math.floor((r.x - m.left) * k);
+      const y = Math.floor((r.y - m.top) * k);
+      const data = canvas.getContext('2d')!.getImageData(x, y, Math.ceil(r.width * k), Math.ceil(r.height * k)).data;
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] !== b[0] || data[i + 1] !== b[1] || data[i + 2] !== b[2] || data[i + 3] !== b[3]) n += 1;
+      }
+      return n;
+    },
+    [box, base] as const,
+  );
+}
+
+function setHash(page: Page, hash: string): Promise<void> {
+  return page.evaluate((h) => {
+    window.location.hash = h;
+  }, hash);
+}
+
+async function expectKey(glyphs: Locator, opacity: '0' | '1'): Promise<void> {
+  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', opacity);
+}
+
+test('the map keys its eight codes until the dots reach the bottom band, and the key comes back for a new run', async ({
   page,
   state,
 }) => {
@@ -125,23 +165,34 @@ test('the idle map keys the five states, and the key gives way to the first dots
   const map = live(page);
   // Hydrated: the canvas carries data-painted only once the layout effect has run.
   await expect(map).toHaveAttribute('data-painted', '0');
+  await expect(map).toHaveAttribute('data-key', 'on');
   const glyphs = page.getByTestId('live-map').locator('[data-glyph]');
-  await expect(glyphs).toHaveCount(5);
-  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '1');
+  await expect(glyphs).toHaveCount(8);
+  await expectKey(glyphs, '1');
   const idle = await hairline(page);
-  // The first dots: every glyph fades out, so none ever covers a painted dot, and the hairlines turn to the page.
-  await page.evaluate((at) => {
-    window.location.hash = `#at=${at}`;
-  }, AT);
+  // Two thirds of the run: the colours and the key are on screen together, and no glyph covers a painted dot.
+  await setHash(page, `#at=${AT}`);
   await expect(map).toHaveAttribute('data-painted', PAINTED);
-  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '0');
+  await expect(map).toHaveAttribute('data-key', 'on');
+  await expectKey(glyphs, '1');
   await expect.poll(() => hairline(page)).not.toBe(idle);
+  const base = await token(map, 'surface-3');
+  const all = await glyphs.all();
+  for (const [s, g] of all.entries()) expect(await paintedUnder(map, g, base), `under region ${s}`).toBe(0);
+  // Past three quarters the dots enter the bottom band, where the key sits: it gives way.
+  await setHash(page, `#at=${PAST_KEY}`);
+  await expect(map).toHaveAttribute('data-painted', String(8 * Math.floor(PAST_KEY / 16)));
+  await expect(map).toHaveAttribute('data-key', 'off');
+  await expectKey(glyphs, '0');
+  // The probe reads the dots under each glyph: at the end of the run they are all painted.
+  await setHash(page, `#at=${FULL}`);
+  await expect(map).toHaveAttribute('data-painted', String(8 * (FULL / 16)));
+  for (const [s, g] of all.entries()) expect(await paintedUnder(map, g, base), `under region ${s}`).toBeGreaterThan(0);
   // A run that starts over shows the key again.
-  await page.evaluate(() => {
-    window.location.hash = '#at=0';
-  });
+  await setHash(page, '#at=0');
   await expect(map).toHaveAttribute('data-painted', '0');
-  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '1');
+  await expect(map).toHaveAttribute('data-key', 'on');
+  await expectKey(glyphs, '1');
   await expect.poll(() => hairline(page)).toBe(idle);
 });
 

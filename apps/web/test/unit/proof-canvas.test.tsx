@@ -201,22 +201,23 @@ describe('ProofCanvas', () => {
     expect(html).toContain('aria-label="Proof map"');
     expect(html).toContain('width="256"');
     expect(html.match(/data-region=/g)).toHaveLength(8);
-    expect(html.match(/data-glyph=/g)).toHaveLength(5);
-    // No data-painted attribute yet (the key's classes name it in a selector): the prerender shows the key.
+    expect(html.match(/data-glyph=/g)).toHaveLength(8);
+    // No data-painted or data-key attribute yet (the classes name them in selectors): the prerender shows the key.
     expect(html).not.toMatch(/\sdata-painted=/);
+    expect(html).not.toMatch(/\sdata-key=/);
   });
 
-  it('keys the five real states with their glyph, in their colour, and leaves the unused codes 2, 4 and 6 bare', () => {
+  it('keys every code with its glyph in its colour, the unused codes 2, 4 and 6 with the bare gate', () => {
     renderWithProviders(ui(0));
     const regions = [...document.querySelectorAll<HTMLElement>('[data-region]')];
     expect(regions.map((r) => r.querySelector('[data-glyph]')?.getAttribute('data-glyph') ?? null)).toEqual([
       'active',
       'grace',
-      null,
+      'unused',
       'recovery',
-      null,
+      'unused',
       'releasedInherit',
-      null,
+      'unused',
       'releasedRecover',
     ]);
     const ink = (s: number) => regions[s]?.querySelector('[data-glyph]')?.getAttribute('class') ?? '';
@@ -225,7 +226,41 @@ describe('ProofCanvas', () => {
     expect(ink(3)).toContain('text-recovery');
     expect(ink(5)).toContain('text-release');
     expect(ink(7)).toContain('text-release');
-    // The key is part of the picture, not text of its own: the wrapper's label is all a screen reader hears.
-    for (const r of regions) expect(r.closest('[aria-hidden="true"]')).not.toBeNull();
+    for (const s of [2, 4, 6]) expect(ink(s), `code ${s}`).toContain('text-line-strong');
+    for (const r of regions) {
+      // The bottom of four bands (paint.ts SHADES), the last the dots reach: the key and the colours share the map.
+      expect(r.className).toContain('grid-rows-4');
+      expect(r.querySelector('[data-glyph]')?.getAttribute('class')).toContain('row-start-4');
+      // The key is part of the picture, not text of its own: the wrapper's label is all a screen reader hears.
+      expect(r.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
+  });
+
+  it('keeps the key until the dots reach the bottom band, and shows it again for a new run', () => {
+    // 2^13 dots per region: the bottom band (band 3) starts at dot 6144, block 98 304.
+    const band3 = (g.perRegion * 3) / 4;
+    expect(band3).toBe(6144);
+    const { rerender } = renderWithProviders(ui(0));
+    expect(map()).toHaveAttribute('data-key', 'on');
+    rerender(ui(1000));
+    expect(map()).toHaveAttribute('data-key', 'on');
+    rerender(ui(band3 * 16 - 1));
+    expect(map()).toHaveAttribute('data-painted', String(8 * (band3 - 1)));
+    expect(map()).toHaveAttribute('data-key', 'on');
+    rerender(ui(band3 * 16));
+    expect(map()).toHaveAttribute('data-key', 'off');
+    rerender(ui(2 ** 17));
+    expect(map()).toHaveAttribute('data-key', 'off');
+    rerender(ui(0));
+    expect(map()).toHaveAttribute('data-key', 'on');
+  });
+
+  it('keeps the key when the browser gives no 2D context: the map stays blank and the key is all it shows', () => {
+    noContext = true;
+    const { rerender } = renderWithProviders(ui(0));
+    expect(map()).toHaveAttribute('data-key', 'on');
+    rerender(ui(2 ** 17));
+    expect(map()).toHaveAttribute('data-painted', '65536');
+    expect(map()).toHaveAttribute('data-key', 'on');
   });
 });
