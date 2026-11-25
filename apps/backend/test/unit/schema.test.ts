@@ -28,8 +28,8 @@ async function addSub(email: string, o: { status?: string; createdAt?: string; r
 }
 
 describe('the schema on PGlite', () => {
-  it('applies the init migration and skips the Supabase-only schedule', () => {
-    expect(db.applied).toEqual(['20261123000000_init.sql']);
+  it('applies the init and jsonb repair migrations and skips the Supabase-only schedule', () => {
+    expect(db.applied).toEqual(['20261123000000_init.sql', '20261125000000_jsonb_unwrap.sql']);
     expect(db.skipped).toEqual(['20261123000100_schedule.sql']);
   });
 
