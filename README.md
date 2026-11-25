@@ -4,7 +4,7 @@ Atropyle is the inheritance and recovery rule nobody has to trust, already live 
 
 **Check it without a wallet:**
 
-- Open the proof page, [https://atropyle.xyz/#/proof](https://atropyle.xyz/#/proof), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. Vercel also serves the same build at [https://atropyle.vercel.app/#/proof](https://atropyle.vercel.app/#/proof). A vault page shows the same checks for one vault, for example the test Drill vault at [`#/v/0x481F…f4b9/verify`](https://atropyle.xyz/#/v/0x481F28748959036B48bc6779797228D74f15f4b9/verify), which expires on 29 November 2026 at 08:28:06 UTC and can still be read after that.
+- Open the proof page, [https://atropyle.xyz/#/proof](https://atropyle.xyz/#/proof), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. A vault page shows the same checks for one vault, for example the test Drill vault at [`#/v/0x481F…f4b9/verify`](https://atropyle.xyz/#/v/0x481F28748959036B48bc6779797228D74f15f4b9/verify), which expires on 29 November 2026 at 08:28:06 UTC and can still be read after that.
 - Or run one command, read-only:
 
   ```bash
