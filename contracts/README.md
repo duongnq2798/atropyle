@@ -1,6 +1,6 @@
 # Atropyle: contracts
 
-A non-custodial inheritance and wallet recovery vault on X Layer (chainId 196). The `AtropylePolicy v1` circuit on the TapeOut processor `ATRO` decides every lifecycle transition of a vault through `step()`, and so every release of its assets. The Solidity code decides who receives how much (`src/vault/VaultDistribution.sol`). The vault has no admin, pause, upgrade, `delegatecall` or `selfdestruct`.
+A non-custodial inheritance and wallet recovery vault on X Layer (chainId 196). The `AtropylePolicy v1` circuit on the TapeOut processor `ATRO` decides every lifecycle transition of a vault through `step()`, and so every release of its assets. The Solidity code decides who receives how much (`src/vault/VaultDistribution.sol`). The vault implementation has no admin, pause, upgrade, `delegatecall` or `selfdestruct`; each vault is a minimal proxy (EIP-1167) of that one fixed implementation.
 
 ## Layout
 
@@ -116,7 +116,7 @@ export TREASURY=0x...     # the wallet that receives vault creation fees; immuta
 export SMOKE_HEIR=0x...   # a wallet other than DEPLOYER, the heir of the test Drill vault
 ```
 
-Use a separate shell for mainnet. Do not reuse the shell that ran the "Rehearsal" section: a `TREASURY` or `DEPLOYER` variable left over from there (an anvil account address, with a public key) would become the factory's immutable treasury if you forgot to set it again.
+Use a separate shell for mainnet. Do not reuse the shell that ran the "Rehearsal" section: a `TREASURY` or `DEPLOYER` variable left over from there (an anvil account address, whose private key is public) would become the factory's immutable treasury if you forgot to set it again.
 
 Run the stages one by one in `contracts/`. Each script prints an `export …` line; paste that line into the terminal before running the next script.
 
