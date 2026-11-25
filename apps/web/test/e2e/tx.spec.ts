@@ -53,6 +53,34 @@ test('the mirror reads the calldata: every call of a bundle, the danger lines, w
   await expect(page.getByTestId('p-receipt-decided').locator('[data-state]')).toHaveCount(2);
 });
 
+test('the receipt draws its hash on a grid: even rows of groups, 0x hanging, never a group alone', async ({
+  page,
+  state,
+}, info) => {
+  await openPreview(page, state.siteUrl);
+  for (const id of ['p-receipt-receipt-0', 'p-receipt-bundle-receipt-0']) {
+    const cells = await page
+      .getByTestId(id)
+      .locator('[data-part="hash"] > span')
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return { x: Math.round(r.left), y: Math.round(r.top) };
+        }),
+      );
+    expect(cells).toHaveLength(17);
+    const [zero, ...groups] = cells;
+    const rows = new Map<number, number[]>();
+    for (const g of groups) rows.set(g.y, [...(rows.get(g.y) ?? []), g.x]);
+    // A phone's receipt holds four rows of four; a desktop's two rows of eight.
+    expect([...rows.values()].map((r) => r.length)).toEqual(info.project.name === 'mobile' ? [4, 4, 4, 4] : [8, 8]);
+    // Every row starts in the same column, and "0x" hangs to the left of it.
+    const starts = new Set([...rows.values()].map((r) => Math.min(...r)));
+    expect(starts.size).toBe(1);
+    expect(zero?.x).toBeLessThan([...starts][0] ?? 0);
+  }
+});
+
 test('a check-in goes to the wallet as one wallet_sendCalls bundle, and the receipt shows what the chain recorded', async ({
   page,
   state,
@@ -68,7 +96,8 @@ test('a check-in goes to the wallet as one wallet_sendCalls bundle, and the rece
   await card.getByTestId('live-tx-send').click();
   const done = card.getByTestId('live-tx-done');
   await expect(done).toBeVisible();
-  await expect(done.getByRole('heading', { name: 'Recorded on chain' })).toBeFocused();
+  // The card becomes its receipt: focus goes to its heading, which now says it is done.
+  await expect(card.getByRole('heading', { level: 3, name: 'Signed and recorded' })).toBeFocused();
   const methods = w.calls.map((c) => c.method);
   expect(methods).toContain('wallet_sendCalls');
   expect(methods).not.toContain('eth_sendTransaction');

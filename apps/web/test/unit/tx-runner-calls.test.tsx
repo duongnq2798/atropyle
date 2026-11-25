@@ -129,6 +129,8 @@ function setup(o: { plan?: TxPlan; provider?: Eip1193 | null; onDone?: (r: SendR
 }
 
 const sendButton = () => screen.getByTestId('tx-send') as HTMLButtonElement;
+/** What the card's polite live region says now. */
+const live = () => screen.getByTestId('tx').querySelector('p[aria-live="polite"]')?.textContent ?? '';
 const phase = (i: number) => screen.getByTestId(`tx-step-${i}`).getAttribute('data-phase');
 const ready = () => waitFor(() => expect(sendButton().disabled).toBe(false));
 function leaving(): boolean {
@@ -189,11 +191,15 @@ describe('useTxRunner: one send path with wallet_sendCalls', () => {
     });
     setup({ provider: w.provider });
     await ready();
+    act(() => sendButton().focus());
     fireEvent.click(sendButton());
     const banner = await screen.findByTestId('tx-unsettled');
     expect(banner.getAttribute('data-kind')).toBe('bundle');
     expect(within(banner).getByText('bundle-1')).toBeTruthy();
     expect(screen.queryByTestId('tx-send')).toBeNull();
+    // Send is gone: focus goes to Check again, not to <body>, and the live region says why nothing is sent.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('tx-recheck')));
+    expect(live()).toContain('Your wallet has not finished');
     expect(screen.queryByTestId('tx-copy-link')).toBeNull();
     expect(screen.queryByTestId('tx-error')).toBeNull();
     expect(leaving()).toBe(true);
@@ -201,6 +207,25 @@ describe('useTxRunner: one send path with wallet_sendCalls', () => {
     fireEvent.click(screen.getByTestId('tx-recheck'));
     await screen.findByTestId('tx-done');
     expect(w.count('wallet_sendCalls')).toBe(1);
+  });
+
+  it('Check again that finds the bundle failed part-way gives focus back to Send', async () => {
+    let settled = false;
+    const w = batchWallet({
+      status: () =>
+        settled ? { status: 500, receipts: [{ transactionHash: H1 }, { transactionHash: H2 }] } : { status: 600 },
+    });
+    fake.receipt.mockImplementation(async ({ hash }: { hash: Hex }) => (hash === H2 ? reverted(hash) : ok(hash)));
+    setup({ provider: w.provider });
+    await ready();
+    act(() => sendButton().focus());
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('tx-recheck')));
+    settled = true;
+    fireEvent.click(screen.getByTestId('tx-recheck'));
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    expect(screen.queryByTestId('tx-unsettled')).toBeNull();
+    expect(document.activeElement).toBe(sendButton());
   });
 
   it('goes on one step at a time after a bundle failed part-way', async () => {
@@ -305,13 +330,20 @@ describe('useTxRunner: one send path with wallet_sendCalls', () => {
       .mockImplementation(async ({ hash }: { hash: Hex }) => ok(hash));
     setup({ plan: plan1, provider: null });
     await ready();
+    act(() => sendButton().focus());
     fireEvent.click(sendButton());
     const banner = await screen.findByTestId('tx-unsettled');
     expect(banner.getAttribute('data-kind')).toBe('step');
     expect(phase(0)).toBe('pending');
     expect(screen.queryByTestId('tx-send')).toBeNull();
+    // The row still says "Waiting for the block"; the live region says what the banner says.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('tx-recheck')));
+    expect(live()).toContain('Sent, result not known yet');
     fireEvent.click(screen.getByTestId('tx-recheck'));
     await screen.findByTestId('tx-done');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('heading', { level: 3, name: 'Signed and recorded' })),
+    );
     expect(fake.send).toHaveBeenCalledTimes(1);
   });
 
@@ -425,15 +457,15 @@ describe('useTxRunner: one send path with wallet_sendCalls', () => {
     await ready();
   });
 
-  it('gives focus to the receipt heading when the last step is confirmed', async () => {
+  it("gives focus to the card's done heading when the last step is confirmed", async () => {
     fake.send.mockResolvedValue({ vault: V, steps: [] });
     setup({ plan: plan1, provider: null });
     await ready();
     act(() => sendButton().focus());
     fireEvent.click(sendButton());
-    const done = await screen.findByTestId('tx-done');
+    await screen.findByTestId('tx-done');
     await waitFor(() =>
-      expect(document.activeElement).toBe(within(done).getByRole('heading', { name: 'Recorded on chain' })),
+      expect(document.activeElement).toBe(screen.getByRole('heading', { level: 3, name: 'Signed and recorded' })),
     );
   });
 });

@@ -108,8 +108,14 @@ describe('Receipt', () => {
       />,
     );
     const done = screen.getByTestId('tx-done');
-    expect(within(done).getByRole('heading', { name: 'Recorded on chain' })).toBeTruthy();
-    expect(within(done).getByText('Check in')).toBeTruthy();
+    // The card's own heading says it is done; the Receipt repeats no title of its own.
+    expect(within(done).queryByRole('heading')).toBeNull();
+    expect(within(done).queryByText('Recorded on chain')).toBeNull();
+    // Each step once, behind a tied knot, under the id and phase its row had.
+    const line = within(done).getByTestId('tx-step-0');
+    expect(line.getAttribute('data-phase')).toBe('confirmed');
+    expect(line.textContent).toBe('Check in');
+    expect(line.querySelector('[aria-hidden="true"] svg')).not.toBeNull();
     const decided = within(done).getByTestId('tx-decided');
     expect([...decided.querySelectorAll('[data-state]')].map((e) => e.getAttribute('data-state'))).toEqual([
       'grace',
@@ -122,8 +128,21 @@ describe('Receipt', () => {
     const entry = within(done).getByTestId('tx-receipt-0');
     expect(entry.getAttribute('data-hash')).toBe(H1);
     // Drawn in groups for the eye, read once in full by a screen reader.
-    expect(entry.querySelector('[aria-hidden="true"][data-part="hash"]')?.textContent).toContain('ab12');
+    const drawn = entry.querySelector('[aria-hidden="true"][data-part="hash"]');
+    expect(drawn?.textContent).toBe(H1);
     expect(within(entry).getByText(H1)).toBeTruthy();
+    // A fixed grid, never free wrapping: "0x" hangs in its own column, and every row of groups starts in column 2
+    // (four rows of four in a narrow receipt, two rows of eight from 32rem). No group can sit alone on a line.
+    expect(drawn?.className).toContain('inline-grid');
+    expect(drawn?.className).not.toContain('wrap-anywhere');
+    expect(drawn?.querySelectorAll('wbr')).toHaveLength(0);
+    const cells = [...(drawn?.children ?? [])];
+    expect(cells).toHaveLength(17);
+    expect(cells[0]?.textContent).toBe('0x');
+    expect(cells[0]?.className).toContain('text-ink-muted');
+    const starts = cells.slice(1).map((c) => c.className);
+    expect(starts.flatMap((c, i) => (c.split(' ').includes('col-start-2') ? [i] : []))).toEqual([4, 8, 12]);
+    expect(starts.flatMap((c, i) => (c.includes('@lg:col-start-auto') ? [i] : []))).toEqual([4, 12]);
     expect(
       within(done)
         .getByRole('link', { name: /View on OKLink/ })

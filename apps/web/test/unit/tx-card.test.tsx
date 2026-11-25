@@ -211,12 +211,18 @@ describe('TxCard', () => {
         { ...step('d'), action: 'voteRecovery', data: vote('0x0000000000000000000000000000000000000000') },
       ],
     };
-    renderWithProviders(<TxCard runner={runnerOf(p)} label="Send" />);
+    const { unmount } = renderWithProviders(<TxCard runner={runnerOf(p)} label="Send" />);
     expect(screen.getByTestId('tx-irreversible-0').textContent).toBe('Cannot be undone');
     expect(screen.getByTestId('tx-irreversible-1')).toBeTruthy();
     expect(screen.getByTestId('tx-irreversible-2')).toBeTruthy();
     expect(screen.queryByTestId('tx-irreversible-3')).toBeNull();
     expect(within(screen.getByTestId('tx-step-3')).getByText('Take back your vote')).toBeTruthy();
+    unmount();
+    // The label warns before the step is sent; on a confirmed step a red label would read as an error.
+    const view = applyStep(txView(p), { index: 0, phase: 'confirmed', hash: H });
+    renderWithProviders(<TxCard runner={runnerOf(p, { view, confirmed: 1, committed: true })} label="Send" />);
+    expect(screen.queryByTestId('tx-irreversible-0')).toBeNull();
+    expect(screen.getByTestId('tx-irreversible-1')).toBeTruthy();
   });
 
   it('mirrors the next step from its calldata, even when the summary says otherwise; a bundle mirrors every call', () => {
@@ -279,18 +285,23 @@ describe('TxCard', () => {
     expect(summary.textContent).toBe(`Check in as the owner of vault ${V}${V}: this resets the timer.`);
   });
 
-  it('becomes the receipt once every step is confirmed: a done title and the rows without their review details', () => {
-    const view = PLAN.steps.reduce(
+  it('becomes the receipt once every step is confirmed: each fact once, nothing left of the review', () => {
+    const done: TxPlan = {
+      ...PLAN,
+      steps: [{ ...step('one'), action: 'createVault' }, step('two'), step('three')],
+      warnings: [{ code: 'RECOVERY_POWER', message: 'x', params: { k: 2, guardians: 3, window: 86_400 } }],
+    };
+    const view = done.steps.reduce(
       (v, _s, index) => applyStep(v, { index, phase: 'confirmed', hash: H }),
-      txView(PLAN),
+      txView(done),
     );
-    const runner = runnerOf(PLAN, {
+    const runner = runnerOf(done, {
       view,
       confirmed: 3,
       committed: true,
       explorer: EXPLORER,
       result: { vault: V, steps: [] },
-      receipt: PLAN.steps.map((s, index) => ({
+      receipt: done.steps.map((s, index) => ({
         index,
         action: s.action,
         hash: H,
@@ -300,17 +311,26 @@ describe('TxCard', () => {
       })),
     });
     const { unmount } = renderWithProviders(<TxCard runner={runner} label="Send" />);
-    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Signed and recorded');
-    const first = within(screen.getByTestId('tx-step-0'));
-    expect(screen.getByTestId('tx-step-0').getAttribute('data-phase')).toBe('confirmed');
-    expect(first.getByText('Check in')).toBeTruthy();
-    expect(first.getByText('Confirmed')).toBeTruthy();
-    expect(first.queryByText('one')).toBeNull();
-    expect(first.queryByRole('link')).toBeNull();
+    const heading = screen.getByRole('heading', { level: 3 });
+    expect(heading.textContent).toBe('Signed and recorded');
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+    expect(screen.queryAllByRole('heading')).toHaveLength(1);
+    // The three steps went in one transaction: the header counts what the chain recorded.
+    expect(screen.getByText('One transaction')).toBeTruthy();
+    // No progress bar, no warning, no list of steps to review: the Receipt says it, each step once.
+    expect(screen.queryByTestId('tx-progress')).toBeNull();
+    expect(screen.queryByTestId('warning-RECOVERY_POWER')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'What this does' })).toBeNull();
+    expect(screen.queryByText('Confirmed')).toBeNull();
+    expect(screen.queryByText('Recorded on chain')).toBeNull();
     expect(screen.queryByText('Technical details')).toBeNull();
+    expect(screen.queryByTestId('tx-irreversible-0')).toBeNull();
+    expect(screen.getAllByText('Create the vault')).toHaveLength(1);
+    const first = within(screen.getByTestId('tx-done')).getByTestId('tx-step-0');
+    expect(first.getAttribute('data-phase')).toBe('confirmed');
+    expect(first.textContent).toBe('Create the vault');
     // One link per transaction, in the receipt.
     expect(screen.getAllByRole('link', { name: /OKLink/ })).toHaveLength(1);
-    expect(screen.getByTestId('tx-progress')).toBeTruthy();
     unmount();
     renderWithProviders(<TxCard runner={runner} label="Gửi" title="Tạo vault" />, { lang: 'vi' });
     expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Tạo vault');

@@ -1,8 +1,8 @@
 'use client';
 
-import { Ban, Check, ChevronDown, RotateCcw, Signature, Smartphone, Wallet, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, CircleCheck, RotateCcw, Signature, Smartphone, Wallet, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useId, useRef, useState } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -27,6 +27,7 @@ import { stepIsIrreversible } from './irreversible';
 import type { MirrorCall } from './mirror';
 import { MirrorBox } from './mirror-box';
 import { Receipt } from './receipt';
+import { receiptGroups } from './receipt-view';
 import { stepTitleKey } from './step-title';
 import { SummaryText } from './summary-text';
 import { TxProgress } from './tx-progress';
@@ -102,7 +103,6 @@ function StepItem({
   title,
   irreversible,
   mirror,
-  compact = false,
 }: {
   row: StepRow;
   last: boolean;
@@ -111,8 +111,6 @@ function StepItem({
   title: string;
   irreversible: boolean;
   mirror: ReactNode;
-  /** The plan is done: the title and its status only. The Receipt below says the rest, with one link per transaction. */
-  compact?: boolean;
 }) {
   const t = useT(messages);
   const tf = useT(flowMessages);
@@ -148,66 +146,74 @@ function StepItem({
         </div>
         {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. Its
             addresses come in groups of four, and a line breaks only between groups and words. */}
-        {compact ? null : (
-          <p lang="en" className="text-ink-muted text-small">
-            <SummaryText text={row.summary} />
-          </p>
-        )}
+        <p lang="en" className="text-ink-muted text-small">
+          <SummaryText text={row.summary} />
+        </p>
         <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-small', phase.tone)}>
           <span>{t(phase.key)}</span>
-          {row.hash && explorer && !compact ? (
+          {row.hash && explorer ? (
             <ExternalLink href={explorerTx(explorer, row.hash)} className="text-ink-muted">
               {t('viewTx')}
             </ExternalLink>
           ) : null}
-          {row.hash && !explorer && !compact ? (
+          {row.hash && !explorer ? (
             <code className="break-all font-mono text-caption text-ink-muted">{row.hash}</code>
           ) : null}
         </p>
         {mirror}
-        {compact ? null : (
-          <details className="group mt-1">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
-              {t('details')}
-              <ChevronDown
-                aria-hidden="true"
-                size={14}
-                strokeWidth={1.5}
-                className="transition-transform duration-150 group-open:rotate-180"
-              />
-            </summary>
-            <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-xl bg-surface-2/60 p-3 text-small">
-              <dt className="text-ink-muted">{t('contract')}</dt>
-              <dd className="min-w-0">
-                <Address address={row.to} size="sm" avatar={false} explorer={explorer} />
-              </dd>
-              <dt className="text-ink-muted">{t('fn')}</dt>
-              <dd>
-                <code className="font-mono text-ink">{row.action}</code>
-              </dd>
-              <dt className="text-ink-muted">{t('check')}</dt>
-              <dd className="text-ink">{sim}</dd>
-              <dt className="text-ink-muted">{t('gas')}</dt>
-              <dd className="font-mono text-ink tabular-nums">
-                {/* The label says "estimate"; no `≈`, which no self-hosted subset has (plan rule 20). */}
-                {row.gas !== null ? formatAmount(row.gas, 0) : row.simulation === 'failed' ? '—' : t('noGas')}
-              </dd>
-            </dl>
-          </details>
-        )}
+        <details className="group mt-1">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
+            {t('details')}
+            <ChevronDown
+              aria-hidden="true"
+              size={14}
+              strokeWidth={1.5}
+              className="transition-transform duration-150 group-open:rotate-180"
+            />
+          </summary>
+          <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-xl bg-surface-2/60 p-3 text-small">
+            <dt className="text-ink-muted">{t('contract')}</dt>
+            <dd className="min-w-0">
+              <Address address={row.to} size="sm" avatar={false} explorer={explorer} />
+            </dd>
+            <dt className="text-ink-muted">{t('fn')}</dt>
+            <dd>
+              <code className="font-mono text-ink">{row.action}</code>
+            </dd>
+            <dt className="text-ink-muted">{t('check')}</dt>
+            <dd className="text-ink">{sim}</dd>
+            <dt className="text-ink-muted">{t('gas')}</dt>
+            <dd className="font-mono text-ink tabular-nums">
+              {/* The label says "estimate"; no `≈`, which no self-hosted subset has (plan rule 20). */}
+              {row.gas !== null ? formatAmount(row.gas, 0) : row.simulation === 'failed' ? '—' : t('noGas')}
+            </dd>
+          </dl>
+        </details>
       </div>
     </li>
   );
 }
 
-/** A bundle or a step the wallet took whose outcome this page has not read: it says so and sends nothing again. */
-function Unsettled({ runner, testId }: { runner: TxRunner; testId: string }) {
+/**
+ * A bundle or a step the wallet took whose outcome this page has not read: it says so and sends nothing again. Its
+ * title is what the card's live region says; the banner itself has no role, so it is not read twice.
+ */
+function Unsettled({
+  runner,
+  testId,
+  recheckRef,
+}: {
+  runner: TxRunner;
+  testId: string;
+  recheckRef: Ref<HTMLButtonElement>;
+}) {
   const t = useT(messages);
   const tf = useT(flowMessages);
   const u = runner.unsettled;
   if (!u) return null;
   const recheck = (
     <Button
+      ref={recheckRef}
       variant="secondary"
       size="sm"
       data-testid={`${testId}-recheck`}
@@ -247,6 +253,21 @@ function Unsettled({ runner, testId }: { runner: TxRunner; testId: string }) {
   );
 }
 
+/** The first button of an area, when it can be pressed. */
+function enabledButton(area: HTMLElement | null): HTMLButtonElement | null {
+  const b = area?.querySelector('button');
+  return b && !b.disabled ? b : null;
+}
+
+/**
+ * The control that had focus went away with the state it belonged to (focus fell to <body>), or focus is still in
+ * the card: the card may move it. A reader who went elsewhere keeps their place (parked T13 165).
+ */
+function mayMoveFocus(card: HTMLElement | null): boolean {
+  const a = document.activeElement;
+  return a === null || a === document.body || card?.contains(a) === true;
+}
+
 export interface TxCardProps {
   runner: TxRunner;
   /** The send button, for example "Create vault". */
@@ -284,22 +305,29 @@ export function TxCard({
   const [copyByHand, setCopyByHand] = useState(false);
   const sendArea = useRef<HTMLDivElement>(null);
   const section = useRef<HTMLElement>(null);
-  const receiptHeading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const recheckButton = useRef<HTMLButtonElement>(null);
   // A connection from the card replaces its Connect button: the wallet sheet then gives focus to Send, when it can be
   // pressed, rather than to the wallet button in the header.
-  const sendButton = () => {
-    const b = sendArea.current?.querySelector('button');
-    return b && !b.disabled ? b : null;
-  };
+  const sendButton = () => enabledButton(sendArea.current);
   const { plan, view, busy, result, blocker, offset, mirror, mode, unsettled } = runner;
 
-  // The Receipt replaces the button that had focus: focus goes to its heading, unless the reader is elsewhere
-  // (parked T13 165).
+  // The Receipt replaces the button that had focus: focus goes to the card's heading, which now says it is done.
   useEffect(() => {
-    if (!result) return;
-    const a = document.activeElement;
-    if (a === null || a === document.body || section.current?.contains(a)) receiptHeading.current?.focus();
+    if (result && mayMoveFocus(section.current)) heading.current?.focus();
   }, [result]);
+  // An unsettled outcome replaces Send with Check again, and takes focus to it; once settled without a result (the
+  // bundle failed part-way, the step reverted), Send comes back and takes it again. A result is the effect above.
+  // Only a change moves focus: a card that mounts in a state keeps the page's focus where it is.
+  const isUnsettled = unsettled !== null;
+  const wasUnsettled = useRef(isUnsettled);
+  useEffect(() => {
+    if (wasUnsettled.current === isUnsettled) return;
+    wasUnsettled.current = isUnsettled;
+    if (result || !mayMoveFocus(section.current)) return;
+    if (isUnsettled) recheckButton.current?.focus();
+    else (enabledButton(sendArea.current) ?? heading.current)?.focus();
+  }, [isUnsettled, result]);
 
   const callOf = (i: number): MirrorCall | null => mirror?.[i] ?? null;
   const titles = plan.steps.map((s, i) => tf(stepTitleKey(s, callOf(i))));
@@ -315,11 +343,16 @@ export function TxCard({
   };
 
   const active = view.rows.find((r) => inWallet(r.phase));
+  // An unsettled outcome comes first: its rows still say "Confirm in your wallet" or "Waiting for the block".
   const announce = result
     ? t('done')
-    : active
-      ? t('live', { n: active.index + 1, total: view.total, status: t(PHASE[active.phase].key) })
-      : '';
+    : unsettled
+      ? tf(unsettled.kind === 'bundle' ? 'bundleTitle' : 'stepUnknownTitle')
+      : active
+        ? t('live', { n: active.index + 1, total: view.total, status: t(PHASE[active.phase].key) })
+        : '';
+  // Done, the header counts the transactions the chain recorded: a bundle of steps is one.
+  const sent = result && runner.receipt ? receiptGroups(runner.receipt).length : view.total;
   // After a failed load the button stops saying "Preparing…": the error box offers Retry (parked T13 163).
   const preparing = blocker === 'loading' && !runner.loadFailed;
   const sendLabel = busy
@@ -341,11 +374,10 @@ export function TxCard({
         reading={runner.receiptReading}
         testId={testId}
         footer={receiptFooter}
-        headingRef={receiptHeading}
       />
     );
   } else if (blocker === 'unsettled') {
-    action = <Unsettled runner={runner} testId={testId} />;
+    action = <Unsettled runner={runner} testId={testId} recheckRef={recheckButton} />;
   } else if (blocker === 'connect') {
     action = (
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -409,20 +441,30 @@ export function TxCard({
       className={cn('flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6', className)}
     >
       <header className="flex flex-col gap-1.5">
-        <h3 id={headingId} className="font-display text-ink text-title">
+        {/* tabIndex -1: focus comes here when the plan is done and the button that had it is gone. */}
+        <h3
+          id={headingId}
+          ref={heading}
+          tabIndex={-1}
+          className="flex items-center gap-2 font-display text-ink text-title outline-none"
+        >
+          {result ? (
+            <CircleCheck aria-hidden="true" size={20} strokeWidth={1.5} className="shrink-0 text-thread" />
+          ) : null}
           {title ?? (result ? tf('doneTitle') : t('title'))}
         </h3>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-muted text-small">
-          <span>{view.total === 1 ? t('stepsOne') : t('stepsMany', { n: view.total })}</span>
+          <span>{sent === 1 ? t('stepsOne') : t('stepsMany', { n: sent })}</span>
           <span aria-hidden="true">·</span>
           <span>{t('signer')}</span>
           <Address address={plan.from} size="sm" copy={false} />
         </div>
       </header>
 
-      {view.total > 1 ? <TxProgress rows={view.rows} testId={`${testId}-progress`} /> : null}
+      {/* Done, the card becomes its Receipt: no progress, no warnings and no steps to review, each step said once. */}
+      {view.total > 1 && !result ? <TxProgress rows={view.rows} testId={`${testId}-progress`} /> : null}
 
-      {view.warnings.length > 0 ? (
+      {view.warnings.length > 0 && !result ? (
         <div className="flex flex-col gap-2">
           {view.warnings.map((w) => (
             <Banner key={warningKey(w)} tone="warn" testId={`warning-${w.code}`}>
@@ -432,21 +474,25 @@ export function TxCard({
         </div>
       ) : null}
 
-      <ol aria-label={t('what')} className="flex flex-col">
-        {view.rows.map((r, i) => (
-          <StepItem
-            key={r.index}
-            row={r}
-            last={i === view.rows.length - 1}
-            explorer={runner.explorer}
-            testId={testId}
-            title={titles[r.index] ?? r.summary}
-            irreversible={stepIsIrreversible(plan.steps[r.index] ?? { action: r.action, data: '0x' })}
-            mirror={stepMirror(r.index)}
-            compact={result !== null}
-          />
-        ))}
-      </ol>
+      {result ? null : (
+        <ol aria-label={t('what')} className="flex flex-col">
+          {view.rows.map((r, i) => (
+            <StepItem
+              key={r.index}
+              row={r}
+              last={i === view.rows.length - 1}
+              explorer={runner.explorer}
+              testId={testId}
+              title={titles[r.index] ?? r.summary}
+              // A warning before the step is sent; on a confirmed step a red label reads as an error.
+              irreversible={
+                r.phase !== 'confirmed' && stepIsIrreversible(plan.steps[r.index] ?? { action: r.action, data: '0x' })
+              }
+              mirror={stepMirror(r.index)}
+            />
+          ))}
+        </ol>
+      )}
 
       {bundleCalls && bundleCalls.length > 0 ? (
         <MirrorBox calls={bundleCalls} explorer={runner.explorer} testId={testId} bundle />
@@ -460,7 +506,8 @@ export function TxCard({
         onRetry={runner.loadFailed ? runner.reload : undefined}
       />
 
-      <footer className="flex flex-col gap-3 border-line border-t pt-5">{action}</footer>
+      {/* Done, the Receipt's own border frames it; a rule above it would only draw a second line. */}
+      <footer className={cn('flex flex-col gap-3', !result && 'border-line border-t pt-5')}>{action}</footer>
 
       {runner.handoffLink ? (
         <details className="group rounded-2xl border border-line bg-surface-2/40">

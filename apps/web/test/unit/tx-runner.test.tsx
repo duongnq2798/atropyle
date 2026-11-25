@@ -284,7 +284,9 @@ describe('useTxRunner with TxCard', () => {
     expect(reported.at(-1)).toEqual({ confirmed: 1, committed: true });
     fireEvent.click(sendButton());
     await screen.findByTestId('tx-done');
-    expect(bar().getAttribute('value')).toBe('3');
+    // Done, the bar gives way to the Receipt, which lists every confirmed step once.
+    expect(screen.queryByTestId('tx-progress')).toBeNull();
+    expect([phase(0), phase(1), phase(2)]).toEqual(['confirmed', 'confirmed', 'confirmed']);
     expect(reported.at(-1)).toEqual({ confirmed: 3, committed: true });
     expect(reported.map((r) => r.confirmed)).toEqual(expect.arrayContaining([0, 1, 3]));
   });
