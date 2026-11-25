@@ -127,9 +127,11 @@ Read from the factory on X Layer mainnet at block 76825123 (25 November 2026, 08
 
 The one vault is the test Drill vault [`0x481F28748959036B48bc6779797228D74f15f4b9`](https://www.oklink.com/xlayer/address/0x481F28748959036B48bc6779797228D74f15f4b9), which the deployer created during the deployment (block 76567050). Nobody else has created a vault yet.
 
+The deployer and the treasury are team wallets, listed with a public source for each in [`deployments/team.json`](deployments/team.json). The SDK's `counters()` and `npm run daily:check` count a vault as a team vault when its owner is in that file, so the team's own Drills never count as user vaults.
+
 ## Limits
 
-- **Not audited.** The site shows "Beta — unaudited". Run a Drill before you give a vault rights over real assets.
+- **Not audited.** The site shows "Beta — unaudited". Run a Drill before you give a vault rights over real assets. Slither and `forge lint` run in CI, and every finding they report is triaged in [`docs/security/static-analysis.md`](docs/security/static-analysis.md): none can lose or lock funds.
 - **Immutable contracts.** No admin, no pause, no upgrade. A bug in the deployed contracts cannot be patched; see [`SECURITY.md`](SECURITY.md).
 - **Native OKB is not covered.** A vault covers ERC-20, ERC-721 and ERC-1155 tokens through approvals ([`VaultConfig.sol`](contracts/src/vault/VaultConfig.sol)). Wrap OKB to WOKB, an ERC-20, to have it covered.
 - **The circuit decides when, Solidity decides who gets what.** `verify` proves the circuit. The split between heirs, the gas caps on each transfer and the handling of tokens that fail are Solidity, covered by the Foundry tests and listed under [known limits in `contracts/README.md`](contracts/README.md#known-limits).
