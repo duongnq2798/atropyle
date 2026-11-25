@@ -560,7 +560,7 @@ Hôm nay là 22/11. Khoá tính năng 2/12, nộp bài 6/12. Có hai plan chạy
 
 ## 18. Nâng cấp vượt mức tham chiếu (23/11)
 
-Người dùng yêu cầu UI và UX "phải đạt level trên cả" ba trang hiresyncly.site, probarion.xyz và vestiarion.xyz, và "hãy tham vọng một cách vô lý". Mục này gộp đề xuất của bốn góc nhìn (kể chuyện, tương tác, niềm tin, hình ảnh) thành **một** nâng cấp, phục vụ đúng một ý tưởng: Sợi chỉ và Cánh cổng (§4.1). Bản này (bản 2) đã xử lý 13 điểm chặn của phản biện (bảng ở §18.3.1). Mục này sửa §4, §5, §6, §11, §14 và §15. Chỗ nào mâu thuẫn với các mục trước thì §18 thắng.
+Người dùng yêu cầu UI và UX "phải đạt level trên cả" ba trang tham chiếu cùng thể loại (trang web3 viết theo giọng biên tập, có biên lai on-chain), và "hãy tham vọng một cách vô lý". Mục này gộp đề xuất của bốn góc nhìn (kể chuyện, tương tác, niềm tin, hình ảnh) thành **một** nâng cấp, phục vụ đúng một ý tưởng: Sợi chỉ và Cánh cổng (§4.1). Bản này (bản 2) đã xử lý 13 điểm chặn của phản biện (bảng ở §18.3.1). Mục này sửa §4, §5, §6, §11, §14 và §15. Chỗ nào mâu thuẫn với các mục trước thì §18 thắng.
 
 **Giá:** thêm 8,5 L-tương-đương (trong đó 0,75 là viết lại văn bản plan ở mức mã), cắt 4,0 việc đã lên plan, nên phần tăng ròng là **4,5** (S = 0,25, M = 0,5, L = 1). Con số này vượt mục tiêu 4,0 nửa task. Phần vượt được trả bằng thứ tự rơi có mốc kiểm (§18.5), có thể giải phóng tới 2,25.
 
@@ -568,15 +568,18 @@ Người dùng yêu cầu UI và UX "phải đạt level trên cả" ba trang hi
 - **Số task:** 7A giữ 15 task, 7B giữ 12. 7C có 13 task: Task 5 (WebGL) bị cắt và chỗ của nó dành cho Task 5′ "Hỏi circuit"; Task 7 tách thành 7a và 7b.
 - **Không task nào nhận thêm quá M+S.** Chỗ nào vượt thì đã tách thành run riêng.
 
-Tên ba trang tham chiếu chỉ xuất hiện trong tài liệu này, không bao giờ trong chữ giao diện.
+Spec này không nêu tên và không chấm điểm các trang tham chiếu. Chữ giao diện cũng không bao giờ nhắc tới chúng.
 
-### 18.1 Mức sàn: ba trang tham chiếu làm tốt gì, thiếu gì
+### 18.1 Mức sàn của thể loại, và chỗ Atropyle vượt
 
-| Trang | Làm tốt (mức sàn ta phải vượt) | Thiếu (chỗ Atropyle vượt) |
+| Hạng mục | Mức sàn ta phải vượt | Chỗ Atropyle vượt |
 |---|---|---|
-| **Syncly** (hiresyncly.site) | Hero minh hoạ lớn trong khung bo góc, kèm pill "Live on mainnet". Các phần đánh số bằng eyebrow mono. "How it works" là bốn thẻ dính chồng nhau, mỗi thẻ có minh hoạ HTML trên giấy kẻ ô. Có câu chuyện khách hàng thật, bộ đếm live, nhật ký quyết định. Mega menu chia nhóm. | Hero là tranh raster, chỉ để trang trí. Trên mobile, lần vẽ đầu là màn hình kem trống hơn 3 s. Chỉ có theme sáng. Bố cục đánh số giống mọi trang cùng thể loại. Bằng chứng chỉ là con số. Không có cảm xúc. |
-| **Probarion** (probarion.xyz) | Banner trung thực ở đầu trang (beta, testnet, "known gaps"). Hai thẻ biên lai: một khoản thật trên mainnet, một khoản bị chặn. So sánh ✗/✓. Thẻ mã struct, trường "không tồn tại" bị gạch. Playground live: chọn kịch bản tấn công, xem "Allow"/"Blocked" kèm JSON thô và block. 78 SVG inline, không ảnh. | Playground chạy trên testnet, mỗi lần hỏi một câu. Banner trỏ tới một danh sách chung chung. Chỉ có theme sáng. Không có người đọc thứ hai. |
-| **Vestiarion** (vestiarion.xyz) | Hero cobalt tràn viền, kèm câu trấn an ("shadow mode, không cần ví"). Giao diện sản phẩm dựng bằng HTML, không phải ảnh chụp. Bản ghi quyết định ba bước: agent quyết, code giữ, người duyệt. Timeline bằng chứng có nút "Check its signature". | Mỗi nút chỉ kiểm một chữ ký. Trang nạp Google Tag Manager (tracker). Chỉ có theme sáng. Mỗi lần chỉ kể một hoá đơn, không kể một vòng đời. |
+| Hero | Minh hoạ lớn hoặc khối màu tràn viền, kèm một câu trấn an hay một nhãn "live on mainnet". | Hình hero là chính circuit trả lời câu hỏi, bằng CSS thuần, prerender, chạy được khi tắt JS; lần vẽ đầu có nội dung ngay trên mobile. |
+| Bằng chứng | Biên lai on-chain, bộ đếm live, nút "tự kiểm" từng chữ ký hay từng khoản. | Proof đầy đủ chạy ngay trong trình duyệt, một cú bấm hỏi thẳng processor của X Layer ở hai nhà vận hành, và hồ sơ trọn một vòng đời vault. |
+| Lời nói thật | Banner beta, "known gaps", so sánh ✗/✓. | Dòng bằng chứng trên đầu trang trỏ tới đúng giới hạn cụ thể, và `/proof/` nói rõ proof phủ gì, không phủ gì. |
+| Tương tác | Playground chọn kịch bản, mỗi lần hỏi một câu. | Thanh kéo thời gian là sợi chỉ; Drill diễn tập trên mainnet; nhiều kịch bản trên cùng một vault. |
+| Hình ảnh và theme | Giọng biên tập sáng màu, eyebrow mono đánh số, thẻ dính, chỉ theme sáng. | Dark-first (night) kèm vellum, canvas cho bản đồ proof, ba giọng chữ (Proclaim, Letter, Ledger). |
+| Riêng tư | Có trang nạp tracker. | Không tracker, không analytics, không CDN. |
 
 **Điểm chung của cả thể loại:** giọng biên tập sáng màu, chữ dẫn dắt, eyebrow mono đánh số, biên lai on-chain làm bằng chứng, nút "tự kiểm", lời nói thật về bản beta, playground live, chuyển động tiết chế (reveal, thẻ dính). Không trang nào dùng canvas hay WebGL, không trang nào dark-first, và không trang nào chạm tới một chủ đề có cảm xúc.
 
