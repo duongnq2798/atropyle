@@ -4,14 +4,19 @@ Atropyle is the inheritance and recovery rule nobody has to trust, already live 
 
 **Check it without a wallet:**
 
-- Open the proof page, [https://atropyle.xyz/#/proof](https://atropyle.xyz/#/proof), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. The site is [https://atropyle.xyz/](https://atropyle.xyz/); a vault page shows the same checks for one vault, for example the test Drill vault at [`#/v/0x481F…f4b9/verify`](https://atropyle.xyz/#/v/0x481F28748959036B48bc6779797228D74f15f4b9/verify).
+- Open the proof page, [https://atropyle.xyz/#/proof](https://atropyle.xyz/#/proof), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. Vercel also serves the same build at [https://atropyle.vercel.app/#/proof](https://atropyle.vercel.app/#/proof). A vault page shows the same checks for one vault, for example the test Drill vault at [`#/v/0x481F…f4b9/verify`](https://atropyle.xyz/#/v/0x481F28748959036B48bc6779797228D74f15f4b9/verify), which expires on 29 November 2026 at 08:28:06 UTC and can still be read after that.
 - Or run one command, read-only:
 
   ```bash
   npx -y atropyle@0.1.0 verify
   ```
 
-  The npm publish is planned. Until then, run it from a checkout of this repository: after the [setup and build](#development), `node packages/cli/dist/bin.js verify`.
+  The npm publish is planned. Until then, run it from a checkout of this repository. It needs Node.js 24, and neither Foundry nor the contract build:
+
+  ```bash
+  npm ci && npm run build && npm run build -w packages/mcp && npm run build -w packages/cli
+  node packages/cli/dist/bin.js verify
+  ```
 
 ## What it does
 
@@ -30,7 +35,7 @@ The policy circuit `AtropylePolicy v1` (circuit 3 on the TapeOut processor `ATRO
 
 The Solidity code decides the rest. It checks who may call what and validates the configuration ([`VaultConfig.sol`](contracts/src/vault/VaultConfig.sol)), and once the circuit has released, [`VaultDistribution.sol`](contracts/src/vault/VaultDistribution.sol) decides who gets how much: each ERC-20 split by the heirs' basis points (the last heir gets the rounding remainder), each NFT to its heir, or everything to the recovery wallet. That part is covered by the Foundry tests in [`contracts/test/`](contracts/test), not by `verify`.
 
-The vault has no admin, no pause, no upgrade, no `delegatecall` and no `selfdestruct`. The processor's circuits code sits behind a beacon that has no owner, so nobody can upgrade it either.
+The vault implementation has no admin, no pause, no upgrade, no `delegatecall` and no `selfdestruct`; each vault is a minimal proxy (EIP-1167) of that one fixed implementation. The processor's circuits code sits behind a beacon that has no owner, so nobody can upgrade it either.
 
 ## Verify it yourself
 
@@ -57,7 +62,7 @@ The properties, from the policy spec the MCP server serves as `atropyle://policy
 
 `atropyle verify --vault <address>` also checks one vault: the factory created it, its code is the minimal proxy (EIP-1167) of the factory's implementation, it is bound to the same factory, processor and policy, the implementation's code hash equals the recorded one, and the netlists of its processor at that block are the ones just proven.
 
-What verify does not check: it compares the vault implementation's code hash with the hash in the deployment file, not with a build of `contracts/src` (the source verification on OKLink is still to do), and it does not cover the Solidity distribution code.
+What verify does not check: plain `verify` covers the circuit and the processor only. With `--vault`, it also compares the implementation's code hash with the hash in the deployment file, not with a build of `contracts/src`. `atropyle doctor` compares the factory's implementation and treasury, and that code hash, with the deployment file, and checks that each recorded fee token has a fee. Nothing compares the code of the factory or of the implementation with the source until it is verified on OKLink (still to do), and verify does not cover the Solidity distribution code.
 
 Results recorded in [`docs/deployments.md`](docs/deployments.md) at block 76567369: P1-P8 hold on all 67,108,864 combinations, the three netlists match the source, the beacon is frozen and the two RPC operators agree. A run of `node packages/cli/dist/bin.js verify` from a checkout at block 76826189 (25 November 2026, 08:27 UTC) gave the same result, with no issue and no warning.
 
@@ -130,7 +135,7 @@ The one vault is the test Drill vault [`0x481F28748959036B48bc6779797228D74f15f4
 - **The circuit decides when, Solidity decides who gets what.** `verify` proves the circuit. The split between heirs, the gas caps on each transfer and the handling of tokens that fail are Solidity, covered by the Foundry tests and listed under [known limits in `contracts/README.md`](contracts/README.md#known-limits).
 - **Coverage is what the owner's wallet holds and has approved.** A vault pulls `min(balance, allowance)` of each asset at release. Tokens the owner moves away or stops approving are not covered.
 - **The owner cannot raise their own alarm.** Before release, every call the owner signs is a check-in, `poke()` and `distribute()` included. To try a Drill with one person, call `poke()` from another address.
-- **A Drill expires after 7 days.** After that, every call to it reverts.
+- **A Drill expires after 7 days.** After that, every transaction to it reverts; reads still work.
 - **The OKX Agentic Wallet path is not tested end to end** ([`packages/cli/README.md`](packages/cli/README.md)).
 - **The keeper is a convenience.** `poke()` and `distribute()` are permissionless: anyone can call them, from any wallet ([`SECURITY.md`](SECURITY.md#if-atropyle-disappears)). The keeper in [`apps/backend`](apps/backend) only pays the gas for them.
 - **Still to do.** The source verification on OKLink, a builder code (`builderCode` is `null` in [`deployments/xlayer.json`](deployments/xlayer.json)), the DeWEB copy of the site, and the npm publish.

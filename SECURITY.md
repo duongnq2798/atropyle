@@ -48,12 +48,12 @@ Some rules from [`AtropyleVault.sol`](contracts/src/AtropyleVault.sol):
 
 - Before release, a call signed by the owner is a check-in, not a poke: it cancels the alarm and never releases. Call from any other wallet.
 - A guardian confirms a death with `attestDeath(bool)` and votes for a recovery wallet with `voteRecovery(address)`; the owner checks in with `checkIn()`. Those calls also run the circuit.
-- A Drill expires 7 days after it was created (`expiresAt`). After that, every call to it reverts.
+- A Drill expires 7 days after it was created (`expiresAt`). After that, every transaction to it reverts with `DrillExpired()`; reads such as `state()` and `status()` still work.
 - `distribute()` pays only the heirs or the recovery wallet, never the caller. The caller pays the gas.
 
 ### Read the state with `cast`
 
-[Foundry](https://getfoundry.sh/)'s `cast` reads the chain without a wallet. Replace the vault address with yours.
+[Foundry](https://getfoundry.sh/)'s `cast` reads the chain without a wallet. Replace the vault address with yours. The example is the test Drill vault, which expires on 29 November 2026 at 08:28:06 UTC: its reads keep working after that, but the `distribute()` simulation below then reverts with `DrillExpired()`.
 
 ```bash
 export RPC=https://rpc.xlayer.tech
@@ -78,6 +78,8 @@ export ME=0x...   # an owner, heir or guardian address
 cast call $FACTORY "vaultsOfLength(address)(uint256)" $ME --rpc-url $RPC
 cast call $FACTORY "vaultsOfPage(address,uint256,uint256)(address[])" $ME 0 20 --rpc-url $RPC
 ```
+
+The index is append-only: an address removed as heir or guardian stays listed. Check the vault's current `heirs()` and `guardians()` before you act.
 
 ### Send `poke()` or `distribute()`
 
