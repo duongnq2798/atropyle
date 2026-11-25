@@ -109,6 +109,42 @@ test('a theme change during the run repaints the map in vellum and keeps its pro
   expect(await pixel(map, 0, 0)).toEqual(VELLUM_ALIVE);
 });
 
+/** The hairline on the right of region 0, as the browser computes it. */
+function hairline(page: Page): Promise<string> {
+  return page
+    .getByTestId('live-map')
+    .locator('[data-region="0"]')
+    .evaluate((el) => getComputedStyle(el).borderRightColor);
+}
+
+test('the idle map keys the five states, and the key gives way to the first dots and comes back for a new run', async ({
+  page,
+  state,
+}) => {
+  await page.goto(harness(state.siteUrl, '#at=0'));
+  const map = live(page);
+  // Hydrated: the canvas carries data-painted only once the layout effect has run.
+  await expect(map).toHaveAttribute('data-painted', '0');
+  const glyphs = page.getByTestId('live-map').locator('[data-glyph]');
+  await expect(glyphs).toHaveCount(5);
+  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '1');
+  const idle = await hairline(page);
+  // The first dots: every glyph fades out, so none ever covers a painted dot, and the hairlines turn to the page.
+  await page.evaluate((at) => {
+    window.location.hash = `#at=${at}`;
+  }, AT);
+  await expect(map).toHaveAttribute('data-painted', PAINTED);
+  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '0');
+  await expect.poll(() => hairline(page)).not.toBe(idle);
+  // A run that starts over shows the key again.
+  await page.evaluate(() => {
+    window.location.hash = '#at=0';
+  });
+  await expect(map).toHaveAttribute('data-painted', '0');
+  for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', '1');
+  await expect.poll(() => hairline(page)).toBe(idle);
+});
+
 test('a map mid-run passes axe in both themes', async ({ page, state }) => {
   await page.goto(harness(state.siteUrl, `#at=${AT}`));
   await expectAccessibleInBothThemes(page, page.getByRole('img', { name: 'Proof map, painted tick by tick' }));
@@ -122,5 +158,12 @@ test('screens of the proof map, for the design review', async ({ page, state }, 
   // Every shot reloads the page: wait for the paint after hydration, not only for the prerendered empty map.
   await captureScreens(page, 'proof-map', {
     ready: (p) => expect(live(p)).toHaveAttribute('data-painted', PAINTED),
+  });
+  // The first frame of /proof/ (the proof runs only on click) and its whole no-JS frame: the idle map and its key.
+  // In vellum too, where an empty map has the least contrast to give.
+  await page.goto(harness(state.siteUrl, '#at=0'));
+  await captureScreens(page, 'proof-map-idle', {
+    vellum: true,
+    ready: (p) => expect(live(p)).toHaveAttribute('data-painted', '0'),
   });
 });

@@ -201,6 +201,31 @@ describe('ProofCanvas', () => {
     expect(html).toContain('aria-label="Proof map"');
     expect(html).toContain('width="256"');
     expect(html.match(/data-region=/g)).toHaveLength(8);
-    expect(html).not.toContain('data-painted');
+    expect(html.match(/data-glyph=/g)).toHaveLength(5);
+    // No data-painted attribute yet (the key's classes name it in a selector): the prerender shows the key.
+    expect(html).not.toMatch(/\sdata-painted=/);
+  });
+
+  it('keys the five real states with their glyph, in their colour, and leaves the unused codes 2, 4 and 6 bare', () => {
+    renderWithProviders(ui(0));
+    const regions = [...document.querySelectorAll<HTMLElement>('[data-region]')];
+    expect(regions.map((r) => r.querySelector('[data-glyph]')?.getAttribute('data-glyph') ?? null)).toEqual([
+      'active',
+      'grace',
+      null,
+      'recovery',
+      null,
+      'releasedInherit',
+      null,
+      'releasedRecover',
+    ]);
+    const ink = (s: number) => regions[s]?.querySelector('[data-glyph]')?.getAttribute('class') ?? '';
+    expect(ink(0)).toContain('text-alive');
+    expect(ink(1)).toContain('text-grace');
+    expect(ink(3)).toContain('text-recovery');
+    expect(ink(5)).toContain('text-release');
+    expect(ink(7)).toContain('text-release');
+    // The key is part of the picture, not text of its own: the wrapper's label is all a screen reader hears.
+    for (const r of regions) expect(r.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 });
