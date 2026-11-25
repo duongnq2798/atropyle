@@ -36,6 +36,7 @@
       "!apps/web/test-results",
       "!apps/web/playwright-report",
       "!apps/web/lighthouse-report",
+      "!apps/web/src/home/netlist-geometry.ts",
       "!apps/web/.size",
       "!apps/backend/src/email/templates.gen.ts",
       "!apps/backend/test/__snapshots__",
