@@ -82,12 +82,14 @@ await vault.whatIf({ type: 'attestDeath', on: true }, { as: guardian }); // pred
 ## Verify
 
 ```ts
-const policy = await atro.verifyPolicy(); // P1-P8 over all 2^26 (state, input) combinations
-const deployment = await atro.integrity(); // factory, implementation, CPU, frozen beacon, netlist hashes
+const policy = await atro.verifyPolicy(); // P1-P8 over all 2^26 (state, input) combinations, then P9
+const deployment = await atro.integrity(); // factory, implementation, CPU, frozen beacon, code and netlist hashes
 const report = await vault.verify(); // proxy, binding, policy and timeline at one block
 ```
 
 All three read through a quorum of two RPC operators pinned to the same block, and fail with `RPC_DISAGREEMENT` if they differ. With one operator the result carries a `SINGLE_RPC` warning.
+
+P9 checks the simulator against the processor itself. `verifyPolicy` derives 64 (state, input) vectors from a seed, asks each RPC operator on its own for the processor's `step()` on every vector by `eth_call` at the same block (16 calls per Multicall3 `aggregate3` when Multicall3 has its canonical code, single calls otherwise), and compares every answer with the local simulator. The seed is random unless you pass `verifyPolicy({ p9Seed })` (0 to 2^64 - 1), and `policy.p9.seed` holds it, so a run can be repeated. `policy.cpuCheck.code` compares the keccak256 of the runtime code of the processor proxy and of its implementation with hashes pinned in the SDK. `policy.ok` also needs P9 to hold and, on X Layer, the code to match its pins. `readPolicyBundle` runs P9 only when you pass its `p9` option (`{ operators, seed }`, one client per operator).
 
 In a browser, keep the 2^26 enumeration off the main thread:
 

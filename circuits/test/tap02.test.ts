@@ -76,9 +76,26 @@ describe('TAP-02 test vectors', () => {
     });
   }
 
+  /** The error our compile gives for the reason TAP-02 names, so a case cannot pass on an unrelated error. */
+  const rejection: Record<string, RegExp> = {
+    unknown_opcode: /^bad opcode$/,
+    truncated_record: /^truncated$/,
+    nand_forward_reference: /^NAND: future signal$/,
+    nOut_zero: /^no outputs$/,
+    output_is_an_input: /^too few signals for outputs$/,
+    more_outputs_than_elements: /^too few signals for outputs$/,
+    ref_arity_mismatch: /^REF: pin mismatch$/,
+    // compile asks the resolver for the target; here that is this test's resolverOf, which knows only the case's refs.
+    ref_target_not_registered: /^REF target 0x[0-9a-f]{40}:\d+ is not a registered circuit$/i,
+  };
+
+  it('names an expected error for every ill-formed case', () => {
+    expect(Object.keys(rejection).sort()).toEqual(v.illFormed.map((c) => c.name).sort());
+  });
+
   for (const c of v.illFormed) {
     it(`rejects ${c.name} (${c.reason})`, () => {
-      expect(() => compileCase(c)).toThrow();
+      expect(() => compileCase(c)).toThrow(rejection[c.name]);
     });
   }
 

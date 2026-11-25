@@ -21,6 +21,9 @@ describe.skipIf(!RPC)('X Layer mainnet (spec §12.2)', () => {
         'cpu.nameSymbol',
         'beacon.frozen',
         'cpu.transistors',
+        'cpu.codehash',
+        'cpuImpl.address',
+        'cpuImpl.codehash',
         'netlist.policy',
         'netlist.kofn5',
         'netlist.ge4',
@@ -34,7 +37,13 @@ describe.skipIf(!RPC)('X Layer mainnet (spec §12.2)', () => {
     expect(r.ok).toBe(true);
     expect(r.combos).toBe(2 ** 26);
     expect(r.beaconFrozen).toBe(true);
-    console.log(`verifyPolicy: ${r.ms} ms at block ${r.blockNumber}`);
+    expect(r.cpuCheck?.code.matches).toBe(true);
+    expect(r.p9).toMatchObject({ ok: true, vectors: 64, mismatches: [] });
+    expect(r.p9?.operators.map((o) => [o.operator, o.blockNumber, o.matched])).toEqual([
+      [1, r.blockNumber, 64],
+      [2, r.blockNumber, 64],
+    ]);
+    console.log(`verifyPolicy: ${r.ms} ms at block ${r.blockNumber}, P9 seed ${r.p9?.seed} in ${r.p9?.ms} ms`);
   });
 
   it.skipIf(!SMOKE)('the smoke-test Drill of Plan 1 verifies end to end', async () => {
