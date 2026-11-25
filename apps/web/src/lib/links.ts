@@ -3,7 +3,7 @@ import { DOCS_BASE_URL } from './docs';
 const trim = (base: string) => base.replace(/\/+$/, '');
 
 export const REPO_URL = 'https://github.com/duongnq2798/atropyle';
-export const LICENSE_URL = `${REPO_URL}/blob/main/packages/sdk/LICENSE`;
+export const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`;
 export const XLAYER_URL = 'https://web3.okx.com/xlayer';
 
 export function explorerAddress(base: string, address: string): string {
