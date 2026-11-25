@@ -48,6 +48,7 @@ describe('verify on the devnet', () => {
     policyId: 1n,
     beaconFrozen: null,
     cpuCheck: null,
+    p9: null,
     chainId: 31337,
     blockNumber: 5n,
     rpcs: 2,
