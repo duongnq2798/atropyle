@@ -1,5 +1,5 @@
 import { AtropyleError, type PolicyVerification } from '@atropyle/sdk';
-import type { PolicyBundle } from '@atropyle/sdk/verify';
+import { MAX_SEED, type PolicyBundle } from '@atropyle/sdk/verify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sdk } from '../../src/chain/types';
 import {
@@ -116,6 +116,39 @@ describe('runProof cache', () => {
     // The full run is now cached.
     await runProof(sdk, { worker: w.factory });
     expect(w.started).toHaveLength(3);
+  });
+
+  it('reads P9 from every operator on its own, with a fresh seed for each run', async () => {
+    const sdk = sdkOf();
+    const w = manualWorker();
+    for (const i of [0, 1]) {
+      const p = runProof(sdk, { worker: w.factory, blocks: 2 });
+      await started(w, i + 1);
+      w.send(i, { type: 'result', result: proof });
+      await p;
+    }
+    const seeds = mocks.readPolicyBundle.mock.calls.map((call) => {
+      const [client, deployment, rpcs, o] = call as [
+        { cacheTime: number },
+        unknown,
+        number,
+        { p9: { operators: { cacheTime: number; ccipRead: unknown }[]; seed: bigint } },
+      ];
+      expect(deployment).toBe(sdk.deployment);
+      expect(rpcs).toBe(2);
+      // One client per operator group, none of them the quorum client, and each as strict as the quorum client.
+      expect(o.p9.operators).toHaveLength(2);
+      for (const op of o.p9.operators) {
+        expect(op).not.toBe(client);
+        expect(op.cacheTime).toBe(0);
+        expect(op.ccipRead).toBe(false);
+      }
+      expect(typeof o.p9.seed).toBe('bigint');
+      expect(o.p9.seed >= 0n && o.p9.seed <= MAX_SEED).toBe(true);
+      return o.p9.seed;
+    });
+    expect(seeds).toHaveLength(2);
+    expect(seeds[0]).not.toBe(seeds[1]);
   });
 
   it('gives a caller that joins a proof in flight its progress', async () => {
