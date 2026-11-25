@@ -36,6 +36,7 @@ let failed = false;
 try {
   for (const route of LIGHTHOUSE_ROUTES) {
     const runs: Run[] = [];
+    const traces: unknown[] = [];
     const forbidden = new Set<string>();
     for (let i = 1; i <= RUNS; i++) {
       const result = await lighthouse(`${server.url}${route}`, {
@@ -48,6 +49,7 @@ try {
       const name = route === '/' ? 'home' : route.replaceAll('/', '');
       const report = typeof result.report === 'string' ? result.report : result.report.join('\n');
       writeFileSync(join(REPORTS, `${name}-${i}.html`), report);
+      traces.push(result.artifacts.Trace);
       runs.push(runOf(result.lhr));
       // R18.18: a chunk that must wait for intent fails the route when any of the runs loaded it.
       for (const url of forbiddenRequests(result.lhr, FORBIDDEN_REQUESTS[route] ?? [])) forbidden.add(url);
@@ -59,7 +61,15 @@ try {
     const note = hostNote(median);
     if (note) console.warn(`  ${route}: ${note}`);
     for (const m of missed) console.error(`  ${route}: ${m}`);
-    if (missed.length > 0) failed = true;
+    if (missed.length > 0) {
+      failed = true;
+      // The HTML report names a long task only as "Unattributable"; the trace says what ran. CI uploads both, so a
+      // miss on a runner can be read without reproducing that host (open a trace in DevTools > Performance).
+      const name = route === '/' ? 'home' : route.replaceAll('/', '');
+      for (const [i, trace] of traces.entries()) {
+        writeFileSync(join(REPORTS, `${name}-${i + 1}.trace.json`), JSON.stringify(trace));
+      }
+    }
   }
 } finally {
   chrome.kill();
