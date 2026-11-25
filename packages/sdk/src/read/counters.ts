@@ -28,11 +28,15 @@ export interface ChainCounters {
   blockTimestamp: bigint;
   /** Owners counted as the team, checksummed. */
   team: Address[];
-  /** Every vault the factory created: its account nonce minus one (exact). */
+  /** Every vault the factory created, free Drills included: its account nonce minus one (exact). */
   vaults: CountPair;
   /** Vaults that paid the creation fee: factory.paidCount() (exact). */
   paid: CountPair;
-  /** Vaults whose policy has released them (inheritance or recovery), Drills included, among the vaults read. */
+  /**
+   * Vaults whose policy has released them (inheritance or recovery), Drills included, among the vaults read. This is
+   * the released state, not the sweep: anyone's poke() can release a vault, and distribute() leaves no record a view
+   * function can read (only Distributed events), so a released vault counts whether or not its sweep has run.
+   */
   releases: CountPair;
   /**
    * Stablecoins live paid vaults could move right now (coverage: min(balance, allowance)), in the deployment's fee

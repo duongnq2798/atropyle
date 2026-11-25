@@ -8,8 +8,18 @@ import { useAsync } from './use-async';
 
 export type CountersLoad = () => Promise<ChainCounters>;
 
-function Body({ c, detail }: { c: ChainCounters; detail: boolean }) {
+/**
+ * Vaults the card reads one by one, for released vaults and stablecoins (3 to 5 view calls each). The home page keeps
+ * it small; the status page reads as many as the SDK default.
+ */
+export const HOME_MAX_VAULTS = 50;
+export const STATUS_MAX_VAULTS = 200;
+
+function Body({ c, detail, maxVaults }: { c: ChainCounters; detail: boolean; maxVaults: number }) {
   const t = useT(messages);
+  // Fewer vaults read than exist: either this device knows too few vault addresses, or the page hit its cap.
+  const partial = !c.complete && c.read < c.vaults.all;
+  const capped = c.read >= maxVaults;
   return (
     <>
       <div class="grid2">
@@ -33,11 +43,13 @@ function Body({ c, detail }: { c: ChainCounters; detail: boolean }) {
       <p class="muted" data-testid="counters-as-of" data-block={c.blockNumber.toString()}>
         {t('asOf', { block: c.blockNumber.toString(), time: formatTimestamp(c.blockTimestamp) })}
       </p>
-      {c.complete ? null : (
-        <p class="muted" data-testid="counters-partial">
-          {t('partial', { read: c.read, all: c.vaults.all })}
+      {partial ? (
+        <p class="muted" data-testid="counters-partial" data-capped={String(capped)}>
+          {capped
+            ? t('partialCap', { read: c.read, all: c.vaults.all, max: maxVaults })
+            : t('partial', { read: c.read, all: c.vaults.all })}
         </p>
-      )}
+      ) : null}
       {c.teamComplete ? null : (
         <p class="muted" data-testid="counters-team-partial">
           {t('teamPartial')}
@@ -63,13 +75,14 @@ function Body({ c, detail }: { c: ChainCounters; detail: boolean }) {
  * A few view calls at one block (no event scan), so the page reads them on load. A failing RPC leaves one quiet line
  * with a retry, never an error page. `load` is a seam for unit tests.
  */
-export function ChainCountersCard(props: { sdk: Sdk; detail?: boolean; load?: CountersLoad }) {
+export function ChainCountersCard(props: { sdk: Sdk; detail?: boolean; maxVaults?: number; load?: CountersLoad }) {
   const { sdk } = props;
+  const maxVaults = props.maxVaults ?? STATUS_MAX_VAULTS;
   const app = useApp();
   const t = useT(messages);
   const state = useAsync(
-    () => (props.load ? props.load() : sdk.atro.counters({ vaults: knownVaults(app.kv, sdk.deployment) })),
-    [sdk],
+    () => (props.load ? props.load() : sdk.atro.counters({ vaults: knownVaults(app.kv, sdk.deployment), maxVaults })),
+    [sdk, maxVaults],
   );
   return (
     <section class="card stack" data-testid="counters" data-status={state.status}>
@@ -83,7 +96,7 @@ export function ChainCountersCard(props: { sdk: Sdk; detail?: boolean; load?: Co
           </button>
         </p>
       ) : null}
-      {state.status === 'ok' ? <Body c={state.value} detail={props.detail === true} /> : null}
+      {state.status === 'ok' ? <Body c={state.value} detail={props.detail === true} maxVaults={maxVaults} /> : null}
     </section>
   );
 }

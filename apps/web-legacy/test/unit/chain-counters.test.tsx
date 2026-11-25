@@ -9,7 +9,7 @@ import { saveStats } from '../../src/lib/stats-view';
 import { type KV, memoryKV } from '../../src/lib/store';
 import type { WalletWindow } from '../../src/lib/wallet';
 import { AppProvider } from '../../src/ui/app-context';
-import { ChainCountersCard, type CountersLoad } from '../../src/ui/chain-counters';
+import { ChainCountersCard, type CountersLoad, HOME_MAX_VAULTS, STATUS_MAX_VAULTS } from '../../src/ui/chain-counters';
 import { fixtureCounters } from './counters-fixture';
 import { fixtureDeployment, fixtureStats } from './fixtures';
 
@@ -22,7 +22,10 @@ function sdkWith(counters: (o?: CountersOptions) => Promise<ChainCounters>): Sdk
   return { atro: { counters } as unknown as AtropyleClient, deployment: d, rpc: rpcPlan(d, 'deweb', false) };
 }
 
-function show(sdk: Sdk, o: { load?: CountersLoad; detail?: boolean; languages?: string[]; kv?: KV } = {}): void {
+function show(
+  sdk: Sdk,
+  o: { load?: CountersLoad; detail?: boolean; maxVaults?: number; languages?: string[]; kv?: KV } = {},
+): void {
   render(
     <AppProvider
       env={env}
@@ -30,7 +33,7 @@ function show(sdk: Sdk, o: { load?: CountersLoad; detail?: boolean; languages?: 
       win={new EventTarget() as WalletWindow}
       languages={o.languages ?? ['en']}
     >
-      <ChainCountersCard sdk={sdk} detail={o.detail} load={o.load} />
+      <ChainCountersCard sdk={sdk} detail={o.detail} maxVaults={o.maxVaults} load={o.load} />
     </AppProvider>,
   );
 }
@@ -66,7 +69,19 @@ test('passes the vaults of a cached full count to the SDK, so releases can be ex
     { kv },
   );
   await screen.findByTestId('counter-vaults');
-  expect(asked).toEqual([{ vaults: fixtureStats().cursor.vaults.map((v) => v.vault) }]);
+  const vaults = fixtureStats().cursor.vaults.map((v) => v.vault);
+  expect(asked).toEqual([{ vaults, maxVaults: STATUS_MAX_VAULTS }]);
+  cleanup();
+  asked.length = 0;
+  show(
+    sdkWith(async (o) => {
+      asked.push(o);
+      return fixtureCounters();
+    }),
+    { kv, maxVaults: HOME_MAX_VAULTS },
+  );
+  await screen.findByTestId('counter-vaults');
+  expect(asked).toEqual([{ vaults, maxVaults: 50 }]);
 });
 
 test('says which counts are lower bounds when not every vault was read', async () => {
@@ -74,8 +89,31 @@ test('says which counts are lower bounds when not every vault was read', async (
   const releases = await screen.findByTestId('counter-releases');
   expect(releases.getAttribute('data-lower-bound')).toBe('true');
   expect(releases.textContent).toContain('3 or more');
+  expect(releases.textContent).toContain('Released vaults');
   expect(screen.getByTestId('counter-vaults').textContent).not.toContain('or more');
-  expect(screen.getByTestId('counters-partial').textContent).toContain('the 5 of 1234 vaults');
+  expect(screen.getByTestId('counter-vaults').textContent).toContain('Vaults, free Drills included');
+  const partial = screen.getByTestId('counters-partial');
+  expect(partial.textContent).toContain('the 5 of 1234 vaults');
+  expect(partial.textContent).toContain('Run the full count on the home page');
+  expect(partial.getAttribute('data-capped')).toBe('false');
+  expect(screen.getByTestId('counters-team-partial')).toBeTruthy();
+});
+
+test('at its cap the card says so, instead of asking for a full count that changes nothing', async () => {
+  show(
+    sdkWith(async () => fixtureCounters({ complete: false, read: 50 })),
+    { maxVaults: HOME_MAX_VAULTS },
+  );
+  const partial = await screen.findByTestId('counters-partial');
+  expect(partial.getAttribute('data-capped')).toBe('true');
+  expect(partial.textContent).toBe(
+    'Released vaults and stablecoins count the 50 of 1234 vaults this page read: it reads at most 50 vaults, so the true numbers may be higher.',
+  );
+  cleanup();
+  // Every vault read, but the team index was not read to its end: no "N of N vaults" line, only the team one.
+  show(sdkWith(async () => fixtureCounters({ complete: false, teamComplete: false })));
+  await screen.findByTestId('counter-vaults');
+  expect(screen.queryByTestId('counters-partial')).toBeNull();
   expect(screen.getByTestId('counters-team-partial')).toBeTruthy();
 });
 
@@ -106,6 +144,8 @@ test('the detailed view explains every number, in Vietnamese too', async () => {
   const defs = await screen.findByTestId('counters-definitions');
   expect(defs.textContent).toContain('nonce minus one');
   expect(defs.textContent).toContain('factory.paidCount()');
+  expect(defs.textContent).toContain('free Drills included, read as the factory’s account nonce');
+  expect(defs.textContent).toContain('whether or not its sweep has run');
   expect(defs.textContent).toContain('one of the 2 addresses in deployments/team.json');
   cleanup();
   show(

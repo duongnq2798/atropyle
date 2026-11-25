@@ -5,7 +5,7 @@ import { href } from '../lib/route';
 import type { Sdk } from '../lib/sdk';
 import { type CachedStats, loadStats, type StatTileId, saveStats, statsTiles } from '../lib/stats-view';
 import { useApp, useT } from '../ui/app-context';
-import { ChainCountersCard, type CountersLoad } from '../ui/chain-counters';
+import { ChainCountersCard, type CountersLoad, HOME_MAX_VAULTS } from '../ui/chain-counters';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, ErrorBox } from '../ui/components';
 import { messages as labels, ROLE_KEY, STATE_KEY } from '../ui/labels.messages';
@@ -199,7 +199,7 @@ export function HomePage({ sdk, counters }: { sdk: Sdk; counters?: CountersLoad 
         </div>
         <p class="muted">{t('drillNote')}</p>
       </section>
-      <ChainCountersCard sdk={sdk} load={counters} />
+      <ChainCountersCard sdk={sdk} maxVaults={HOME_MAX_VAULTS} load={counters} />
       <OpenVault />
       <MyVaults sdk={sdk} />
       <StatsPanel sdk={sdk} />
