@@ -1,21 +1,21 @@
-# Atropyle — contracts
+# Atropyle: contracts
 
-Vault thừa kế và khôi phục ví không giữ tài sản, chạy trên X Layer (chainId 196). Mọi chuyển trạng thái do circuit `AtropylePolicy v1` của processor TapeOut `ATRO` quyết định qua `step()`. Vault không có admin, pause, upgrade, `delegatecall` hay `selfdestruct`.
+A non-custodial inheritance and wallet recovery vault on X Layer (chainId 196). The `AtropylePolicy v1` circuit on the TapeOut processor `ATRO` decides every lifecycle transition of a vault through `step()`, and so every release of its assets. The Solidity code decides who receives how much (`src/vault/VaultDistribution.sol`). The vault has no admin, pause, upgrade, `delegatecall` or `selfdestruct`.
 
-## Cấu trúc
+## Layout
 
-| Đường dẫn | Vai trò |
+| Path | Role |
 |---|---|
-| `src/AtropyleVault.sol` | Vault (clone EIP-1167), mỗi chủ ví một cái |
-| `src/AtropyleFactory.sol` | Tạo vault, thu phí, chỉ mục vai trò |
-| `src/vault/VaultConfig.sol` | Cấu hình và ràng buộc |
-| `src/vault/VaultDistribution.sol` | Phân phối chịu lỗi (token blacklist, phí chuyển, không trả `bool`) |
-| `src/PolicyCodec.sol` | Định dạng bit state/input/output của policy |
-| `circuits/*.json` | Netlist sinh từ `../circuits`, không sửa tay |
-| `script/` | Script deploy 01–05 |
-| `script/lib/` | Luồng tape-out dùng chung cho script và fork test |
+| `src/AtropyleVault.sol` | The vault (an EIP-1167 clone), one per owner |
+| `src/AtropyleFactory.sol` | Creates vaults, collects the fee, indexes roles |
+| `src/vault/VaultConfig.sol` | Configuration and its constraints |
+| `src/vault/VaultDistribution.sol` | Fault-tolerant distribution (blacklisting tokens, fee-on-transfer, no `bool` return) |
+| `src/PolicyCodec.sol` | Bit format of the policy's state, inputs and outputs |
+| `circuits/*.json` | Netlists generated from `../circuits`; do not edit by hand |
+| `script/` | Deploy scripts 01–05 |
+| `script/lib/` | The tape-out flow shared by the scripts and the fork tests |
 
-## Lệnh
+## Commands
 
 ```bash
 forge build --sizes
@@ -24,182 +24,182 @@ XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv
 forge snapshot --no-match-test "invariant_|testFuzz_"
 ```
 
-So với snapshot đã ghi: `forge snapshot --no-match-test "invariant_|testFuzz_" --check --tolerance 1`. Ba test đọc file circuit (`test_realTemplateRoundTrips`, `test_mockCpuSpeaksTheWireFormat`, `test_modelMatchesCircuitVectors`) có gas lệch khoảng 0,3% tuỳ độ dài đường dẫn thư mục checkout, nên cần `--tolerance`. Dòng `ForkTest:setUp() (gas: 0)` trong snapshot là test fork bị bỏ qua khi không có `XLAYER_FORK_RPC`.
+Compare with the recorded snapshot: `forge snapshot --no-match-test "invariant_|testFuzz_" --check --tolerance 1`. The three tests that read circuit files (`test_realTemplateRoundTrips`, `test_mockCpuSpeaksTheWireFormat`, `test_modelMatchesCircuitVectors`) vary in gas by about 0.3% with the length of the checkout's folder path, hence `--tolerance`. The line `ForkTest:setUp() (gas: 0)` in the snapshot is the fork test, skipped when `XLAYER_FORK_RPC` is not set.
 
-Sinh lại netlist (chạy ở gốc repo): `npm run export -w circuits`. Test `export.test.ts` báo lỗi nếu file trong `contracts/circuits/` lệch với builder.
+Regenerate the netlists (at the repository root): `npm run export -w circuits`. The `export.test.ts` test fails when a file in `contracts/circuits/` drifts from the builder.
 
-Chứng minh exhaustive 2^26 = 67 108 864 tổ hợp: `npm run prove -w circuits` (khoảng 88–112 giây dưới `tsx` trên máy dev; `npm test -w circuits` chạy cùng phép quét trong khoảng 18 giây).
+Exhaustive proof over 2^26 = 67,108,864 combinations: `npm run prove -w circuits` (about 88–112 seconds under `tsx` on a development machine; `npm test -w circuits` runs the same sweep in about 18 seconds).
 
-## Số đo
+## Measurements
 
-| Hạng mục | Giá trị | Cách đo |
+| Item | Value | How it is measured |
 |---|---|---|
-| Gate của AtropylePolicy v1 (đã làm phẳng) | 199 (196 NAND + 3 LATCH; lớp riêng 89 NAND + 3 LATCH + 3 REF, netlist 800 byte) | `npm run export -w circuits`, `circuitInfo` trên fork |
-| Gate của KofN5 / Ge4 | 41 / 25 | `circuitInfo` trên fork |
-| Gas một lần `step` (fork X Layer) | 624 406 | `ForkTest.test_stepGas` |
-| Gas `distribute()` xấu nhất, 20 tài sản × 5 người | 3 385 904 | `test_worstCaseGasUnderSixMillion` (unit test, một số slot đã warm; ngân sách < 6 triệu) |
-| Runtime bytecode Vault / Factory | 15 516 / 4 039 byte (giới hạn 24 576) | `forge build --sizes` |
-| Một vòng đời Drill trên fork (6 giao dịch) | 3 736 276 | `ForkTest.test_drillLifecycleGas`; mỗi giao dịch `poke`/`attestDeath`/`distribute` khoảng 0,66–0,78 triệu |
-| Chi phí tạo processor và 3 circuit | 0,14 BEM (0,1 `createCPU` + 4 lần mint × 0,01) + 0,0039 OKB phí tape-out (3 × 0,0013) | `ForkTest.test_tapeoutBudget` |
-| Gas từng bước 01 / 02 / 03 / 04 / 05 | 845 944 / 989 095 / 852 598 / 4 553 395 / 1 104 004 | diễn tập trên anvil fork (phần "Diễn tập") |
+| Gates of AtropylePolicy v1 (flattened) | 199 (196 NAND + 3 LATCH; its own layer 89 NAND + 3 LATCH + 3 REF, an 800-byte netlist) | `npm run export -w circuits`, `circuitInfo` on the fork |
+| Gates of KofN5 / Ge4 | 41 / 25 | `circuitInfo` on the fork |
+| Gas of one `step` (X Layer fork) | 624,406 | `ForkTest.test_stepGas` |
+| Worst-case `distribute()` gas, 20 assets × 5 heirs | 3,385,904 | `test_worstCaseGasUnderSixMillion` (unit test, some slots already warm; budget < 6 million) |
+| Runtime bytecode of Vault / Factory | 15,516 / 4,039 bytes (limit 24,576) | `forge build --sizes` |
+| One Drill lifecycle on the fork (6 transactions) | 3,736,276 | `ForkTest.test_drillLifecycleGas`; each `poke`/`attestDeath`/`distribute` transaction costs about 0.66–0.78 million |
+| Cost of creating the processor and 3 circuits | 0.14 BEM (0.1 `createCPU` + 4 mints × 0.01) + 0.0039 OKB tape-out fees (3 × 0.0013) | `ForkTest.test_tapeoutBudget` |
+| Gas of each stage 01 / 02 / 03 / 04 / 05 | 845,944 / 989,095 / 852,598 / 4,553,395 / 1,104,004 | rehearsal on an anvil fork (section "Rehearsal") |
 
-## Triển khai mainnet
+## Mainnet deployment
 
-Bạn tự ký mọi giao dịch bằng keystore Foundry. Không dán private key vào lệnh, file hay chat. Ví deployer cần ít nhất 0.2 BEM và 0.02 OKB, và phải là địa chỉ ví thường (EOA không có code, kể cả code EIP-7702): processor mint transistor ERC-1155 thẳng về ví đó. Ví đã nâng cấp smart account theo EIP-7702 (ví dụ qua OKX Wallet) có code `0xef0100…`; nếu để nó đi tiếp, bước 02 sẽ lỗi `ERC1155InvalidReceiver` (`0x57f447ce`) sau khi bước 01 đã tốn 0,1 BEM và creator của processor đã bị cố định vào ví đó. Vì vậy script 01, 02 và 03 dừng ngay với lỗi `DEPLOYER has code (EIP-7702 delegation?)` trước khi tiêu bất cứ thứ gì. Kiểm trước, và kiểm lại giữa các bước (ví có thể bị nâng cấp giữa chừng):
+You sign every transaction yourself with a Foundry keystore. Never paste a private key into a command, a file or a chat. The deployer wallet needs at least 0.2 BEM and 0.02 OKB, and must be a plain wallet address (an EOA with no code, EIP-7702 code included): the processor mints ERC-1155 transistors straight to that wallet. A wallet upgraded to a smart account under EIP-7702 (for example through OKX Wallet) has code `0xef0100…`; if it went ahead, stage 02 would fail with `ERC1155InvalidReceiver` (`0x57f447ce`) after stage 01 had already spent 0.1 BEM and fixed the processor's creator to that wallet. So scripts 01, 02 and 03 stop at once with the error `DEPLOYER has code (EIP-7702 delegation?)` before they spend anything. Check beforehand, and check again between stages (a wallet can be upgraded halfway):
 
 ```bash
-cast code $DEPLOYER --rpc-url xlayer   # phải in 0x
+cast code $DEPLOYER --rpc-url xlayer   # must print 0x
 ```
 
-### Một lệnh: `npm run deploy:mainnet`
+### One command: `npm run deploy:mainnet`
 
-`scripts/deploy-mainnet.ts` chạy đúng năm bước trong bảng dưới, theo thứ tự, từ terminal của bạn (chạy ở gốc repo). Forge ký bằng keystore và tự hỏi mật khẩu. Script không thấy khoá hay mật khẩu, và không tự đọc bàn phím: lời xác nhận do một tiến trình con ngắn đọc, nên lời hỏi mật khẩu của forge có console cho riêng nó.
+`scripts/deploy-mainnet.ts` runs exactly the five stages in the table below, in order, from your terminal (run it at the repository root). Forge signs with the keystore and asks for the password itself. The script never sees a key or a password, and does not read the keyboard itself: the confirmation is read by a short child process, so forge's password prompt has a console of its own.
 
 ```bash
-cast wallet new atropyle-deployer   # một lần: tạo keystore mã hoá, đặt mật khẩu, in địa chỉ (không in khoá)
-# gửi ít nhất 0.2 BEM và 0.02 OKB tới địa chỉ vừa in
+cast wallet new atropyle-deployer   # once: creates an encrypted keystore, sets a password, prints the address (not the key)
+# send at least 0.2 BEM and 0.02 OKB to the address just printed
 npm run deploy:mainnet -- --deployer 0x... --treasury 0x...
 ```
 
-Trên Windows, Foundry cài từ Git Bash thường chỉ có trong PATH của Git Bash. PowerShell khi đó báo `cast : The term 'cast' is not recognized`. Thêm PATH cho cửa sổ PowerShell đang mở rồi chạy lại:
+On Windows, Foundry installed from Git Bash is often only on Git Bash's PATH. PowerShell then reports `cast : The term 'cast' is not recognized`. Add it to the PATH of the open PowerShell window and run again:
 
 ```powershell
 $env:Path += ";$env:USERPROFILE\.foundry\bin"
 ```
 
-Bản thân script không cần bước này. Nếu `forge`/`cast` không có trong PATH, nó tự dùng `~/.foundry/bin` (có in ra một dòng báo). Không thấy ở cả hai chỗ thì script dừng và nói rõ là thiếu Foundry, chứ không báo nhầm là thiếu keystore.
+The script itself does not need this step. If `forge`/`cast` is not on the PATH, it uses `~/.foundry/bin` (and prints a line saying so). When neither place has them, the script stops and says plainly that Foundry is missing, rather than wrongly reporting a missing keystore.
 
-Giữ file `~/.foundry/keystores/atropyle-deployer` và mật khẩu của nó. Ví deployer sở hữu các circuit, và cũng là ví ký bước publish DeWEB về sau. Muốn dùng ví sẵn có thay vì ví mới, nhập nó bằng `cast wallet import atropyle-deployer --interactive` (như mục dưới). Diễn tập trên fork tốn khoảng 0,14 BEM và 0,004 OKB.
+Keep the file `~/.foundry/keystores/atropyle-deployer` and its password. The deployer wallet owns the circuits, and is also the wallet that signs the DeWEB publish later. To use an existing wallet instead of a new one, import it with `cast wallet import atropyle-deployer --interactive` (as in the section below). The fork rehearsal costs about 0.14 BEM and 0.004 OKB.
 
-Trước khi gửi bất cứ thứ gì, script kiểm:
+Before it sends anything, the script checks:
 
-- chainId là 196;
-- `contracts/.env` không đặt tên nào forge sẽ đọc vào các bước. Forge tự nạp file đó và điền mọi biến còn trống, nên `REPLACE_PROCESSOR`, các id, `ETH_*`, `FOUNDRY_*` hay `DAPP_*` ở đó sẽ lọt vào. Script chỉ đọc tên biến;
-- keystore tồn tại;
-- không vai trò nào là tài khoản mặc định của anvil;
-- `DEPLOYER` là EOA không có code và có đủ BEM, OKB;
-- test treasury trên fork chạy qua (chỉ đọc, mục "Kiểm treasury trước bước 04");
-- keystore mở ra đúng `DEPLOYER`: `cast wallet address --account atropyle-deployer` hỏi mật khẩu một lần.
+- the chainId is 196;
+- `contracts/.env` sets no name that forge would read into the stages. Forge loads that file itself and fills every variable left empty, so `REPLACE_PROCESSOR`, the ids, `ETH_*`, `FOUNDRY_*` or `DAPP_*` there would leak in. The script reads only the variable names;
+- the keystore exists;
+- no role is a default anvil account;
+- `DEPLOYER` is an EOA with no code and holds enough BEM and OKB;
+- the treasury test on a fork passes (read-only, section "Check the treasury before stage 04");
+- the keystore opens to exactly `DEPLOYER`: `cast wallet address --account atropyle-deployer` asks for the password once.
 
-Rồi script in tóm tắt (đọc kỹ dòng `TREASURY`: nó bất biến sau bước 04) và chờ bạn gõ `deploy`. Sau đó forge hỏi mật khẩu một lần mỗi bước.
+Then the script prints a summary (read the `TREASURY` line carefully: it is immutable after stage 04) and waits for you to type `deploy`. After that, forge asks for the password once per stage.
 
-Mỗi bước, script làm bốn việc:
+For each stage, the script does four things:
 
-1. Ghi `pending` (bước và nonce hiện tại của `DEPLOYER`) vào `broadcast/atropyle-deploy/196/progress.json`.
-2. Chạy forge script với `--account atropyle-deployer --broadcast --slow`. Env của forge lấy từ file progress: biến cũ trong shell (kể cả `ETH_*`, `FOUNDRY_*`, `DAPP_*`) không lọt vào.
-3. Lưu giá trị bước in ra vào file progress, kèm bản sao `run-latest.json`, rồi xoá `pending`.
-4. Đọc lại kết quả từ chain như mục "Đọc lại từ chain sau mỗi bước".
+1. Writes `pending` (the stage and the current nonce of `DEPLOYER`) to `broadcast/atropyle-deploy/196/progress.json`.
+2. Runs the forge script with `--account atropyle-deployer --broadcast --slow`. Forge's environment comes from the progress file: old variables in the shell (`ETH_*`, `FOUNDRY_*` and `DAPP_*` included) do not leak in.
+3. Saves the values the stage printed in the progress file, with a copy of `run-latest.json`, then clears `pending`.
+4. Reads the result back from the chain as in the section "Read back from the chain after each stage".
 
-Chạy lại đúng lệnh thì script tiếp từ bước còn thiếu. Bước đã có giá trị chỉ được đọc lại, không gửi lại. Cuối cùng script ghi `exports.env` và chạy ForkTest (chỉ đọc) trên deployment thật.
+Run the same command again and the script resumes from the first missing stage. A stage that already has values is only read back, never sent again. At the end, the script writes `exports.env` and runs ForkTest (read-only) against the real deployment.
 
-Script không bao giờ tự gửi lại một bước có thể đã gửi một phần:
+The script never resends on its own a stage that may have been partly sent:
 
-- Forge lỗi, hoặc bạn bấm Ctrl+C, sau khi đã gửi (nonce đổi, hoặc bản ghi forge có hash mới): `pending` được giữ và script dừng. Lần chạy sau cũng dừng ở đó. Xem `run-latest.json` và receipt, thêm giá trị của bước vào file progress rồi chạy lại. Muốn gửi phần còn lại (mục ghi chú của từng bước nói khi nào an toàn), xoá `pending` trước.
-- Forge lỗi trước khi gửi gì (sai mật khẩu, mô phỏng revert): script xoá `pending` và bảo bạn chạy lại.
-- `broadcast/<script>/196/run-latest.json` đã có mà file progress không có giá trị nào của bước đó (chạy tay, hoặc mất file progress): script dừng.
+- Forge fails, or you press Ctrl+C, after something was sent (the nonce changed, or forge's record has a new hash): `pending` is kept and the script stops. The next run stops there too. Look at `run-latest.json` and the receipts, add the stage's values to the progress file, and run again. To send the rest (each stage's notes say when that is safe), clear `pending` first.
+- Forge fails before sending anything (wrong password, the simulation reverts): the script clears `pending` and tells you to run again.
+- `broadcast/<script>/196/run-latest.json` exists while the progress file has no value for that stage (a manual run, or a lost progress file): the script stops.
 
-Các cờ khác:
+Other flags:
 
-- `--smoke-heir` mặc định là `TREASURY`, và phải khác `DEPLOYER`.
-- `--legacy` khi RPC từ chối giao dịch EIP-1559.
-- Mất file progress sau khi bước 01 đã lên chain: chạy lại cùng lệnh, thêm `--skip-balance-check`, vì ví đã tiêu 0,1 BEM nên dưới ngưỡng 0,2. Các forge script vẫn tự kiểm đúng số tiền chúng cần. Bước 01 sẽ báo ví đã có processor Atropyle. Script hỏi, và bạn gõ `continue` để dùng tiếp processor đó.
-- `--rehearsal http://127.0.0.1:<port>` gửi bằng `--unlocked`, chỉ tới anvil có chainId 31337 (phần "Diễn tập"), và bỏ qua bước kiểm keystore. Bản ghi nằm ở `broadcast/atropyle-deploy/31337/`, nên lệnh dọn `rm -rf broadcast/*/31337` cũng xoá nó.
+- `--smoke-heir` defaults to `TREASURY`, and must differ from `DEPLOYER`.
+- `--legacy` when the RPC refuses EIP-1559 transactions.
+- A lost progress file after stage 01 is on chain: run the same command again with `--skip-balance-check`, because the wallet has spent 0.1 BEM and is below the 0.2 threshold. The forge scripts still check the exact amounts they need. Stage 01 reports that the wallet already has an Atropyle processor. The script asks, and you type `continue` to keep using that processor.
+- `--rehearsal http://127.0.0.1:<port>` sends with `--unlocked`, only to an anvil with chainId 31337 (section "Rehearsal"), and skips the keystore check. Its record lives in `broadcast/atropyle-deploy/31337/`, so the cleanup command `rm -rf broadcast/*/31337` deletes it too.
 
-Các mục dưới là quy trình từng bước bằng tay, cũng là thứ script làm theo.
+The sections below are the manual stage-by-stage procedure, which is also what the script follows.
 
-Chuẩn bị một lần:
+One-time setup:
 
 ```bash
 cast wallet import atropyle-deployer --interactive
-export DEPLOYER=0x...     # địa chỉ của keystore vừa nhập (hoặc: cast wallet address --account atropyle-deployer)
-export TREASURY=0x...     # ví nhận phí tạo vault; bất biến sau bước 04
-export SMOKE_HEIR=0x...   # một ví khác DEPLOYER, làm heir cho vault Drill thử
+export DEPLOYER=0x...     # the address of the keystore just imported (or: cast wallet address --account atropyle-deployer)
+export TREASURY=0x...     # the wallet that receives vault creation fees; immutable after stage 04
+export SMOKE_HEIR=0x...   # a wallet other than DEPLOYER, the heir of the test Drill vault
 ```
 
-Dùng một shell riêng cho mainnet. Đừng dùng lại shell đã chạy phần "Diễn tập": biến `TREASURY` hay `DEPLOYER` còn sót lại từ đó (địa chỉ tài khoản anvil, khoá công khai) sẽ thành treasury bất biến của factory nếu bạn quên đặt lại.
+Use a separate shell for mainnet. Do not reuse the shell that ran the "Rehearsal" section: a `TREASURY` or `DEPLOYER` variable left over from there (an anvil account address, with a public key) would become the factory's immutable treasury if you forgot to set it again.
 
-Chạy lần lượt trong `contracts/`. Mỗi script in dòng `export …`; dán dòng đó vào terminal trước khi chạy script kế tiếp.
+Run the stages one by one in `contracts/`. Each script prints an `export …` line; paste that line into the terminal before running the next script.
 
-| # | Script | Cần env | In ra |
+| # | Script | Needs env | Prints |
 |---|---|---|---|
-| 1 | `01_CreateProcessor` | `DEPLOYER` (`ATRO_CPU` phải chưa đặt; `REPLACE_PROCESSOR` chỉ đặt khi bỏ processor cũ) | `ATRO_CPU` |
+| 1 | `01_CreateProcessor` | `DEPLOYER` (`ATRO_CPU` must not be set; set `REPLACE_PROCESSOR` only to abandon an old processor) | `ATRO_CPU` |
 | 2 | `02_TapeOutSubs` | `DEPLOYER`, `ATRO_CPU` | `KOFN_ID`, `GE4_ID` |
-| 3 | `03_TapeOutPolicy` | `DEPLOYER`, `ATRO_CPU`, `KOFN_ID`, `GE4_ID` (`POLICY_ID` phải chưa đặt) | `POLICY_ID` |
-| 4 | `04_DeployAtropyle` | thêm `POLICY_ID`, `TREASURY` (`ATRO_FACTORY` phải chưa đặt) | `VAULT_IMPL`, `ATRO_FACTORY` |
+| 3 | `03_TapeOutPolicy` | `DEPLOYER`, `ATRO_CPU`, `KOFN_ID`, `GE4_ID` (`POLICY_ID` must not be set) | `POLICY_ID` |
+| 4 | `04_DeployAtropyle` | plus `POLICY_ID`, `TREASURY` (`ATRO_FACTORY` must not be set) | `VAULT_IMPL`, `ATRO_FACTORY` |
 | 5 | `05_SmokeDrill` | `DEPLOYER`, `ATRO_FACTORY`, `SMOKE_HEIR` | `SMOKE_VAULT` |
 
 ```bash
 forge script script/01_CreateProcessor.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
 ```
 
-Các bước 2–5 dùng đúng lệnh này, chỉ đổi tên file.
+Stages 2–5 use exactly this command, with only the file name changed.
 
-- Chạy trước một lần không có `--broadcast` (và không cần `--account`) để xem mô phỏng.
-- RPC từ chối giao dịch EIP-1559 thì thêm `--legacy`.
-- Mỗi script là một lượt broadcast riêng. Chuỗi địa chỉ và id không đoán trước được: địa chỉ processor phụ thuộc nonce của factory TapeOut, và ai cũng có thể tape-out lên processor của bạn. Vì vậy từng bước đọc đầu vào từ env (giá trị bước trước để lại) và tự kiểm lại trên chain, không có mô phỏng nào bao trùm nhiều bước.
-- Script 01 không gửi gì nếu beacon circuits không phải bản đóng băng `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` (spec §2). Gặp lỗi `STOP: …` thì dừng hẳn và đánh giá lại. Script 02 và 03 kiểm lại điều này, cùng tên, ký hiệu và creator của processor, trước khi approve hay mint bất cứ thứ gì.
-- Script 02 chạy lại được: nếu KofN5 đã lên chain, đặt `export KOFN_ID=…` rồi chạy lại. Script chỉ tape-out phần còn thiếu và chỉ mint số transistor còn thiếu. Ngược lại, chạy lại script 02 khi đã có đủ cả hai id mà không đặt `KOFN_ID` và `GE4_ID` sẽ tape-out và trả phí thêm một lần nữa (rẻ: một phí tape-out và vài lần mint).
-- Script 01 chặn chạy lại theo hai lớp. Nếu `ATRO_CPU` đã đặt, nó dừng. Nếu mất env sau một lần chạy thành công, nó quét 100 processor mới nhất của factory TapeOut (`cpuCount()` / `cpuAt(i)`) tìm processor tên `Atropyle` do `DEPLOYER` tạo, rồi dừng và in địa chỉ đó: đặt `export ATRO_CPU=<địa chỉ đó>` và sang bước 02, đừng tạo cái thứ hai (0,1 BEM, và hồ sơ nộp bài nêu địa chỉ processor). Lần quét đọc khoảng 100 processor qua RPC nên mô phỏng bước 01 mất chừng một phút.
-- Chạy 02 ngay sau 01, rồi 03 ngay sau 02. Spec §10 cố định `supplyCap = 10 000` (một trần chung cho cả NAND và LATCH) và `mintPrice = 0`, nên trong khoảng chờ giữa các bước, bất kỳ ai cũng có thể mint hết trần chỉ với phí giao thức. Khi đó 02 hoặc 03 dừng (không gửi gì), và processor đó không dùng được nữa.
-- Chỉ trong trường hợp đó (hoặc khi processor `Atropyle` cũ của cùng ví là bản thử không dùng được), bỏ processor cũ bằng `REPLACE_PROCESSOR`. Script 01 chỉ tạo processor mới khi địa chỉ nó tìm thấy trùng đúng `REPLACE_PROCESSOR`, nên lệnh này nói rõ bạn bỏ cái nào; địa chỉ khác, hoặc đặt mà không tìm thấy processor nào, thì script dừng. Cái giá là thêm 0,1 BEM phí `createCPU`, processor cũ bị bỏ hẳn, và hồ sơ nộp bài phải nêu địa chỉ mới. Script in hai dòng `REPLACE_PROCESSOR: ABANDONING …` và `… creating a NEW processor …`; đọc kỹ ở bản mô phỏng trước khi thêm `--broadcast`:
+- Run each once first without `--broadcast` (and without `--account`) to see the simulation.
+- If the RPC refuses EIP-1559 transactions, add `--legacy`.
+- Each script is a broadcast of its own. The chain of addresses and ids cannot be predicted: the processor's address depends on the TapeOut factory's nonce, and anyone can tape out onto your processor. So each stage reads its inputs from the environment (the values the previous stage left) and checks them again on chain; no simulation spans several stages.
+- Script 01 sends nothing if the circuits beacon is not the frozen `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` (spec §2). On a `STOP: …` error, stop for good and reassess. Scripts 02 and 03 check this again, along with the processor's name, symbol and creator, before they approve or mint anything.
+- Script 02 can run again: if KofN5 is already on chain, set `export KOFN_ID=…` and run again. The script tapes out only what is missing and mints only the missing transistors. On the other hand, running script 02 again when both ids exist without setting `KOFN_ID` and `GE4_ID` tapes out and pays once more (cheap: one tape-out fee and a few mints).
+- Script 01 blocks a re-run in two layers. If `ATRO_CPU` is set, it stops. If the environment was lost after a successful run, it scans the 100 newest processors of the TapeOut factory (`cpuCount()` / `cpuAt(i)`) for a processor named `Atropyle` created by `DEPLOYER`, then stops and prints that address: set `export ATRO_CPU=<that address>` and go on to stage 02; do not create a second one (0.1 BEM, and the submission names the processor address). The scan reads about 100 processors over RPC, so the stage 01 simulation takes about a minute.
+- Run 02 right after 01, then 03 right after 02. Spec §10 fixes `supplyCap = 10 000` (one cap shared by NAND and LATCH) and `mintPrice = 0`, so in the wait between stages anyone can mint up to the cap for just the protocol fee. Then 02 or 03 stops (sending nothing), and that processor can no longer be used.
+- Only in that case (or when the old `Atropyle` processor of the same wallet is an unusable test), abandon the old processor with `REPLACE_PROCESSOR`. Script 01 creates a new processor only when the address it finds equals `REPLACE_PROCESSOR` exactly, so the command says which one you abandon; with another address, or set while no processor is found, the script stops. The price is another 0.1 BEM `createCPU` fee, the old processor is abandoned for good, and the submission must name the new address. The script prints two lines, `REPLACE_PROCESSOR: ABANDONING …` and `… creating a NEW processor …`; read them carefully in the simulation before adding `--broadcast`:
 
   ```bash
   unset ATRO_CPU KOFN_ID GE4_ID POLICY_ID
-  export REPLACE_PROCESSOR=0x...   # đúng địa chỉ script 01 vừa in trong lỗi "already exists"
+  export REPLACE_PROCESSOR=0x...   # exactly the address script 01 just printed in the "already exists" error
   forge script script/01_CreateProcessor.s.sol --rpc-url xlayer --sender $DEPLOYER
   ```
 
-  Xong bước 01 mới thì `unset REPLACE_PROCESSOR`.
-- Script 04 dừng nếu `ATRO_FACTORY` đã đặt. Không chạy lại 04 khi chưa cần: nó sẽ deploy factory thứ hai và ghi đè `broadcast/04_DeployAtropyle.s.sol/196/run-latest.json`, file bản ghi mà bước ghi deployment của SDK đọc, khiến SDK lặng lẽ chuyển sang factory mới. Sau khi 04 chạy xong, sao lưu thư mục `broadcast/` rồi hãy làm việc khác.
-- Script 04 in `deployer` và `treasury (immutable)` trước khi gửi. Trên chainId 196 nó từ chối nếu `TREASURY` hoặc `DEPLOYER` là một trong mười tài khoản mặc định của anvil (khoá riêng công khai, dấu hiệu env còn sót từ lần diễn tập). Treasury không đổi được sau khi deploy, nên đọc kỹ hai dòng đó ở bản mô phỏng.
-- Script 03 kiểm `KOFN_ID` và `GE4_ID` khớp byte-for-byte với KofN5 và Ge4 trước khi mint; script 04 kiểm policy trên chain bằng netlist đã vá và 64 vector, rồi mới deploy. Id sai thì script dừng trong mô phỏng, không gửi giao dịch nào.
-- Script 05 kiểm vault Drill trỏ đúng `cpu` và `policyId` của factory. `poke()` trong 05 do `DEPLOYER`, chủ vault, ký nên là một lần check-in; nó vẫn gọi `step()` trên circuit thật.
+  Once the new stage 01 is done, `unset REPLACE_PROCESSOR`.
+- Script 04 stops if `ATRO_FACTORY` is set. Do not run 04 again without need: it would deploy a second factory and overwrite `broadcast/04_DeployAtropyle.s.sol/196/run-latest.json`, the record that the SDK's deployment write step reads, so the SDK would quietly switch to the new factory. After 04 is done, back up the `broadcast/` folder before doing anything else.
+- Script 04 prints `deployer` and `treasury (immutable)` before sending. On chainId 196 it refuses if `TREASURY` or `DEPLOYER` is one of the ten default anvil accounts (public private keys, a sign of environment left over from the rehearsal). The treasury cannot change after deployment, so read those two lines carefully in the simulation.
+- Script 03 checks that `KOFN_ID` and `GE4_ID` match KofN5 and Ge4 byte for byte before minting; script 04 checks the policy on chain against the patched netlist and 64 vectors, and only then deploys. With a wrong id the script stops in the simulation, and no transaction is sent.
+- Script 05 checks that the Drill vault points to the factory's `cpu` and `policyId`. The `poke()` in 05 is signed by `DEPLOYER`, the vault owner, so it is a check-in; it still calls `step()` on the real circuit.
 
-### Kiểm treasury trước bước 04
+### Check the treasury before stage 04
 
-Treasury bất biến sau bước 04. Nếu một token phí (USDT0, USDC, USDG) chặn treasury (blacklist, đóng băng, tạm dừng), mọi vault trả phí bằng token đó sẽ revert mãi mãi. Trước bước 04, với `TREASURY` thật đã export, chạy trên fork (chỉ đọc, không gửi gì):
+The treasury is immutable after stage 04. If a fee token (USDT0, USDC, USDG) blocks the treasury (blacklist, freeze, pause), every vault that pays its fee in that token reverts forever. Before stage 04, with the real `TREASURY` exported, run on a fork (read-only, sends nothing):
 
 ```bash
 XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest --match-test test_treasuryReceivesEveryFeeToken -vv
 ```
 
-Test tạo một vault trả phí cho mỗi token phí trên fork và kiểm số dư treasury tăng đúng `currentFee`. Ba dòng `fee paid to treasury …` phải hiện ra và test phải PASS. Nếu test revert, treasury không nhận được token đó: chọn ví treasury khác, export lại `TREASURY` và chạy lại.
+The test creates one paid vault per fee token on the fork and checks that the treasury balance grows by exactly `currentFee`. Three `fee paid to treasury …` lines must show and the test must PASS. If the test reverts, the treasury cannot receive that token: choose another treasury wallet, export `TREASURY` again and run again.
 
-### Đọc lại từ chain sau mỗi bước
+### Read back from the chain after each stage
 
-Dòng `export …` do forge in ra lấy từ mô phỏng, không phải từ receipt. Nếu có người tape-out chen vào giữa lúc mô phỏng và lúc gửi, id thật có thể khác id đã in. Sau mỗi bước, đọc lại từ chain rồi mới `export`:
+The `export …` line that forge prints comes from the simulation, not from the receipt. If someone tapes out between the simulation and the send, the real id may differ from the printed one. After each stage, read it back from the chain before you `export`:
 
 ```bash
-# Sau bước 1: processor phải là của bạn
+# After stage 1: the processor must be yours
 cast call $ATRO_CPU "name()(string)" --rpc-url xlayer                       # "Atropyle"
 cast call $(cast call $ATRO_CPU "transistors()(address)" --rpc-url xlayer) "creator()(address)" --rpc-url xlayer   # = $DEPLOYER
 
-# Sau bước 2: KofN5 và Ge4
+# After stage 2: KofN5 and Ge4
 cast call $ATRO_CPU "circuitInfo(uint256)(uint32,uint32,uint32,uint32)" $KOFN_ID --rpc-url xlayer   # 8 1 0 41
 cast call $ATRO_CPU "circuitInfo(uint256)(uint32,uint32,uint32,uint32)" $GE4_ID --rpc-url xlayer    # 8 1 0 25
 cast call $ATRO_CPU "ownerOf(uint256)(address)" $KOFN_ID --rpc-url xlayer                           # = $DEPLOYER
 cast call $ATRO_CPU "ownerOf(uint256)(address)" $GE4_ID --rpc-url xlayer                            # = $DEPLOYER
 
-# Sau bước 3: policy
+# After stage 3: the policy
 cast call $ATRO_CPU "circuitInfo(uint256)(uint32,uint32,uint32,uint32)" $POLICY_ID --rpc-url xlayer # 23 3 3 199
 cast call $ATRO_CPU "ownerOf(uint256)(address)" $POLICY_ID --rpc-url xlayer                         # = $DEPLOYER
 
-# Sau bước 4: factory trỏ đúng processor, policy, treasury và vault implementation
+# After stage 4: the factory points to the right processor, policy, treasury and vault implementation
 cast call $ATRO_FACTORY "cpu()(address)" --rpc-url xlayer                                           # = $ATRO_CPU
 cast call $ATRO_FACTORY "policyId()(uint256)" --rpc-url xlayer                                      # = $POLICY_ID
 cast call $ATRO_FACTORY "treasury()(address)" --rpc-url xlayer                                      # = $TREASURY
 cast call $ATRO_FACTORY "vaultImpl()(address)" --rpc-url xlayer                                     # = $VAULT_IMPL
 
-# Sau bước 5: vault Drill thử
+# After stage 5: the test Drill vault
 cast call $SMOKE_VAULT "drill()(bool)" --rpc-url xlayer                                             # true
 cast call $SMOKE_VAULT "state()(uint8)" --rpc-url xlayer                                            # 0 (Active)
 ```
 
-Nếu một id đọc lại khác id đã in (có người tape-out chen vào), đừng dùng id in ra. Lấy id thật từ receipt của giao dịch `tapeout`: log `Transfer(address,address,uint256)` do Circuits phát ra có topic thứ 4 là id circuit (`cast receipt <tx> --rpc-url xlayer`, hoặc `broadcast/<script>/196/run-latest.json`). Hoặc đọc bộ đếm `cast call $ATRO_CPU "nextId()(uint256)" --rpc-url xlayer`, là id circuit mới nhất đã tape-out (đo trên fork: 3 sau ba lần tape-out từ processor mới); số này chỉ trùng id của bạn khi không ai tape-out chen vào sau bạn. Rồi kiểm `circuitInfo` và `ownerOf` như trên trước khi `export`.
+If an id read back differs from the printed one (someone taped out in between), do not use the printed id. Take the real id from the receipt of the `tapeout` transaction: the `Transfer(address,address,uint256)` log emitted by Circuits has the circuit id as its 4th topic (`cast receipt <tx> --rpc-url xlayer`, or `broadcast/<script>/196/run-latest.json`). Or read the counter `cast call $ATRO_CPU "nextId()(uint256)" --rpc-url xlayer`, which is the id of the newest circuit taped out (measured on a fork: 3 after three tape-outs on a new processor); it equals your id only when nobody taped out after you. Then check `circuitInfo` and `ownerOf` as above before you `export`.
 
-Receipt đầy đủ nằm ở `broadcast/<script>/196/run-latest.json`. Hash giao dịch ghi vào `../docs/deployments.md`.
+The full receipts are in `broadcast/<script>/196/run-latest.json`. The transaction hashes go into `../docs/deployments.md`.
 
-Kiểm deployment thật (chỉ đọc, chạy sau bước 4). Export đủ các biến sau, đúng giá trị đã đọc lại từ chain:
+Check the real deployment (read-only, run after stage 4). Export all of these variables, with exactly the values read back from the chain:
 
 ```bash
 export DEPLOYER=0x... ATRO_CPU=0x... KOFN_ID=... GE4_ID=... POLICY_ID=...
@@ -207,9 +207,9 @@ export ATRO_FACTORY=0x... VAULT_IMPL=0x... TREASURY=0x...
 XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv
 ```
 
-Có `ATRO_FACTORY` thì mọi test chạy trên chính factory đã deploy thay vì deploy factory mới trên fork, và kiểm `cpu()` = `ATRO_CPU`, `policyId()` = `POLICY_ID`, `treasury()` = `TREASURY`, `vaultImpl()` = `VAULT_IMPL`, cùng hai mức phí của cả ba token phí theo `decimals()` của từng token. Test khoá implementation chạy trên chính `VAULT_IMPL`. Thiếu `ATRO_CPU` mà có `ATRO_FACTORY` thì setUp dừng. `test_tapeoutBudget` báo SKIP ở chế độ này (nó chỉ đo khi tự tạo processor trên fork).
+With `ATRO_FACTORY` set, every test runs on the deployed factory itself instead of deploying a new factory on the fork, and checks `cpu()` = `ATRO_CPU`, `policyId()` = `POLICY_ID`, `treasury()` = `TREASURY`, `vaultImpl()` = `VAULT_IMPL`, and both fee levels of all three fee tokens against each token's `decimals()`. The implementation lock test runs on `VAULT_IMPL` itself. With `ATRO_FACTORY` but no `ATRO_CPU`, setUp stops. `test_tapeoutBudget` reports SKIP in this mode (it only measures when it creates its own processor on the fork).
 
-Verify trên OKLink. Để `OKLINK_API_KEY` trong `contracts/.env` (đã bị `.gitignore` chặn). Bash không tự đọc `.env`, nên nạp nó vào shell trước, nếu không `$OKLINK_API_KEY` sẽ rỗng:
+Verify on OKLink. Keep `OKLINK_API_KEY` in `contracts/.env` (blocked by `.gitignore`). Bash does not read `.env` by itself, so load it into the shell first, or `$OKLINK_API_KEY` will be empty:
 
 ```bash
 set -a; source .env; set +a
@@ -220,11 +220,11 @@ forge verify-contract $VAULT_IMPL src/AtropyleVault.sol:AtropyleVault --chain 19
 forge verify-contract $ATRO_FACTORY src/AtropyleFactory.sol:AtropyleFactory --chain 196 --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER --verifier-api-key $OKLINK_API_KEY --constructor-args $(cast abi-encode "constructor(address,address,uint256,address,address[])" $VAULT_IMPL $ATRO_CPU $POLICY_ID $TREASURY "[0x779Ded0c9e1022225f8E0630b35a9b54bE713736,0xB6CEceAB302E2E4948951eE7843FC24E92933061,0x4ae46a509F6b1D9056937BA4500cb143933D2dc8]") --watch
 ```
 
-Địa chỉ đã deploy ghi ở `../docs/deployments.md`.
+The deployed addresses are recorded in `../docs/deployments.md`.
 
-## Diễn tập trên anvil fork
+## Rehearsal on an anvil fork
 
-Chạy thử cả năm bước trước khi dùng tiền thật. Phải đặt `--chain-id 31337`: anvil fork mặc định báo chainId 196, khi đó `forge script --broadcast` ghi vào `broadcast/<script>/196/`, đúng thư mục các bước sau đọc như bản deploy mainnet thật.
+Run all five stages for practice before spending real money. You must set `--chain-id 31337`: an anvil fork reports chainId 196 by default, and then `forge script --broadcast` writes to `broadcast/<script>/196/`, the very folder the later stages read as the real mainnet deployment.
 
 Terminal 1:
 
@@ -232,17 +232,17 @@ Terminal 1:
 anvil --chain-id 31337 --fork-url https://rpc.xlayer.tech
 ```
 
-Terminal 2, trong `contracts/`. Mở một shell riêng cho phần này, không dùng chung shell với mainnet. Chỉ dùng tài khoản anvil mở khoá sẵn, không bao giờ đưa private key vào đây. Một số tài khoản mặc định của anvil đã bị gán code EIP-7702 trên mainnet (lúc viết: tài khoản 0, 1 và 5), nên fork cũng có code ở đó và script 01 sẽ từ chối. Kiểm tài khoản bạn chọn bằng đúng lệnh như với ví thật (`cast code $DEPLOYER --rpc-url $RPC` phải in `0x`) thay vì tin vào danh sách này; ví dụ dưới dùng tài khoản 2, 3, 4:
+Terminal 2, in `contracts/`. Open a separate shell for this section; do not share it with mainnet. Use only the unlocked anvil accounts, and never put a private key here. Some default anvil accounts already have EIP-7702 code on mainnet (at the time of writing: accounts 0, 1 and 5), so the fork has code there too and script 01 will refuse them. Check the account you pick with the same command as for a real wallet (`cast code $DEPLOYER --rpc-url $RPC` must print `0x`) instead of trusting this list; the example below uses accounts 2, 3 and 4:
 
 ```bash
 export RPC=http://127.0.0.1:8545
-test "$(cast chain-id --rpc-url $RPC)" = "31337" || echo "KHONG PHAI ANVIL LOCAL"
-export DEPLOYER=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC   # tài khoản anvil số 2
-export TREASURY=0x90F79bf6EB2c4f870365E785982E1f101E93b906   # tài khoản số 3
-export SMOKE_HEIR=0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 # tài khoản số 4
-cast code $DEPLOYER --rpc-url $RPC                           # phải in 0x
+test "$(cast chain-id --rpc-url $RPC)" = "31337" || echo "NOT A LOCAL ANVIL"
+export DEPLOYER=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC   # anvil account 2
+export TREASURY=0x90F79bf6EB2c4f870365E785982E1f101E93b906   # account 3
+export SMOKE_HEIR=0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 # account 4
+cast code $DEPLOYER --rpc-url $RPC                           # must print 0x
 
-# Cấp BEM cho deployer trên fork: mượn một địa chỉ đang giữ ít nhất 1 BEM (tra holder BEM trên OKLink)
+# Give the deployer BEM on the fork: borrow an address that holds at least 1 BEM (look up BEM holders on OKLink)
 export BEM_HOLDER=0x...
 cast rpc anvil_impersonateAccount $BEM_HOLDER --rpc-url $RPC
 cast rpc anvil_setBalance $BEM_HOLDER 0x56BC75E2D63100000 --rpc-url $RPC
@@ -251,20 +251,20 @@ cast send 0x60e62Efa9405d6873C5deaBD4E6CC91c25363952 "transfer(address,uint256)"
 forge script script/01_CreateProcessor.s.sol --rpc-url $RPC --unlocked --sender $DEPLOYER --broadcast --slow
 ```
 
-Dán dòng `export ATRO_CPU=…` rồi chạy tiếp 02, 03, 04, 05 đúng lệnh trên, chỉ đổi tên file. `--unlocked` chỉ dùng với anvil local; trên mainnet luôn dùng `--account`. Diễn tập xong, tắt anvil, xoá bản ghi của lần diễn tập (`broadcast/*/31337`) để các bước sau không đọc nhầm, rồi xoá mọi biến của lần diễn tập (hoặc đóng hẳn shell này). Chỉ xoá thư mục `31337`: `broadcast/*/196/` là bản ghi deploy mainnet, `.gitignore` chặn nên không có bản nào khác, và bước ghi deployment của SDK đọc từ đó.
+Paste the `export ATRO_CPU=…` line, then run 02, 03, 04 and 05 with the same command, changing only the file name. `--unlocked` is only for a local anvil; on mainnet, always use `--account`. When the rehearsal is done, stop anvil, delete the rehearsal's records (`broadcast/*/31337`) so the later stages do not read them by mistake, then unset every variable of the rehearsal (or close this shell). Delete only the `31337` folders: `broadcast/*/196/` is the record of the mainnet deployment, `.gitignore` blocks it so there is no other copy, and the SDK's deployment write step reads from it.
 
 ```bash
 unset DEPLOYER TREASURY SMOKE_HEIR ATRO_CPU KOFN_ID GE4_ID POLICY_ID VAULT_IMPL ATRO_FACTORY SMOKE_VAULT BEM_HOLDER RPC REPLACE_PROCESSOR
 rm -rf broadcast/*/31337
 ```
 
-## Giới hạn đã biết
+## Known limits
 
-Các quyết định sau được chốt khi review. Không phải lỗi, nhưng người dùng và người tích hợp cần biết:
+These decisions were settled in review. They are not bugs, but users and integrators need to know them:
 
-- Mỗi lời gọi ngoài trong `distribute()` có trần gas: view 100 000, ERC-20 `transferFrom` 300 000, ERC-721/1155 `safeTransferFrom` 500 000. Lời gọi view vượt trần thì đọc ra 0 và tài sản đó bị bỏ qua lặng lẽ (không có sự kiện); lời gọi chuyển vượt trần thì luôn thất bại với sự kiện `TransferFailed`. Cả hai trường hợp lượt quét vẫn đi tiếp. Giao dịch không đủ gas để cấp trọn trần cho lời gọi kế tiếp thì revert `InsufficientGas()`, để người gọi không thể bóp gas làm hỏng riêng phần chuyển của một người thừa kế.
-- Phần ERC-20 chuyển thất bại (ví dụ người thừa kế bị blacklist) ở lại ví chủ và được chia lại theo bps cho tất cả người thừa kế ở các lượt quét sau. NFT và ERC-1155 của người đó vẫn nằm lại, không chuyển cho ai khác.
-- Người thừa kế hoặc đích khôi phục có địa chỉ đã được gán code theo EIP-7702 thì được tính là có code: `safeTransferFrom` của ERC-721 và ERC-1155 gọi hook nhận của họ. Nếu code ủy quyền không có hook đó, lần chuyển thất bại với `TransferFailed`, tài sản ở lại ví chủ và được thử lại ở các lượt quét sau. ERC-20 không bị ảnh hưởng.
-- Khi vault chưa Released, mọi giao dịch chủ ví ký đều là bằng chứng còn sống, kể cả `poke()` và `distribute()` (spec §3.2 bit 21, §4.5 I4): hai hàm này chạy như `checkIn()`, huỷ báo động, xoá phiếu và không bao giờ release. Vì vậy chủ ví không tự kích hoạt báo động được, Drill cũng vậy; khi demo bằng một ví, gọi `poke()` từ một địa chỉ khác hoặc để keeper gọi. Sau khi Released, `distribute()` do chủ ví ký vẫn quét tài sản như của bất kỳ ai.
-- Người thừa kế, giám hộ và đích khôi phục không bao giờ là chính địa chỉ vault: `setHeirs` và `setGuardians` revert `InvalidHeirs` / `InvalidGuardians`, `voteRecovery` revert `InvalidTarget`. Vault không có hàm rút nên tài sản chuyển vào sẽ kẹt vĩnh viễn, và vault không bao giờ ký được nên một ghế giám hộ là vault sẽ là ghế chết.
-- Trường hợp xấu nhất, 20 tài sản ERC-20 đều độc hại × 5 người thừa kế, tốn khoảng 28 triệu gas. Nếu X Layer sau này áp trần gas mỗi giao dịch thấp hơn nhiều mức đó (ví dụ 2^24 theo EIP-7825), một vault có từ khoảng 9 tài sản độc hại trở lên sẽ không quét được trong một giao dịch.
+- Every external call in `distribute()` has a gas cap: views 100,000, ERC-20 `transferFrom` 300,000, ERC-721/1155 `safeTransferFrom` 500,000. A view call that goes over its cap reads as 0, and that asset is skipped silently (no event); a transfer call that goes over its cap always fails with a `TransferFailed` event. In both cases the sweep goes on. A transaction without enough gas to hand the full cap to the next call reverts with `InsufficientGas()`, so a caller cannot squeeze the gas to break just one heir's transfer.
+- The part of an ERC-20 whose transfer failed (for example a blacklisted heir) stays in the owner's wallet and is split again by bps among all heirs in later sweeps. That heir's NFTs and ERC-1155 tokens stay put too, and do not go to anyone else.
+- An heir or recovery target whose address has code set under EIP-7702 counts as having code: ERC-721 and ERC-1155 `safeTransferFrom` calls its receiver hook. If the delegated code lacks that hook, the transfer fails with `TransferFailed`, the asset stays in the owner's wallet and is tried again in later sweeps. ERC-20 is not affected.
+- While the vault is not Released, every transaction the owner signs is proof of life, `poke()` and `distribute()` included (spec §3.2 bit 21, §4.5 I4): these two functions act like `checkIn()`, cancel the alarm, clear the votes and never release. So an owner cannot trigger the alarm on their own vault, a Drill included; for a demo with one wallet, call `poke()` from another address or let the keeper call it. Once Released, a `distribute()` signed by the owner sweeps the assets like anyone else's.
+- An heir, guardian or recovery target is never the vault's own address: `setHeirs` and `setGuardians` revert with `InvalidHeirs` / `InvalidGuardians`, and `voteRecovery` reverts with `InvalidTarget`. The vault has no withdraw function, so assets sent to it would be stuck forever, and the vault can never sign, so a guardian seat held by the vault would be a dead seat.
+- The worst case, 20 ERC-20 assets that are all hostile × 5 heirs, costs about 28 million gas. If X Layer later sets a per-transaction gas cap far below that (for example 2^24 under EIP-7825), a vault with about 9 or more hostile assets could not be swept in one transaction.
