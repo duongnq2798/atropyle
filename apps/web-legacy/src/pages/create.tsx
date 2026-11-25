@@ -22,7 +22,7 @@ import type { Sdk } from '../lib/sdk';
 import { uniqueWarnings, warningKey } from '../lib/tx-view';
 import { useApp, useT } from '../ui/app-context';
 import { messages as common } from '../ui/common.messages';
-import { AddressText, Banner, ErrorBox, TokenAmount, UntrustedText } from '../ui/components';
+import { AddressText, Banner, ErrorBox, TokenAmount, UntrustedText, WarningText } from '../ui/components';
 import { AssetsEditor, GuardiansEditor, HeirsEditor, IssueList, TimingEditor } from '../ui/editors';
 import { TxRunner } from '../ui/tx-runner';
 import { messages } from './create.messages';
@@ -77,7 +77,7 @@ function CheckResult(props: {
     <div class="stack" data-testid="create-checked">
       {uniqueWarnings([check.warnings]).map((w) => (
         <Banner kind="warn" key={warningKey(w)} testid={`create-warning-${w.code}`}>
-          {w.message}
+          <WarningText warning={w} />
         </Banner>
       ))}
       <h3>{t('tokensTitle')}</h3>

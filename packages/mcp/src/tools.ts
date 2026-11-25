@@ -86,7 +86,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     name: 'atropyle_verify',
     title: 'Verify the policy circuit',
     description:
-      'Prove the deployed policy circuit: properties P1-P8 over all 2^26 input combinations, read through two independent RPC operators. Optionally check one vault too. Takes about a minute and reports progress when the client asks for it.',
+      "Prove the deployed policy circuit: properties P1-P8 over all 2^26 input combinations, read through two independent RPC operators. P9 then runs 64 seeded pseudo-random vectors through the processor's own step() by eth_call on each operator and compares them with the simulator, and the processor's runtime code is checked against pinned hashes. Optionally check one vault too. Takes about a minute and reports progress when the client asks for it.",
     inputSchema: VerifyInputSchema,
     outputSchema: VerifyOutputSchema,
     annotations: READ_ONLY,

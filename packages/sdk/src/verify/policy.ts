@@ -3,6 +3,7 @@ import {
   deployedNetlists,
   type Failure,
   listRefs,
+  type Program,
   verifyPolicy as proveProgram,
   type RefTarget,
 } from '@atropyle/circuits';
@@ -14,6 +15,7 @@ import { AtropyleError, decodeError } from '../errors';
 import { fetchPolicyProgram, type NetlistSource } from '../policy/engine';
 import type { Warning } from '../types';
 import { type CpuCheck, readCpuCheck } from './cpu';
+import { evaluateP9, P9_VECTORS, type P9Reads, type P9Result, type ReadP9Options, readP9 } from './vectors';
 
 export const SINGLE_RPC_WARNING: Warning = {
   code: 'SINGLE_RPC',
@@ -51,6 +53,8 @@ export interface PolicyBundle {
   /** The policy netlist first, then the REF targets in discovery order. */
   netlists: BundleNetlist[];
   cpuCheck: CpuCheck | null;
+  /** The processor's own step() on the P9 vectors; null (or absent) when the caller gave no operators. */
+  p9?: P9Reads | null;
 }
 
 export type PropertyName = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8';
@@ -80,6 +84,8 @@ export interface PolicyVerification {
   policyId: bigint;
   beaconFrozen: boolean | null;
   cpuCheck: CpuCheck | null;
+  /** P9: the simulator against the processor's step() by eth_call; null when the bundle carries no P9 reads. */
+  p9: P9Result | null;
   chainId: number;
   blockNumber: bigint;
   rpcs: number;
@@ -98,12 +104,24 @@ export interface VerifyPolicyOptions {
   progressEvery?: number;
   /** Test hook: enumerate only `blocks` × 32 combinations. Omit for the full 2^26 proof. */
   blocks?: number;
+  /** Seed of the P9 vectors (a number, nothing to do with a wallet), 0 to 2^64 - 1. Omitted: a random one, in `p9.seed`. */
+  p9Seed?: bigint;
+}
+
+export interface ReadPolicyBundleOptions {
+  /** Run P9: one client per independent operator, each asked on its own, and the seed of the vectors. */
+  p9?: { operators: readonly PublicClient[]; seed: bigint } & ReadP9Options;
 }
 
 const MAX_NETLISTS = 8;
 const NAMES: PropertyName[] = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
 
-export async function readPolicyBundle(c: PublicClient, d: Deployment, rpcs: number): Promise<PolicyBundle> {
+export async function readPolicyBundle(
+  c: PublicClient,
+  d: Deployment,
+  rpcs: number,
+  o: ReadPolicyBundleOptions = {},
+): Promise<PolicyBundle> {
   try {
     const blockNumber = await c.getBlockNumber();
     const f = { address: d.factory, abi: factoryAbi, blockNumber } as const;
@@ -133,6 +151,12 @@ export async function readPolicyBundle(c: PublicClient, d: Deployment, rpcs: num
       }
     }
     const cpuCheck = d.tapeout ? await readCpuCheck(c, d, cpu, blockNumber) : null;
+    // P9 needs a netlist to simulate: a processor without one (the devnet stand-in) is POLICY_UNAVAILABLE anyway.
+    const root = netlists.find((n) => n.id === policyId);
+    const p9 =
+      o.p9 && root && root.bytes !== '0x'
+        ? await readP9(o.p9.operators, cpu, policyId, blockNumber, o.p9.seed, o.p9)
+        : null;
     return {
       chainId: d.chainId,
       blockNumber,
@@ -149,6 +173,7 @@ export async function readPolicyBundle(c: PublicClient, d: Deployment, rpcs: num
       },
       netlists,
       cpuCheck,
+      p9,
     };
   } catch (e) {
     throw decodeError(e);
@@ -261,9 +286,11 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
   >;
   let combos = 0;
   let firstFailures: Failure[] = [];
+  let program: Program | null = null;
   try {
     const fetched = await fetchPolicyProgram(b.cpu, b.policyId, sourceOf);
     if (!fetched) throw new AtropyleError('POLICY_UNAVAILABLE');
+    program = fetched.program;
     if (fetched.program.gateCount !== root.gateCount) {
       issues.push(`the compiled policy has ${fetched.program.gateCount} gates; circuitInfo reports ${root.gateCount}`);
     }
@@ -287,9 +314,32 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
     issues.push('the deployment records no TapeOut info, so the frozen CPU could not be checked');
   }
   if (b.cpuCheck && !b.cpuCheck.ok) issues.push('the CPU is not the frozen Atropyle processor (see cpuCheck)');
+  // On mainnet the processor's runtime code must match the hashes pinned in this SDK (verify/pins.ts).
+  if (b.chainId === MAINNET_CHAIN_ID && b.cpuCheck && b.cpuCheck.code.matches === null) {
+    issues.push(`this SDK pins no code hashes for the CPU ${b.cpu}, so its code could not be checked`);
+  }
+  if (b.cpuCheck?.code.matches === false) {
+    issues.push(
+      'the runtime code of the CPU or of its implementation differs from the pinned hashes (see cpuCheck.code)',
+    );
+  }
+
+  // P9: the simulator above against the processor's own step(), on every operator.
+  const p9 = b.p9 ? evaluateP9(program, b.p9) : null;
+  if (p9 && !p9.ok && program) {
+    if (p9.vectors !== P9_VECTORS) issues.push(`P9 ran ${p9.vectors} vectors; expected ${P9_VECTORS}`);
+    if (p9.operators.length === 0) issues.push('P9 asked no RPC operator');
+    for (const op of p9.operators) {
+      if (op.matched < p9.vectors) {
+        issues.push(
+          `P9: ${p9.vectors - op.matched} of ${p9.vectors} vectors differ between the simulator and step() on RPC operator #${op.operator}`,
+        );
+      }
+    }
+  }
   const allProps = NAMES.every((p) => properties[p].ok);
   return {
-    ok: issues.length === 0 && allProps,
+    ok: issues.length === 0 && allProps && (p9 === null || p9.ok),
     properties,
     combos,
     ms: Math.round(performance.now() - t0),
@@ -298,6 +348,7 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
     policyId: b.policyId,
     beaconFrozen: b.cpuCheck?.beaconFrozen ?? null,
     cpuCheck: b.cpuCheck,
+    p9,
     chainId: b.chainId,
     blockNumber: b.blockNumber,
     rpcs: b.rpcs,

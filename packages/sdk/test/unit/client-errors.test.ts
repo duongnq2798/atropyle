@@ -98,6 +98,12 @@ describe('the client leaves every read and prepare as an AtropyleError', () => {
     await expect(atro.vault(VAULT).roleOf('nope')).rejects.toMatchObject({ code: 'INVALID_ADDRESS' });
   });
 
+  it('rejects a P9 seed outside 0 to 2^64 - 1 before any RPC call', async () => {
+    const atro = failing(() => new Error('never reached'));
+    await expect(atro.verifyPolicy({ p9Seed: -1n })).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await expect(atro.verifyPolicy({ p9Seed: 2n ** 64n })).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+  });
+
   it('send reports a failing wallet as an AtropyleError', async () => {
     const wallet = {
       account: { address: OWNER },

@@ -69,10 +69,15 @@ function summaryOf(status: PolicyStatus, chainId: number, p: PolicyVerification 
     const failed = Object.entries(p.properties)
       .filter(([, r]) => r.violations > 0)
       .map(([k]) => k);
+    // P9 fails on its own only when the processor gave answers that differ from the simulator.
+    if (p.p9 && p.p9.mismatches.length > 0) failed.push('P9');
+    const p9 = p.p9
+      ? `, step() on the processor matches the simulator on ${p.p9.vectors} seeded vectors (P9, seed ${p.p9.seed}) at each operator`
+      : '';
     parts.push(
       p.ok
-        ? `Policy verified: P1-P8 hold on all ${p.combos.toLocaleString('en-US')} combinations (${(p.ms / 1000).toFixed(1)} s), and ${plural(p.rpcs, 'RPC operator')} agree at block ${p.blockNumber}.`
-        : `Policy verification FAILED: ${failed.length > 0 ? `${failed.join(', ')} do not hold` : `${plural(p.issues.length, 'issue')} found`}.`,
+        ? `Policy verified: P1-P8 hold on all ${p.combos.toLocaleString('en-US')} combinations (${(p.ms / 1000).toFixed(1)} s)${p9}, and ${plural(p.rpcs, 'RPC operator')} agree at block ${p.blockNumber}.`
+        : `Policy verification FAILED: ${failed.length > 0 ? `${failed.join(', ')} ${failed.length === 1 ? 'does' : 'do'} not hold` : `${plural(p.issues.length, 'issue')} found`}.`,
     );
   } else if (status === 'unavailable') {
     parts.push(`The policy netlist cannot be read on chain ${chainId} (POLICY_UNAVAILABLE), so nothing was proven.`);
@@ -104,12 +109,18 @@ export async function verify(atro: AtropyleClient, input: VerifyInput, hooks: Ve
       message: 'Nothing to verify: give a vault, or keep the policy proof.',
     });
   }
+  if (!wantPolicy && input.p9Seed !== undefined) {
+    throw new AtropyleError('INVALID_OPTIONS', { message: 'A P9 seed needs the policy proof, which P9 is part of.' });
+  }
   let policy: PolicyVerification | null = null;
   let policyError: AtropyleErrorJson | null = null;
   let policyStatus: PolicyStatus = 'skipped';
   if (wantPolicy) {
     try {
-      policy = await atro.verifyPolicy(hooks.onProgress ? { onProgress: hooks.onProgress } : {});
+      policy = await atro.verifyPolicy({
+        ...(hooks.onProgress ? { onProgress: hooks.onProgress } : {}),
+        ...(input.p9Seed === undefined ? {} : { p9Seed: BigInt(input.p9Seed) }),
+      });
       policyStatus = 'verified';
     } catch (e) {
       const err = decodeError(e);

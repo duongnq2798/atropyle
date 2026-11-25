@@ -1,8 +1,16 @@
-import { buildAll, deployedNetlists } from '@atropyle/circuits';
-import { bytesToHex, getAddress, keccak256, type PublicClient } from 'viem';
+import { buildAll, deployedNetlists, stepBytes } from '@atropyle/circuits';
+import { bytesToHex, getAddress, type Hex, hexToBytes, keccak256, type PublicClient } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { type Deployment, getDeployment } from '../../src/deployments/index';
-import { evaluatePolicyBundle, type PolicyBundle, readIntegrity } from '../../src/verify/index';
+import {
+  evaluatePolicyBundle,
+  type P9Answer,
+  type P9Reads,
+  type PolicyBundle,
+  p9Vectors,
+  readIntegrity,
+  vectorBytes,
+} from '../../src/verify/index';
 
 const CPU = getAddress('0x1111111111111111111111111111111111111111');
 const OTHER = getAddress('0x2222222222222222222222222222222222222222');
@@ -56,8 +64,44 @@ function bundle(over: Partial<PolicyBundle> = {}): PolicyBundle {
       beaconMatches: true,
       beaconFrozen: true,
       transistorsPaired: true,
+      code: {
+        proxyCodehash: HASH_A,
+        implementation: OTHER,
+        implementationCodehash: HASH_B,
+        expected: { proxyCodehash: HASH_A, implementation: OTHER, implementationCodehash: HASH_B },
+        matches: true,
+      },
     },
     ...over,
+  };
+}
+
+const HASH_A = keccak256('0x6001');
+const HASH_B = keccak256('0x6002');
+
+/** What the simulator of this repository's policy answers for a vector, packed as step() returns it. */
+function simulated(state: Hex, inputs: Hex): { next: Hex; out: Hex } {
+  const r = stepBytes(src.program, hexToBytes(state), hexToBytes(inputs));
+  return { next: bytesToHex(r.next), out: bytesToHex(r.out) };
+}
+
+/** P9 reads where every operator answers like the simulator, except where `lie` says otherwise. */
+function p9Reads(operators = 2, lie: (op: number, i: number, a: P9Answer) => P9Answer = (_o, _i, a) => a): P9Reads {
+  const vectors = p9Vectors(7n);
+  return {
+    seed: 7n,
+    vectors,
+    ms: 12,
+    operators: Array.from({ length: operators }, (_, k) => ({
+      operator: k + 1,
+      blockNumber: 1n,
+      multicall: true,
+      calls: 4,
+      answers: vectors.map((v, i) => {
+        const b = vectorBytes(v);
+        return lie(k + 1, i, simulated(b.state, b.inputs));
+      }),
+    })),
   };
 }
 
@@ -159,6 +203,112 @@ describe('evaluatePolicyBundle', () => {
         code: 'INVALID_OPTIONS',
       });
     }
+  });
+});
+
+describe('evaluatePolicyBundle: P9 and the code pins', () => {
+  it('passes P9 when every operator answers like the simulator', async () => {
+    const r = await evaluatePolicyBundle(bundle({ p9: p9Reads() }), { blocks: 64 });
+    expect(r.issues).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(r.p9).toEqual({
+      ok: true,
+      seed: 7n,
+      vectors: 64,
+      operators: [
+        { operator: 1, blockNumber: 1n, multicall: true, calls: 4, matched: 64 },
+        { operator: 2, blockNumber: 1n, multicall: true, calls: 4, matched: 64 },
+      ],
+      mismatches: [],
+      ms: 12,
+    });
+  });
+
+  it('reports every mismatch with its vector and operator, and fails', async () => {
+    const reads = p9Reads(2, (op, i, a) => {
+      if (op === 2 && i === 5) return { ...(a as { next: Hex; out: Hex }), out: '0x07' };
+      if (op === 1 && i === 9) return { error: 'reverted' };
+      return a;
+    });
+    const r = await evaluatePolicyBundle(bundle({ p9: reads }), { blocks: 64 });
+    expect(r.ok).toBe(false);
+    expect(r.p9?.ok).toBe(false);
+    const v5 = reads.vectors[5];
+    const v9 = reads.vectors[9];
+    const b5 = vectorBytes(v5);
+    const b9 = vectorBytes(v9);
+    expect(r.p9?.mismatches).toEqual([
+      {
+        operator: 1,
+        index: 9,
+        state: v9.state,
+        inputs: v9.inputs,
+        expectNext: simulated(b9.state, b9.inputs).next,
+        expectOut: simulated(b9.state, b9.inputs).out,
+        next: null,
+        out: null,
+        error: 'reverted',
+      },
+      {
+        operator: 2,
+        index: 5,
+        state: v5.state,
+        inputs: v5.inputs,
+        expectNext: simulated(b5.state, b5.inputs).next,
+        expectOut: simulated(b5.state, b5.inputs).out,
+        next: simulated(b5.state, b5.inputs).next,
+        out: '0x07',
+        error: null,
+      },
+    ]);
+    expect(r.p9?.operators.map((o) => o.matched)).toEqual([63, 63]);
+    expect(r.issues).toEqual([
+      'P9: 1 of 64 vectors differ between the simulator and step() on RPC operator #1',
+      'P9: 1 of 64 vectors differ between the simulator and step() on RPC operator #2',
+    ]);
+  });
+
+  it('fails P9 on missing answers or a short run, and when no operator was asked', async () => {
+    const short = p9Reads();
+    short.operators[0].answers = short.operators[0].answers.slice(0, 60);
+    const r = await evaluatePolicyBundle(bundle({ p9: short }), { blocks: 64 });
+    expect(r.ok).toBe(false);
+    expect(r.p9?.mismatches.map((m) => [m.index, m.error])).toEqual([
+      [60, 'missing'],
+      [61, 'missing'],
+      [62, 'missing'],
+      [63, 'missing'],
+    ]);
+    const none = await evaluatePolicyBundle(bundle({ p9: { ...p9Reads(), operators: [] } }), { blocks: 64 });
+    expect(none.ok).toBe(false);
+    expect(none.issues).toContain('P9 asked no RPC operator');
+  });
+
+  it('leaves p9 null and the result unchanged without P9 reads (the web worker path)', async () => {
+    const absent = bundle();
+    delete absent.p9;
+    for (const b of [absent, bundle({ p9: null })]) {
+      const r = await evaluatePolicyBundle(b, { blocks: 64 });
+      expect(r.p9).toBeNull();
+      expect(r.ok).toBe(true);
+    }
+  });
+
+  it('fails a mainnet CPU whose code differs from the pins, or that has no pin', async () => {
+    const base = bundle();
+    const cc = base.cpuCheck as NonNullable<PolicyBundle['cpuCheck']>;
+    const wrong = bundle({
+      cpuCheck: { ...cc, ok: false, code: { ...cc.code, proxyCodehash: HASH_B, matches: false } },
+    });
+    const w = await evaluatePolicyBundle(wrong, { blocks: 64 });
+    expect(w.ok).toBe(false);
+    expect(w.issues.join('\n')).toContain('differs from the pinned hashes');
+    const unpinned = { ...cc, code: { ...cc.code, expected: null, matches: null } };
+    const m = await evaluatePolicyBundle(bundle({ cpuCheck: unpinned }), { blocks: 64 });
+    expect(m.ok).toBe(false);
+    expect(m.issues.join('\n')).toContain('pins no code hashes');
+    const d = await evaluatePolicyBundle(bundle({ chainId: 31337, cpuCheck: unpinned }), { blocks: 64 });
+    expect(d.ok).toBe(true);
   });
 });
 

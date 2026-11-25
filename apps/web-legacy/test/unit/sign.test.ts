@@ -1,15 +1,17 @@
 import {
   type AtropyleClient,
   AtropyleError,
+  type ConfirmAddress,
   GUARDIAN_WARNING,
   type InspectedStep,
+  type InspectOptions,
   type SignPayload,
   type SignRequestCheck,
   vaultAbi,
 } from '@atropyle/sdk';
 import { type Address, encodeFunctionData, type WalletClient } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { checkToPlan, sendSignRequest, signView, voteSteps } from '../../src/lib/sign';
+import { checkToPlan, confirmKey, sendSignRequest, signView, voteSteps } from '../../src/lib/sign';
 import type { Eip1193 } from '../../src/lib/wallet';
 
 const A: Address = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -28,6 +30,7 @@ function step(over: Partial<InspectedStep> = {}): InspectedStep {
     reason: null,
     builderCodes: null,
     simulation: { ok: true, gas: 50_000n },
+    create: null,
     ...over,
   };
 }
@@ -39,12 +42,14 @@ function check(steps: InspectedStep[], over: Partial<SignRequestCheck> = {}): Si
     from: A,
     vault: V,
     steps,
+    confirm: null,
     ...over,
   };
 }
 
 const payload: SignPayload = { chainId: 196, from: A, steps: [{ to: V, data: '0x183ff085', value: 0n }] };
 const ready = { account: A, chainId: 196 };
+const heirToType: ConfirmAddress = { step: 0, vault: V, role: 'heir', index: 0, account: B, bps: 10_000 };
 
 describe('signView', () => {
   it('signView refuses a step outside the whitelist', () => {
@@ -84,6 +89,32 @@ describe('signView', () => {
     expect(signView(c, { account: B, chainId: 196 }, 196)).toMatchObject({ verdict: 'wrongAccount', canSign: false });
     expect(signView(c, { account: A, chainId: 1 }, 196)).toMatchObject({ verdict: 'wrongChain', canSign: true });
     expect(signView(c, ready, 196)).toMatchObject({ verdict: 'ready', canSign: true, guardianWarning: false });
+  });
+
+  it('a Drill link waiting for typed addresses stays signable and lists them; nothing else hides behind it', () => {
+    const confirm = { reason: 'DRILL_WITH_ALLOWANCE' as const, addresses: [heirToType], confirmed: false };
+    const waiting = signView(check([step()], { ok: false, confirm }), ready, 196);
+    expect(waiting).toMatchObject({ verdict: 'ready', canSign: true, confirm: [heirToType] });
+    // A failed simulation still wins over the gate.
+    const failing = step({ simulation: { ok: false, error: new AtropyleError('NOT_OWNER').toJSON() } });
+    expect(signView(check([failing], { ok: false, confirm }), ready, 196).verdict).toBe('simulationFailed');
+    expect(signView(check([step()]), ready, 196).confirm).toEqual([]);
+  });
+
+  it('holds a Drill link with a step the network did not simulate after the earlier ones, typed or not', () => {
+    const skipped = step({ index: 1, simulation: { ok: 'skipped', reason: 'DEPENDS_ON_PREVIOUS_STEP' } });
+    for (const confirmed of [false, true]) {
+      const confirm = { reason: 'DRILL_WITH_ALLOWANCE' as const, addresses: [heirToType], confirmed };
+      const v = signView(check([step(), skipped], { ok: false, confirm }), ready, 196);
+      expect(v).toMatchObject({ verdict: 'unproven', canSign: false });
+    }
+    // Without the gate, a skipped step is what a paid creation shows on such an endpoint: it stays signable.
+    expect(signView(check([step(), skipped]), ready, 196)).toMatchObject({ verdict: 'ready', canSign: true });
+  });
+
+  it('keys an address to confirm by its vault, role and position, never by the step', () => {
+    expect(confirmKey(heirToType)).toBe(`${V.toLowerCase()}:heir:0`);
+    expect(confirmKey({ ...heirToType, step: 3 })).toBe(confirmKey(heirToType));
   });
 
   it('flags guardian actions', () => {
@@ -204,5 +235,64 @@ describe('sendSignRequest', () => {
     const out = await sendSignRequest({ atro: f.atro, provider: f.provider, walletClient: wc }, payload);
     expect(out.kind).toBe('sequential');
     expect(f.sent).toHaveLength(1);
+  });
+
+  /** inspect as the SDK does it for a Drill link with an allowance: confirmed only when B is typed back. */
+  function drillFakes() {
+    const options: (InspectOptions | undefined)[] = [];
+    const sent: unknown[] = [];
+    const atro = {
+      handoff: {
+        inspect: async (_p: SignPayload, o?: InspectOptions) => {
+          options.push(o);
+          const confirmed = o?.confirmed?.[0]?.toLowerCase() === B.toLowerCase();
+          return check([step()], {
+            ok: confirmed,
+            confirm: { reason: 'DRILL_WITH_ALLOWANCE', addresses: [heirToType], confirmed },
+          });
+        },
+        calls: () => ({ calls: [] }),
+      },
+      send: async (plan: unknown) => {
+        sent.push(plan);
+        return { vault: V, steps: [] };
+      },
+    } as unknown as AtropyleClient;
+    const provider = {
+      request: async () => {
+        throw Object.assign(new Error('unsupported'), { code: 4200 });
+      },
+    } as unknown as Eip1193;
+    return { atro, provider, options, sent };
+  }
+
+  it('re-inspects a Drill link with what the signer typed, and sends once every address matches', async () => {
+    const f = drillFakes();
+    const asked: (readonly ConfirmAddress[])[] = [];
+    const out = await sendSignRequest({ atro: f.atro, provider: f.provider, walletClient: wc }, payload, {
+      confirm: (addresses) => {
+        asked.push(addresses);
+        return [B.toLowerCase()];
+      },
+    });
+    expect(out.kind).toBe('sequential');
+    expect(asked).toEqual([[heirToType]]);
+    expect(f.options).toEqual([undefined, { confirmed: [B.toLowerCase()] }]);
+    expect(f.sent).toHaveLength(1);
+  });
+
+  it('sends nothing for a Drill link when an address is wrong or nobody typed them', async () => {
+    const wrong = drillFakes();
+    const typo = await sendSignRequest({ atro: wrong.atro, provider: wrong.provider, walletClient: wc }, payload, {
+      confirm: () => [A],
+    });
+    expect(typo.kind).toBe('refused');
+    expect(wrong.sent).toEqual([]);
+
+    const none = drillFakes();
+    const out = await sendSignRequest({ atro: none.atro, provider: none.provider, walletClient: wc }, payload);
+    expect(out.kind).toBe('refused');
+    expect(none.options).toEqual([undefined]);
+    expect(none.sent).toEqual([]);
   });
 });

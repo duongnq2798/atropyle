@@ -27,6 +27,8 @@ export const messages = defineMessages(
     builderCodes: 'Builder codes: {codes}',
     refused: 'This link asks for something Atropyle never asks for. Do not sign it, and do not trust whoever sent it.',
     simFailedAll: 'At least one step would fail right now, so nothing can be signed.',
+    unproven:
+      'The network could not simulate each step after the ones before it, so this page cannot tell who could receive the assets of the Drill vault if a step failed on chain. Nothing can be signed from this link.',
     connect: 'Connect the signer wallet shown above to continue.',
     wrongAccount: 'Your wallet is {account}. Only the signer shown above can sign this request.',
     sign: 'Sign {n} step(s)',
@@ -44,6 +46,34 @@ export const messages = defineMessages(
     bundleId: 'Call bundle id: {id}',
     checkWallet:
       'Your wallet accepted this request. Check your wallet or the explorer for the result before you try again.',
+    termsTitle: 'What step {n} sets up',
+    termsDrill: 'This is a Drill: it releases within minutes and expires {time} after it is created.',
+    earliest:
+      'Earliest time the assets can leave your wallet: {time} after the vault is created, so not before {date}.',
+    earliestNone: 'No asset can leave: this Drill expires before any release can happen.',
+    routesTitle: 'How the assets can leave, if you never check in again',
+    routeHeirs: 'To the heirs, by their shares: {time} after your last check-in, with nobody signing.',
+    routeHeirsGuardians:
+      'To the heirs, by their shares: {time} after your last check-in, if {k} guardians confirm your death.',
+    routeFallback: 'To the heirs, with no guardian at all: {time} after your last check-in.',
+    routeRecovery:
+      'To any wallet the guardians choose: {time} after {k} of them vote for the same wallet, which they can do as soon as the vault exists. Only a check-in from you before then stops it.',
+    heirsTitle: 'Heirs and shares',
+    guardiansTitle: 'Guardians',
+    guardiansNone: 'No guardians.',
+    guardiansOn: '{k} of {n} must confirm. Wallet recovery is on.',
+    guardiansOff: '{k} of {n} must confirm. Wallet recovery is off.',
+    timingLine: 'Check in every {period}. Alarm after {threshold} missed check-ins, then {window} to cancel it.',
+    confirmTitle: 'Type the addresses again before you sign',
+    confirmIntro:
+      'This link gives a Drill vault the power to move your tokens. A Drill releases within minutes, so a link like this can empty a wallet before you notice. Type or paste each address below from your own records, such as a note you wrote, a contact you saved or a call with the person, never from this page or from the message that brought the link. Signing stays off until every address matches.',
+    confirmIntroRecipients:
+      'This link changes who can receive the assets of a Drill vault. A Drill releases within minutes and can use every allowance you already gave it, so a link like this can empty a wallet before you notice. Type or paste each address below from your own records, such as a note you wrote, a contact you saved or a call with the person, never from this page or from the message that brought the link. Signing stays off until every address matches.',
+    confirmHeir: 'Heir {n} ({share}) of the vault in step {step}',
+    confirmGuardian: 'Guardian {n} of the vault in step {step}: with wallet recovery on, guardians choose the wallet',
+    confirmInvalid: 'That is not a valid address. Check it, including its capital letters.',
+    confirmMismatch: 'This is not the address in this link. Do not sign if you do not know whose it is.',
+    confirmCount: '{done} of {total} addresses match.',
   },
   {
     title: 'Yêu cầu ký',
@@ -71,6 +101,8 @@ export const messages = defineMessages(
     builderCodes: 'Builder code: {codes}',
     refused: 'Link này yêu cầu một việc mà Atropyle không bao giờ yêu cầu. Đừng ký, và đừng tin người gửi link.',
     simFailedAll: 'Có ít nhất một bước sẽ lỗi ngay lúc này, nên không ký được gì.',
+    unproven:
+      'Mạng không mô phỏng được từng bước sau các bước trước nó, nên trang này không biết ai có thể nhận tài sản của vault Drill nếu một bước lỗi trên chain. Không ký được gì từ link này.',
     connect: 'Kết nối ví của người ký ở trên để tiếp tục.',
     wrongAccount: 'Ví của bạn là {account}. Chỉ người ký ở trên mới ký được yêu cầu này.',
     sign: 'Ký {n} bước',
@@ -87,5 +119,33 @@ export const messages = defineMessages(
     openVault: 'Mở trang vault để hoàn tất',
     bundleId: 'Mã bó lệnh: {id}',
     checkWallet: 'Ví của bạn đã nhận yêu cầu này. Hãy xem kết quả trong ví hoặc trên explorer trước khi thử lại.',
+    termsTitle: 'Bước {n} thiết lập những gì',
+    termsDrill: 'Đây là Drill: nó giải phóng chỉ trong vài phút và hết hạn {time} sau khi được tạo.',
+    earliest:
+      'Thời điểm sớm nhất tài sản có thể rời ví của bạn: {time} sau khi vault được tạo, tức là không trước {date}.',
+    earliestNone: 'Không tài sản nào rời ví được: Drill này hết hạn trước khi có thể giải phóng.',
+    routesTitle: 'Tài sản có thể rời ví theo những cách sau, nếu bạn không điểm danh nữa',
+    routeHeirs: 'Tới người thừa kế, theo tỷ lệ: {time} sau lần điểm danh gần nhất, không cần ai ký.',
+    routeHeirsGuardians:
+      'Tới người thừa kế, theo tỷ lệ: {time} sau lần điểm danh gần nhất, nếu {k} người giám hộ xác nhận bạn đã mất.',
+    routeFallback: 'Tới người thừa kế, không cần người giám hộ nào: {time} sau lần điểm danh gần nhất.',
+    routeRecovery:
+      'Tới bất kỳ ví nào do người giám hộ chọn: {time} sau khi {k} người cùng bầu cho một ví, việc họ làm được ngay khi vault vừa có. Chỉ lần điểm danh của bạn trước lúc đó mới ngăn được.',
+    heirsTitle: 'Người thừa kế và tỷ lệ',
+    guardiansTitle: 'Người giám hộ',
+    guardiansNone: 'Không có người giám hộ.',
+    guardiansOn: 'Cần {k} trên {n} người xác nhận. Đã bật khôi phục ví.',
+    guardiansOff: 'Cần {k} trên {n} người xác nhận. Chưa bật khôi phục ví.',
+    timingLine: 'Điểm danh mỗi {period}. Báo động sau {threshold} lần bỏ lỡ, sau đó có {window} để huỷ.',
+    confirmTitle: 'Gõ lại các địa chỉ trước khi ký',
+    confirmIntro:
+      'Link này cho một vault Drill quyền chuyển token của bạn. Drill giải phóng chỉ trong vài phút, nên một link như vậy có thể làm trống ví trước khi bạn kịp nhận ra. Hãy gõ hoặc dán từng địa chỉ bên dưới từ ghi chép của chính bạn, như một ghi chú bạn đã viết, một danh bạ bạn đã lưu hay một cuộc gọi với người đó, đừng chép từ trang này hay từ tin nhắn gửi link. Nút ký chỉ bật khi mọi địa chỉ đều khớp.',
+    confirmIntroRecipients:
+      'Link này đổi người có thể nhận tài sản của một vault Drill. Drill giải phóng chỉ trong vài phút và dùng được mọi quyền chi token bạn đã cấp cho nó, nên một link như vậy có thể làm trống ví trước khi bạn kịp nhận ra. Hãy gõ hoặc dán từng địa chỉ bên dưới từ ghi chép của chính bạn, như một ghi chú bạn đã viết, một danh bạ bạn đã lưu hay một cuộc gọi với người đó, đừng chép từ trang này hay từ tin nhắn gửi link. Nút ký chỉ bật khi mọi địa chỉ đều khớp.',
+    confirmHeir: 'Người thừa kế {n} ({share}) của vault ở bước {step}',
+    confirmGuardian: 'Người giám hộ {n} của vault ở bước {step}: khi bật khôi phục ví, người giám hộ chọn ví nhận',
+    confirmInvalid: 'Đây không phải địa chỉ hợp lệ. Hãy kiểm lại, kể cả chữ hoa chữ thường.',
+    confirmMismatch: 'Đây không phải địa chỉ trong link này. Đừng ký nếu bạn không biết địa chỉ này của ai.',
+    confirmCount: '{done} trên {total} địa chỉ đã khớp.',
   },
 );

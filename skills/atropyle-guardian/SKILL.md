@@ -56,7 +56,7 @@ npx -y atropyle@0.1.0 vaults <GUARDIAN_1> --json
 npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 ```
 
-This proves the policy circuit and checks that the vault was made by the Atropyle factory and runs the proven policy. Exit code 0 and `ok: true` mean it is genuine. Act on a vault only after `verify` exits 0 with `ok: true`. With exit code 3, stop: do not act on this vault, and tell the user what failed from `summary` and `vault.checks`. With exit code 4 the check could not run: try again, and do not act on the vault until it passes. Exit code 1, for example from a bad deployment file, also means stop. Heirs run this check too, before they prepare anything.
+This proves the policy circuit, runs 64 seeded test vectors through `step()` on the TapeOut processor and compares them with the local simulator (P9), compares the code hashes of the processor with the pinned ones, and checks that the vault was made by the Atropyle factory and runs the proven policy. Exit code 0 and `ok: true` mean it is genuine. Act on a vault only after `verify` exits 0 with `ok: true`. With exit code 3, stop: do not act on this vault, and tell the user what failed from `summary` and `vault.checks`. With exit code 4 the check could not run: try again, and do not act on the vault until it passes. Exit code 1, for example from a bad deployment file, also means stop. Heirs run this check too, before they prepare anything.
 
 ## 3. Read the state and the timeline
 
