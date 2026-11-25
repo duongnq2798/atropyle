@@ -79,16 +79,26 @@ function Party({
   address,
   caption,
   danger = false,
+  copy = true,
   explorer,
 }: {
   address: string;
   caption: string;
   danger?: boolean;
+  /** false for an address the signer must type from elsewhere (a vote's new wallet, spec §16.3), never copy here. */
+  copy?: boolean;
   explorer: string | null;
 }) {
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
-      <Address address={address} size="sm" avatar={false} explorer={explorer} className="flex-wrap gap-y-1" />
+      <Address
+        address={address}
+        size="sm"
+        avatar={false}
+        copy={copy}
+        explorer={explorer}
+        className="flex-wrap gap-y-1"
+      />
       <span className={cn('text-caption', danger ? 'text-danger' : 'text-ink-muted')}>{caption}</span>
     </span>
   );
@@ -171,7 +181,7 @@ function CallFields({
             {isZero(call.vote) ? (
               t('mirrorWithdraw')
             ) : (
-              <Party address={call.vote} caption={t('roleNewWallet')} explorer={explorer} />
+              <Party address={call.vote} caption={t('roleNewWallet')} copy={false} explorer={explorer} />
             )}
           </Field>
         ) : null}
@@ -237,6 +247,8 @@ export function MirrorBox({
   if (!first) return null;
   // wallet_sendCalls takes one chainId for the whole bundle, so its calls share it; named once, as the wallet does.
   const oneNetwork = bundle && calls.every((c) => c.chainId === first.chainId);
+  // A bundle of one call is what the wallet shows as one call: no count, no "Call 1".
+  const many = calls.length > 1;
   return (
     <section
       aria-labelledby={headingId}
@@ -249,7 +261,7 @@ export function MirrorBox({
       )}
     >
       <h4 id={headingId} className="text-balance font-medium text-ink text-small">
-        {bundle ? t('mirrorBundle', { n: calls.length }) : t('mirrorTitle')}
+        {bundle && many ? t('mirrorBundle', { n: calls.length }) : t('mirrorTitle')}
       </h4>
       {oneNetwork ? (
         <dl className={FIELDS}>
@@ -264,9 +276,11 @@ export function MirrorBox({
               data-testid={`${testId}-mirror-${c.index}`}
               className="flex flex-col gap-2 border-line border-t pt-3"
             >
-              <p className="font-medium text-caption text-ink-muted uppercase tracking-[0.16em]">
-                {t('mirrorCall', { n: i + 1 })}
-              </p>
+              {many ? (
+                <p className="font-medium text-caption text-ink-muted uppercase tracking-[0.16em]">
+                  {t('mirrorCall', { n: i + 1 })}
+                </p>
+              ) : null}
               <CallFields call={c} explorer={explorer} testId={testId} network={!oneNetwork} />
             </li>
           ))}

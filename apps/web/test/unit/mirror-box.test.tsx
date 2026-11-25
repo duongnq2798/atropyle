@@ -121,6 +121,15 @@ describe('MirrorBox', () => {
     );
   });
 
+  it('a bundle of one call reads as one call, never "these 1 calls"', () => {
+    const one: TxPlan = { ...PLAN, steps: PLAN.steps.slice(0, 1) };
+    renderWithProviders(<MirrorBox calls={mirrorPlan(one, CONTEXT)} explorer={null} testId="tx" bundle />);
+    const box = screen.getByTestId('tx-mirror-bundle');
+    expect(box.querySelector('h4')?.textContent).toBe('Your wallet should show');
+    expect(within(box).queryByText('Call 1')).toBeNull();
+    expect(within(box).getByTestId('tx-mirror-0')).toBeTruthy();
+  });
+
   it('a finite fee approve to the factory names its amount, with the symbol in the Ledger voice', () => {
     const fee: TxPlan = {
       ...PLAN,
@@ -168,6 +177,25 @@ describe('MirrorBox', () => {
     const party = box.querySelector(`[data-address="${VAULT}"]`);
     expect(target?.parentElement?.className).toBe(party?.parentElement?.className);
     expect(target?.className).toBe(party?.className);
+  });
+
+  it('gives the wallet a vote names no copy button: the guardian types it from what the owner said', () => {
+    const NEW_WALLET = '0x976EA74026E726554dB657fA54763abd0C3a0aa9';
+    const vote: TxPlan = {
+      ...PLAN,
+      steps: [
+        stepOf(
+          VAULT,
+          encodeFunctionData({ abi: vaultAbi, functionName: 'voteRecovery', args: [NEW_WALLET] }),
+          'voteRecovery',
+        ),
+      ],
+    };
+    renderWithProviders(<MirrorBox calls={mirrorPlan(vote, CONTEXT)} explorer={null} testId="tx" />);
+    const box = screen.getByTestId('tx-mirror-0');
+    expect(box.querySelector(`[data-address="${NEW_WALLET}"] button`)).toBeNull();
+    // The vault it calls keeps its button: nobody is asked to type that one.
+    expect(box.querySelector(`[data-address="${VAULT}"] button`)).toBeTruthy();
   });
 
   it('an ERC-721 grant names its id, and the three revocations say so with no danger line', () => {
