@@ -12,6 +12,8 @@ export function siteProblems(dir: string, target: SiteTarget): string[] {
   if (target === 'pages') {
     return existsSync(join(dir, '.nojekyll')) ? [] : ['.nojekyll is missing (GitHub Pages would hide _astro/)'];
   }
+  // Vercel serves the folder as it is, from the root of its domain; the headers come from the root vercel.json.
+  if (target === 'vercel') return [];
   const files = loadSite(dir);
   const out = limitProblems(files);
   const report = checkSite(files);

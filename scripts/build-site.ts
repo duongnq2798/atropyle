@@ -1,4 +1,4 @@
-// npm run site:build -- --target deweb|pages [--no-docs] [--out <dir>]
+// npm run site:build -- --target deweb|pages|vercel [--no-docs] [--out <dir>]
 // Web at the root of site-dist/<target>; docs under docs/ when the apps/docs workspace exists.
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
