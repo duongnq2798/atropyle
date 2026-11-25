@@ -81,20 +81,47 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   expect(drawn.weight).toBe('650');
   expect(drawn.at650.widths).toHaveLength(11);
   expect(drawn.at400).toEqual(drawn.at650);
-  // The address wraps in the menu (about 387 px of text in 352 px), and each wrapped line starts in the column of
-  // the first group, not 0.45ch off it.
+  // The address wraps in the menu (46ch of text in a 25ch block), and each wrapped line starts in the column of the
+  // first group, not 0.45ch off it.
   expect(drawn.lineStarts.length).toBeGreaterThan(0);
   for (const dx of drawn.lineStarts) expect(Math.abs(dx)).toBeLessThan(0.5);
-  // On X Layer the row also carries the OKLink button (gap-2 and size-8 in ExternalLink), which this anvil build
-  // cannot show: the explorer URL of a local deployment is null. The groups must keep 40 px beside "0x" and five
-  // groups, or the address on the real site breaks into three ragged lines instead of two rows of five.
-  const room = await groups.evaluate((g) => {
-    const s = [...g.querySelectorAll(':scope > span')];
-    const first = s[0]?.getBoundingClientRect().left ?? 0;
-    const fifth = s[5]?.getBoundingClientRect().right ?? Number.POSITIVE_INFINITY;
-    return g.getBoundingClientRect().width - (fifth - first);
+  // The address stands as one Ledger block of two rows: "0x" and five groups, then five groups (the 25ch cap in
+  // address.tsx), and the copy button ends the row. On X Layer the row also carries the OKLink button, 40 px with its
+  // gap (size-8 and gap-2 in ExternalLink), which this anvil build cannot show: the explorer URL of a local deployment
+  // is null. Less those 40 px, the room the groups have before the copy button must still hold the first row, or the
+  // address on the real site breaks into three ragged lines.
+  const row = await groups.evaluate((g) => {
+    const boxes = [...g.querySelectorAll(':scope > span')].map((s) => s.getBoundingClientRect());
+    const lines = new Map<number, number>();
+    for (const b of boxes) lines.set(Math.round(b.top), (lines.get(Math.round(b.top)) ?? 0) + 1);
+    const address = g.closest('[data-address]');
+    const copy = address?.querySelector('button')?.getBoundingClientRect();
+    const gap = address ? Number.parseFloat(getComputedStyle(address).columnGap) : 0;
+    const box = g.getBoundingClientRect();
+    return {
+      perLine: [...lines.values()],
+      firstRow: (boxes[5]?.right ?? Number.POSITIVE_INFINITY) - (boxes[0]?.left ?? 0),
+      room: (copy?.left ?? 0) - gap - box.left,
+      end: (address?.getBoundingClientRect().right ?? 0) - (copy?.right ?? 0),
+    };
   });
-  expect(room).toBeGreaterThanOrEqual(40);
+  expect(row.perLine).toEqual([6, 5]);
+  expect(Math.abs(row.end)).toBeLessThan(1);
+  expect(row.room - 40).toBeGreaterThanOrEqual(row.firstRow);
+  // Below sm the menu spans the screen less the collision padding on both sides, so it stands centred under the
+  // header; from sm up it hangs from the account button, end-aligned.
+  const menu = await page.getByRole('dialog', { name: 'Wallet', exact: true }).evaluate((m) => {
+    const b = m.getBoundingClientRect();
+    return { left: b.left, right: document.documentElement.clientWidth - b.right, width: b.width };
+  });
+  const anchor = await account.evaluate((a) => document.documentElement.clientWidth - a.getBoundingClientRect().right);
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    expect(Math.abs(menu.left - menu.right)).toBeLessThan(1);
+    expect(menu.left).toBeCloseTo(12, 0);
+  } else {
+    expect(Math.abs(menu.right - anchor)).toBeLessThan(1);
+    expect(menu.width).toBeCloseTo(352, 0);
+  }
   await expectAccessible(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
   const connect = page.getByRole('button', { name: 'Connect wallet' });

@@ -23,8 +23,9 @@ describe('Address in the Ledger voice', () => {
     const groups = container.querySelector('[data-part="groups"]');
     expect(groups).toHaveAttribute('aria-hidden', 'true');
     expect(groups).toHaveClass('voice-ledger', 'font-normal');
-    // The hanging indent that stands wrapped groups in columns (measured in e2e/wallet.spec.ts, test 1).
-    expect(groups).toHaveClass('pl-[1.55ch]', '-indent-[1.55ch]');
+    // The hanging indent that stands wrapped groups in columns, and the 25ch cap that makes one block of two rows of
+    // five, with the buttons at the row end (measured in e2e/wallet.spec.ts, test 1).
+    expect(groups).toHaveClass('pl-[1.55ch]', '-indent-[1.55ch]', 'max-w-[25ch]', 'me-auto');
     expect(groups?.textContent).toBe(A);
     const spoken = screen.getByText(A);
     expect(spoken.closest('.sr-only')).not.toBeNull();
@@ -45,7 +46,9 @@ describe('Address in the Ledger voice', () => {
     const name = renderWithProviders(<Address address="Vault.ETH" />);
     expect(name.container.querySelectorAll('[data-case="upper"]')).toHaveLength(0);
     expect(name.container.querySelector('[data-part="groups"]')?.textContent).toBe('Vault.ETH');
-    expect(name.container.querySelector('[data-part="groups"]')).not.toHaveClass('pl-[1.55ch]');
+    for (const cls of ['pl-[1.55ch]', 'max-w-[25ch]']) {
+      expect(name.container.querySelector('[data-part="groups"]')).not.toHaveClass(cls);
+    }
   });
 
   it('passes axe, with the copy button and the explorer link', async () => {

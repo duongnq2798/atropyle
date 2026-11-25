@@ -73,7 +73,10 @@ export function Address({
           'voice-ledger min-w-0 wrap-anywhere font-normal',
           // A hanging indent: "0x" hangs at the start of the first line and the groups stand in columns, so a group
           // that wraps starts under the first group, not 0.45ch off it. 1.55ch = "0x" (2ch) less one gap (0.45ch).
-          grouped && 'pl-[1.55ch] -indent-[1.55ch]',
+          // The 25ch cap makes one block of two rows of five at every width that holds them, so two addresses compare
+          // row by row: the first line has 25ch for "0x" and five groups (23.8ch, six take 28.25ch), the next 23.45ch
+          // for five (22.25ch, six take 26.7ch). me-auto keeps the copy and explorer buttons at the row end.
+          grouped && 'pl-[1.55ch] -indent-[1.55ch] max-w-[25ch] me-auto',
           size === 'sm' ? 'text-small' : 'text-body',
         )}
       >

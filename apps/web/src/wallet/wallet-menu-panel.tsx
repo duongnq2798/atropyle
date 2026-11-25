@@ -17,12 +17,17 @@ import { useWallet } from './provider';
 const EXPLORER = explorerUrlOf(ENV);
 
 /**
- * 22rem keeps the full address in two rows of five groups beside the copy and OKLink buttons (X Layer): "0x" and five
- * groups take 23.8ch, 200 px at text-small, and the row leaves the groups 220 px (204 px in the 336 px of a 360 px
- * phone). At w-80 they got 188 px and the address broke into three ragged lines. Test 1 of e2e/wallet.spec.ts keeps
- * the 40 px of the OKLink button free on anvil, where the explorer is null.
+ * Below sm the menu spans the screen less the collision padding (12 px) on both sides, so it stands centred under the
+ * header: at 22rem it hung from the account button and the collision padding pushed it off the button, 12 px from the
+ * left edge and 48 px from the right on a 412 px phone. Radix gives that width as
+ * --radix-popover-content-available-width, which leaves out a classic scrollbar, unlike 100vw. From sm up it hangs
+ * from the button at 22rem. Either way the address keeps its block of two rows of five beside the copy and OKLink
+ * buttons (X Layer): "0x" and five groups take 23.8ch, 200 px at text-small, and the row leaves the groups 220 px at
+ * 22rem, 204 px on a 360 px phone. At w-80 they got 188 px and the address broke into three ragged lines. Test 1 of
+ * e2e/wallet.spec.ts measures the menu's edges, and keeps the 40 px of the OKLink button free on anvil, where the
+ * explorer is null.
  */
-const WIDTH = 'w-[22rem] max-w-[calc(100vw-1.5rem)]';
+const WIDTH = 'w-(--radix-popover-content-available-width) sm:w-[22rem]';
 
 /** The content of WalletMenu, in its own chunk: the full address, the network and Disconnect. */
 export function WalletMenuPanel({
