@@ -1,4 +1,4 @@
-import { type TokenInfo, type Untrusted, untrusted } from '@atropyle/sdk';
+import { formatDuration, type TokenInfo, type Untrusted, untrusted, type Warning } from '@atropyle/sdk';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { getAddress, isAddress } from 'viem';
@@ -9,6 +9,7 @@ import type { Sdk } from '../lib/sdk';
 import { useApp, useDocsPath, useT } from './app-context';
 import { messages as common } from './common.messages';
 import { messages as shell } from './shell.messages';
+import { messages as warningMessages } from './warnings.messages';
 
 function isUntrusted(v: unknown): v is Untrusted {
   return typeof v === 'object' && v !== null && (v as Untrusted).untrusted === true;
@@ -46,6 +47,16 @@ export function TokenAmount({ raw, token }: { raw: bigint; token: TokenInfo }) {
       {token.decimals === null ? c('baseUnits') : <UntrustedText value={token.symbol} max={16} />}
     </span>
   );
+}
+
+/** An SDK warning in the viewer's language when this app knows its code and numbers, else in the SDK's words. */
+export function WarningText({ warning }: { warning: Warning }) {
+  const t = useT(warningMessages);
+  const p = warning.params;
+  if (warning.code === 'RECOVERY_POWER' && p && [p.k, p.guardians, p.window].every(Number.isSafeInteger)) {
+    return <>{t('recoveryPower', { k: p.k, n: p.guardians, window: formatDuration(p.window) })}</>;
+  }
+  return <>{warning.message}</>;
 }
 
 export function Banner(props: { kind: 'info' | 'warn' | 'error'; testid?: string; children: ComponentChildren }) {

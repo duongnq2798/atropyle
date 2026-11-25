@@ -41,6 +41,8 @@ npx -y atropyle simulate --plan atropyle.plan.json --deployment deployment.json
 npx -y atropyle prepare create-vault atropyle.plan.json --deployment deployment.json
 ```
 
+A Drill pays out within minutes, so the signing page holds a link that creates a Drill, or approves tokens to one, and also grants a token allowance. That includes the links `prepare create-vault` writes for a Drill plan with assets. Sign stays off until the owner types every heir again, and every guardian too when recovery is on, from their own records. The page also states, for each `createVault` step, the earliest time the assets can leave, the heirs with their shares and the guardians with `k`. With recovery on, `plan check`, `simulate`, `prepare` and `status` warn `RECOVERY_POWER`: `k` guardians acting together can move 100% of the covered assets to any wallet they choose, and the owner can stop it only by checking in before the alarm window ends.
+
 ## verify
 
 `atropyle verify` replays the policy circuit over all 2^26 inputs and checks properties P1-P8. It reads the chain from several independent RPC operators and prints the P1-P8 table, the gate count and hash of every netlist, whether each matches the published source, whether the beacon is frozen, the RPC operators (host names only, never full URLs), the block number and the run time. On a terminal, progress goes to stderr.

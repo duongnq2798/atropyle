@@ -16,6 +16,8 @@ A guardian who is also an heir gains from confirming a death early. Prefer guard
 
 A Drill expires 7 days after it is created and then accepts no more actions except `revoke-all`. It is for practice. Use real assets in a Drill only in small amounts. The Drill expires on its own; create the real vault with a new plan without `--drill`. After the Drill, `prepare revoke-all <drill vault> --as <owner>` removes its approvals.
 
+Because a Drill pays out within minutes, the signing page holds any link that creates a Drill, or approves tokens to one, and also grants a token allowance. Sign stays off until the owner types every heir again, and every guardian too when recovery is on. Our own Drill links with assets ask for this. The owner types the addresses from their own records, never from the page or from the message that brought the link.
+
 ## Checking in
 
 The alarm can go off once the owner has missed `threshold` periods in a row. `status` shows that moment in `timeline.milestones.lateAt`. Suggest checking in once per period, with a calendar reminder.

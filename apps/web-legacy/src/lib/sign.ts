@@ -1,6 +1,7 @@
 import {
   type AtropyleClient,
   AtropyleError,
+  type ConfirmAddress,
   GUARDIAN_WARNING,
   type InspectedStep,
   type PreparedTx,
@@ -25,6 +26,11 @@ export interface SignView {
   refused: InspectedStep[];
   failed: InspectedStep[];
   guardianWarning: boolean;
+  /**
+   * The addresses the signer must type again (a Drill with a token allowance); empty when none. While any is not
+   * typed, the check is not `ok`, but the verdict stays the one the rest of the request earns.
+   */
+  confirm: ConfirmAddress[];
 }
 
 export const isGuardianStep = (s: InspectedStep) =>
@@ -66,9 +72,10 @@ export function signView(
 ): SignView {
   const refused = check.steps.filter((s) => !s.allowed);
   const failed = check.steps.filter((s) => s.simulation.ok === false);
+  const awaitingConfirm = check.confirm?.confirmed === false;
   let verdict: SignVerdict;
   if (refused.length > 0 || check.chainId !== appChainId || check.steps.length === 0) verdict = 'refused';
-  else if (failed.length > 0 || !check.ok) verdict = 'simulationFailed';
+  else if (failed.length > 0 || (!check.ok && !awaitingConfirm)) verdict = 'simulationFailed';
   else if (!wallet) verdict = 'connect';
   else if (!sameAddress(wallet.account, check.from)) verdict = 'wrongAccount';
   else if (wallet.chainId !== check.chainId) verdict = 'wrongChain';
@@ -79,8 +86,12 @@ export function signView(
     refused,
     failed,
     guardianWarning: check.steps.some(isGuardianStep),
+    confirm: check.confirm?.addresses ?? [],
   };
 }
+
+/** The key of an address to confirm: its vault, role and position, which a resumed request keeps. */
+export const confirmKey = (a: ConfirmAddress) => `${a.vault.toLowerCase()}:${a.role}:${a.index}`;
 
 const mismatch = (why: string) =>
   new AtropyleError('LINK_INVALID', { message: `The signing request changed: ${why}.` });
@@ -120,13 +131,23 @@ export type SignOutcome =
   | { kind: 'sequential'; result: SendResult }
   | { kind: 'refused'; check: SignRequestCheck };
 
-/** Re-inspects right before signing, then batches with EIP-5792 when the wallet can, else signs step by step. */
+/**
+ * Re-inspects right before signing, then batches with EIP-5792 when the wallet can, else signs step by step. When the
+ * request needs addresses typed again, `confirm` gives what the signer typed for each one the SDK asks for.
+ */
 export async function sendSignRequest(
   d: { atro: AtropyleClient; provider: Eip1193; walletClient: WalletClient },
   p: SignPayload,
-  o: { onStep?: SendOptions['onStep']; onStatus?: (s: CallsStatus) => void } = {},
+  o: {
+    onStep?: SendOptions['onStep'];
+    onStatus?: (s: CallsStatus) => void;
+    confirm?: (addresses: readonly ConfirmAddress[]) => string[];
+  } = {},
 ): Promise<SignOutcome> {
-  const check = await d.atro.handoff.inspect(p);
+  let check = await d.atro.handoff.inspect(p);
+  if (check.confirm && !check.confirm.confirmed && o.confirm) {
+    check = await d.atro.handoff.inspect(p, { confirmed: o.confirm(check.confirm.addresses) });
+  }
   if (!check.ok) return { kind: 'refused', check };
   const plan = checkToPlan(p, check);
   if (await supportsSendCalls(d.provider, p.from, p.chainId)) {
