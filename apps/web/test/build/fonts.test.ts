@@ -108,12 +108,20 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(preloads).toHaveLength(2);
       for (const p of preloads) expect(p).toMatch(/\.woff2"/);
       const hrefs = preloads.map((p) => /href="([^"]+)"/.exec(p)?.[1] ?? '');
-      for (const name of ['fraunces_latin_full_normal', 'inter_latin_wght_normal']) {
+      for (const name of ['fraunces_latin_standard_normal', 'inter_latin_wght_normal']) {
         expect(
           hrefs.filter((h) => h.includes(name)),
           name,
         ).toHaveLength(1);
       }
+    });
+
+    it('draws the Ledger voice in the self-hosted mono family, and the checksum capitals of an address at 650', () => {
+      const css = builtCss(out);
+      expect(css).toMatch(/\.voice-ledger\{[^}]*font-family:var\(--font-mono\)/);
+      expect(css).toMatch(/\.voice-ledger\{[^}]*font-variant-ligatures:none/);
+      expect(css).toMatch(/font-weight:650/);
+      expect(css).not.toMatch(/"SOFT"|"WONK"/);
     });
 
     it('never reaches a font CDN', () => {

@@ -27,6 +27,11 @@
   --text-display: clamp(2.75rem, 1.6667rem + 4.8148vw, 6rem);
   --text-display--line-height: 0.98;
   --text-display--letter-spacing: -0.02em;
+  /* The monument step (spec §18.4.2 Task 1): one or two words at the scale of a building, in the Proclaim voice.
+     Its tracking is Proclaim's own, so the order of the two utilities never matters. */
+  --text-monument: clamp(4.5rem, 2rem + 12vw, 13rem);
+  --text-monument--line-height: 0.92;
+  --text-monument--letter-spacing: -0.02em;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
@@ -243,12 +248,37 @@
   }
 }
 
-/* Vietnamese stacks diacritics (ặ, ỗ, ữ): headings never go below 1.15 (spec §4.2). */
+/* Vietnamese stacks diacritics (ặ, ỗ, ữ): headings never go below 1.15 (spec §4.2), the monument step, one or two
+   words, never below 1.08 (spec §18.4.2 Task 1). */
 :root:lang(vi) {
+  --text-monument--line-height: 1.08;
   --text-display--line-height: 1.15;
   --text-h1--line-height: 1.15;
   --text-h2--line-height: 1.18;
   --text-title--line-height: 1.3;
+}
+
+/*
+ * The voices (spec §18.2 rule 7, §18.4.2 Task 1).
+ * Proclaim: Fraunces between weight 300 and 420 (380 here), optical size from the font size, for the few words a page
+ * proclaims. It also sets --tw-tracking, since Tailwind's text-* utilities read var(--tw-tracking, <the size's own>):
+ * its -0.02em wins whichever of the two utilities the stylesheet puts later.
+ * Ledger: JetBrains Mono, tabular figures, no ligatures (its calt would draw "->" or "!=" as one glyph). Text read from
+ * the chain is shown only in this voice.
+ * Letter, the italic voice, comes with Task 11, and never in the first paint of /, /create/ or /proof/.
+ */
+@utility voice-proclaim {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 380;
+  --tw-tracking: -0.02em;
+  letter-spacing: -0.02em;
+}
+
+@utility voice-ledger {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-variant-ligatures: none;
 }
 
 @layer base {
@@ -275,9 +305,6 @@
   h3 {
     font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-variation-settings:
-      "SOFT" var(--soft, 30),
-      "WONK" var(--wonk, 0);
     text-wrap: balance;
   }
   p {

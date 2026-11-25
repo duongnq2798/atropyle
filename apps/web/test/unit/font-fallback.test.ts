@@ -77,7 +77,7 @@ function overrides(font: FontkitFont, fallback: Fallback): Overrides {
 }
 
 const FACES = [
-  { family: 'Atropyle Fraunces Fallback', file: 'fraunces-latin-full-normal.woff2', fallback: TIMES_NEW_ROMAN },
+  { family: 'Atropyle Fraunces Fallback', file: 'fraunces-latin-standard-normal.woff2', fallback: TIMES_NEW_ROMAN },
   { family: 'Atropyle Inter Fallback', file: 'inter-latin-wght-normal.woff2', fallback: ARIAL },
   { family: 'Atropyle Mono Fallback', file: 'jetbrains-mono-latin-wght-normal.woff2', fallback: COURIER_NEW },
 ] as const;
@@ -113,7 +113,7 @@ const load = (file: string) => openFont(readFileSync(at(`../../src/fonts/files/$
 
 describe('metric-adjusted fallback faces', () => {
   it("computes the overrides as next/font does, with next's own fallback fonts", () => {
-    const serif = load('fraunces-latin-full-normal.woff2');
+    const serif = load('fraunces-latin-standard-normal.woff2');
     const sans = load('inter-latin-wght-normal.woff2');
     const { fallbackFont: f1, ...nextSerif } = getFallbackMetricsFromFontFile(serif, 'serif');
     const { fallbackFont: f2, ...nextSans } = getFallbackMetricsFromFontFile(sans, 'sans-serif');

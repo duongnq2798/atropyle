@@ -1,5 +1,6 @@
 import { ANVIL, expect, test } from './fixtures.ts';
-import { connectWallet, expectAccessible, openSettings } from './helpers.ts';
+import { connectWallet, expectAccessible, openSettings, settle } from './helpers.ts';
+import { captureScreens, shouldCapture } from './screens.ts';
 import { rpcCall } from './state.ts';
 
 /** compactAddress of ANVIL[1] (Task 5). */
@@ -37,6 +38,53 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   expect(w.calls.slice(before).map((c) => c.method)).not.toContain('eth_requestAccounts');
 
   await account.click();
+  // Spec §18.4.2 Task 1: the checksum capitals at 650 move nothing, in Chromium with the self-hosted face. The groups
+  // span shrinks to the menu and wraps, so its own width stays the same whatever the advances are: each drawn group,
+  // a run of 2 or 4 characters that never breaks, is measured instead. The menu scales in (atro-pop-in), and
+  // getBoundingClientRect includes the transform, so the measuring starts once the animations have settled.
+  const groups = page.getByRole('dialog', { name: 'Wallet', exact: true }).locator('[data-part="groups"]');
+  await expect(groups).toBeVisible();
+  await settle(page);
+  const drawn = await groups.evaluate(async (g) => {
+    const faces = await document.fonts.load('650 1em "Atropyle Mono"', '0x');
+    const upper = [...g.querySelectorAll<HTMLElement>('[data-case="upper"]')];
+    const measure = () => ({
+      widths: [...g.querySelectorAll(':scope > span')].map((s) => s.getBoundingClientRect().width),
+      height: g.getBoundingClientRect().height,
+    });
+    const at650 = measure();
+    // The hanging indent: every group that starts a line starts where the first group does (x of group 1).
+    const boxes = [...g.querySelectorAll(':scope > span')].map((s) => s.getBoundingClientRect());
+    const lineStarts = boxes
+      .map((b, i) => ({ b, i }))
+      .filter(({ b, i }) => i > 1 && b.top > (boxes[i - 1]?.top ?? 0) + 1)
+      .map(({ b }) => b.left - (boxes[1]?.left ?? 0));
+    const weight = upper[0] ? getComputedStyle(upper[0]).fontWeight : '';
+    for (const el of upper) el.style.fontWeight = '400';
+    await document.fonts.ready;
+    const at400 = measure();
+    // Back to the markup as drawn, for the audit below.
+    for (const el of upper) el.style.fontWeight = '';
+    return {
+      faces: faces.length,
+      family: getComputedStyle(g).fontFamily,
+      upper: upper.length,
+      weight,
+      at650,
+      at400,
+      lineStarts,
+    };
+  });
+  expect(drawn.faces).toBeGreaterThan(0);
+  expect(drawn.family).toMatch(/^"?Atropyle Mono"?,/);
+  expect(drawn.upper).toBeGreaterThan(0);
+  expect(drawn.weight).toBe('650');
+  expect(drawn.at650.widths).toHaveLength(11);
+  expect(drawn.at400).toEqual(drawn.at650);
+  // The address wraps in the menu (about 387 px of text in 320 px), and each wrapped line starts in the column of
+  // the first group, not 0.45ch off it.
+  expect(drawn.lineStarts.length).toBeGreaterThan(0);
+  for (const dx of drawn.lineStarts) expect(Math.abs(dx)).toBeLessThan(0.5);
   await expectAccessible(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
   const connect = page.getByRole('button', { name: 'Connect wallet' });
@@ -120,4 +168,25 @@ test('the wallet refuses signing and raw-transaction methods before anvil sees t
   expect(codes).toEqual(REFUSED.map(() => 4200));
   expect(w.calls.map((c) => c.method)).toEqual(REFUSED.map(([m]) => m));
   expect(await rpcCall(state.rpcUrl, 'eth_blockNumber')).toBe(before);
+});
+
+/**
+ * Spec §18.4.2 Task 1: the wallet menu is the screen of 7A that shows an address in full, so it carries the review
+ * shots of the Ledger voice. Each reload (theme, language) closes the menu; `ready` opens it again. After a reload
+ * the remembered wallet comes back through eth_accounts, so the account button returns without a prompt.
+ */
+test('screens of the wallet menu: the full address in the Ledger voice', async ({ page, state, wallet }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
+  test.setTimeout(300_000);
+  await wallet({ account: ANVIL[1] });
+  await page.goto(state.siteUrl);
+  await connectWallet(page);
+  const account = page.getByRole('button', { name: /^(Wallet|Ví) 0x7099 7970 … 17dc 79C8$/ });
+  const menu = page.getByRole('dialog').filter({ has: page.locator(`[data-address="${ANVIL[1]}"]`) });
+  await captureScreens(page, 'wallet-menu', {
+    ready: async () => {
+      if (!(await menu.isVisible())) await account.click();
+      await expect(menu).toBeVisible();
+    },
+  });
 });

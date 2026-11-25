@@ -24,3 +24,18 @@ export function compactAddress(address: string): string {
   if (g.length === 1) return address;
   return `0x${g[1]} ${g[2]} … ${g[9]} ${g[10]}`;
 }
+
+/**
+ * A group of hex digits as runs of checksum capitals (A to F) and of the rest, each with its offset in the group,
+ * which keys it in React. `Address` draws the capitals at weight 650.
+ */
+export function caseRuns(group: string): { text: string; upper: boolean; at: number }[] {
+  const out: { text: string; upper: boolean; at: number }[] = [];
+  Array.from(group).forEach((ch, i) => {
+    const upper = ch >= 'A' && ch <= 'F';
+    const last = out[out.length - 1];
+    if (last && last.upper === upper) last.text += ch;
+    else out.push({ text: ch, upper, at: i });
+  });
+  return out;
+}
