@@ -45,7 +45,9 @@ The vault implementation has no admin, no pause, no upgrade, no `delegatecall` a
 - the processor is a TapeOut processor named `Atropyle` / `ATRO`, its circuits beacon is the recorded one and is frozen (its `owner()` is the zero address), and its transistors contract is paired with it;
 - the policy circuit has 23 inputs, 3 outputs and 3 state bits, and its references point to `KofN5` and `Ge4` on the same processor, with the recorded circuit ids;
 - the keccak256 of each of the three netlists equals the bytes built from the source in [`circuits/`](circuits), and the hash recorded in the deployment file;
-- the compiled netlists hold properties P1 to P8 on all 2^26 = 67,108,864 combinations of state and input (8 state codes × 2^23 inputs), and the compiled gate count equals the processor's `circuitInfo`.
+- the compiled netlists hold properties P1 to P8 on all 2^26 = 67,108,864 combinations of state and input (8 state codes × 2^23 inputs), and the compiled gate count equals the processor's `circuitInfo`;
+- the processor itself answers like the local simulator (P9): 64 (state, input) vectors derived from a seed go through the processor's `step()` by `eth_call`, at the same block on every operator, and every answer must match. The seed is printed, and `--p9-seed` reruns it;
+- on X Layer, the keccak256 of the runtime code of the processor proxy and of its implementation equal the hashes pinned in the SDK ([`packages/sdk/src/verify/pins.ts`](packages/sdk/src/verify/pins.ts)).
 
 The properties, from the policy spec the MCP server serves as `atropyle://policy/spec`:
 
@@ -64,7 +66,7 @@ The properties, from the policy spec the MCP server serves as `atropyle://policy
 
 What verify does not check: plain `verify` covers the circuit and the processor only. With `--vault`, it also compares the implementation's code hash with the hash in the deployment file, not with a build of `contracts/src`. `atropyle doctor` compares the factory's implementation and treasury, and that code hash, with the deployment file, and checks that each recorded fee token has a fee. Nothing compares the code of the factory or of the implementation with the source until it is verified on OKLink (still to do), and verify does not cover the Solidity distribution code.
 
-Results recorded in [`docs/deployments.md`](docs/deployments.md) at block 76567369: P1-P8 hold on all 67,108,864 combinations, the three netlists match the source, the beacon is frozen and the two RPC operators agree. A run of `node packages/cli/dist/bin.js verify` from a checkout at block 76826189 (25 November 2026, 08:27 UTC) gave the same result, with no issue and no warning.
+Results recorded in [`docs/deployments.md`](docs/deployments.md) at block 76567369: P1-P8 hold on all 67,108,864 combinations, the three netlists match the source, the beacon is frozen and the two RPC operators agree. A run of `node packages/cli/dist/bin.js verify` from a checkout at block 76826189 (25 November 2026, 08:27 UTC) gave the same result, with no issue and no warning. With P9, a run at block 76844404 (25 November 2026, 13:30 UTC) gave the same again, and `step()` matched the simulator on all 64 vectors of seed 1024806469244010215 at both operators, with the processor's code equal to its pins.
 
 ## Deployed contracts
 
