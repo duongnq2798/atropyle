@@ -39,7 +39,9 @@ function runOf(over: Partial<ProofRun> = {}): ProofRun {
 const done = (result: PolicyVerification = okResult(), over: Partial<ProofRun> = {}) =>
   runOf({ status: 'done', doneBlocks: Math.floor(result.combos / 32), result, ...over });
 const rowState = (row: string) => screen.getByTestId(`proof-prop-${row}`).getAttribute('data-state');
-const live = () => screen.getByTestId('proof-live').textContent;
+/** Text as a reader hears it: a no-break space (glue() in proof.messages.ts) is a space. */
+const words = (text: string | null | undefined) => (text ?? '').replaceAll('\u00A0', ' ');
+const live = () => words(screen.getByTestId('proof-live').textContent);
 const VERDICT_OK =
   'P1 to P8 hold in all 67,108,864 cases, and the processor answered 64 random cases exactly like the model.';
 
@@ -99,7 +101,8 @@ describe('ProofView', () => {
   it('counts the cases while the worker runs, and keeps the button busy', () => {
     renderWithProviders(<ProofView run={runOf({ status: 'running', doneBlocks: 4096 })} />);
     expect(screen.getByTestId('proof-run').getAttribute('data-status')).toBe('running');
-    expect(screen.getByText('131,072 of 67,108,864 cases checked')).toBeTruthy();
+    expect(within(screen.getByTestId('proof-run')).getByText('131,072 of 67,108,864 cases checked')).toBeTruthy();
+    expect(screen.getByTestId('proof-map-progress').textContent).toBe('131,072 of 67,108,864 cases checked');
     expect(screen.getByRole('progressbar', { name: 'Proof progress' }).getAttribute('max')).toBe(String(PROOF_BLOCKS));
     expect(screen.getByTestId('proof-start').getAttribute('aria-busy')).toBe('true');
     expect(screen.getByTestId('proof-canvas').getAttribute('data-done')).toBe('4096');
@@ -115,7 +118,7 @@ describe('ProofView', () => {
       expect(screen.getByTestId(`proof-prop-${row}`).textContent).toContain(messages.en.propHolds);
     }
     expect(screen.getByTestId('proof-verdict').getAttribute('data-ok')).toBe('true');
-    expect(screen.getByTestId('proof-verdict').textContent).toContain(VERDICT_OK);
+    expect(words(screen.getByTestId('proof-verdict').textContent)).toContain(VERDICT_OK);
     const seal = screen.getByTestId('proof-seal');
     expect(seal.getAttribute('data-match')).toBe('equal');
     expect(seal.querySelectorAll('[data-sign="equal"]')).toHaveLength(16);
@@ -129,8 +132,15 @@ describe('ProofView', () => {
     expect(p9).toContain('Seed 20261125, drawn on this device');
     expect(p9).toContain('Operator 1: 64 of 64 match, at block 76600000, in 4 calls through Multicall3');
     expect(p9).toContain('Operator 2: 64 of 64 match, at block 76600000, in 64 calls one by one');
-    const lines = screen.getByTestId('proof-certificate').querySelector('pre')?.textContent?.split('\n');
+    const pre = screen.getByTestId('proof-certificate').querySelector('pre');
+    const lines = pre?.textContent?.split('\n');
     expect(lines).toHaveLength(8);
+    // One numbered row per line (the numbers are CSS counters), so a wrapped line never reads as a ninth one.
+    const rows = [...(pre?.querySelectorAll('[data-line]') ?? [])];
+    expect(rows.map((r) => r.getAttribute('data-line'))).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    expect(rows.map((r) => r.textContent)).toEqual(lines);
+    // A flag of the command never breaks after its own hyphen ("npx -" / "y" would read as another command).
+    expect([...rows[6].querySelectorAll('[data-flag]')].map((f) => f.textContent)).toEqual(['-y', '--p9-seed']);
     expect(screen.getByRole('button', { name: 'Copy certificate' })).toBeTruthy();
     fireEvent.click(screen.getByTestId('proof-again'));
   });
@@ -195,7 +205,7 @@ describe('ProofView', () => {
     const verdict = screen.getByTestId('proof-verdict');
     expect(verdict.getAttribute('data-ok')).toBe('true');
     expect(verdict.getAttribute('data-full')).toBe('false');
-    expect(verdict.textContent).toContain('P1 to P8 hold in the 131,072 of 67,108,864 cases this run checked.');
+    expect(words(verdict.textContent)).toContain('P1 to P8 hold in the 131,072 of 67,108,864 cases this run checked.');
     expect(screen.queryByTestId('proof-certificate')).toBeNull();
   });
 
@@ -240,7 +250,7 @@ describe('ProofView', () => {
   it('says P9 was not run, and still certifies a full proof without it', () => {
     renderWithProviders(<ProofView run={done(okResult({ p9: null }))} />);
     expect(rowState('P9')).toBe('not-run');
-    expect(screen.getByTestId('proof-verdict').textContent).toContain(
+    expect(words(screen.getByTestId('proof-verdict').textContent)).toContain(
       'P1 to P8 hold in all 67,108,864 cases. The processor itself was not asked this time.',
     );
     expect(screen.getByTestId('proof-certificate').textContent).toContain('P9 was not run');
@@ -279,8 +289,88 @@ describe('ProofView', () => {
   it('reads in Vietnamese, with the state names of the whole site and its own number format', () => {
     renderWithProviders(<ProofView run={runOf({ status: 'running', doneBlocks: 4096 })} />, { lang: 'vi' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(messages.vi.title);
-    expect(screen.getByText('Đã kiểm 131.072 trên 67.108.864 trường hợp')).toBeTruthy();
+    expect(
+      within(screen.getByTestId('proof-run')).getByText('Đã kiểm 131.072 trên 67.108.864 trường hợp'),
+    ).toBeTruthy();
     expect(screen.getByText('Thuộc về người thừa kế')).toBeTruthy();
     expect(screen.getByText('Thuộc về ví khôi phục')).toBeTruthy();
+  });
+});
+
+/** A phone (below lg) or a wider screen, with or without reduced motion; afterEach restores matchMedia. */
+function stubScreen({ wide, reduced = false }: { wide: boolean; reduced?: boolean }) {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (q: string) =>
+      ({
+        matches: q.includes('reduce') ? reduced : q.includes('min-width: 64rem') ? wide : false,
+        media: q,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as MediaQueryList,
+  );
+}
+
+/** Puts the map's top at `share` of the window's height, and records where the page scrolls it. */
+function mapAt(share: number) {
+  const map = screen.getByTestId('proof-map');
+  vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({ top: window.innerHeight * share } as DOMRect);
+  const scroll = vi.fn();
+  map.scrollIntoView = scroll;
+  return scroll;
+}
+
+describe('ProofView brings the map up on a phone', () => {
+  it('scrolls the map to the top on a press of Run, when the map sits below the middle of a phone screen', () => {
+    stubScreen({ wide: false });
+    const run = runOf();
+    renderWithProviders(<ProofView run={run} />);
+    const scroll = mapAt(1.04);
+    fireEvent.click(screen.getByTestId('proof-start'));
+    expect(run.start).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'smooth' });
+  });
+
+  it('jumps for a reader who prefers reduced motion, and Run again and Retry bring it up too', async () => {
+    stubScreen({ wide: false, reduced: true });
+    const finished = done();
+    const { unmount } = renderWithProviders(<ProofView run={finished} />);
+    const again = mapAt(0.8);
+    fireEvent.click(screen.getByTestId('proof-again'));
+    expect(finished.again).toHaveBeenCalledTimes(1);
+    expect(again).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'auto' });
+    unmount();
+    const failed = runOf({ status: 'error', error: new AtropyleError('POLICY_UNAVAILABLE') });
+    renderWithProviders(<ProofView run={failed} />);
+    const retry = mapAt(0.8);
+    fireEvent.click(within(await screen.findByTestId('error')).getByRole('button', { name: 'Retry' }));
+    expect(failed.retry).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'auto' });
+  });
+
+  it('leaves the page where it is from lg, where the map is beside the button, or when the map is high enough', () => {
+    stubScreen({ wide: true });
+    const wide = runOf();
+    const { unmount } = renderWithProviders(<ProofView run={wide} />);
+    const beside = mapAt(1.04);
+    fireEvent.click(screen.getByTestId('proof-start'));
+    expect(wide.start).toHaveBeenCalledTimes(1);
+    expect(beside).not.toHaveBeenCalled();
+    unmount();
+    vi.restoreAllMocks();
+    stubScreen({ wide: false });
+    const phone = runOf();
+    renderWithProviders(<ProofView run={phone} />);
+    const high = mapAt(0.5);
+    fireEvent.click(screen.getByTestId('proof-start'));
+    expect(phone.start).toHaveBeenCalledTimes(1);
+    expect(high).not.toHaveBeenCalled();
+  });
+
+  it('keeps the count under the map heading, below lg only, and leaves it to the map label for a screen reader', () => {
+    renderWithProviders(<ProofView run={runOf()} />);
+    const count = screen.getByTestId('proof-map-progress');
+    expect(count.textContent).toBe('0 of 67,108,864 cases checked');
+    expect(count.getAttribute('aria-hidden')).toBe('true');
+    expect(count.className).toContain('lg:hidden');
   });
 });

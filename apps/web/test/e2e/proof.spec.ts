@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { expectAccessible, expectAccessibleInBothThemes, openSettings, setStoredLang } from './helpers.ts';
-import { captureScreens, shouldCapture } from './screens.ts';
+import { captureScreens, SCREEN_MATRIX, shouldCapture } from './screens.ts';
 
 const XLAYER = JSON.parse(readFileSync(new URL('../../../../deployments/xlayer.json', import.meta.url), 'utf8')) as {
   circuits: { netlistKeccak: { policy: string } };
@@ -59,6 +59,74 @@ test('at 390 px the Run button is on the first screen, and nothing scrolls sidew
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.getByTestId('proof-start')).toBeInViewport({ ratio: 1 });
   expect(await scrollsSideways(page)).toBe(false);
+});
+
+test('at 390 px a press on Run brings the map up, and on a desktop the page stays where it is', async ({
+  page,
+  state,
+}, info) => {
+  await page.setViewportSize(PHONE);
+  await page.goto(proofUrl(state.siteUrl));
+  const canvas = page.getByTestId('proof-canvas');
+  await expect(canvas).not.toBeInViewport({ ratio: 0.5 });
+  await page.getByTestId('proof-start').click();
+  // The devnet run ends in its typed error at once; the map came up on the press, with the count under its title.
+  await expect(canvas).toBeInViewport({ ratio: 0.5 });
+  await expect(page.getByTestId('proof-map-progress')).toBeInViewport();
+  if (info.project.name !== 'desktop') return;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(proofUrl(state.siteUrl));
+  await expect(page.getByTestId('proof-start')).toBeVisible();
+  await page.getByTestId('proof-start').click();
+  await expect(page.getByTestId('error')).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('from lg the sticky map keeps its key on screen, and a short screen lets it scroll', async ({
+  page,
+  state,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'the sticky map is a desktop layout');
+  const map = page.getByTestId('proof-map');
+  // A MacBook's browser window, a 1280 x 720 one, the smallest lg width, the shot height; English and Vietnamese.
+  for (const lang of ['en', 'vi'] as const) {
+    if (lang === 'vi') await setStoredLang(page, 'vi');
+    for (const size of [
+      { width: 1440, height: 789 },
+      { width: 1280, height: 720 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(size);
+      if (lang === 'en') await page.goto(proofUrl(state.siteUrl));
+      await expect(page.getByTestId('proof-start')).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 700));
+      await expect
+        .poll(() => map.evaluate((e) => e.getBoundingClientRect().top), {
+          message: `${lang} ${size.width}x${size.height}`,
+        })
+        .toBe(80);
+      const bottom = await map.evaluate((e) => e.getBoundingClientRect().bottom);
+      expect(bottom, `the map's key falls off a ${size.width}x${size.height} screen (${lang})`).toBeLessThanOrEqual(
+        size.height,
+      );
+    }
+  }
+  await setStoredLang(page, 'en');
+  // Below 45rem of height the block would not fit beside a useful plate: it scrolls with the page.
+  await page.setViewportSize({ width: 1366, height: 657 });
+  expect(await map.evaluate((e) => getComputedStyle(e).position)).toBe('static');
+});
+
+test('/ prefetches /proof/ from the proof line, and no prefetch file is missing', async ({ page, state }) => {
+  const missing: string[] = [];
+  page.on('response', (r) => {
+    if (r.url().includes('/__next.') && r.status() >= 400) missing.push(`${r.status()} ${r.url()}`);
+  });
+  const segment = page.waitForResponse((r) => new URL(r.url()).pathname === '/proof/__next.proof.__PAGE__.txt');
+  await page.goto(state.siteUrl);
+  expect((await segment).status()).toBe(200);
+  expect(missing).toEqual([]);
 });
 
 test('the footer link "Known limits" opens /proof/ at #limits', async ({ page, state }) => {
@@ -180,7 +248,11 @@ test('screens of /proof/: idle, failed on the devnet, passed', async ({ page, st
   });
   await page.goto(harnessUrl(state.siteUrl, '#auto'));
   // No press: '#auto' starts the run after every reload, and a shot without a reload finds it finished.
-  await captureScreens(page, 'proof-done', { ready: passed });
+  // And at 768 px, where the certificate's numbered rows wrap the most beside the copy button (7C-T3 review).
+  await captureScreens(page, 'proof-done', {
+    ready: passed,
+    shots: [...SCREEN_MATRIX, { theme: 'dark', lang: 'en', width: 768 }],
+  });
   // captureScreens ends with two reloads (English, then night), and '#auto' starts the run again after each one. Wait
   // for the finished map: the measurement below is about it, not about a map still painting (R26).
   await passed(page);

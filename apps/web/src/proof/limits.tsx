@@ -127,7 +127,7 @@ export function Limits() {
           </li>
         ))}
       </ol>
-      <p data-testid="proof-limits-close" className="font-display text-title">
+      <p data-testid="proof-limits-close" className="text-balance font-display text-title">
         {t('limitsClose')}
       </p>
     </section>

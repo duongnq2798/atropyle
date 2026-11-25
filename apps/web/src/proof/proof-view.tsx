@@ -3,7 +3,7 @@
 import type { P9Result, PropertyName, StateName } from '@atropyle/sdk';
 import { BadgeCheck, Check, Minus, Play, RotateCcw, ShieldCheck, ShieldHalf, ShieldX, X } from 'lucide-react';
 import * as m from 'motion/react-m';
-import { useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useRef, useState } from 'react';
 import { ENV, explorerUrlOf } from '@/config/env';
 import { COMMANDS, NODE_MIN } from '@/content/commands';
 import type { Lang, Params } from '@/i18n/core';
@@ -136,7 +136,17 @@ function liveText(run: ProofRun, t: Translate, lang: Lang): string {
   }
 }
 
-function RunCard({ run, cases, wake }: { run: ProofRun; cases: number; wake: boolean }) {
+interface RunCardProps {
+  run: ProofRun;
+  cases: number;
+  wake: boolean;
+  /** run.start, run.again and run.retry, each followed by bringing the map up (useBringMap). */
+  onStart(): void;
+  onAgain(): void;
+  onRetry(): void;
+}
+
+function RunCard({ run, cases, wake, onStart, onAgain, onRetry }: RunCardProps) {
   const t = useT(messages);
   const { lang } = useLang();
   const busy = run.status === 'loading' || run.status === 'running';
@@ -154,7 +164,7 @@ function RunCard({ run, cases, wake }: { run: ProofRun; cases: number; wake: boo
       {/* The control right under the title, so it sits on the first screen at 390 px (R27); an error takes its place,
           with its own Retry. */}
       {run.status === 'error' ? (
-        <ErrorBox error={run.error} onRetry={run.retry} />
+        <ErrorBox error={run.error} onRetry={onRetry} />
       ) : (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {run.status === 'done' ? (
@@ -164,7 +174,7 @@ function RunCard({ run, cases, wake }: { run: ProofRun; cases: number; wake: boo
                 variant="secondary"
                 size="lg"
                 icon={<RotateCcw aria-hidden="true" />}
-                onClick={run.again}
+                onClick={onAgain}
                 onPointerEnter={run.warm}
               >
                 {t('again')}
@@ -179,7 +189,7 @@ function RunCard({ run, cases, wake }: { run: ProofRun; cases: number; wake: boo
               icon={<Play aria-hidden="true" />}
               loading={busy}
               loadingLabel={run.status === 'loading' ? t('loading') : t('running')}
-              onClick={run.start}
+              onClick={onStart}
               onPointerEnter={run.warm}
               onFocus={run.warm}
             >
@@ -306,6 +316,33 @@ function Properties({
   );
 }
 
+/** One line of the certificate: `01` to `08` in the gutter, the wrapped rest of the line under its first word. */
+const CERT_LINE =
+  'block whitespace-pre-wrap pl-[4ch] -indent-[4ch] [counter-increment:cert] before:inline-block before:w-[4ch] ' +
+  'before:indent-0 before:text-ink-muted before:content-[counter(cert,decimal-leading-zero)]';
+
+/** A flag of a command (`-y`, `--p9-seed`), after a space: the split keeps it as every odd part. */
+const FLAG = /(?<=\s)(--?[a-z0-9][\w-]*)/i;
+
+/**
+ * A certificate line with each command flag in one unbreakable piece: the browser may break after a hyphen, and
+ * `npx -` / `y` reads as another command. Spans add no text, so textContent stays the line. Keyed by offset.
+ */
+function lineWithFlags(line: string): ReactNode[] {
+  let at = 0;
+  return line.split(FLAG).map((part, i) => {
+    const key = at;
+    at += part.length;
+    return i % 2 === 1 ? (
+      <span key={key} data-flag className="whitespace-nowrap">
+        {part}
+      </span>
+    ) : (
+      <Fragment key={key}>{part}</Fragment>
+    );
+  });
+}
+
 function Certificate({ lines }: { lines: readonly string[] }) {
   const t = useT(messages);
   const text = lines.join('\n');
@@ -325,12 +362,21 @@ function Certificate({ lines }: { lines: readonly string[] }) {
         </div>
         <CopyButton text={text} label={t('certCopy')} showText />
       </div>
-      {/* The thread on the left edge marks the eight lines as one document, the way the proof line marks every page. */}
+      {/* The thread on the left edge marks the eight lines as one document, the way the proof line marks every page.
+          Each line is a numbered row with a hanging indent, so a wrapped line never reads as a ninth one. The numbers
+          are CSS counters: they never enter textContent or the clipboard, which split on LF into the eight lines. */}
       <pre
         translate="no"
-        className="whitespace-pre-wrap rounded-r-xl border-thread/60 border-l-2 bg-surface-2 px-4 py-3.5 font-mono text-caption leading-relaxed wrap-anywhere sm:text-small"
+        className="flex flex-col gap-1 whitespace-normal rounded-r-xl border-thread/60 border-l-2 bg-surface-2 px-4 py-3.5 font-mono text-caption leading-relaxed wrap-anywhere [counter-reset:cert] sm:text-small"
       >
-        {text}
+        {lines.map((line, i) => (
+          <Fragment key={line}>
+            {i > 0 ? '\n' : null}
+            <span data-line={i + 1} className={CERT_LINE}>
+              {lineWithFlags(line)}
+            </span>
+          </Fragment>
+        ))}
       </pre>
     </section>
   );
@@ -375,7 +421,12 @@ function Verdict({ result }: { result: PolicyVerification }) {
             <h2 id="proof-verdict-title" className="font-mono text-caption text-ink-muted uppercase tracking-[0.14em]">
               {t('verdictTitle')}
             </h2>
-            <p className={cn('max-w-3xl font-display text-title sm:text-h2', result.ok ? 'text-ink' : 'text-danger')}>
+            <p
+              className={cn(
+                'max-w-3xl text-balance font-display text-title sm:text-h2',
+                result.ok ? 'text-ink' : 'text-danger',
+              )}
+            >
               {verdictText(t, result, lang)}
             </p>
           </div>
@@ -455,11 +506,40 @@ function Terminal() {
   );
 }
 
+/** Tailwind's lg: from here the map holds the left column, beside the run card. */
+const WIDE = '(min-width: 64rem)';
+
+/**
+ * Below lg the map sits under the run card, below a phone's first screen (the 7C-T3 review): a press that starts a run
+ * brings it up, so the reader watches it fill in. It follows the reader's own press, and only when the map's top is in
+ * the lower half of the screen or below it; from lg the map is beside the button already.
+ */
+function useBringMap(reduced: boolean) {
+  const ref = useRef<HTMLElement>(null);
+  const bring = useCallback(() => {
+    const map = ref.current;
+    if (!map || window.matchMedia(WIDE).matches) return;
+    if (map.getBoundingClientRect().top <= window.innerHeight * 0.5) return;
+    map.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
+  }, [reduced]);
+  return { ref, bring };
+}
+
+/**
+ * From lg, on a screen at least 45rem tall, the map block sticks under the header while the rows and the verdict
+ * scroll by. Its plate is then as wide as the screen leaves room for: 25rem is the header offset (top-20), the title,
+ * the caption and the key at their tallest (1024 px wide, English), and 16 px of air, so the key never falls off the
+ * screen while the map paints. Shorter screens scroll the block like the rest (test/e2e/proof.spec.ts measures both).
+ */
+const STICKY = 'lg:[@media(min-height:45rem)]:sticky lg:[@media(min-height:45rem)]:top-20';
+const STICKY_PLATE = 'lg:[@media(min-height:45rem)]:w-[min(100%,calc(100svh-25rem))]';
+
 /**
  * /proof/ (spec §4.6.1, §18.4.3 Task 3). The whole layout is on the first paint (§18 principle 6), never in italic
  * (R18.10). Voices: Proclaim is font-display; Ledger is font-mono with tabular figures (7B's voice utilities are not on
  * this branch). The run card comes first in the DOM (the control before what it fills); from lg the map holds the
- * left column, sticky, beside the card and the rows. A finished run lights P1 to P9 one by one, unless the page had the
+ * left column beside the card and the rows, sticky on a screen tall enough for all of it (STICKY); below lg a press on
+ * Run brings it up (useBringMap). A finished run lights P1 to P9 one by one, unless the page had the
  * result when it mounted or the reader prefers reduced motion. The screen stays on while the proof reads and runs.
  */
 export function ProofView({ run }: { run: ProofRun }) {
@@ -472,6 +552,8 @@ export function ProofView({ run }: { run: ProofRun }) {
   const wake = useWakeLock(run.status === 'loading' || run.status === 'running');
   const total = formatCount(TOTAL_CASES, lang);
   const cases = Math.min(run.doneBlocks * 32, TOTAL_CASES);
+  const map = useBringMap(reduced);
+  const progress = t('progress', { done: formatCount(cases, lang), total });
   return (
     <article className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-12 sm:gap-20 sm:px-6 sm:py-16">
       <header className="flex max-w-3xl flex-col gap-4">
@@ -480,18 +562,48 @@ export function ProofView({ run }: { run: ProofRun }) {
         <p className="text-ink-muted text-lead">{t('lead', { total, vectors: P9_CASES })}</p>
       </header>
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-x-12">
-        <RunCard run={run} cases={cases} wake={wake} />
+        <RunCard
+          run={run}
+          cases={cases}
+          wake={wake}
+          onStart={() => {
+            run.start();
+            map.bring();
+          }}
+          onAgain={() => {
+            run.again();
+            map.bring();
+          }}
+          onRetry={() => {
+            run.retry();
+            map.bring();
+          }}
+        />
         <section
+          ref={map.ref}
+          data-testid="proof-map"
           aria-labelledby="proof-map-title"
-          className="flex flex-col gap-4 lg:sticky lg:top-20 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+          className={cn('flex scroll-mt-20 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1', STICKY)}
         >
-          <h2 id="proof-map-title" className="font-display text-title">
-            {t('mapTitle')}
-          </h2>
+          <div className="flex flex-col gap-1">
+            <h2 id="proof-map-title" className="font-display text-title">
+              {t('mapTitle')}
+            </h2>
+            {/* Below lg the run card's count scrolls away once the map is up: the count again, beside the paint. The
+                map's own label says it to a screen reader. */}
+            <p
+              data-testid="proof-map-progress"
+              aria-hidden="true"
+              className="font-mono text-ink-muted text-small tabular-nums lg:hidden"
+            >
+              {progress}
+            </p>
+          </div>
           <ProofCanvas
             comboBits={BITS}
             doneBlocks={run.doneBlocks}
             label={t('mapLabel', { done: formatCount(cases, lang), total, perDot: CASES_PER_DOT })}
+            className={STICKY_PLATE}
           />
           <p className="text-ink-muted text-small">{t('mapCaption', { perDot: CASES_PER_DOT })}</p>
           <Legend />

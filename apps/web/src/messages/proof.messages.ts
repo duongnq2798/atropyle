@@ -1,5 +1,13 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0. Vietnamese writes the syllables of one word
+ * with spaces between them, so text-wrap: balance can split "trường hợp" or leave "để lại." alone on a line, and a
+ * number can land on another line than its noun in either language. Headings, Proclaim lines and the key of the map
+ * use it, each measured at 320 to 1440 px (the 7C-T3 review); more glue in the key costs it a line beside the map.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     eyebrow: 'The proof',
@@ -51,10 +59,11 @@ export const messages = defineMessages(
     p9Multicall: 'through Multicall3',
     p9OneByOne: 'one by one',
     verdictTitle: 'The verdict',
-    verdictOk:
-      'P1 to P8 hold in all {total} cases, and the processor answered {vectors} random cases exactly like the model.',
-    verdictOkNoP9: 'P1 to P8 hold in all {total} cases. The processor itself was not asked this time.',
-    verdictPartial: 'P1 to P8 hold in the {combos} of {total} cases this run checked.',
+    verdictOk: glue(
+      'P1 to P8 hold in all {total}~cases, and the processor answered {vectors}~random cases exactly like the model.',
+    ),
+    verdictOkNoP9: glue('P1 to P8 hold in all {total}~cases. The~processor itself was not asked this time.'),
+    verdictPartial: glue('P1 to P8 hold in the {combos} of {total}~cases this run checked.'),
     verdictBroken: 'The proof failed. Do not rely on this deployment until the reasons below are explained.',
     limitsLink: 'What this proof does not cover',
     detailCases: 'Cases checked',
@@ -155,15 +164,15 @@ export const messages = defineMessages(
   },
   {
     eyebrow: 'Bằng chứng',
-    title: 'Mọi trường hợp, kiểm ngay trên trình duyệt của bạn',
+    title: glue('Mọi trường~hợp, kiểm ngay trên trình~duyệt của~bạn'),
     lead: 'Luật của mọi vault Atropyle là một circuit, lưu trong processor TapeOut trên X Layer. Không ai sửa được nó, kể cả chúng tôi. Trình duyệt của bạn đọc circuit đó từ chain, thử đủ {total} trường hợp mà một vault có thể gặp, rồi hỏi chính processor {vectors} trường hợp ngẫu nhiên.',
-    mapTitle: 'Bản đồ của mọi trường hợp',
+    mapTitle: glue('Bản~đồ của mọi trường~hợp'),
     mapLabel:
       'Bản đồ bằng chứng: đã kiểm {done} trên {total} trường hợp. Mỗi chấm là {perDot} trường hợp, tô màu theo trạng thái ban đầu của vault.',
     mapCaption:
       'Mỗi chấm là {perDot} trường hợp. Màu của chấm là trạng thái ban đầu của vault; tám vùng là tám mã trạng thái.',
     legendTitle: 'Màu và ký hiệu: trạng thái ban đầu của trường hợp',
-    legendUnused: 'Mã 2, 4 và 6, không vault nào giữ (vẫn được kiểm)',
+    legendUnused: glue('Mã 2, 4 và 6, không vault nào giữ (vẫn~được~kiểm)'),
     legendPending: 'Chưa kiểm',
     runTitle: 'Tự chạy',
     runBody:
@@ -183,7 +192,7 @@ export const messages = defineMessages(
     livePercent: 'Đã kiểm {percent}% số trường hợp.',
     liveDone: 'Đã kiểm xong.',
     liveError: 'Bằng chứng dừng vì lỗi.',
-    propsTitle: 'Điều mọi trường hợp phải tuân theo',
+    propsTitle: glue('Điều mọi trường~hợp phải tuân~theo'),
     propPending: 'Đang chờ',
     propHolds: 'Đúng',
     propBroken: 'Sai',
@@ -203,13 +212,15 @@ export const messages = defineMessages(
     p9Multicall: 'qua Multicall3',
     p9OneByOne: 'lần lượt',
     verdictTitle: 'Kết luận',
-    verdictOk:
-      'P1 tới P8 đúng ở cả {total} trường hợp, và processor trả lời {vectors} trường hợp ngẫu nhiên giống hệt model.',
-    verdictOkNoP9: 'P1 tới P8 đúng ở cả {total} trường hợp. Lần này chưa hỏi chính processor.',
-    verdictPartial: 'P1 tới P8 đúng ở {combos} trên {total} trường hợp mà lần chạy này đã kiểm.',
-    verdictBroken:
-      'Bằng chứng thất bại. Đừng dựa vào bản triển khai này cho tới khi các lý do bên dưới được giải thích.',
-    limitsLink: 'Những gì bằng chứng này không bao gồm',
+    verdictOk: glue(
+      'P1 tới P8 đúng ở cả {total}~trường~hợp, và~processor trả~lời {vectors}~trường~hợp ngẫu~nhiên giống~hệt model.',
+    ),
+    verdictOkNoP9: glue('P1 tới P8 đúng ở cả {total}~trường~hợp. Lần~này chưa~hỏi chính~processor.'),
+    verdictPartial: glue('P1 tới P8 đúng ở {combos} trên {total}~trường~hợp mà lần~chạy này đã~kiểm.'),
+    verdictBroken: glue(
+      'Bằng~chứng thất~bại. Đừng~dựa~vào bản~triển~khai~này cho~tới~khi các lý~do bên~dưới được giải~thích.',
+    ),
+    limitsLink: 'Những gì bằng chứng này không phủ',
     detailCases: 'Số trường hợp đã kiểm',
     casesIn: '{combos} trong {seconds} giây',
     detailBlock: 'Đọc ở block',
@@ -267,7 +278,7 @@ export const messages = defineMessages(
       'Cùng bằng chứng đó, không cần website này: lệnh đọc chain qua các nhà vận hành RPC của bản triển khai và in ra cùng keccak. Cần Node.js {node} trở lên.',
     copyCli: 'Chép lệnh',
     copyStep: 'Chép lệnh cast',
-    limitsTitle: 'Bằng chứng này bao gồm gì, và không bao gồm gì',
+    limitsTitle: glue('Bằng~chứng~này phủ~gì, và~không~phủ~gì'),
     limitsLead: 'Bằng chứng kiểm luật. Quanh luật còn sáu phần khác; với từng phần, đây là điều bảo vệ bạn.',
     limitDo: 'Điều bảo vệ bạn:',
     limit1Title: 'Hợp đồng vault và factory',
@@ -304,6 +315,6 @@ export const messages = defineMessages(
     limit6Do:
       'Ký qua /sign/: trang này chỉ nhận lệnh gọi tới các hợp đồng Atropyle trong một danh sách cố định, và hiện từng lệnh trước khi ví của bạn hiện. So từng nhóm bốn ký tự của mọi địa chỉ.',
     limit6Link: 'Mở /sign/',
-    limitsClose: 'Hãy bắt đầu bằng một Drill; chỉ approve phần bạn thật lòng muốn để lại.',
+    limitsClose: glue('Hãy bắt~đầu bằng một~Drill; chỉ approve phần bạn thật~lòng muốn~để~lại.'),
   },
 );
