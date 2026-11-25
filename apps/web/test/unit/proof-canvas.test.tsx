@@ -236,7 +236,7 @@ describe('ProofCanvas', () => {
     }
   });
 
-  it('keeps the key until the dots reach the bottom band, and shows it again for a new run', () => {
+  it('keeps the key until the dots reach the bottom band, stamps it on the finished map, and shows it for a new run', () => {
     // 2^13 dots per region: the bottom band (band 3) starts at dot 6144, block 98 304.
     const band3 = (g.perRegion * 3) / 4;
     expect(band3).toBe(6144);
@@ -249,10 +249,45 @@ describe('ProofCanvas', () => {
     expect(map()).toHaveAttribute('data-key', 'on');
     rerender(ui(band3 * 16));
     expect(map()).toHaveAttribute('data-key', 'off');
-    rerender(ui(2 ** 17));
+    // One dot short of the end, the key is still out of the way of the dots it would cover.
+    rerender(ui(2 ** 17 - 16));
+    expect(map()).toHaveAttribute('data-painted', String(8 * (g.perRegion - 1)));
     expect(map()).toHaveAttribute('data-key', 'off');
+    // The last dot: the plate is complete and carries its key again, in ink (the class below), over the bottom band.
+    rerender(ui(2 ** 17));
+    expect(map()).toHaveAttribute('data-key', 'done');
+    rerender(ui(2 ** 17 + 15));
+    expect(map()).toHaveAttribute('data-key', 'done');
     rerender(ui(0));
     expect(map()).toHaveAttribute('data-key', 'on');
+    // A count that lands on the end at once (a tab that was hidden, a page opened on a finished run) is done too.
+    rerender(ui(2 ** 17));
+    expect(map()).toHaveAttribute('data-key', 'done');
+  });
+
+  it('stamps every glyph in ink once the map is done, over the colours of its bottom band', () => {
+    renderWithProviders(ui(2 ** 17));
+    const glyphs = [...document.querySelectorAll('[data-glyph]')];
+    expect(glyphs).toHaveLength(8);
+    // Tailwind needs the selector whole: the class beats text-alive and the other inks, and e2e checks the colour.
+    for (const glyph of glyphs)
+      expect(glyph.getAttribute('class')).toContain('group-has-[canvas[data-key="done"]]/map:text-ink');
+  });
+
+  it('puts the whole map when a 2D context comes after paints without one', () => {
+    noContext = true;
+    const { rerender } = renderWithProviders(ui(1000));
+    noContext = false;
+    rerender(ui(4096));
+    // Not only the boxes of this tick: the base and the dots of the paints before it must reach the canvas too.
+    expect(ctx.full).toBe(1);
+    expect(ctx.partial).toBe(0);
+    expect(differing(ctx.pixels, expected(4096))).toBe(0);
+    expect(map()).toHaveAttribute('data-key', 'on');
+    rerender(ui(8192));
+    expect(ctx.full).toBe(1);
+    expect(ctx.partial).toBe(8);
+    expect(differing(ctx.pixels, expected(8192))).toBe(0);
   });
 
   it('keeps the key when the browser gives no 2D context: the map stays blank and the key is all it shows', () => {

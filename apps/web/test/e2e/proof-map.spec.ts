@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { expectAccessibleInBothThemes, openSettings } from './helpers.ts';
-import { captureScreens, shouldCapture } from './screens.ts';
+import { captureScreens, SCREEN_MATRIX, type Shot, shouldCapture } from './screens.ts';
 
 /** 1 400 000 blocks: 87 500 dots per region, the upper square of each region and part of the lower one. */
 const AT = 1_400_000;
@@ -157,6 +157,12 @@ async function expectKey(glyphs: Locator, opacity: '0' | '1'): Promise<void> {
   for (const g of await glyphs.all()) await expect(g).toHaveCSS('opacity', opacity);
 }
 
+/** Every glyph in the colour of a token, as the browser computes both. */
+async function expectInk(map: Locator, glyphs: Locator, name: string): Promise<void> {
+  const [r, g, b] = await token(map, name);
+  for (const glyph of await glyphs.all()) await expect(glyph).toHaveCSS('color', `rgb(${r}, ${g}, ${b})`);
+}
+
 test('the map keys its eight codes until the dots reach the bottom band, and the key comes back for a new run', async ({
   page,
   state,
@@ -188,18 +194,93 @@ test('the map keys its eight codes until the dots reach the bottom band, and the
   await setHash(page, `#at=${FULL}`);
   await expect(map).toHaveAttribute('data-painted', String(8 * (FULL / 16)));
   for (const [s, g] of all.entries()) expect(await paintedUnder(map, g, base), `under region ${s}`).toBeGreaterThan(0);
+  // The finished plate carries its key again, stamped in ink over the bottom band: the frame people look at longest
+  // keys every column by more than its colour (spec §4.3), and tells the two releases and the unused codes apart.
+  await expect(map).toHaveAttribute('data-key', 'done');
+  await expectKey(glyphs, '1');
+  await expectInk(map, glyphs, 'ink');
   // A run that starts over shows the key again.
   await setHash(page, '#at=0');
   await expect(map).toHaveAttribute('data-painted', '0');
   await expect(map).toHaveAttribute('data-key', 'on');
   await expectKey(glyphs, '1');
   await expect.poll(() => hairline(page)).toBe(idle);
+  // In the colours of the states again, not in ink.
+  await expect(glyphs.first()).toHaveCSS('color', `rgb(${(await token(map, 'alive')).slice(0, 3).join(', ')})`);
 });
 
-test('a map mid-run passes axe in both themes', async ({ page, state }) => {
-  await page.goto(harness(state.siteUrl, `#at=${AT}`));
-  await expectAccessibleInBothThemes(page, page.getByRole('img', { name: 'Proof map, painted tick by tick' }));
+/**
+ * The colour of one screen pixel at a CSS point of the unscrolled page (a boundingBox before any scroll), as
+ * [r, g, b]: what a person sees, not what is drawn. A full-page shot, so a point below the fold is in it too.
+ */
+async function screenPixel(page: Page, x: number, y: number): Promise<number[]> {
+  const png = await page.screenshot({ clip: { x, y, width: 1, height: 1 }, scale: 'css', fullPage: true });
+  return page.evaluate(
+    async (bytes) => {
+      const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+      const c = new OffscreenCanvas(1, 1).getContext('2d')!;
+      c.drawImage(bitmap, 0, 0);
+      return [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    },
+    [...png],
+  );
+}
+
+test('the plate shows its corner dots: nothing clips the first dot of a run', async ({ page, state }) => {
+  await page.goto(harness(state.siteUrl, `#at=${FULL}`));
+  const map = live(page);
+  await expect(map).toHaveAttribute('data-painted', String(8 * (FULL / 16)));
+  const box = await map.boundingBox();
+  if (!box) throw new Error('the map is not laid out');
+  // The first whole screen pixel inside each corner of the canvas shows the dot drawn in that corner. Dot (0, 0), the
+  // first of every run, is the alive token itself; the other three corners end regions 3, 4 and 7 (no hairline runs
+  // along the outer edge). A rounded clip would show the frame or the page there instead.
+  const left = Math.ceil(box.x);
+  const top = Math.ceil(box.y);
+  const right = Math.floor(box.x + box.width) - 1;
+  const bottom = Math.floor(box.y + box.height) - 1;
+  const last = 1023;
+  expect(await screenPixel(page, left, top), 'the first dot').toEqual((await token(map, 'alive')).slice(0, 3));
+  for (const [x, y, cx, cy] of [
+    [right, top, last, 0],
+    [left, bottom, 0, last],
+    [right, bottom, last, last],
+  ] as const) {
+    expect(await screenPixel(page, x, y), `the corner dot ${cx},${cy}`).toEqual((await pixel(map, cx, cy)).slice(0, 3));
+  }
 });
+
+test('reduced motion makes every transition of the map a crossfade of 120 ms or less', async ({ page, state }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(harness(state.siteUrl, '#at=0'));
+  await expect(live(page)).toHaveAttribute('data-painted', '0');
+  const slow = await page
+    .getByTestId('live-map')
+    .getByRole('img')
+    .evaluate((root) =>
+      [root, ...root.querySelectorAll('*')].flatMap((el) => {
+        const cs = getComputedStyle(el);
+        const longest = Math.max(...cs.transitionDuration.split(',').map((d) => Number.parseFloat(d) * 1000));
+        return longest > 120 ? [`${el.tagName.toLowerCase()} ${cs.transitionProperty} ${cs.transitionDuration}`] : [];
+      }),
+    );
+  expect(slow).toEqual([]);
+});
+
+test('the map passes axe in both themes: empty with its key, mid-run, and done with its key in ink', async ({
+  page,
+  state,
+}) => {
+  test.setTimeout(90_000);
+  for (const at of [0, AT, FULL]) {
+    await page.goto(harness(state.siteUrl, `#at=${at}`));
+    await expectAccessibleInBothThemes(page, page.getByRole('img', { name: 'Proof map, painted tick by tick' }));
+  }
+});
+
+/** The review matrix of the map: the three shots of R18.13 and a tablet, in night and in vellum. */
+const TABLET: readonly Shot[] = [...SCREEN_MATRIX, { theme: 'dark', lang: 'en', width: 768 }];
+const PLATE: readonly Shot[] = [...TABLET, ...TABLET.map((s): Shot => ({ ...s, theme: 'light' }))];
 
 test('screens of the proof map, for the design review', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
@@ -208,13 +289,29 @@ test('screens of the proof map, for the design review', async ({ page, state }, 
   await expect(live(page)).toHaveAttribute('data-painted', PAINTED);
   // Every shot reloads the page: wait for the paint after hydration, not only for the prerendered empty map.
   await captureScreens(page, 'proof-map', {
+    shots: PLATE,
     ready: (p) => expect(live(p)).toHaveAttribute('data-painted', PAINTED),
+  });
+  // Past three quarters: the key has given way to the bottom band.
+  await page.goto(harness(state.siteUrl, `#at=${PAST_KEY}`));
+  await captureScreens(page, 'proof-map-late', {
+    shots: TABLET,
+    ready: (p) => expect(live(p)).toHaveAttribute('data-key', 'off'),
+  });
+  // The finished plate, the frame people look at longest: the key is back, stamped in ink.
+  await page.goto(harness(state.siteUrl, `#at=${FULL}`));
+  await captureScreens(page, 'proof-map-done', {
+    shots: PLATE,
+    ready: async (p) => {
+      await expect(live(p)).toHaveAttribute('data-key', 'done');
+      await expectKey(p.getByTestId('live-map').locator('[data-glyph]'), '1');
+    },
   });
   // The first frame of /proof/ (the proof runs only on click) and its whole no-JS frame: the idle map and its key.
   // In vellum too, where an empty map has the least contrast to give.
   await page.goto(harness(state.siteUrl, '#at=0'));
   await captureScreens(page, 'proof-map-idle', {
-    vellum: true,
+    shots: PLATE,
     ready: (p) => expect(live(p)).toHaveAttribute('data-painted', '0'),
   });
 });

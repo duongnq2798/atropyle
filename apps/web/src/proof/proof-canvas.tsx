@@ -54,33 +54,50 @@ const KEY: readonly { name: GlyphName; ink: string }[] = [
 const keyBand = (perRegion: number) => (perRegion * 3) / 4;
 
 /**
+ * The key as the painter sets it on the canvas (data-key): "on" while the dots have not reached the bottom band, and
+ * whenever the map stays blank (no 2D context); "off" from three quarters of the run; "done" once every dot is painted.
+ */
+function keyState(painted: number, perRegion: number, drawn: boolean): 'on' | 'off' | 'done' {
+  if (!drawn) return 'on';
+  if (painted >= perRegion) return 'done';
+  return painted >= keyBand(perRegion) ? 'off' : 'on';
+}
+
+/**
  * Each glyph sits in the bottom of four rows of its region: the band the dots reach last, after three quarters of the
  * run, so the key and the colours share the map for most of it and the colour comes down the column to its key. The
- * painter sets data-key="off" when the dots enter that band, at 75 %: the key fades out, so a glyph never covers a
- * dot (in Morton order the first dot under a glyph's box comes at 78 % or later, at every width whose band holds the
- * glyph), and comes back when a new run starts over. The prerender and the no-JS page have no data-key and show it.
- * Reduced motion makes the fade a 120 ms crossfade (spec §4.4).
+ * key gives way to the dots: from 75 % (data-key="off") it fades out, so a glyph never covers a dot mid-run (in
+ * Morton order the first dot under a glyph's box comes at 78 % or later, at every width whose band holds the glyph).
+ * The finished plate carries its key again, stamped in ink over the bottom band (data-key="done"): the frame people
+ * look at longest keys every column by more than its colour (spec §4.3), and tells apart the two releases and the
+ * three unused codes, which share a colour. Ink over band 3 is 3.7:1 or more in night and 6.0:1 or more in vellum
+ * (paint.test.ts). The ink rule's selector outranks the state inks, and the colour changes while the glyph is still
+ * hidden, so the return is one crossfade. A new run shows the key in its colours again. The prerender and the no-JS
+ * page have no data-key and show it. Reduced motion makes the fade a 120 ms crossfade (spec §4.4). The glyph grows
+ * with the plate, not the viewport (@md: a plate of 448 px or more), so it keeps its share of the band at every width.
  */
 const GLYPH =
   'row-start-4 size-6 self-center transition-opacity duration-240 ease-out-expo motion-reduce:duration-120 ' +
-  'motion-reduce:ease-linear sm:size-8 group-has-[canvas[data-key="off"]]/map:opacity-0';
+  'motion-reduce:ease-linear @md:size-8 group-has-[canvas[data-key="off"]]/map:opacity-0 ' +
+  'group-has-[canvas[data-key="done"]]/map:text-ink';
 
 /**
  * Hairlines between the regions: line-strong over the empty base (1.64:1 in night, 1.53:1 in vellum), the page colour
  * from the first dot, `canvas[data-painted]:not([data-painted="0"])` (3.1:1 to 6.7:1 over every state colour, where
- * line-strong would fall to 1.0–1.35:1).
+ * line-strong would fall to 1.0–1.35:1). They change with the first dots, in the same frame and without a transition:
+ * the dots themselves never fade in, and spec §4.4 animates opacity, not colour.
  */
-const HAIRLINE =
-  'border-line-strong/40 transition-colors duration-240 ease-out-expo ' +
-  'group-has-[canvas[data-painted]:not([data-painted="0"])]/map:border-bg/80';
+const HAIRLINE = 'border-line-strong/40 group-has-[canvas[data-painted]:not([data-painted="0"])]/map:border-bg/80';
 
 /**
  * Spec §4.6.1: every case of the proof as one dot of 64, painted as the worker reports. The pixels live in one
  * buffer; a tick paints only the new dots and puts only their boxes. A new map size, a new theme or a run that starts
  * over paints a new map from the base. No particles (spec §18.5 C2): the map itself never moves, and the only
- * transitions are the hairlines turning to the page colour at the first dot and the key giving way to the last band.
- * The canvas carries data-key (the key shows unless it is "off") and, for tests, data-painted (8 × dots per region),
- * data-generation (maps started from the base), data-ticks (paints that added dots) and data-palette (the theme).
+ * transition is the key giving way to the last band and coming back in ink on the finished plate. The map is a square
+ * plate mounted in a bezel, not clipped by the rounded frame, so every corner dot shows, the first dot of a run among
+ * them. The canvas carries data-key ("on", "off" or "done", see keyState) and, for tests, data-painted (8 × dots per
+ * region), data-generation (maps started from the base), data-ticks (paints that added dots) and data-palette (the
+ * theme).
  */
 export function ProofCanvas({ comboBits, doneBlocks, label, className }: ProofCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -127,13 +144,15 @@ export function ProofCanvas({ comboBits, doneBlocks, label, className }: ProofCa
     // Opaque: every pixel is painted, so the compositor need not blend the map with what lies under it.
     const ctx = canvas.getContext('2d', { alpha: false });
     if (ctx) {
+      // A new map, or the first put after paints without a context, goes up whole: the canvas has none of it yet.
+      // A tick puts only the box of each region it painted.
+      const whole = st.image === null;
       st.image ??= new ImageData(data, grid.size, grid.size);
-      // A new map goes up whole; a tick puts only the box of each region it painted.
-      if (fresh) ctx.putImageData(st.image, 0, 0);
+      if (whole) ctx.putImageData(st.image, 0, 0);
       else for (const r of rects) ctx.putImageData(st.image, 0, 0, r.x, r.y, r.w, r.h);
     }
     // Without a 2D context the map stays blank, and the key is all it shows.
-    canvas.dataset.key = ctx && target >= keyBand(grid.perRegion) ? 'off' : 'on';
+    canvas.dataset.key = keyState(target, grid.perRegion, ctx !== null);
     canvas.dataset.painted = String(target * 8);
     canvas.dataset.generation = String(st.generation);
     canvas.dataset.ticks = String(st.ticks);
@@ -156,36 +175,36 @@ export function ProofCanvas({ comboBits, doneBlocks, label, className }: ProofCa
     <div
       role="img"
       aria-label={label}
-      className={cn(
-        'group/map relative aspect-square w-full overflow-hidden rounded-2xl border border-line bg-surface-3',
-        className,
-      )}
+      className={cn('group/map w-full rounded-2xl border border-line bg-surface-2 p-1.5 sm:p-2', className)}
     >
-      <canvas
-        ref={canvasRef}
-        width={grid.size}
-        height={grid.size}
-        data-testid="proof-canvas"
-        data-size={grid.size}
-        data-done={doneBlocks}
-        className="block size-full [image-rendering:pixelated]"
-      />
-      {/* The eight starting states and the key: the empty map already shows what will fill, and where. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-4 grid-rows-2">
-        {REGIONS.map((s) => (
-          <span
-            key={s}
-            data-region={s}
-            className={cn(
-              'grid grid-rows-4 justify-items-center',
-              HAIRLINE,
-              (s & 3) !== 3 && 'border-r',
-              s < 4 && 'border-b',
-            )}
-          >
-            <StateGlyph name={KEY[s].name} className={cn(GLYPH, KEY[s].ink)} />
-          </span>
-        ))}
+      {/* The plate: square, so the rounded bezel around it clips no dot; the key sizes itself by its width. */}
+      <div className="@container relative aspect-square bg-surface-3">
+        <canvas
+          ref={canvasRef}
+          width={grid.size}
+          height={grid.size}
+          data-testid="proof-canvas"
+          data-size={grid.size}
+          data-done={doneBlocks}
+          className="block size-full [image-rendering:pixelated]"
+        />
+        {/* The eight starting states and the key: the empty map already shows what will fill, and where. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-4 grid-rows-2">
+          {REGIONS.map((s) => (
+            <span
+              key={s}
+              data-region={s}
+              className={cn(
+                'grid grid-rows-4 justify-items-center',
+                HAIRLINE,
+                (s & 3) !== 3 && 'border-r',
+                s < 4 && 'border-b',
+              )}
+            >
+              <StateGlyph name={KEY[s].name} className={cn(GLYPH, KEY[s].ink)} />
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -26,16 +26,17 @@ export function shouldCapture(projectName: string): boolean {
  * Full-page screenshots for the design review, into test-results/screens/<name>/<night|vellum>-<lang>-<width>.png
  * (ignored by git, never compared). The theme and the language change through the stored choice and a reload
  * (Ruling R18.17), so the screen must survive a reload: its state lives in the hash or in session storage. `ready`
- * waits, after each reload, for what hydration draws (a canvas); settle() only waits for animations. Ends in night and
- * English, at the viewport it started with.
+ * waits, after each reload, for what hydration draws (a canvas); settle() only waits for animations. `shots` replaces
+ * the matrix (and `vellum`) for a screen that needs more widths. Ends in night and English, at the viewport it started
+ * with.
  */
 export async function captureScreens(
   page: Page,
   name: string,
-  o: { vellum?: boolean; ready?: (page: Page) => Promise<void> } = {},
+  o: { vellum?: boolean; shots?: readonly Shot[]; ready?: (page: Page) => Promise<void> } = {},
 ): Promise<void> {
   const start = page.viewportSize();
-  const shots = o.vellum ? [...SCREEN_MATRIX, ...VELLUM_MATRIX] : SCREEN_MATRIX;
+  const shots = o.shots ?? (o.vellum ? [...SCREEN_MATRIX, ...VELLUM_MATRIX] : SCREEN_MATRIX);
   let theme: E2ETheme | null = null;
   let lang: E2ELang | null = null;
   for (const shot of shots) {

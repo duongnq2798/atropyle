@@ -74,7 +74,10 @@ export default function ProofMapHarness() {
           {finished ? (
             <ProofCanvas comboBits={BITS} doneBlocks={target} label="Proof map, painted in one go" />
           ) : (
-            <div className="aspect-square w-full rounded-2xl border border-line border-dashed" />
+            // The size of a map in its bezel, so the page does not shift when the second map mounts.
+            <div className="w-full rounded-2xl border border-line border-dashed p-1.5 sm:p-2">
+              <div className="aspect-square" />
+            </div>
           )}
           <figcaption className="text-ink-muted text-small">Painted in one go</figcaption>
         </figure>

@@ -173,6 +173,27 @@ describe('proof map paint', () => {
     expect(parseHexColor('#abc')).toBeNull();
   });
 
+  it('leaves 3:1 or more between ink and the bottom band of every region, where the finished map stamps its key', () => {
+    /** WCAG 2.x contrast of two colours. */
+    const contrast = (a: number[], b: number[]) => {
+      const lum = (c: number[]) => {
+        const [r, gr, b] = c.map((v) => (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * gr + 0.0722 * b;
+      };
+      const [x, y] = [lum(a), lum(b)];
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    };
+    for (const theme of ['dark', 'light'] as const) {
+      const css = tokens(theme);
+      const palette = readPalette((t) => css[t] ?? '', theme);
+      const ink = parseHexColor(css.ink ?? '') as number[];
+      // The 3:1 of a graphic (WCAG 1.4.11): a glyph in ink over band 3 (SHADES[3]) of each of the eight codes.
+      for (const [s, bands] of palette.states.entries()) {
+        expect(contrast(ink, bands[3]), `${theme} code ${s}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
   it('keeps its fallback colours equal to the theme tokens of globals.css', () => {
     for (const theme of ['dark', 'light'] as const) {
       const css = tokens(theme);
