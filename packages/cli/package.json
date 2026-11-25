@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Atropyle CLI: plan, simulate, verify and prepare inheritance vaults on X Layer. Never reads a private key.",
   "license": "MIT",
+  "homepage": "https://atropyle.xyz/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/duongnq2798/atropyle.git",

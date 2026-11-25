@@ -13,7 +13,12 @@ export function siteProblems(dir: string, target: SiteTarget): string[] {
     return existsSync(join(dir, '.nojekyll')) ? [] : ['.nojekyll is missing (GitHub Pages would hide _astro/)'];
   }
   // Vercel serves the folder as it is, from the root of its domain; the headers come from the root vercel.json.
-  if (target === 'vercel') return [];
+  // DOCS_BASE_URL points there, so the error reference must be in the folder too.
+  if (target === 'vercel') {
+    return existsSync(join(dir, 'docs', 'reference', 'errors.html'))
+      ? []
+      : ['docs/reference/errors.html is missing: the docsUrl of every SDK error points there'];
+  }
   const files = loadSite(dir);
   const out = limitProblems(files);
   const report = checkSite(files);

@@ -55,7 +55,7 @@ describe('isolateUntrusted', () => {
           code: 'UNKNOWN',
           message: `Execution reverted with reason: ${INJECTION}`,
           hint: ERROR_INFO.UNKNOWN.hint,
-          docsUrl: 'https://duongnq2798.github.io/atropyle/docs/reference/errors.html#unknown',
+          docsUrl: 'https://atropyle.xyz/docs/reference/errors.html#unknown',
         },
       },
     };
@@ -100,7 +100,7 @@ describe('errorOutput', () => {
     expect(ErrorOutputSchema.parse(out)).toEqual(out);
     expect(out.schemaVersion).toBe(1);
     expect(out.error.code).toBe('NOT_VAULT');
-    expect(out.error.docsUrl).toBe('https://duongnq2798.github.io/atropyle/docs/reference/errors.html#not_vault');
+    expect(out.error.docsUrl).toBe('https://atropyle.xyz/docs/reference/errors.html#not_vault');
     expect(out.summary).toBe(`NOT_VAULT: ${ERROR_INFO.NOT_VAULT.message} ${ERROR_INFO.NOT_VAULT.hint}`);
   });
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://duongnq2798.github.io/atropyle/docs/schemas/vaults.json",
+  "$id": "https://atropyle.xyz/docs/schemas/vaults.json",
   "title": "atropyle vaults --json",
   "anyOf": [
     {

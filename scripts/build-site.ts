@@ -6,6 +6,7 @@ import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { docsEnv, hasDocsWorkspace, outDirProblem, parseSiteArgs, webEnv } from './lib/site-build';
 import { siteProblems } from './lib/site-check';
+import { writeSiteDocs } from './lib/site-docs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const posix = (p: string) => p.split(sep).join('/');
@@ -48,6 +49,8 @@ function main(): void {
     cpSync(join(ROOT, 'apps', 'docs', 'dist'), join(out, 'docs'), { recursive: true });
   }
   if (args.target === 'pages') writeFileSync(join(out, '.nojekyll'), '');
+  // DOCS_BASE_URL (packages/sdk/src/links.ts) is on the production host: its error reference and schemas live there.
+  if (args.target === 'vercel') writeSiteDocs(out);
 
   const problems = siteProblems(out, args.target);
   if (problems.length > 0) {
@@ -59,7 +62,8 @@ function main(): void {
     }
     throw new Fail(`${problems.length} problem(s) in ${posix(out)}`, 1);
   }
-  console.log(`${posix(out)}: ready for ${args.target}${docs ? ' (web + docs)' : ' (web only)'}`);
+  const what = docs ? 'web + docs' : args.target === 'vercel' ? 'web + error reference and schemas' : 'web only';
+  console.log(`${posix(out)}: ready for ${args.target} (${what})`);
 }
 
 try {

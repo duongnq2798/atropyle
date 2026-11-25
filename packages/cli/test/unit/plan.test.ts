@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { main } from '../../src/main';
+import { VERSION } from '../../src/version';
 import { memoryIo } from './memory-io';
+
+const NPX = `npx -y atropyle@${VERSION}`;
 
 const A = (n: number) => `0x${n.toString(16).padStart(40, '0')}`;
 const GUARDED = ['--heir', `${A(2)}:70`, '--heir', `${A(5)}:30`, '--guardian', A(3), '--guardian', A(4), '--k', '2'];
@@ -14,7 +17,7 @@ describe('plan init', () => {
     expect(doc.heirs).toHaveLength(2);
     const out = JSON.parse(io.stdout);
     expect(out).toMatchObject({ schemaVersion: 1, ok: true, written: true, file: 'atropyle.plan.json' });
-    expect(out.next[0]).toBe('npx -y atropyle plan check atropyle.plan.json');
+    expect(out.next[0]).toBe(`${NPX} plan check atropyle.plan.json`);
   });
 
   it('keeps recovery off unless --recovery is given', async () => {
@@ -67,13 +70,13 @@ describe('plan init', () => {
     expect(await main(['plan', 'init', '--heir', A(2), '--out', 'my plan.json', '--json'], io)).toBe(0);
     expect(io.files.has('my plan.json')).toBe(true);
     expect(JSON.parse(io.stdout).next).toEqual([
-      "npx -y atropyle plan check 'my plan.json' --as <OWNER>",
-      "npx -y atropyle simulate --plan 'my plan.json' --as <OWNER>",
-      "npx -y atropyle prepare create-vault 'my plan.json' --as <OWNER>",
+      `${NPX} plan check 'my plan.json' --as <OWNER>`,
+      `${NPX} simulate --plan 'my plan.json' --as <OWNER>`,
+      `${NPX} prepare create-vault 'my plan.json' --as <OWNER>`,
     ]);
     const odd = memoryIo();
     expect(await main(['plan', 'init', '--heir', A(2), '--out', "it's.json", '--json'], odd)).toBe(0);
-    expect(JSON.parse(odd.stdout).next[0]).toBe("npx -y atropyle plan check 'it'\\''s.json' --as <OWNER>");
+    expect(JSON.parse(odd.stdout).next[0]).toBe(`${NPX} plan check 'it'\\''s.json' --as <OWNER>`);
   });
 
   it('exits 2 for a bad --owner, before writing anything', async () => {

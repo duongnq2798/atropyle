@@ -60,7 +60,7 @@ npm test -w apps/web-legacy
 npm run test:e2e -w apps/backend
 ```
 
-The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for three targets: DeWEB, GitHub Pages and Vercel (production, built by the root `vercel.json`). The size budget reads the built web app.
+The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for three targets: DeWEB, GitHub Pages and Vercel (production, built by the root `vercel.json`). The Vercel target also writes `docs/`: the error reference and the CLI schemas that `DOCS_BASE_URL` and the schema `$id`s point at. The size budget reads the built web app.
 
 ```bash
 cd contracts && forge build && cd ..

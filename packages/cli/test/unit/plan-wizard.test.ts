@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { main } from '../../src/main';
+import { VERSION } from '../../src/version';
 import { memoryIo } from './memory-io';
 
+const NPX = `npx -y atropyle@${VERSION}`;
 const A = (n: number) => `0x${n.toString(16).padStart(40, '0')}`;
 
 /** A prompt that answers from a list and records every question. */
@@ -40,7 +42,7 @@ describe('plan init in a terminal', () => {
       { account: A(2), percent: 70 },
       { account: A(5), percent: 30 },
     ]);
-    expect(io.stdout).toContain('npx -y atropyle plan check atropyle.plan.json');
+    expect(io.stdout).toContain(`${NPX} plan check atropyle.plan.json`);
   });
 
   it('keeps recovery off when Enter is pressed on that question', async () => {

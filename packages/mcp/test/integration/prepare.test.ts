@@ -45,8 +45,11 @@ describe('prepare operations on the devnet', () => {
       steps.map((s) => `onchainos wallet contract-call --chain 31337 --to ${s.to} --input-data ${s.data}`),
     );
     expect(out.handoff?.notes).toContain(OKX_NOTE);
-    expect(OKX_NOTE).toContain('--force only after they agree');
-    expect(OKX_NOTE).toContain('Run a command only after the user has seen the summary and every warning and agreed');
+    expect(OKX_NOTE).toContain('An agent never runs these commands: the user runs each one in their own terminal.');
+    expect(OKX_NOTE).toContain('only if they agree, runs the same command again with --force');
+    expect(OKX_NOTE).toContain(
+      'Give the user a command only after they have seen the summary and every warning and agreed',
+    );
     expect(OKX_NOTE).toContain("The Agentic Wallet's key is held in OKX's TEE; it is not a self-custody wallet.");
   });
 
