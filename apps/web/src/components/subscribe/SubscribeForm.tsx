@@ -77,10 +77,15 @@ const BOX = '@container flex w-full flex-col gap-4 rounded-3xl border border-lin
 /** Stands for the address in the done sentence, which is split there so the address can stand out. */
 const SLOT = '\u0000';
 
-/** The segmented radios of LangSwitch, at the input's height so the two line up. */
+/**
+ * The segmented radios of LangSwitch, at the input's height so the two line up. Nothing else on the page changes
+ * with the choice, so the chosen chip shows it without colour: an edge of line-strong (3.7:1 or more on the track in
+ * both themes; night's surface-1 chip alone is 1.07:1 and its shadow does not show) and a heavier weight.
+ */
 const RADIO =
   'flex cursor-pointer items-center justify-center rounded-full px-4 text-ink-muted text-small ' +
-  'transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm ' +
+  'transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:font-medium ' +
+  'has-checked:text-ink has-checked:shadow-sm has-checked:ring-1 has-checked:ring-line-strong ' +
   'has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2';
 
 const LINK =
@@ -158,6 +163,21 @@ export interface HostedFormViewProps extends SubscribeFormProps {
   sub: UseMutationResult<OkResponse, Error, SubscribeRequest>;
 }
 
+/**
+ * A radio's words over a hidden copy at the chosen weight, so the label is always as wide as when it is chosen. On a
+ * wide card the language column is as wide as its content, and the heavier weight moved the field by 2 px.
+ */
+function SteadyWidth({ children }: { children: string }) {
+  return (
+    <span className="grid justify-items-center">
+      <span className="col-start-1 row-start-1">{children}</span>
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-medium">
+        {children}
+      </span>
+    </span>
+  );
+}
+
 /** The hosted form, driven by the mutation it is given. */
 export function HostedFormView({ vault, role, compact = false, sub }: HostedFormViewProps): JSX.Element {
   const t = useT(messages);
@@ -169,6 +189,9 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
   const trapRef = useRef<HTMLInputElement>(null);
   const doneRef = useRef<HTMLParagraphElement>(null);
   const wasDone = useRef(false);
+  // From this form's mutate() until it settles. sub.isPending reaches this closure only when TanStack's notify redraws
+  // the form, a macrotask after mutate(), so a second submit in that gap would send again without it.
+  const sending = useRef(false);
   const [email, setEmail] = useState('');
   // null follows the page's language, which LangProvider sets only after mount (the static HTML is English).
   const [chosen, setChosen] = useState<Lang | null>(null);
@@ -197,7 +220,8 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (sub.isPending) return;
+    // sub.isPending also holds a mutation the caller started.
+    if (sending.current || sub.isPending) return;
     const value = email.trim();
     if (!isEmail(value)) {
       const field = emailRef.current;
@@ -210,11 +234,15 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
       return;
     }
     setInvalid(false);
+    sending.current = true;
     sub.mutate(
       { email: value, vault, role, lang: mailLang, website: trapRef.current?.value ?? '' },
       {
         onSuccess: (_ok, req) => announce(t('checkInboxHelp', { email: req.email })),
         onError: (err) => announce(t(subscribeFailKey(err))),
+        onSettled: () => {
+          sending.current = false;
+        },
       },
     );
   };
@@ -276,7 +304,7 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
                       onChange={() => setChosen(o.value)}
                       className="sr-only"
                     />
-                    {tu(o.label)}
+                    <SteadyWidth>{tu(o.label)}</SteadyWidth>
                   </label>
                 ))}
               </div>

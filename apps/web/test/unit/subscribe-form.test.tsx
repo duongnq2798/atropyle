@@ -1,12 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/client';
+import type { OkResponse, SubscribeRequest } from '../../src/api/types';
 import { isEmail } from '../../src/components/subscribe/email';
 import { hostedHref } from '../../src/components/subscribe/hosted';
-import { HostedOnlyNote, SubscribeForm, subscribeFailKey } from '../../src/components/subscribe/SubscribeForm';
+import {
+  HostedFormView,
+  HostedOnlyNote,
+  SubscribeForm,
+  subscribeFailKey,
+} from '../../src/components/subscribe/SubscribeForm';
 import { useLang } from '../../src/i18n/provider';
 import { renderWithProviders } from '../helpers/render';
 import { PEOPLE } from './fixtures';
@@ -294,6 +301,9 @@ describe('SubscribeForm on the hosted build', () => {
     await waitFor(() => expect(mode()).toBe('form'));
     await waitFor(() => expect(field()).toHaveFocus());
     expect(field()).toHaveValue('ana@example.com');
+    // The first sign-up has settled, so the same form sends again.
+    press();
+    await waitFor(() => expect(api.subscribe).toHaveBeenCalledTimes(2));
   });
 
   it('starts over for another vault or role', async () => {
@@ -321,9 +331,52 @@ describe('SubscribeForm on the hosted build', () => {
     await waitFor(() => expect(send).toHaveAttribute('aria-busy', 'true'));
     press();
     fireEvent.submit(form());
+    // A second mutate() reaches the API one microtask late (TanStack awaits onMutate first), so count after a flush.
+    await act(async () => {});
     expect(api.subscribe).toHaveBeenCalledTimes(1);
     await act(async () => answer({ ok: true }));
     await waitFor(() => expect(mode()).toBe('done'));
+    expect(api.subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends once when the second press comes before the form has redrawn', async () => {
+    let answer: (v: { ok: true }) => void = () => {};
+    api.subscribe.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    renderWithProviders(<SubscribeForm vault={PEOPLE.vault} role={ROLE.owner} />, { lang: 'en' });
+    type('ana@example.com');
+    press();
+    press();
+    fireEvent.submit(form());
+    // The premise: TanStack redraws the form with its notify (setTimeout 0), so the presses above, all in one task,
+    // met a button that was not loading and a view whose sub.isPending was still false.
+    expect(screen.getByTestId('subscribe-send')).not.toHaveAttribute('aria-busy');
+    await act(async () => {});
+    expect(api.subscribe).toHaveBeenCalledTimes(1);
+    await act(async () => answer({ ok: true }));
+    await waitFor(() => expect(mode()).toBe('done'));
+    expect(api.subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing while the mutation it is given is already sending', () => {
+    const mutate = vi.fn();
+    const sub = {
+      isPending: true,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      variables: undefined,
+      mutate,
+      reset: vi.fn(),
+    } as unknown as UseMutationResult<OkResponse, Error, SubscribeRequest>;
+    renderWithProviders(<HostedFormView vault={PEOPLE.vault} role={ROLE.owner} sub={sub} />, { lang: 'en' });
+    type('ana@example.com');
+    press();
+    fireEvent.submit(form());
+    expect(mutate).not.toHaveBeenCalled();
   });
 });
 

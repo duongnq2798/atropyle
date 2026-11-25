@@ -87,6 +87,19 @@ test('SubscribeForm works from the keyboard alone, and the focus follows each st
   await expect(field).toHaveValue('ana@example.com');
 });
 
+test('choosing the language of the emails moves nothing, though the chosen one is heavier', async ({ page, state }) => {
+  await open(page, state.siteUrl);
+  // The full card at its widest: the language column is as wide as its content there, next to the field.
+  const owner = box(page, 'owner');
+  const parts = [owner.getByTestId('subscribe-email'), owner.locator('fieldset')];
+  const boxes = () => Promise.all(parts.map((p) => p.boundingBox()));
+  const before = await boxes();
+  await owner.getByRole('radio', { name: 'English' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(owner.getByRole('radio', { name: 'Tiếng Việt' })).toBeChecked();
+  expect(await boxes()).toEqual(before);
+});
+
 test('on the DeWEB build SubscribeForm is a note with no field, and the note links to the main site', async ({
   page,
   state,
