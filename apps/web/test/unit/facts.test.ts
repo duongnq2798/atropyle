@@ -3,13 +3,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deployedNetlists } from '@atropyle/circuits';
-import { keccak256 } from 'viem';
+import { getAddress, keccak256 } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { KEEPER_CADENCE_S, MAINNET_SINCE, POLICY_NETLIST_KECCAK } from '../../src/config/facts';
+import { KEEPER_CADENCE_S, MAINNET_FACTORY, MAINNET_SINCE, POLICY_NETLIST_KECCAK } from '../../src/config/facts';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const deployment = JSON.parse(readFileSync(join(ROOT, 'deployments/xlayer.json'), 'utf8')) as {
   factoryBlock: string | number;
+  factory: string;
   cpu: string;
   circuits: { kofn5: string; ge4: string; netlistKeccak: { policy: string } };
 };
@@ -59,6 +60,11 @@ describe('facts', () => {
     // asks for the new date as well.
     expect(String(deployment.factoryBlock)).toBe('76567034');
     expect(MAINNET_SINCE).toBe('2026-11-22');
+  });
+
+  it('links the factory of the X Layer deployment, checksummed', () => {
+    expect(MAINNET_FACTORY).toBe(deployment.factory);
+    expect(getAddress(MAINNET_FACTORY)).toBe(MAINNET_FACTORY);
   });
 
   it('the keeper cadence is the pg_cron schedule of atropyle-tick', () => {

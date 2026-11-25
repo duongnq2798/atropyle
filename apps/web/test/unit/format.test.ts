@@ -1,10 +1,12 @@
 import { formatDuration } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
+import { MAINNET_SINCE } from '../../src/config/facts';
 import {
   chainNow,
   coveragePercent,
   formatAmount,
   formatBps,
+  formatDay,
   formatRemaining,
   formatTimestamp,
 } from '../../src/lib/format';
@@ -45,5 +47,16 @@ describe('format', () => {
   it('moves chain time forward with the wall clock', () => {
     expect(chainNow(1000n, 5_000, 12_999)).toBe(1007n);
     expect(chainNow(1000n, 5_000, 4_000)).toBe(1000n);
+  });
+});
+
+describe('formatDay', () => {
+  it('writes a calendar day the same way on the server and in the browser', () => {
+    expect(formatDay(MAINNET_SINCE, 'en')).toBe('22 Nov 2026');
+    expect(formatDay(MAINNET_SINCE, 'vi')).toBe('22/11/2026');
+    expect(formatDay('2027-01-05', 'en')).toBe('5 Jan 2027');
+    expect(formatDay('2027-01-05', 'vi')).toBe('05/01/2027');
+    for (const bad of ['2026-13-01', '2026-00-10', '2026-11-32', '22/11/2026', '2026-11-2', ''])
+      expect(() => formatDay(bad, 'en'), bad).toThrow('not a calendar day');
   });
 });

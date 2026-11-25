@@ -1,7 +1,11 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import NotFound from '../../src/app/not-found';
+import { XLAYER_EXPLORER } from '../../src/config/env';
+import { MAINNET_FACTORY } from '../../src/config/facts';
 import { HomeHero } from '../../src/home/hero';
+import { DEPTHS } from '../../src/home/netlist-geometry';
+import { WeaveArt } from '../../src/home/weave-svg';
 import { REPO_URL } from '../../src/lib/links';
 import { KEYS } from '../../src/lib/store';
 import { messages as home } from '../../src/messages/home.messages';
@@ -160,11 +164,25 @@ describe('pages', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('the home page asks its question, offers a Drill that says what it costs, and the proof', () => {
-    renderWithProviders(<HomeHero />);
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'What happens to your crypto when you can no longer sign?' }),
-    ).toBeTruthy();
+  it('the home page asks its question, offers a Drill that says what it costs, the proof, and three facts', () => {
+    const { container } = renderWithProviders(<HomeHero art={<WeaveArt />} />);
+    const h1 = screen.getByRole('heading', {
+      level: 1,
+      name: 'What happens to your crypto when you can no longer sign?',
+    });
+    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4). The weave follows it, as decoration.
+    expect(h1.previousElementSibling).toBeNull();
+    const weave = container.querySelector('.weave');
+    expect(h1.nextElementSibling).toBe(weave);
+    expect(weave?.getAttribute('aria-hidden')).toBe('true');
+    expect(weave?.querySelectorAll('.weave-col')).toHaveLength(DEPTHS);
+    // R18.4, the markup side (weave-css.test.ts holds the CSS side): in the weave only the thread's glow svg carries
+    // an animation class; no path and no group does.
+    const animated = [...(weave?.querySelectorAll('[class*="animate-"]') ?? [])].map((e) => e.tagName.toLowerCase());
+    expect(animated).toEqual(['svg']);
+    expect(weave?.querySelector('path[class*="animate-"], g[class*="animate-"]')).toBeNull();
+    const named = container.querySelector<HTMLElement>('[data-weave="thread"]');
+    expect(named?.style.viewTransitionName).toBe('atropyle-thread');
     // The number in heroDrill is pinned by drill-minutes.test.ts.
     const drill = screen.getByRole('link', { name: home.en.heroDrill });
     expect(drill.getAttribute('href')).toBe('/create/#drill');
@@ -175,17 +193,38 @@ describe('pages', () => {
     // True for a vault without guardians too (spec §18.4.1 item 4).
     expect(lead.textContent).toContain('the people you chose receive');
     expect(lead.textContent).not.toContain('guardians confirm');
+    // The facts: custody, the mainnet date linked to the factory on OKLink, and the door for heirs.
+    const items = within(screen.getByTestId('hero-facts')).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0].textContent).toBe('Your tokens stay in your wallet');
+    const live = within(items[1]).getByRole('link');
+    expect(live.textContent).toContain('Live on X Layer mainnet since 22 Nov 2026');
+    expect(live.getAttribute('href')).toBe(`${XLAYER_EXPLORER}/address/${MAINNET_FACTORY}`);
+    expect(live.getAttribute('target')).toBe('_blank');
+    const door = within(items[2]).getByRole('link', { name: 'Named as an heir or a guardian? Start here' });
+    expect(door.getAttribute('href')).toBe('/verify/');
   });
 
   it('the home page speaks Vietnamese', async () => {
-    renderWithProviders(<HomeHero />, { lang: 'vi' });
+    renderWithProviders(<HomeHero art={<WeaveArt />} />, { lang: 'vi' });
+    // The hero glues Vietnamese words with no-break spaces (home.messages.ts): names are compared with every space
+    // read as one, as a screen reader says them and as getByText already reads text.
+    const named = (text: string) => (name: string) => name.replace(/\s+/g, ' ') === text;
     expect(
       await screen.findByRole('heading', {
         level: 1,
-        name: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
+        name: named('Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?'),
       }),
     ).toBeTruthy();
     expect(screen.getByRole('link', { name: home.vi.heroDrill }).getAttribute('href')).toBe('/create/#drill');
-    expect(screen.getByText(home.vi.heroDrillNote)).toBeTruthy();
+    expect(screen.getByText('Atropyle không thu phí. Bạn chỉ trả gas của mạng X Layer, bằng OKB.')).toBeTruthy();
+    expect(screen.getByText('Token của bạn nằm yên trong ví')).toBeTruthy();
+    expect(
+      screen.getByRole('link', {
+        name: (n) => /^Đang chạy trên mainnet X Layer từ 22\/11\/2026/.test(n.replace(/\s+/g, ' ')),
+      }),
+    ).toBeTruthy();
+    const door = screen.getByRole('link', { name: named('Bạn là người thừa kế hay giám hộ? Bắt đầu ở đây') });
+    expect(door.getAttribute('href')).toBe('/verify/');
   });
 });

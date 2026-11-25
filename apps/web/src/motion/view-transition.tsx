@@ -2,12 +2,8 @@
 
 import { flushSync } from 'react-dom';
 
-/**
- * The view-transition name of the page's main Thread (`<Thread shared>` puts it on its root), so the thread morphs
- * from one route to the next instead of cutting; globals.css gives its group the spring (spec §4.1 "shared
- * element"). At most one element per page: a name used twice aborts the whole transition.
- */
-export const THREAD_VT_NAME = 'atropyle-thread';
+// The name lives in a plain module, so the server-rendered weave of the home page can read it as well.
+export { THREAD_VT_NAME } from './names';
 
 type StartViewTransition = (update: () => void) => unknown;
 

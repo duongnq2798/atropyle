@@ -432,3 +432,95 @@
     transform: translateY(100%);
   }
 }
+
+/* The hero's weave (7C-T4, src/home/weave-svg.tsx): the real policy circuit behind the question. On a phone it is a
+   strip under the H1 that shows the middle columns: the plate is wider than the strip and starts left of it, by the
+   numbers of src/home/netlist-geometry.ts (CROP). From 64rem it fills the hero and fades to 12 % behind the text
+   column. Only the two boxes of each sweep move, by transform, and only without a reduced-motion preference (R18.4):
+   no path animates. Paths keep a 1 px stroke and round dots however far the view stretches. */
+.weave {
+  position: relative;
+  height: 9rem;
+  margin-inline: -1rem;
+  overflow: clip;
+  pointer-events: none;
+}
+.weave-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+}
+.weave-plate {
+  position: absolute;
+  inset-block: 0;
+  left: var(--wv-plate-x);
+  width: var(--wv-plate-w);
+}
+.weave-sweep,
+.weave-sweep-in,
+.weave svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.weave-sweep {
+  overflow: clip;
+}
+.weave svg {
+  overflow: visible;
+}
+.weave path {
+  vector-effect: non-scaling-stroke;
+}
+@media (min-width: 40rem) {
+  .weave {
+    margin-inline: -1.5rem;
+  }
+}
+@media (min-width: 64rem) {
+  .weave {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    height: auto;
+    margin: 0;
+  }
+  /* The text column of the hero: its box is max-w-6xl with px-6, and the column is the left 7/12 of it. */
+  .weave-layer {
+    --wv-box: min(100%, 72rem);
+    --wv-text: calc((100% - var(--wv-box)) / 2 + 1.5rem + (var(--wv-box) - 3rem) * 7 / 12);
+    mask-image: linear-gradient(to right, rgb(0 0 0 / 0.12) var(--wv-text), #000 calc(var(--wv-text) + 10rem));
+  }
+  .weave-plate {
+    left: 0;
+    width: 100%;
+  }
+}
+/* Two boxes per layer move opposite ways and uncover the drawing from the left while it stays in place: the circuit
+   first (DURATION.story after DURATION.instant), then the thread is drawn across it at an even pace (story, after
+   slow). Done in 1.14 s; src/motion/tokens.ts has the durations. Both boxes are the size of the strip and the plate
+   rides inside the inner one: a box as wide as a phone's plate would cross the strip in a flash. */
+@media (prefers-reduced-motion: no-preference) {
+  .weave-sweep {
+    animation: weave-open 720ms var(--ease-out-expo) 90ms both;
+  }
+  .weave-sweep-in {
+    animation: weave-hold 720ms var(--ease-out-expo) 90ms both;
+  }
+  [data-weave="thread"] :is(.weave-sweep, .weave-sweep-in) {
+    animation-timing-function: var(--ease-in-out-sine);
+    animation-delay: 420ms;
+  }
+}
+@keyframes weave-open {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes weave-hold {
+  from {
+    transform: translateX(100%);
+  }
+}

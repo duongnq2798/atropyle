@@ -20,8 +20,9 @@ test('without reduced motion the thread breathes, so the test above can fail', a
 });
 
 /**
- * The hero's Thread is the page's shared element (spec §4.1). It carries the name itself: React's <ViewTransition>
- * names an element only inside a transition React starts, and NavLink starts every one of them (outcome B below).
+ * The page's shared element (spec §4.1) is its thread. On `/` that is the thread layer of the weave (7C-T4), which
+ * carries the name itself: React's <ViewTransition> names an element only inside a transition React starts, and
+ * NavLink starts every one of them (outcome B below).
  */
 test('the hero thread carries the shared view-transition name, and it is the only element that does', async ({
   page,
@@ -32,9 +33,9 @@ test('the hero thread carries the shared view-transition name, and it is the onl
   const named = await page.evaluate(() =>
     [...document.querySelectorAll('*')]
       .filter((el) => getComputedStyle(el).viewTransitionName === 'atropyle-thread')
-      .map((el) => el.hasAttribute('data-thread')),
+      .map((el) => el.getAttribute('data-weave')),
   );
-  expect(named).toEqual([true]);
+  expect(named).toEqual(['thread']);
 });
 
 /**

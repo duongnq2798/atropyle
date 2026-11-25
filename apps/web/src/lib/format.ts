@@ -1,3 +1,4 @@
+import type { Lang } from '@/i18n/core';
 import { formatDuration } from './duration';
 
 function group(digits: string): string {
@@ -41,4 +42,18 @@ export function coveragePercent(coverage: bigint, held: bigint): number | null {
 /** Chain time "now": the block of the last read plus the wall clock since then. */
 export function chainNow(blockTimestamp: bigint, fetchedAtMs: number, nowMs: number): bigint {
   return blockTimestamp + BigInt(Math.max(0, Math.floor((nowMs - fetchedAtMs) / 1000)));
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+/**
+ * A calendar day, YYYY-MM-DD, as the site writes it: "22 Nov 2026" in English, "22/11/2026" in Vietnamese. No Intl:
+ * the prerendered HTML and the browser must print the same text, whatever ICU data either has.
+ */
+export function formatDay(iso: string, lang: Lang): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const month = m === null ? 0 : Number(m[2]);
+  const day = m === null ? 0 : Number(m[3]);
+  if (m === null || month < 1 || month > 12 || day < 1 || day > 31) throw new Error(`not a calendar day: ${iso}`);
+  return lang === 'vi' ? `${m[3]}/${m[2]}/${m[1]}` : `${day} ${MONTHS[month - 1]} ${m[1]}`;
 }

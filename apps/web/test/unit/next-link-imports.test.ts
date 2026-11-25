@@ -13,7 +13,6 @@ const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
  */
 const ALLOWED: Readonly<Record<string, string>> = {
   'shell/nav-link.tsx': 'NavLink is next/link with a view transition around the navigation',
-  'home/hero.tsx': "7A's first scene; 7C replaces the whole file, gives its CTAs NavLink and takes it off this list",
 };
 
 function files(dir: string): string[] {

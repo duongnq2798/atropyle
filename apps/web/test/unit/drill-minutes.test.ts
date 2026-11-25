@@ -45,3 +45,13 @@ describe('the Drill on the home page', () => {
     for (const lang of ['en', 'vi'] as const) expect(home[lang].heroDrillNote, lang).not.toMatch(/\d/);
   });
 });
+
+describe('the facts of the home hero', () => {
+  it('state no number of their own: the date comes through {date} (spec §18.2 principle 3)', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      for (const key of ['heroFactCustody', 'heroFactLive', 'heroHeirDoor'] as const) {
+        expect(home[lang][key], `${lang}.${key}`).not.toMatch(/\d/);
+      }
+    }
+  });
+});

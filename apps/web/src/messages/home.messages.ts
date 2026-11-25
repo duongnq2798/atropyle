@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them, so a phone can split "xảy ra" or "điểm danh" across two lines,
+ * and "X Layer" is one name. The hero's Vietnamese is glued word by word, measured at 320 to 1440 px (7C-T4).
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     title: 'Atropyle',
@@ -7,13 +14,15 @@ export const messages = defineMessages(
       'An inheritance and recovery vault on X Layer. Check in now and then: if you stop, your heirs can claim. Recovery is optional: if you turn it on, k of your guardians, a number you choose, can agree to move everything in the vault to a wallet they choose. You can stop it only by checking in before the window ends.',
     createCta: 'Create a vault',
     proofCta: 'Check the proof',
-    heroEyebrow: 'Inheritance and wallet recovery on X Layer',
     heroTitle: 'What happens to your crypto when you can no longer sign?',
     heroLead:
       'Nothing, unless you plan for it. Atropyle watches over your wallet on X Layer. Check in now and then. If you go quiet, the people you chose receive what you left them. Your tokens stay in your wallet until that day.',
     heroDrill: 'Rehearse it in about 6 minutes',
     heroDrillNote: 'No Atropyle fee. You pay only X Layer network gas, in OKB.',
     heroProof: 'See the proof',
+    heroFactCustody: 'Your tokens stay in your wallet',
+    heroFactLive: 'Live on X Layer mainnet since {date}',
+    heroHeirDoor: 'Named as an heir or a guardian? Start here',
     openTitle: 'Open a vault',
     openLabel: 'Vault address',
     openButton: 'Open',
@@ -45,13 +54,16 @@ export const messages = defineMessages(
       'Vault thừa kế và khôi phục trên X Layer. Thỉnh thoảng điểm danh: nếu bạn ngừng, người thừa kế có thể nhận. Khôi phục là tuỳ chọn: nếu bật, k trong số người giám hộ của bạn, một con số do bạn chọn, cùng đồng ý thì có thể chuyển toàn bộ tài sản trong vault sang ví do họ chọn. Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     createCta: 'Tạo vault',
     proofCta: 'Xem chứng minh',
-    heroEyebrow: 'Thừa kế và khôi phục ví trên X Layer',
-    heroTitle: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
-    heroLead:
-      'Không có gì cả, trừ khi bạn chuẩn bị trước. Atropyle trông chừng ví của bạn trên X Layer. Thỉnh thoảng bạn điểm danh. Nếu bạn im lặng, những người bạn đã chọn sẽ nhận phần bạn để lại. Token của bạn nằm yên trong ví cho tới ngày đó.',
+    heroTitle: glue('Chuyện gì xảy~ra với tài~sản crypto của bạn khi bạn không~còn ký được~nữa?'),
+    heroLead: glue(
+      'Không có gì cả, trừ khi bạn chuẩn~bị trước. Atropyle trông~chừng ví của bạn trên X~Layer. Thỉnh~thoảng bạn điểm~danh. Nếu bạn im~lặng, những người bạn đã chọn sẽ nhận phần bạn để~lại. Token của bạn nằm~yên trong ví cho tới ngày~đó.',
+    ),
     heroDrill: 'Diễn tập trong khoảng 6 phút',
-    heroDrillNote: 'Atropyle không thu phí. Bạn chỉ trả gas của mạng X Layer, bằng OKB.',
+    heroDrillNote: glue('Atropyle không thu~phí. Bạn chỉ trả gas của mạng X~Layer, bằng OKB.'),
     heroProof: 'Xem chứng minh',
+    heroFactCustody: glue('Token của bạn nằm~yên trong ví'),
+    heroFactLive: glue('Đang chạy trên mainnet X~Layer từ~{date}'),
+    heroHeirDoor: glue('Bạn là người thừa~kế hay giám~hộ? Bắt~đầu ở~đây'),
     openTitle: 'Mở một vault',
     openLabel: 'Địa chỉ vault',
     openButton: 'Mở',
