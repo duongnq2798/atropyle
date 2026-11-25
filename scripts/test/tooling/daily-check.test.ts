@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   type Address,
   createPublicClient,
@@ -16,7 +18,14 @@ import { factoryAbi, vaultAbi } from '../../../packages/sdk/src/abi/index';
 import { chainOf } from '../../../packages/sdk/src/chain';
 import { getDeployment, getTeam } from '../../../packages/sdk/src/deployments/index';
 import { STATE_CODES } from '../../../packages/sdk/src/types';
-import { type DailyCheckInput, lastKeeperTx, renderReport, runDailyCheck } from '../../lib/daily-check';
+import {
+  APP_TITLE,
+  type DailyCheckInput,
+  lastKeeperTx,
+  probeSite,
+  renderReport,
+  runDailyCheck,
+} from '../../lib/daily-check';
 
 const d = getDeployment('xlayer');
 const team = getTeam('xlayer');
@@ -152,13 +161,27 @@ const healthy: World = {
   index: { [DEPLOYER]: [OLD_DRILL, DRILL] },
 };
 
-function site(status: number) {
+/** The head of the built legacy app (apps/web-legacy/index.html). */
+const APP_PAGE = '<!doctype html><html><head><title>Atropyle</title></head><body><div id="app"></div></body></html>';
+/** A parked domain: 200, but some other page. */
+const PARKED_PAGE = '<!doctype html><html><head><title></title></head><body>This domain is parked.</body></html>';
+
+type Answer = { status: number; location?: string; body?: string };
+
+/** A fetch that answers each URL from `pages`; any other URL is a 404. It never follows a redirect itself. */
+function sites(pages: Record<string, Answer>) {
   const asked: { url: string; init?: RequestInit }[] = [];
   const fetchFn = (async (url: string, init?: RequestInit) => {
     asked.push({ url, init });
-    return new Response('ok', { status });
+    const a = pages[url] ?? { status: 404 };
+    const headers = a.location ? { location: a.location } : undefined;
+    return new Response(a.body ?? null, { status: a.status, headers });
   }) as unknown as typeof fetch;
   return { fetchFn, asked };
+}
+
+function site(status: number) {
+  return sites({ 'https://atropyle.xyz/': { status, body: status === 200 ? APP_PAGE : 'error' } });
 }
 
 function input(w: World, over: Partial<DailyCheckInput> = {}) {
@@ -203,7 +226,9 @@ describe('runDailyCheck', () => {
     expect(r.drill).toEqual({ vault: DRILL, expiresAt: NOW + 3n * DAYS, secondsLeft: 3n * DAYS });
     expect(asked).toHaveLength(1);
     expect(asked[0].url).toBe('https://atropyle.xyz/');
-    expect(asked[0].init).toMatchObject({ redirect: 'follow' });
+    // Redirects are followed by hand, so one to another host is never fetched.
+    expect(asked[0].init).toMatchObject({ redirect: 'manual' });
+    expect(r.site).toEqual({ url: 'https://atropyle.xyz/', status: 200, finalUrl: 'https://atropyle.xyz/' });
 
     const text = renderReport(r, d.name);
     expect(text).toContain('Atropyle daily check, xlayer (chain 196), block 1000000, 2026-11-25 08:15 UTC');
@@ -231,6 +256,24 @@ describe('runDailyCheck', () => {
     expect(text).toContain('expires in 3h');
     expect(text).toContain('answered HTTP 503');
     expect(text).toContain('3 check(s) need attention.');
+  });
+
+  it('needs attention when the domain forwards to a parked page on another host', async () => {
+    // What http://atropyle.xyz/ answered on 25 Nov 2026: a 302 to www, where a parking page answers 200.
+    const parked = sites({
+      'http://atropyle.xyz/': { status: 302, location: 'http://www.atropyle.xyz/' },
+      'http://www.atropyle.xyz/': { status: 200, body: PARKED_PAGE },
+    });
+    const r = await runDailyCheck(input(healthy, { siteUrl: 'http://atropyle.xyz/', fetch: parked.fetchFn }).input);
+    expect(r.rows.find((x) => x.check === 'site')).toEqual({
+      check: 'site',
+      status: 'attention',
+      detail:
+        'http://atropyle.xyz/ redirects to http://www.atropyle.xyz/, another host (a forwarder or a parked domain?): point the DNS at the site, or pass --site http://www.atropyle.xyz/ if that host is the site',
+    });
+    expect(r.attention).toBe(true);
+    expect(r.site).toEqual({ url: 'http://atropyle.xyz/', status: 302, finalUrl: 'http://atropyle.xyz/' });
+    expect(parked.asked.map((a) => a.url)).toEqual(['http://atropyle.xyz/']);
   });
 
   it('needs attention when the Drill expired, none is found, or the site fetch throws', async () => {
@@ -316,5 +359,62 @@ describe('lastKeeperTx', () => {
     const { client } = node({ keeperTxs: txs });
     const r = await lastKeeperTx(client, KEEPER, HEAD, 1_000n);
     expect(r).toMatchObject({ sent: 7, last: { action: 'other', blockNumber: HEAD - 94n } });
+  });
+});
+
+describe('probeSite', () => {
+  it('follows redirects on its own host, http to https included, and wants the app page', async () => {
+    const s = sites({
+      'http://atropyle.xyz/': { status: 308, location: 'https://atropyle.xyz/' },
+      'https://atropyle.xyz/': { status: 307, location: '/en/' },
+      'https://atropyle.xyz/en/': { status: 200, body: APP_PAGE },
+    });
+    const p = await probeSite('http://atropyle.xyz/', s.fetchFn);
+    expect(p).toMatchObject({ ok: true, status: 200, finalUrl: 'https://atropyle.xyz/en/' });
+    expect(p.detail).toMatch(/^http:\/\/atropyle\.xyz\/ answered 200 \(via https:\/\/atropyle\.xyz\/en\/\) in \d+ ms$/);
+    expect(s.asked.map((a) => a.url)).toEqual([
+      'http://atropyle.xyz/',
+      'https://atropyle.xyz/',
+      'https://atropyle.xyz/en/',
+    ]);
+    expect(s.asked.every((a) => a.init?.redirect === 'manual')).toBe(true);
+  });
+
+  it('needs attention for a 200 that is not the app, as a masked forwarder or a parking page serves', async () => {
+    const s = sites({ 'https://atropyle.xyz/': { status: 200, body: PARKED_PAGE } });
+    const p = await probeSite('https://atropyle.xyz/', s.fetchFn);
+    expect(p).toMatchObject({ ok: false, status: 200 });
+    expect(p.detail).toBe(
+      'https://atropyle.xyz/ answered 200 but not with the Atropyle app (no <title> starting with Atropyle): a parked or forwarded domain?',
+    );
+  });
+
+  it('needs attention for a redirect off HTTPS, without a Location, or in a loop', async () => {
+    const down = sites({ 'https://atropyle.xyz/': { status: 301, location: 'http://atropyle.xyz/' } });
+    expect((await probeSite('https://atropyle.xyz/', down.fetchFn)).detail).toBe(
+      'https://atropyle.xyz/ redirects to http://atropyle.xyz/, off HTTPS',
+    );
+    const bare = sites({ 'https://atropyle.xyz/': { status: 302 } });
+    expect((await probeSite('https://atropyle.xyz/', bare.fetchFn)).detail).toBe(
+      'https://atropyle.xyz/ answered HTTP 302 with no Location',
+    );
+    const loop = sites({
+      'https://atropyle.xyz/': { status: 302, location: '/a' },
+      'https://atropyle.xyz/a': { status: 302, location: '/' },
+    });
+    const p = await probeSite('https://atropyle.xyz/', loop.fetchFn);
+    expect(p).toMatchObject({ ok: false, detail: 'https://atropyle.xyz/ redirects more than 5 times' });
+    expect(loop.asked).toHaveLength(6);
+  });
+
+  it('knows the title of both web apps, and not a parked domain named after the site', () => {
+    // The page the production site serves (apps/web-legacy, built by the root vercel.json).
+    const legacy = readFileSync(fileURLToPath(new URL('../../../apps/web-legacy/index.html', import.meta.url)), 'utf8');
+    expect(APP_TITLE.test(legacy)).toBe(true);
+    expect(APP_TITLE.test('<title>Atropyle</title>')).toBe(true);
+    expect(APP_TITLE.test('<title>Atropyle: inheritance and wallet recovery on X Layer</title>')).toBe(true);
+    expect(APP_TITLE.test('<title></title>')).toBe(false);
+    expect(APP_TITLE.test('<title>atropyle.xyz</title>')).toBe(false);
+    expect(APP_TITLE.test('<title>Atropyle.xyz is for sale</title>')).toBe(false);
   });
 });

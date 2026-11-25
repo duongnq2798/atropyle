@@ -36,7 +36,8 @@ export interface DailyReport {
   counters: ChainCounters | null;
   keeper: { address: Address; balance: bigint | null; last: KeeperTx | null; sent: number | null } | null;
   drill: { vault: Address; expiresAt: bigint; secondsLeft: bigint } | null;
-  site: { url: string; status: number | null } | null;
+  /** `status` is the last answer (a 3xx when it redirects to another host); `finalUrl` is the URL that gave it. */
+  site: { url: string; status: number | null; finalUrl: string | null } | null;
 }
 
 export interface DailyCheckInput {
@@ -59,6 +60,13 @@ export const DRILL_WARN_SECONDS = 86_400n;
 /** About one day of X Layer blocks (one per second). */
 export const DEFAULT_KEEPER_BLOCKS = 86_400n;
 const SITE_TIMEOUT_MS = 15_000;
+/** Redirects followed on the site's own host (http to https, a trailing slash) before giving up. */
+const MAX_SITE_REDIRECTS = 5;
+/**
+ * The built app's <title> starts with its name: "Atropyle" (apps/web-legacy) or "Atropyle: ..." (apps/web). A parked
+ * or forwarded domain answers 200 with its own page, whose title is empty, the domain name or an ad.
+ */
+export const APP_TITLE = /<title[^>]*>\s*Atropyle(?![\w.])/;
 /** Earlier transactions inspected when the newest ones are neither poke nor distribute. */
 const MAX_TX_BACK = 5;
 
@@ -87,6 +95,67 @@ function fetchFailure(e: unknown): string {
   return text.slice(0, 160);
 }
 
+interface SiteProbe {
+  ok: boolean;
+  detail: string;
+  status: number | null;
+  finalUrl: string | null;
+}
+
+/**
+ * GET `url` and follow redirects by hand, only on its own host (http may upgrade to https, never the reverse): a
+ * redirect to another host is how a domain forwarder or a parking page answers. The final 200 must also carry the
+ * app's <title>. Throws only when a request fails (timeout, DNS, TLS).
+ */
+export async function probeSite(url: string, fetchFn: typeof fetch): Promise<SiteProbe> {
+  const t0 = Date.now();
+  const signal = AbortSignal.timeout(SITE_TIMEOUT_MS);
+  const start = new URL(url);
+  let at = start;
+  for (let hop = 0; ; hop++) {
+    const res = await fetchFn(at.href, {
+      redirect: 'manual',
+      signal,
+      headers: { 'user-agent': 'atropyle-daily-check' },
+    });
+    const got = { status: res.status, finalUrl: at.href };
+    if (res.status >= 300 && res.status < 400) {
+      await res.body?.cancel();
+      const location = res.headers.get('location');
+      if (!location) return { ...got, ok: false, detail: `${at.href} answered HTTP ${res.status} with no Location` };
+      const next = new URL(location, at);
+      if (next.host !== start.host) {
+        return {
+          ...got,
+          ok: false,
+          detail: `${at.href} redirects to ${next.href}, another host (a forwarder or a parked domain?): point the DNS at the site, or pass --site ${next.href} if that host is the site`,
+        };
+      }
+      if (at.protocol === 'https:' && next.protocol !== 'https:') {
+        return { ...got, ok: false, detail: `${at.href} redirects to ${next.href}, off HTTPS` };
+      }
+      if (hop >= MAX_SITE_REDIRECTS) {
+        return { ...got, ok: false, detail: `${url} redirects more than ${MAX_SITE_REDIRECTS} times` };
+      }
+      at = next;
+      continue;
+    }
+    if (res.status !== 200) {
+      await res.body?.cancel();
+      return { ...got, ok: false, detail: `${at.href} answered HTTP ${res.status}` };
+    }
+    const via = at.href === start.href ? '' : ` (via ${at.href})`;
+    if (!APP_TITLE.test(await res.text())) {
+      return {
+        ...got,
+        ok: false,
+        detail: `${url} answered 200${via} but not with the Atropyle app (no <title> starting with Atropyle): a parked or forwarded domain?`,
+      };
+    }
+    return { ...got, ok: true, detail: `${url} answered 200${via} in ${Date.now() - t0} ms` };
+  }
+}
+
 export function formatUtc(ts: bigint): string {
   return `${new Date(Number(ts) * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
@@ -100,12 +169,13 @@ export function countersDetail(c: ChainCounters): string {
   const pair = (p: { all: number; outsideTeam: number }) => `${p.all} (${p.outsideTeam} outside the team)`;
   const s = c.stablecoins;
   const parts = [
-    `vaults ${pair(c.vaults)}`,
+    `vaults ${pair(c.vaults)}, free Drills included`,
     `paid ${pair(c.paid)}`,
-    `releases ${pair(c.releases)}`,
+    // State released, not "swept": a vault keeps no record of distribute() that a view function can read.
+    `released ${pair(c.releases)}`,
     `stablecoins ${usd(s.all, s.decimals)} (${usd(s.outsideTeam, s.decimals)} outside the team)`,
   ];
-  if (!c.complete) parts.push(`releases and stablecoins are lower bounds: ${c.read} of ${c.vaults.all} vaults read`);
+  if (!c.complete) parts.push(`released and stablecoins are lower bounds: ${c.read} of ${c.vaults.all} vaults read`);
   if (!c.teamComplete) parts.push('team index not read to its end');
   return parts.join('; ');
 }
@@ -293,18 +363,11 @@ export async function runDailyCheck(input: DailyCheckInput): Promise<DailyReport
   if (!url) {
     add('site', 'skipped', 'no site URL: the deployment has no webUrl, pass --site');
   } else {
-    report.site = { url, status: null };
-    const t0 = Date.now();
+    report.site = { url, status: null, finalUrl: null };
     try {
-      const res = await (input.fetch ?? fetch)(url, {
-        redirect: 'follow',
-        signal: AbortSignal.timeout(SITE_TIMEOUT_MS),
-        headers: { 'user-agent': 'atropyle-daily-check' },
-      });
-      report.site.status = res.status;
-      const ms = Date.now() - t0;
-      if (res.status === 200) add('site', 'ok', `${url} answered 200 in ${ms} ms`);
-      else add('site', 'attention', `${url} answered HTTP ${res.status}`);
+      const p = await probeSite(url, input.fetch ?? fetch);
+      report.site = { url, status: p.status, finalUrl: p.finalUrl };
+      add('site', p.ok ? 'ok' : 'attention', p.detail);
     } catch (e) {
       add('site', 'attention', `${url} did not answer: ${fetchFailure(e)}`);
     }

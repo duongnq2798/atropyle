@@ -16,7 +16,8 @@ const HELP = `Usage: npm run daily:check -- [options]
 
   --keeper <address>     keeper wallet (default: ATROPYLE_KEEPER, then a keeper in deployments/team.json)
   --drill <vault>        public Drill vault (default: ATROPYLE_DRILL, then the longest-lived Drill a team address owns)
-  --site <url>           site that must answer 200 (default: the deployment's webUrl)
+  --site <url>           site that must answer 200 with the app, redirecting only on its own host
+                         (default: the deployment's webUrl)
   --blocks <n>           blocks to search back for the keeper's last poke or distribute (default ${DEFAULT_KEEPER_BLOCKS})
   --deployment <file>    deployment JSON, e.g. deployments/local.json (default: X Layer mainnet)
   --rpc <url>            read through this RPC instead of the deployment's
@@ -80,6 +81,9 @@ const keeper =
   team.find((m) => m.role === 'keeper')?.address ??
   null;
 const drill = address(args.drill, '--drill') ?? address(process.env.ATROPYLE_DRILL, 'ATROPYLE_DRILL');
+if (args.site !== undefined && !URL.canParse(args.site)) fail(`--site is not a URL: ${args.site}`);
+if (args.site !== undefined && !/^https?:$/.test(new URL(args.site).protocol))
+  fail(`--site must be http or https: ${args.site}`);
 const rpc = args.rpc;
 const client = createPublicClient({
   chain: chainOf(deployment),
