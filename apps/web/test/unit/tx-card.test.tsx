@@ -250,6 +250,72 @@ describe('TxCard', () => {
     expect(within(bundle).getByTestId('tx-mirror-1')).toBeTruthy();
   });
 
+  it('writes the addresses of an SDK summary in groups of four, in the Ledger voice, and breaks only between them', () => {
+    const p: TxPlan = { ...PLAN, steps: [step(`Check in as the owner of vault ${V}: this resets the timer.`)] };
+    renderWithProviders(<TxCard runner={runnerOf(p)} label="Send" />);
+    const summary = screen.getByTestId('tx-step-0').querySelector('p[lang="en"]');
+    if (!summary) throw new Error('no summary');
+    expect(summary.className).not.toContain('wrap-anywhere');
+    const address = summary.querySelector(`[data-address="${V}"]`);
+    expect(address?.classList.contains('voice-ledger')).toBe(true);
+    const drawn = address?.querySelector('[aria-hidden="true"]');
+    expect(drawn?.textContent).toBe(V);
+    // Nine break points, one before each group from the second on; never inside a group, never after "0x".
+    expect(drawn?.querySelectorAll('wbr')).toHaveLength(9);
+    expect([...(drawn?.children ?? [])].filter((e) => e.tagName === 'SPAN').map((e) => e.textContent)).toEqual([
+      '0x',
+      '3C44',
+      'CdDd',
+      'B6a9',
+      '00fa',
+      '2b58',
+      '5dd2',
+      '99e0',
+      '3d12',
+      'FA42',
+      '93BC',
+    ]);
+    // A screen reader reads the sentence with the address once, whole.
+    expect(summary.textContent).toBe(`Check in as the owner of vault ${V}${V}: this resets the timer.`);
+  });
+
+  it('becomes the receipt once every step is confirmed: a done title and the rows without their review details', () => {
+    const view = PLAN.steps.reduce(
+      (v, _s, index) => applyStep(v, { index, phase: 'confirmed', hash: H }),
+      txView(PLAN),
+    );
+    const runner = runnerOf(PLAN, {
+      view,
+      confirmed: 3,
+      committed: true,
+      explorer: EXPLORER,
+      result: { vault: V, steps: [] },
+      receipt: PLAN.steps.map((s, index) => ({
+        index,
+        action: s.action,
+        hash: H,
+        blockNumber: 7n,
+        time: null,
+        events: [],
+      })),
+    });
+    const { unmount } = renderWithProviders(<TxCard runner={runner} label="Send" />);
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Signed and recorded');
+    const first = within(screen.getByTestId('tx-step-0'));
+    expect(screen.getByTestId('tx-step-0').getAttribute('data-phase')).toBe('confirmed');
+    expect(first.getByText('Check in')).toBeTruthy();
+    expect(first.getByText('Confirmed')).toBeTruthy();
+    expect(first.queryByText('one')).toBeNull();
+    expect(first.queryByRole('link')).toBeNull();
+    expect(screen.queryByText('Technical details')).toBeNull();
+    // One link per transaction, in the receipt.
+    expect(screen.getAllByRole('link', { name: /OKLink/ })).toHaveLength(1);
+    expect(screen.getByTestId('tx-progress')).toBeTruthy();
+    unmount();
+    renderWithProviders(<TxCard runner={runner} label="Gửi" title="Tạo vault" />, { lang: 'vi' });
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('Tạo vault');
+  });
+
   it("says RECOVERY_POWER in the reader's words", () => {
     const warned: TxPlan = {
       ...PLAN,

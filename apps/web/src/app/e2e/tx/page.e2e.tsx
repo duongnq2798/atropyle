@@ -101,6 +101,16 @@ const MIRROR = planOf(
   ],
   [RECOVERY],
 );
+/** The createVault plan's first step: exactly the creation fee, approved to the factory (SDK prepare/create.ts). */
+const FEE = planOf([
+  step(
+    'approve',
+    USDG,
+    approve(FACTORY, 5_000_000n),
+    `Allow the Atropyle factory ${FACTORY} to take the creation fee of 5 (5000000 base units) in token ${USDG}.`,
+  ),
+  step('createVault', FACTORY, CREATE, `Create vault ${VAULT}.`),
+]);
 const BUNDLE = planOf([
   step('approve', NFT, approve(VAULT, 2n), `Allow vault ${VAULT} to move token 2 of ${NFT}.`),
   step('setApprovalForAll', ITEMS, forAll(VAULT, true), `Allow vault ${VAULT} to move every token of ${ITEMS}.`),
@@ -200,6 +210,9 @@ function Previews() {
     <>
       <Item id="mirror" title="steps · the next one mirrored · unlimited · RECOVERY_POWER">
         <TxCard runner={fake(MIRROR)} label="Create vault" testId="p-mirror" />
+      </Item>
+      <Item id="fee" title="steps · a finite fee approve to the factory">
+        <TxCard runner={fake(FEE)} label="Create vault" testId="p-fee" />
       </Item>
       <Item id="bundle" title="one bundle · every call mirrored · NFT and setApprovalForAll">
         <TxCard runner={fake(BUNDLE, { mode: 'bundle' })} label="Create vault" testId="p-bundle" />

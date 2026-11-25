@@ -65,7 +65,7 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
       <h4
         ref={headingRef}
         tabIndex={-1}
-        className="flex items-center gap-2 font-medium text-body text-ink outline-none"
+        className="flex items-center gap-2 text-balance font-medium text-body text-ink outline-none"
       >
         <CircleCheck aria-hidden="true" size={18} strokeWidth={1.5} className="shrink-0 text-alive" />
         {t('receiptTitle')}
@@ -79,7 +79,7 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
             className="flex flex-col gap-2 border-alive/30 border-t pt-3 first:border-t-0 first:pt-0"
           >
             {g.steps.map((s) => (
-              <p key={s.index} className="text-body text-ink">
+              <p key={s.index} className="text-balance text-body text-ink">
                 {titles[s.index] ?? s.action}
               </p>
             ))}

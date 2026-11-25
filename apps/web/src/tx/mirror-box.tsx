@@ -70,14 +70,26 @@ function Danger({ testId, children }: { testId: string; children: ReactNode }) {
   );
 }
 
-function Party({ address, role, explorer }: { address: string; role: ContractRole; explorer: string | null }) {
-  const t = useT(messages);
+/**
+ * An address the wallet will show, and in a caption who it is to this plan. The copy and explorer buttons drop below
+ * the address when its block of two rows of five groups (25ch) does not fit beside them, so the block never breaks
+ * into rows of three that no longer compare with the wallet's group by group.
+ */
+function Party({
+  address,
+  caption,
+  danger = false,
+  explorer,
+}: {
+  address: string;
+  caption: string;
+  danger?: boolean;
+  explorer: string | null;
+}) {
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
-      <Address address={address} size="sm" avatar={false} explorer={explorer} />
-      <span className={cn('text-caption', role === 'other' ? 'text-danger' : 'text-ink-muted')}>
-        {t(ROLE_KEY[role])}
-      </span>
+      <Address address={address} size="sm" avatar={false} explorer={explorer} className="flex-wrap gap-y-1" />
+      <span className={cn('text-caption', danger ? 'text-danger' : 'text-ink-muted')}>{caption}</span>
     </span>
   );
 }
@@ -90,7 +102,15 @@ function Approves({ call }: { call: MirrorCall }) {
     case 'erc20':
       if (a.amount === 0n) return t('approveNone');
       if (a.unlimited) return <strong className="text-danger">{t('approveUnlimited')}</strong>;
-      return <Amount raw={a.amount} decimals={call.token?.decimals ?? null} symbol={call.token?.symbol ?? null} />;
+      // The symbol was read from the chain: in the Ledger voice with the figure, like every chain text (§18.2.7).
+      return (
+        <Amount
+          raw={a.amount}
+          decimals={call.token?.decimals ?? null}
+          symbol={call.token?.symbol ?? null}
+          className="voice-ledger"
+        />
+      );
     case 'erc721':
       return isZero(a.spender) ? (
         t('approveNftNone', { id: a.id })
@@ -132,7 +152,12 @@ function CallFields({
       <dl className={FIELDS}>
         {network ? <Network chainId={call.chainId} /> : null}
         <Field label={t('mirrorContract')}>
-          <Party address={call.to} role={call.role} explorer={explorer} />
+          <Party
+            address={call.to}
+            caption={t(ROLE_KEY[call.role])}
+            danger={call.role === 'other'}
+            explorer={explorer}
+          />
         </Field>
         <Field label={t('mirrorFn')}>
           <code className="voice-ledger">{call.fn}</code>
@@ -146,7 +171,7 @@ function CallFields({
             {isZero(call.vote) ? (
               t('mirrorWithdraw')
             ) : (
-              <Address address={call.vote} size="sm" avatar={false} explorer={explorer} />
+              <Party address={call.vote} caption={t('roleNewWallet')} explorer={explorer} />
             )}
           </Field>
         ) : null}
@@ -161,7 +186,12 @@ function CallFields({
             </Field>
             {spender && !isZero(spender) ? (
               <Field label={a.kind === 'all' ? t('mirrorOperator') : t('mirrorSpender')}>
-                <Party address={spender} role={a.spenderRole} explorer={explorer} />
+                <Party
+                  address={spender}
+                  caption={t(ROLE_KEY[a.spenderRole])}
+                  danger={a.spenderRole === 'other'}
+                  explorer={explorer}
+                />
               </Field>
             ) : null}
             <Field label={t('mirrorApproves')}>
@@ -188,11 +218,18 @@ export function MirrorBox({
   explorer,
   testId,
   bundle = false,
+  wide = false,
 }: {
   calls: readonly MirrorCall[];
   explorer: string | null;
   testId: string;
   bundle?: boolean;
+  /**
+   * Inside a step: on a phone the box leaves the step's indent for the card's full width, as the bundle's box has,
+   * so an address keeps its two rows of five with the buttons beside it. It is opaque there (the same colour as
+   * 60% over the card), over the thread between the knots.
+   */
+  wide?: boolean;
 }) {
   const t = useT(messages);
   const headingId = useId();
@@ -204,9 +241,14 @@ export function MirrorBox({
     <section
       aria-labelledby={headingId}
       data-testid={bundle ? `${testId}-mirror-bundle` : `${testId}-mirror-${first.index}`}
-      className="@container mt-2 flex flex-col gap-3 rounded-2xl border border-line-strong bg-surface-2/60 p-4"
+      className={cn(
+        '@container mt-2 flex flex-col gap-3 rounded-2xl border border-line-strong p-3 sm:p-4',
+        wide
+          ? 'relative z-10 -ml-12 bg-[color-mix(in_oklab,var(--color-surface-2)_60%,var(--color-surface-1))] sm:ml-0 sm:bg-surface-2/60'
+          : 'bg-surface-2/60',
+      )}
     >
-      <h4 id={headingId} className="font-medium text-ink text-small">
+      <h4 id={headingId} className="text-balance font-medium text-ink text-small">
         {bundle ? t('mirrorBundle', { n: calls.length }) : t('mirrorTitle')}
       </h4>
       {oneNetwork ? (

@@ -1,4 +1,4 @@
-import { AtropyleError, type PreparedTx, type SendResult, type TxPlan } from '@atropyle/sdk';
+import { AtropyleError, type PreparedTx, type SendResult, type TxPlan, type VaultEvent } from '@atropyle/sdk';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { Hex } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -223,6 +223,76 @@ describe('useTxRunner: one send path with wallet_sendCalls', () => {
     await screen.findByTestId('tx-done');
     expect((fake.send.mock.calls[0][0] as TxPlan).steps.map((s) => s.summary)).toEqual(['two']);
     expect(w.count('wallet_sendCalls')).toBe(1);
+  });
+
+  it("a resumed plan: onDone and the Receipt speak in the plan's step indices, not the second send's", async () => {
+    const decided: VaultEvent = {
+      address: V,
+      name: 'StateChanged',
+      args: { from: 1, to: 0 },
+      blockNumber: 9n,
+      logIndex: 0,
+      transactionHash: H2,
+    };
+    fake.send
+      .mockImplementationOnce(async (p: TxPlan, _w: unknown, o: Options) => {
+        o.onStep?.({ index: 0, total: 2, step: p.steps[0], phase: 'confirmed', hash: H1 });
+        throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+      })
+      .mockImplementationOnce(async (p: TxPlan, _w: unknown, o: Options) => {
+        // The second send gets the sub-plan of step 2 alone, so it reports index 0.
+        o.onStep?.({ index: 0, total: 1, step: p.steps[0], phase: 'confirmed', hash: H2 });
+        return {
+          vault: V,
+          steps: [{ index: 0, action: 'checkIn', hash: H2, blockNumber: 9n, gasUsed: 1n, events: [decided] }],
+        };
+      });
+    const onDone = vi.fn();
+    setup({ provider: null, onDone });
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    fireEvent.click(sendButton());
+    const done = await screen.findByTestId('tx-done');
+    expect((fake.send.mock.calls[1][0] as TxPlan).steps.map((s) => s.summary)).toEqual(['two']);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect((onDone.mock.calls[0][0] as SendResult).steps.map((s) => s.index)).toEqual([1]);
+    const first = within(done).getByTestId('tx-receipt-0');
+    const second = within(done).getByTestId('tx-receipt-1');
+    expect(first.getAttribute('data-hash')).toBe(H1);
+    expect(second.getAttribute('data-hash')).toBe(H2);
+    // What the circuit decided sits under the step whose transaction recorded it.
+    expect(within(second).getByTestId('tx-decided')).toBeTruthy();
+    expect(within(first).queryByTestId('tx-decided')).toBeNull();
+    // The first send's step has only its hash; readReceipt fills its block from the chain (fake.receipt: block 5).
+    await waitFor(() => expect(within(first).getByText('5')).toBeTruthy());
+    expect(within(second).getByText('9')).toBeTruthy();
+  });
+
+  it("a bundle of the steps a resumed plan has left settles in the plan's step indices too", async () => {
+    let bundles = false;
+    const w = batchWallet({
+      caps: () => (bundles ? { '0xc4': { atomic: { status: 'supported' } } } : {}),
+      status: () => ({ status: 200, receipts: [{ transactionHash: H2 }] }),
+    });
+    fake.send.mockImplementationOnce(async (p: TxPlan, _w: unknown, o: Options) => {
+      o.onStep?.({ index: 0, total: 2, step: p.steps[0], phase: 'confirmed', hash: H1 });
+      throw new AtropyleError('USER_REJECTED', { details: { index: 1, completed: 1 } });
+    });
+    const onDone = vi.fn();
+    setup({ provider: w.provider, onDone });
+    await ready();
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().textContent).toBe('Resume from step 2'));
+    // The wallet now takes bundles: the step left goes as a bundle of one, sent from plan index 1.
+    bundles = true;
+    fireEvent.click(sendButton());
+    const done = await screen.findByTestId('tx-done');
+    expect(w.count('wallet_sendCalls')).toBe(1);
+    expect(fake.send).toHaveBeenCalledTimes(1);
+    expect((onDone.mock.calls[0][0] as SendResult).steps.map((s) => s.index)).toEqual([1]);
+    expect(within(done).getByTestId('tx-receipt-0').getAttribute('data-hash')).toBe(H1);
+    expect(within(done).getByTestId('tx-receipt-1').getAttribute('data-hash')).toBe(H2);
   });
 
   it('a step sent but not read is "sent, not known yet": nothing is sent again until the chain answers', async () => {

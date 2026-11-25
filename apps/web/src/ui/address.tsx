@@ -44,6 +44,7 @@ export function Address({
   const t = useT(ui);
   const parts = addressGroups(address).map((text, at) => ({ text, at }));
   const grouped = parts.length > 1;
+  const link = explorer && isAddressText(address) ? explorer : null;
   return (
     <span
       data-address={address}
@@ -82,11 +83,16 @@ export function Address({
           {address}
         </span>
       </VisuallyHidden>
-      {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}
-      {explorer && isAddressText(address) ? (
-        <ExternalLink href={explorerAddress(explorer, address)} variant="icon">
-          {t('viewOn', { name: explorerName(explorer) })}
-        </ExternalLink>
+      {copy || link ? (
+        // One unit: where a caller lets the row wrap (flex-wrap), the two buttons drop below the groups together.
+        <span className="inline-flex shrink-0 items-center gap-2">
+          {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}
+          {link ? (
+            <ExternalLink href={explorerAddress(link, address)} variant="icon">
+              {t('viewOn', { name: explorerName(link) })}
+            </ExternalLink>
+          ) : null}
+        </span>
       ) : null}
     </span>
   );

@@ -1,10 +1,11 @@
-import type { PreparedTx, TxPlan } from '@atropyle/sdk';
+import { type PreparedTx, type TxPlan, vaultAbi } from '@atropyle/sdk';
 import { screen, within } from '@testing-library/react';
 import { type Address, encodeFunctionData, erc20Abi, erc721Abi, type Hex, maxUint256 } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { mirrorPlan } from '../../src/tx/impl/mirror';
 import type { MirrorContext } from '../../src/tx/mirror';
 import { MirrorBox } from '../../src/tx/mirror-box';
+import { stepTitleKey } from '../../src/tx/step-title';
 import { renderWithProviders } from '../helpers/render';
 
 const OWNER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -118,6 +119,55 @@ describe('MirrorBox', () => {
     expect(within(box).getByTestId('tx-mirror-reject').textContent).toBe(
       'Nếu ví hiện bất cứ điều gì khác, hãy từ chối.',
     );
+  });
+
+  it('a finite fee approve to the factory names its amount, with the symbol in the Ledger voice', () => {
+    const fee: TxPlan = {
+      ...PLAN,
+      steps: [
+        stepOf(
+          USDG,
+          encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [CONTEXT.factory, 5_000_000n] }),
+          'approve',
+        ),
+      ],
+    };
+    const [call] = mirrorPlan(fee, CONTEXT);
+    expect(stepTitleKey(fee.steps[0], call)).toBe('apprFee');
+    renderWithProviders(<MirrorBox calls={[call]} explorer={null} testId="tx" />);
+    const box = screen.getByTestId('tx-mirror-0');
+    const amount = box.querySelector('[data-raw="5000000"]');
+    expect([...(amount?.children ?? [])].map((c) => c.textContent).join(' ')).toBe('5 USDG');
+    expect(within(box).getByText('the Atropyle factory')).toBeTruthy();
+    expect(within(box).queryAllByTestId(/^tx-mirror-0-danger-/)).toHaveLength(0);
+    // Chain text shows only in the Ledger voice, the visible mark of the untrusted boundary (§18.2 principle 7).
+    const untrusted = [...box.querySelectorAll('[data-untrusted]')];
+    expect(untrusted.map((e) => e.textContent)).toEqual(['USDG', 'USDG']);
+    for (const e of untrusted) expect(e.closest('.voice-ledger'), e.textContent ?? '').not.toBeNull();
+  });
+
+  it('a vote names the wallet that would receive the assets, laid out like every other address', () => {
+    const NEW_WALLET = '0x976EA74026E726554dB657fA54763abd0C3a0aa9';
+    const vote: TxPlan = {
+      ...PLAN,
+      steps: [
+        stepOf(
+          VAULT,
+          encodeFunctionData({ abi: vaultAbi, functionName: 'voteRecovery', args: [NEW_WALLET] }),
+          'voteRecovery',
+        ),
+      ],
+    };
+    renderWithProviders(<MirrorBox calls={mirrorPlan(vote, CONTEXT)} explorer={null} testId="tx" />, {
+      lang: 'vi',
+    });
+    const box = screen.getByTestId('tx-mirror-0');
+    const target = box.querySelector(`[data-address="${NEW_WALLET}"]`);
+    expect(target?.parentElement?.textContent).toContain('ví sẽ nhận tài sản');
+    // The same wrapper as "Interact with": the address and its caption stack, the buttons at the row end.
+    const party = box.querySelector(`[data-address="${VAULT}"]`);
+    expect(target?.parentElement?.className).toBe(party?.parentElement?.className);
+    expect(target?.className).toBe(party?.className);
   });
 
   it('an ERC-721 grant names its id, and the three revocations say so with no danger line', () => {

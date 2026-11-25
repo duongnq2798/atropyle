@@ -4,7 +4,7 @@ import { defineMessages } from '@/i18n/core';
 export const messages = defineMessages(
   {
     recoveryPower:
-      'Wallet recovery is on: {k} of {n} guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the {window} alarm window ends.',
+      'Wallet recovery is on: {k} of {n} guardians acting together can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the alarm window of {window} ends.',
   },
   {
     recoveryPower:

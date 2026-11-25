@@ -28,6 +28,7 @@ import type { MirrorCall } from './mirror';
 import { MirrorBox } from './mirror-box';
 import { Receipt } from './receipt';
 import { stepTitleKey } from './step-title';
+import { SummaryText } from './summary-text';
 import { TxProgress } from './tx-progress';
 import { type StepPhase, type StepRow, warningKey } from './tx-view';
 import type { TxRunner } from './use-tx-runner';
@@ -101,6 +102,7 @@ function StepItem({
   title,
   irreversible,
   mirror,
+  compact = false,
 }: {
   row: StepRow;
   last: boolean;
@@ -109,6 +111,8 @@ function StepItem({
   title: string;
   irreversible: boolean;
   mirror: ReactNode;
+  /** The plan is done: the title and its status only. The Receipt below says the rest, with one link per transaction. */
+  compact?: boolean;
 }) {
   const t = useT(messages);
   const tf = useT(flowMessages);
@@ -132,7 +136,7 @@ function StepItem({
       <StepMarker row={row} />
       <div className="flex min-w-0 flex-1 flex-col gap-1 pt-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-body text-ink">{title}</p>
+          <p className="text-balance text-body text-ink">{title}</p>
           {irreversible ? (
             <span
               data-testid={`${testId}-irreversible-${row.index}`}
@@ -142,51 +146,55 @@ function StepItem({
             </span>
           ) : null}
         </div>
-        {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. A
-            full address has no break point, so it may wrap anywhere rather than run past a phone's edge. */}
-        <p lang="en" className="text-ink-muted text-small wrap-anywhere">
-          {row.summary}
-        </p>
+        {/* The SDK's own words, built from addresses and numbers only; English on every page until translated. Its
+            addresses come in groups of four, and a line breaks only between groups and words. */}
+        {compact ? null : (
+          <p lang="en" className="text-ink-muted text-small">
+            <SummaryText text={row.summary} />
+          </p>
+        )}
         <p className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-small', phase.tone)}>
           <span>{t(phase.key)}</span>
-          {row.hash && explorer ? (
+          {row.hash && explorer && !compact ? (
             <ExternalLink href={explorerTx(explorer, row.hash)} className="text-ink-muted">
               {t('viewTx')}
             </ExternalLink>
           ) : null}
-          {row.hash && !explorer ? (
+          {row.hash && !explorer && !compact ? (
             <code className="break-all font-mono text-caption text-ink-muted">{row.hash}</code>
           ) : null}
         </p>
         {mirror}
-        <details className="group mt-1">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
-            {t('details')}
-            <ChevronDown
-              aria-hidden="true"
-              size={14}
-              strokeWidth={1.5}
-              className="transition-transform duration-150 group-open:rotate-180"
-            />
-          </summary>
-          <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-xl bg-surface-2/60 p-3 text-small">
-            <dt className="text-ink-muted">{t('contract')}</dt>
-            <dd className="min-w-0">
-              <Address address={row.to} size="sm" avatar={false} explorer={explorer} />
-            </dd>
-            <dt className="text-ink-muted">{t('fn')}</dt>
-            <dd>
-              <code className="font-mono text-ink">{row.action}</code>
-            </dd>
-            <dt className="text-ink-muted">{t('check')}</dt>
-            <dd className="text-ink">{sim}</dd>
-            <dt className="text-ink-muted">{t('gas')}</dt>
-            <dd className="font-mono text-ink tabular-nums">
-              {/* The label says "estimate"; no `≈`, which no self-hosted subset has (plan rule 20). */}
-              {row.gas !== null ? formatAmount(row.gas, 0) : row.simulation === 'failed' ? '—' : t('noGas')}
-            </dd>
-          </dl>
-        </details>
+        {compact ? null : (
+          <details className="group mt-1">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted transition-colors duration-150 hover:text-ink [&::-webkit-details-marker]:hidden">
+              {t('details')}
+              <ChevronDown
+                aria-hidden="true"
+                size={14}
+                strokeWidth={1.5}
+                className="transition-transform duration-150 group-open:rotate-180"
+              />
+            </summary>
+            <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-xl bg-surface-2/60 p-3 text-small">
+              <dt className="text-ink-muted">{t('contract')}</dt>
+              <dd className="min-w-0">
+                <Address address={row.to} size="sm" avatar={false} explorer={explorer} />
+              </dd>
+              <dt className="text-ink-muted">{t('fn')}</dt>
+              <dd>
+                <code className="font-mono text-ink">{row.action}</code>
+              </dd>
+              <dt className="text-ink-muted">{t('check')}</dt>
+              <dd className="text-ink">{sim}</dd>
+              <dt className="text-ink-muted">{t('gas')}</dt>
+              <dd className="font-mono text-ink tabular-nums">
+                {/* The label says "estimate"; no `≈`, which no self-hosted subset has (plan rule 20). */}
+                {row.gas !== null ? formatAmount(row.gas, 0) : row.simulation === 'failed' ? '—' : t('noGas')}
+              </dd>
+            </dl>
+          </details>
+        )}
       </div>
     </li>
   );
@@ -302,7 +310,7 @@ export function TxCard({
   const stepMirror = (i: number): ReactNode => {
     const c = callOf(i);
     return mode !== 'bundle' && next?.index === i && c ? (
-      <MirrorBox calls={[c]} explorer={runner.explorer} testId={testId} />
+      <MirrorBox calls={[c]} explorer={runner.explorer} testId={testId} wide />
     ) : null;
   };
 
@@ -402,7 +410,7 @@ export function TxCard({
     >
       <header className="flex flex-col gap-1.5">
         <h3 id={headingId} className="font-display text-ink text-title">
-          {title ?? t('title')}
+          {title ?? (result ? tf('doneTitle') : t('title'))}
         </h3>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-muted text-small">
           <span>{view.total === 1 ? t('stepsOne') : t('stepsMany', { n: view.total })}</span>
@@ -435,6 +443,7 @@ export function TxCard({
             title={titles[r.index] ?? r.summary}
             irreversible={stepIsIrreversible(plan.steps[r.index] ?? { action: r.action, data: '0x' })}
             mirror={stepMirror(r.index)}
+            compact={result !== null}
           />
         ))}
       </ol>
