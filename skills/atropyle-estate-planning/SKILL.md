@@ -11,7 +11,7 @@ metadata:
 
 # Atropyle estate planning
 
-Atropyle is a vault on X Layer for what happens to someone's crypto if they die or lose their wallet. The owner checks in from time to time. If the check-ins stop, an alarm goes off, the owner still has a window to cancel, and then the vault pays the heirs. Guardians can confirm a death before the timer runs out. If the owner allows recovery, `k` guardians who agree can also move everything to a wallet they choose, meant for the owner's new wallet after a loss; the owner can stop that only by checking in before the window ends. A circuit on the X Layer TapeOut processor decides every state change, and anyone can prove it with `atropyle verify`.
+Atropyle is a vault on X Layer for what happens to someone's crypto if they die or lose their wallet. The owner checks in from time to time. If the check-ins stop, an alarm goes off, the owner still has a window to cancel, and then the vault pays the heirs. Guardians can confirm a death before the timer runs out. If the owner allows recovery, `k` guardians who agree can also move everything to a wallet they choose, meant for the owner's new wallet after a loss; the owner can stop that only by checking in before the window ends. A circuit on the X Layer TapeOut processor decides every lifecycle transition of the vault, and so every release of its assets, and anyone can prove it with `atropyle verify`. Who receives how much is set by the vault's Solidity code from the heirs' shares.
 
 This skill drives the `atropyle` CLI. With `--json`, every command prints exactly one JSON object.
 

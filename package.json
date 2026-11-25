@@ -31,7 +31,8 @@
     "deweb:publish": "tsx scripts/deweb-publish.ts",
     "deweb:site": "tsx scripts/deweb-site.ts",
     "test:site": "vitest run --config scripts/vitest.site.config.ts",
-    "lockfile:check": "tsx scripts/lockfile-check.ts"
+    "lockfile:check": "tsx scripts/lockfile-check.ts",
+    "daily:check": "tsx scripts/daily-check.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",

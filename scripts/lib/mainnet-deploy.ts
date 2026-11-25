@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'node:path';
 import { type Address, getAddress, isAddress } from 'viem';
 
-/** The values the five stages hand to each other (contracts/README.md, "Triển khai mainnet"). */
+/** The values the five stages hand to each other (contracts/README.md, "Mainnet deployment"). */
 export const STAGE_VARS = [
   'ATRO_CPU',
   'KOFN_ID',
