@@ -46,6 +46,7 @@
     "chrome-launcher": "1.2.3",
     "happy-dom": "21.0.4",
     "lighthouse": "13.6.0",
+    "puppeteer-core": "25.18.1",
     "size-limit": "14.3.0",
     "tailwindcss": "4.3.5",
     "tsx": "4.20.6",
