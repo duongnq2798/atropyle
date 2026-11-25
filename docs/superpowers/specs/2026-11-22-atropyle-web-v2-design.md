@@ -1,6 +1,6 @@
 # Atropyle Web v2 — Đặc tả thiết kế (Next.js, Supabase, Resend)
 
-Ngày 22/11/2026. Mainnet đã chạy từ hôm nay (`deployments/xlayer.json`). Người dùng yêu cầu dựng lại web bằng Next.js, Supabase và Resend, với tham vọng "vô lý" về UI, UX, thiết kế, font, animation và flow, nhắm giải nhất. Người dùng giao toàn quyền quyết định: mọi lựa chọn dưới đây là ruling của Claude, ghi theo dạng "quyết định — vì sao — giá nếu sai" ở §16.
+Ngày 22/11/2026. Mainnet đã chạy từ hôm nay (`deployments/xlayer.json`). Người dùng yêu cầu dựng lại web bằng Next.js, Supabase và Resend, với tham vọng "vô lý" về UI, UX, thiết kế, font, animation và flow. Người dùng giao toàn quyền quyết định: mọi lựa chọn dưới đây là ruling của Claude, ghi theo dạng "quyết định — vì sao — giá nếu sai" ở §16.
 
 Spec này **thay** §6 của spec lõi (`2026-11-18-atropyle-design.md`) và §15 của spec hệ sinh thái (`2026-11-18-atropyle-ecosystem-design.md`). Phần backend (§9) **thay** §9 của spec hệ sinh thái và §7 của spec lõi: Cloudflare Worker + D1 + Telegram đổi thành Supabase + Resend. Các phần khác của hai spec cũ giữ nguyên.
 
@@ -31,7 +31,7 @@ Spec này **thay** §6 của spec lõi (`2026-11-18-atropyle-design.md`) và §1
 
 ## 1. Mục tiêu và tiêu chí thành công
 
-**Mục tiêu:** web là thứ giám khảo chạm vào đầu tiên, là cảnh chính của video demo, và quyết định điểm "Product Readiness & UX" lẫn "Demo Video". Nó phải khiến người xem nghĩ "đây là sản phẩm của một đội làm ví hàng đầu", không phải "đây là bài hackathon".
+**Mục tiêu:** web là thứ người dùng chạm vào đầu tiên và là cảnh chính của video demo. Nó phải khiến người xem nghĩ "đây là sản phẩm của một đội làm ví hàng đầu", không phải "đây là bản thử nghiệm".
 
 **Tiêu chí thành công (đo được):**
 

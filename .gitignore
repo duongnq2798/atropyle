@@ -31,3 +31,11 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/lighthouse-report/
 apps/web/.size/
+
+# Private notes and local agent state: never in git (AGENTS.md).
+prompts/
+reports/
+research_notes/
+external_research/
+.superpowers/
+.claude/worktrees/
