@@ -2,8 +2,8 @@
 
 import type { SignPayload, SignRequestCheck, TxPlan } from '@atropyle/sdk';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleQuestionMark, ShieldCheck, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { Check, CircleQuestionMark, Link2Off, type LucideIcon, ShieldCheck, ShieldX, X } from 'lucide-react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { CHAIN_ID, useInvalidateVault, useSdk } from '@/chain/hooks';
 import { chainKeys } from '@/chain/keys';
 import type { Sdk } from '@/chain/types';
@@ -26,7 +26,8 @@ import { useTxRunner } from '@/tx/use-tx-runner';
 import { Address } from '@/ui/address';
 import { Banner } from '@/ui/banner';
 import { buttonClass } from '@/ui/button';
-import { SkeletonText } from '@/ui/skeleton';
+import { Skeleton, SkeletonText } from '@/ui/skeleton';
+import { Spinner } from '@/ui/spinner';
 import { networkName } from '@/wallet/network';
 import { useWallet } from '@/wallet/provider';
 import { ConfirmGate, type ConfirmRow } from './confirm-gate';
@@ -51,6 +52,7 @@ const CHECK_KEY = {
   simulation: 'checkSimulation',
   signer: 'checkSigner',
 } as const;
+const CHECK_IDS: readonly CheckId[] = ['decoded', 'whitelist', 'simulation', 'signer'];
 const NO_TOKENS: readonly MirrorToken[] = [];
 
 const errorCode = (e: unknown): string | null =>
@@ -76,9 +78,9 @@ export function SignPage() {
       {!mounted ? (
         <Checking />
       ) : framed ? (
-        <Banner tone="error" title={t('framed')} testId="sign-framed">
+        <Verdict id="sign-framed" icon={ShieldX} title={t('framed')} testId="sign-framed">
           {t('framedHelp')}
-        </Banner>
+        </Verdict>
       ) : (
         // Keyed by the fragment: another link never inherits what was typed, sent or refused for this one.
         <SignRequest key={hash} hash={hash} />
@@ -87,26 +89,94 @@ export function SignPage() {
   );
 }
 
+/**
+ * The page's verdict when nothing may be signed, or the link cannot be read: first on the page, before any address
+ * or check (Ruling 20), and in the display voice, so it is what the signer reads first. An alert is announced; a
+ * broken link is a plain region, since the page has nothing else to say.
+ */
+function Verdict({
+  id,
+  icon: Icon,
+  title,
+  alert = true,
+  testId,
+  children,
+}: {
+  id: string;
+  icon: LucideIcon;
+  title: ReactNode;
+  alert?: boolean;
+  testId?: string;
+  children: ReactNode;
+}) {
+  const body = (
+    <>
+      <span
+        aria-hidden="true"
+        className="grid size-10 shrink-0 place-items-center rounded-full bg-danger text-on-danger"
+      >
+        <Icon size={20} strokeWidth={2} />
+      </span>
+      <div className="flex min-w-0 flex-col gap-1.5 pt-1">
+        <h2 id={`${id}-title`} className="font-display text-ink text-title">
+          {title}
+        </h2>
+        <div className="text-body text-ink-muted">{children}</div>
+      </div>
+    </>
+  );
+  const box = 'flex items-start gap-4 rounded-3xl border border-danger/45 bg-danger/8 p-5 sm:gap-5 sm:p-6';
+  // A named <section> is a region; a <div role="alert"> may carry a name, a bare <div> may not (axe).
+  return alert ? (
+    <div role="alert" aria-labelledby={`${id}-title`} data-testid={testId} className={box}>
+      {body}
+    </div>
+  ) : (
+    <section aria-labelledby={`${id}-title`} data-testid={testId} className={box}>
+      {body}
+    </section>
+  );
+}
+
+/** The checks card before inspect answers: the same four checks, each still running, so nothing moves when it does. */
 function Checking() {
   const t = useT(messages);
   return (
-    <div data-testid="sign-checking" aria-busy="true" className="flex flex-col gap-3">
-      <p className="text-ink-muted text-small">{t('checking')}</p>
-      <SkeletonText lines={5} />
-    </div>
+    <section
+      data-testid="sign-checking"
+      aria-busy="true"
+      aria-labelledby="sign-checking-title"
+      className="flex flex-col gap-4 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6"
+    >
+      <h2 id="sign-checking-title" className="font-display text-ink text-title">
+        {t('checking')}
+      </h2>
+      <ul className="flex flex-col gap-4">
+        {CHECK_IDS.map((id) => (
+          <li key={id} className="flex items-start gap-3">
+            <span aria-hidden="true" className="mt-0.5 grid size-6 shrink-0 place-items-center text-ink-muted">
+              <Spinner size={18} />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className="text-body text-ink-muted">{t(CHECK_KEY[id])}</span>
+              <Skeleton className="h-3 w-16" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
 function Invalid({ error }: { error: unknown }) {
   const t = useT(messages);
   return (
-    <section data-testid="sign-invalid" aria-labelledby="sign-invalid-title" className="flex flex-col gap-4">
-      <h2 id="sign-invalid-title" className="font-display text-ink text-title">
-        {t('invalid')}
-      </h2>
-      <p className="text-ink-muted">{t('invalidHelp')}</p>
+    <div data-testid="sign-invalid" className="flex flex-col gap-3">
+      <Verdict id="sign-invalid" icon={Link2Off} title={t('invalid')} alert={false}>
+        {t('invalidHelp')}
+      </Verdict>
       <ErrorBox error={error} />
-    </section>
+    </div>
   );
 }
 
@@ -182,11 +252,24 @@ function CheckRow({ id, state, note }: CheckItem) {
       >
         <Icon size={14} strokeWidth={2} />
       </span>
-      <span className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-body text-ink">{t(CHECK_KEY[id])}</span>
         <span className={cn('text-small', state === 'fail' ? 'text-danger' : 'text-ink-muted')}>{t(note)}</span>
       </span>
     </li>
+  );
+}
+
+/**
+ * One fact of the request. On a phone the label sits above its value, so a full address keeps two rows of five
+ * groups instead of four rows of three beside a label column.
+ */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5 sm:grid sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-center sm:gap-4">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
   );
 }
 
@@ -232,48 +315,52 @@ function SignChecked({
   return (
     <div className="flex flex-col gap-6">
       {view.verdict === 'refused' ? (
-        <Banner tone="error" testId="sign-refused">
+        <Verdict id="sign-refused" icon={ShieldX} title={t('refusedTitle')} testId="sign-refused">
           {t('refused')}
-        </Banner>
+        </Verdict>
       ) : null}
       {view.verdict === 'simulationFailed' ? (
         <div data-testid="sign-sim-failed" className="flex flex-col gap-3">
-          <Banner tone="error">{t('simFailedAll')}</Banner>
+          <Verdict id="sign-sim-failed" icon={X} title={t('simFailedTitle')}>
+            {t('simFailedAll')}
+          </Verdict>
           {failure && failure.ok === false ? <ErrorBox error={failure.error} testId="sign-sim-error" /> : null}
         </div>
       ) : null}
       {view.verdict === 'unproven' ? (
-        <Banner tone="error" testId="sign-unproven">
+        <Verdict id="sign-unproven" icon={ShieldX} title={t('unprovenTitle')} testId="sign-unproven">
           {t('unproven')}
-        </Banner>
+        </Verdict>
       ) : null}
 
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-6 gap-y-3 rounded-3xl border border-line bg-surface-1 p-5 text-small sm:p-6">
-        <dt className="text-ink-muted">{t('signer')}</dt>
-        <dd className="min-w-0">
-          <Address address={check.from} explorer={explorer} />
-        </dd>
-        <dt className="text-ink-muted">{t('chain')}</dt>
-        <dd className="text-ink">{networkName(check.chainId)}</dd>
-        {check.vault ? (
-          <>
-            <dt className="text-ink-muted">{t('vault')}</dt>
-            <dd className="min-w-0">
+      {/* What was checked, then what it was checked against: one card, the facts in its footer. */}
+      <section
+        aria-labelledby="sign-checks-title"
+        className="overflow-hidden rounded-3xl border border-line bg-surface-1"
+      >
+        <div className="flex flex-col gap-4 p-5 sm:p-6">
+          <h2 id="sign-checks-title" className="font-display text-ink text-title">
+            {t('checksTitle')}
+          </h2>
+          <ul data-testid="sign-checks" className="flex flex-col gap-4">
+            {checkRows(check, view, connected?.account ?? null).map((r) => (
+              <CheckRow key={r.id} {...r} />
+            ))}
+          </ul>
+        </div>
+        <dl className="flex flex-col gap-4 border-line border-t bg-surface-2/40 p-5 text-small sm:p-6">
+          <Fact label={t('signer')}>
+            <Address address={check.from} explorer={explorer} />
+          </Fact>
+          <Fact label={t('chain')}>
+            <span className="text-ink">{networkName(check.chainId)}</span>
+          </Fact>
+          {check.vault ? (
+            <Fact label={t('vault')}>
               <Address address={check.vault} explorer={explorer} />
-            </dd>
-          </>
-        ) : null}
-      </dl>
-
-      <section aria-labelledby="sign-checks-title" className="flex flex-col gap-3">
-        <h2 id="sign-checks-title" className="font-display text-ink text-title">
-          {t('checksTitle')}
-        </h2>
-        <ul data-testid="sign-checks" className="flex flex-col gap-3">
-          {checkRows(check, view, connected?.account ?? null).map((r) => (
-            <CheckRow key={r.id} {...r} />
-          ))}
-        </ul>
+            </Fact>
+          ) : null}
+        </dl>
       </section>
 
       {check.steps.map((s) =>

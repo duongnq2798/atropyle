@@ -11,7 +11,8 @@ import { Address } from '@/ui/address';
 /**
  * Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses a second
  * createVault, a vault that already exists and any later call to that vault in the same link, so these terms are
- * final once signed.
+ * final once signed. The heirs and guardians have no copy button: a Drill link asks the signer to type them again
+ * from their own records, and a button beside each one would invite copying them from this page instead.
  */
 export function TermsCard({ index, terms, explorer }: { index: number; terms: CreateTerms; explorer: string | null }) {
   const t = useT(messages);
@@ -63,7 +64,7 @@ export function TermsCard({ index, terms, explorer }: { index: number; terms: Cr
 
       {e.routes.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="font-medium text-ink text-small">{t('routesTitle')}</h3>
+          <h3 className="font-medium font-sans text-ink text-small">{t('routesTitle')}</h3>
           <ul data-testid={`${id}-routes`} className="flex flex-col gap-2 text-ink text-small">
             {e.routes.map((r) => {
               const time = words(r.after);
@@ -89,19 +90,20 @@ export function TermsCard({ index, terms, explorer }: { index: number; terms: Cr
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <h3 className="font-medium text-ink text-small">{t('heirsTitle')}</h3>
+        <h3 className="font-medium font-sans text-ink text-small">{t('heirsTitle')}</h3>
         <ul data-testid={`${id}-heirs`} className="flex flex-col gap-2">
           {terms.heirs.map((h) => (
-            <li key={h.account} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-              <Address address={h.account} size="sm" />
-              <span className="font-mono text-ink text-small tabular-nums">{formatBps(h.bps)}</span>
+            // The share leads its row, so the shares read as one column and never leave their heir at any width.
+            <li key={h.account} className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3">
+              <span className="font-mono text-body text-ink tabular-nums">{formatBps(h.bps)}</span>
+              <Address address={h.account} size="sm" copy={false} />
             </li>
           ))}
         </ul>
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="font-medium text-ink text-small">{t('guardiansTitle')}</h3>
+        <h3 className="font-medium font-sans text-ink text-small">{t('guardiansTitle')}</h3>
         {terms.guardians.length === 0 ? (
           <p data-testid={`${id}-guardians`} className="text-ink-muted text-small">
             {t('guardiansNone')}
@@ -111,7 +113,7 @@ export function TermsCard({ index, terms, explorer }: { index: number; terms: Cr
             <ul className="flex flex-col gap-2">
               {terms.guardians.map((g) => (
                 <li key={g}>
-                  <Address address={g} size="sm" />
+                  <Address address={g} size="sm" copy={false} />
                 </li>
               ))}
             </ul>

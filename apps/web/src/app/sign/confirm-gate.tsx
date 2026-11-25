@@ -7,6 +7,7 @@ import { useT } from '@/i18n/provider';
 import { formatBps } from '@/lib/format';
 import { messages } from '@/messages/sign.messages';
 import { TextField } from '@/ui/text-field';
+import { Matched } from './matched';
 import { shownReason } from './typed';
 
 export interface ConfirmRow {
@@ -84,6 +85,7 @@ export function ConfirmGate({
             }}
             onBlur={() => setTouched((x) => ({ ...x, [r.key]: true }))}
             data-testid={`sign-confirm-${r.i}`}
+            hint={r.reason === null ? <Matched>{t('confirmOk')}</Matched> : undefined}
             error={
               reason ? (
                 <span data-testid={`sign-confirm-${r.i}-error`} data-reason={reason}>

@@ -204,6 +204,18 @@ describe('SignPage: what the link asks', () => {
     expect(fake.inspect).not.toHaveBeenCalled();
   });
 
+  it('shows the four checks still running while the chain answers', async () => {
+    fake.parse.mockReturnValue(payloadOf([{ to: V, data: CHECK_IN }]));
+    fake.inspect.mockReturnValue(new Promise(() => undefined));
+    show();
+    const card = await screen.findByTestId('sign-checking');
+    expect(card.getAttribute('aria-busy')).toBe('true');
+    expect(within(card).getByRole('heading', { level: 2 }).textContent).toBe('Checking the request…');
+    expect(card.querySelectorAll('li')).toHaveLength(4);
+    expect(card.textContent).toContain('The connected wallet is the signer');
+    expect(screen.queryByTestId('sign-checks')).toBeNull();
+  });
+
   it('lists a refused request with its reason, and offers neither the card nor a wallet mirror', async () => {
     const bad = step({
       to: OTHER,
@@ -215,7 +227,13 @@ describe('SignPage: what the link asks', () => {
     });
     link(payloadOf([{ to: OTHER, data: '0xdeadbeef' }]), checkOf([bad]));
     show();
-    expect(await screen.findByTestId('sign-refused')).toBeTruthy();
+    const verdict = await screen.findByTestId('sign-refused');
+    // The verdict is the first thing on the page, before any check or address (Ruling 20), and it is announced.
+    expect(within(verdict).getByRole('heading', { level: 2 }).textContent).toBe('Do not sign this link');
+    expect(verdict.getAttribute('role')).toBe('alert');
+    expect(
+      verdict.compareDocumentPosition(screen.getByTestId('sign-checks')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     const row = screen.getByTestId('sign-step-0');
     expect(row.getAttribute('data-allowed')).toBe('false');
     expect(row.textContent).toContain('unknown call');
@@ -236,6 +254,10 @@ describe('SignPage: what the link asks', () => {
     expect((await screen.findByTestId('sign-sim-error')).getAttribute('data-code')).toBe('NOT_OWNER');
     expect(screen.getByTestId('sign-check-simulation').getAttribute('data-state')).toBe('fail');
     expect(screen.queryByTestId('sign-tx')).toBeNull();
+    // The step that would fail says so on its own row, not only in its technical details.
+    const row = screen.getByTestId('sign-step-0');
+    expect(row.getAttribute('data-fails')).toBe('true');
+    expect(row.textContent).toContain('Would fail');
   });
 
   it('states the guardian warning once, in its own banner', async () => {
@@ -505,9 +527,12 @@ describe('SignPage createVault terms', () => {
     const share = (account: Address) => heirs.querySelector(`[data-address="${account}"]`)?.closest('li')?.textContent;
     expect(share(HEIR_A)).toContain('70%');
     expect(share(HEIR_B)).toContain('30%');
+    // The gate asks for these addresses from the signer's own records: no copy button beside them on this page.
+    expect(within(heirs).queryByRole('button')).toBeNull();
     const guardians = screen.getByTestId('sign-terms-0-guardians');
     expect(guardians.querySelector(`[data-address="${GUARD}"]`)).toBeTruthy();
     expect(guardians.textContent).toContain('1 of 1 must confirm. Wallet recovery is on.');
+    expect(within(guardians).queryByRole('button')).toBeNull();
     expect(card.textContent).toContain(
       'Check in every 1 minute. Alarm after 2 missed check-ins, then 2 minutes to cancel it.',
     );
@@ -530,6 +555,14 @@ describe('SignPage Drill retype gate', () => {
     type('sign-confirm-1', HEIR_B.toLowerCase());
     expect(sendButton().disabled).toBe(true);
     expect(screen.getByTestId('sign-confirm-count').textContent).toBe('2 of 3 addresses match.');
+    // Each address that matches says so under its own field, and the field points at those words.
+    const said = (testId: string) =>
+      (screen.getByTestId(testId).getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => document.getElementById(id)?.textContent)
+        .join(' ');
+    expect(said('sign-confirm-0')).toBe('It matches the address in this link.');
+    expect(said('sign-confirm-2')).toBe('');
     type('sign-confirm-2', ` ${GUARD} `);
     expect(screen.getByTestId('sign-confirm-count').textContent).toBe('3 of 3 addresses match.');
     await ready();
@@ -610,7 +643,9 @@ describe('SignPage Drill retype gate', () => {
   it('asks for no address and offers no Sign when the network could not simulate every step in order', async () => {
     drillPage('en', 'DRILL_WITH_ALLOWANCE', { skipped: true });
     const banner = await screen.findByTestId('sign-unproven');
-    expect(banner.textContent).toMatch(/^The network could not simulate each step after the ones before it/);
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(within(banner).getByRole('heading', { level: 2 }).textContent).toBe('This link cannot be checked in full');
+    expect(banner.textContent).toContain('The network could not simulate each step after the ones before it');
     expect(screen.queryByTestId('sign-confirm')).toBeNull();
     expect(screen.queryByTestId('sign-tx')).toBeNull();
     expect(screen.getByTestId('sign-check-simulation').getAttribute('data-state')).toBe('fail');

@@ -5,6 +5,7 @@ import type { TypedReason } from '@/flows/impl/sign-gate';
 import { useT } from '@/i18n/provider';
 import { messages } from '@/messages/sign.messages';
 import { TextField } from '@/ui/text-field';
+import { Matched } from './matched';
 import { shownReason } from './typed';
 
 export interface VoteRow {
@@ -68,7 +69,9 @@ export function VoteGate({
             }}
             onBlur={() => setTouched((x) => ({ ...x, [r.index]: true }))}
             data-testid={`sign-vote-target-${r.index}`}
-            hint={r.reason === null ? t('voteOk') : value.trim() === '' ? t('voteEmpty') : undefined}
+            hint={
+              r.reason === null ? <Matched>{t('voteOk')}</Matched> : value.trim() === '' ? t('voteEmpty') : undefined
+            }
             error={
               reason ? (
                 <span data-testid={`sign-vote-target-${r.index}-error`} data-reason={reason}>
