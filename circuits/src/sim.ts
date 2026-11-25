@@ -29,6 +29,8 @@ export interface LaneBuffers {
 }
 
 const MAX_REF_DEPTH = 16;
+/** Pin limit of `tapeout` (TAP-02 §3, condition 2). */
+const MAX_PINS = 65_536;
 
 /** Flattens a netlist (recursively through REF) into a single straight-line program. */
 export function compile(src: CircuitSource, resolve: Resolver): Program {
@@ -43,6 +45,9 @@ export function compile(src: CircuitSource, resolve: Resolver): Program {
 
   function emit(c: CircuitSource, ins: number[], depth: number): number[] {
     if (depth > MAX_REF_DEPTH) throw new Error('REF nesting too deep');
+    // TAP-02 §3 condition 2, with the revert reasons of Circuits.tapeout: the chain never stores such a circuit.
+    if (c.nOut < 1) throw new Error('no outputs');
+    if (c.nIn > MAX_PINS || c.nOut > MAX_PINS) throw new Error('too many pins');
     const nl = c.bytes;
     const local: number[] = [0, 1, ...ins];
     const pending: Array<[number, number]> = [];

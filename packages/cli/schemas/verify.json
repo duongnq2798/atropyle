@@ -218,6 +218,87 @@
                         },
                         "transistorsPaired": {
                           "type": "boolean"
+                        },
+                        "code": {
+                          "type": "object",
+                          "properties": {
+                            "proxyCodehash": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]*$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "keccak256 of the processor proxy runtime code; null when it has none"
+                            },
+                            "implementation": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{40}$",
+                              "description": "The beacon's implementation() at the same block"
+                            },
+                            "implementationCodehash": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]*$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "keccak256 of the implementation runtime code"
+                            },
+                            "expected": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "proxyCodehash": {
+                                      "type": "string",
+                                      "pattern": "^0x[0-9a-fA-F]*$"
+                                    },
+                                    "implementation": {
+                                      "type": "string",
+                                      "pattern": "^0x[0-9a-fA-F]{40}$",
+                                      "description": "0x address, checksummed by the SDK"
+                                    },
+                                    "implementationCodehash": {
+                                      "type": "string",
+                                      "pattern": "^0x[0-9a-fA-F]*$"
+                                    }
+                                  },
+                                  "required": [
+                                    "proxyCodehash",
+                                    "implementation",
+                                    "implementationCodehash"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The values pinned in the SDK; null when it pins none for this processor"
+                            },
+                            "matches": {
+                              "description": "All three equal their pins; null when nothing is pinned",
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "proxyCodehash",
+                            "implementation",
+                            "implementationCodehash",
+                            "expected",
+                            "matches"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -228,9 +309,180 @@
                         "beacon",
                         "beaconMatches",
                         "beaconFrozen",
-                        "transistorsPaired"
+                        "transistorsPaired",
+                        "code"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "p9": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "seed": {
+                          "type": "string",
+                          "pattern": "^\\d+$",
+                          "description": "Seed of the vectors (not a wallet seed): pass it as p9Seed to rerun the same vectors"
+                        },
+                        "vectors": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "operators": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "operator": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "blockNumber": {
+                                "type": "string",
+                                "pattern": "^\\d+$",
+                                "description": "Unsigned integer as a decimal string"
+                              },
+                              "multicall": {
+                                "type": "boolean",
+                                "description": "Multicall3 with its canonical code carried the calls"
+                              },
+                              "calls": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "eth_call requests sent"
+                              },
+                              "matched": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "operator",
+                              "blockNumber",
+                              "multicall",
+                              "calls",
+                              "matched"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mismatches": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "operator": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "1-based RPC operator that gave the answer"
+                              },
+                              "index": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "Position of the vector in the run, from 0"
+                              },
+                              "state": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "inputs": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "The 23 input bits"
+                              },
+                              "expectNext": {
+                                "type": "string",
+                                "pattern": "^0x[0-9a-fA-F]*$",
+                                "description": "newState of the simulator"
+                              },
+                              "expectOut": {
+                                "type": "string",
+                                "pattern": "^0x[0-9a-fA-F]*$",
+                                "description": "outputs of the simulator"
+                              },
+                              "next": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]*$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "newState that step() returned; null with `error`"
+                              },
+                              "out": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]*$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "error": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "reverted",
+                                      "undecodable",
+                                      "missing"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "operator",
+                              "index",
+                              "state",
+                              "inputs",
+                              "expectNext",
+                              "expectOut",
+                              "next",
+                              "out",
+                              "error"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "ms": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "seed",
+                        "vectors",
+                        "operators",
+                        "mismatches",
+                        "ms"
+                      ],
+                      "additionalProperties": false,
+                      "description": "P9: the local simulator against the processor's own step() by eth_call, on seeded pseudo-random vectors, per operator"
                     },
                     {
                       "type": "null"
@@ -350,6 +602,7 @@
                 "policyId",
                 "beaconFrozen",
                 "cpuCheck",
+                "p9",
                 "chainId",
                 "blockNumber",
                 "rpcs",

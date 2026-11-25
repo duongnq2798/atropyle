@@ -13,6 +13,14 @@ interface Flags {
   policy: boolean;
   singleRpc?: boolean;
   verifyRpc?: string[];
+  p9Seed?: string;
+}
+
+/** The P9 seed as typed: a decimal whole number. The SDK checks the range (0 to 2^64 - 1). */
+function p9SeedArg(value: string): string {
+  const v = value.trim();
+  if (!/^\d{1,20}$/.test(v)) throw new UsageError('--p9-seed must be a whole number from 0 to 18446744073709551615.');
+  return v;
 }
 
 /** One stderr line, rewritten about once per percent. */
@@ -28,20 +36,27 @@ export function progressLine(io: Io) {
 export function registerVerify(program: Command, ctx: Ctx): void {
   program
     .command('verify')
-    .description('prove the policy circuit over all 2^26 inputs from independent RPCs; --vault checks a vault too')
+    .description(
+      'prove the policy circuit over all 2^26 inputs and test step() on the processor (P9) from independent RPCs; --vault checks a vault too',
+    )
     .option('--vault <address>', 'also check this vault against the deployment')
     .option('--no-policy', 'skip the 2^26 proof and only check the vault')
     .option('--single-rpc', 'read from the first RPC operator only (warns SINGLE_RPC)')
     .option('--verify-rpc <url>', 'an RPC operator; repeat for each; replaces the deployment list', collect)
+    .option('--p9-seed <n>', 'P9: rerun the step() vectors of this seed (printed by every run) instead of a random one')
     .action(
       action(ctx, 'verify', async (g, cmd) => {
         const o = cmd.opts<Flags>();
         const input = {
           ...(o.vault === undefined ? {} : { vault: addressArg(o.vault, 'vault') }),
           ...(o.policy ? {} : { policy: false }),
+          ...(o.p9Seed === undefined ? {} : { p9Seed: p9SeedArg(o.p9Seed) }),
         };
         if (!o.policy && o.vault === undefined) {
           throw new UsageError('--no-policy needs --vault: there is nothing else to verify.');
+        }
+        if (!o.policy && o.p9Seed !== undefined) {
+          throw new UsageError('--p9-seed needs the policy proof, which P9 is part of: drop --no-policy.');
         }
         const choice = { verifyRpc: o.verifyRpc ?? [], singleRpc: o.singleRpc === true };
         const atro = await clientFor(g, ctx.io, choice);

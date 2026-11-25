@@ -1,7 +1,7 @@
 Usage: atropyle verify [options]
 
-prove the policy circuit over all 2^26 inputs from independent RPCs; --vault
-checks a vault too
+prove the policy circuit over all 2^26 inputs and test step() on the processor
+(P9) from independent RPCs; --vault checks a vault too
 
 Options:
   --vault <address>    also check this vault against the deployment
@@ -9,6 +9,8 @@ Options:
   --single-rpc         read from the first RPC operator only (warns SINGLE_RPC)
   --verify-rpc <url>   an RPC operator; repeat for each; replaces the deployment
                        list
+  --p9-seed <n>        P9: rerun the step() vectors of this seed (printed by
+                       every run) instead of a random one
   -h, --help           display help for command
 
 Global Options:

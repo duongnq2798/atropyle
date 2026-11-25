@@ -47,12 +47,15 @@ A Drill pays out within minutes, so the signing page holds a link that creates a
 
 `atropyle verify` replays the policy circuit over all 2^26 inputs and checks properties P1-P8. It reads the chain from several independent RPC operators and prints the P1-P8 table, the gate count and hash of every netlist, whether each matches the published source, whether the beacon is frozen, the RPC operators (host names only, never full URLs), the block number and the run time. On a terminal, progress goes to stderr.
 
+It also checks the processor itself. P9 runs 64 seeded pseudo-random (state, input) vectors through `step()` on the TapeOut processor by `eth_call`, at the same block on every operator (in batches through Multicall3 when its canonical code is there, one call at a time otherwise), and compares each answer with the local simulator. The output prints the seed, the block and the matches of each operator, and every vector that differs. On X Layer, the keccak256 of the processor proxy's code and of its implementation's code must equal the hashes pinned in the SDK.
+
 - `--vault <address>` also checks a vault against the deployment.
 - `--no-policy` skips the 2^26 proof and only checks the vault (it needs `--vault`).
 - `--single-rpc` reads from the first operator only, with a `SINGLE_RPC` warning.
 - `--verify-rpc <url>` names an operator; repeat it for each one. It replaces the deployment's list. `--rpc` only changes the ordinary reads, not `verify`.
+- `--p9-seed <n>` reruns the P9 vectors of a seed that an earlier run printed (0 to 2^64 - 1). Without it, each run picks a random seed. This seed only picks test vectors; it is not a wallet seed.
 
-It exits 0 only when everything holds. It exits 3 when a property fails, when the policy cannot be read or does not match the source, or when `--vault` is not a vault. A network or RPC error exits 4. That includes `RPC_DISAGREEMENT`: the operators answered differently, so one of them may be lying, which is more than a connectivity glitch. Retry with other `--verify-rpc` operators.
+It exits 0 only when everything holds. It exits 3 when a property or P9 fails, when a code hash differs from its pin, when the policy cannot be read or does not match the source, or when `--vault` is not a vault. A network or RPC error exits 4. That includes `RPC_DISAGREEMENT`: the operators answered differently, so one of them may be lying, which is more than a connectivity glitch. Retry with other `--verify-rpc` operators.
 
 ## prepare
 

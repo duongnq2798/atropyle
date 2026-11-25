@@ -50,6 +50,20 @@ describe('verify error paths never print an --verify-rpc key', () => {
     }
   }
 
+  it('rejects a --p9-seed that is not a whole number, or that comes with --no-policy, with exit 2', async () => {
+    policyRuns.onProgress = false;
+    for (const args of [
+      ['--p9-seed', '-1'],
+      ['--p9-seed', '0x2a'],
+      ['--p9-seed', '1e3'],
+      ['--p9-seed', '42', '--no-policy', '--vault', '0x1000000000000000000000000000000000000005'],
+    ]) {
+      const io = memoryIo({ files: {} });
+      expect(await main(['verify', ...args, '--deployment', 'missing.json', '--json'], io)).toBe(2);
+      expect(JSON.parse(io.stdout).error.code).toBe('INVALID_OPTIONS');
+    }
+  });
+
   it('rejects --no-policy without --vault before any I/O, with exit 2', async () => {
     policyRuns.onProgress = false;
     const io = memoryIo({ files: {} });

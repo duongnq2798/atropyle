@@ -19,6 +19,7 @@ export const POLICY = {
   policyId: 1n,
   beaconFrozen: true,
   cpuCheck: null,
+  p9: null,
   chainId: 31337,
   blockNumber: 123n,
   rpcs: 2,

@@ -87,6 +87,8 @@ describe('compile + stepBytes', () => {
       'LATCH d out of range',
     );
     expect(() => compile({ bytes: hexToBytes('0x0000'), nIn: 0, nOut: 1 }, noRefs)).toThrow('truncated');
+    expect(() => compile({ bytes: hexToBytes('0x00000002000003'), nIn: 2, nOut: 0 }, noRefs)).toThrow('no outputs');
+    expect(() => compile({ bytes: new Uint8Array(0), nIn: 65_537, nOut: 1 }, noRefs)).toThrow('too many pins');
 
     const sub = new Netlist('S', 1);
     const s = sub.finish([sub.input(0)]);

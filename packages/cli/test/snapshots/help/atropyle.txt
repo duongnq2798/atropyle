@@ -20,7 +20,8 @@ Options:
 
 Commands:
   verify [options]                     prove the policy circuit over all 2^26
-                                       inputs from independent RPCs; --vault
+                                       inputs and test step() on the processor
+                                       (P9) from independent RPCs; --vault
                                        checks a vault too
   status [options] <vault>             state, deadlines, timeline, coverage and
                                        the roles of --as in a vault

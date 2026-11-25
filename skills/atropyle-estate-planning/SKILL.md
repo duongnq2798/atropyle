@@ -118,7 +118,7 @@ npx -y atropyle@0.1.0 verify --vault <VAULT> --json
 - `explanation` holds plain sentences you can repeat to the user.
 - The warning `COVERAGE_BELOW_100` means some tokens are not fully approved, so the heirs would get only the approved part.
 - The warning `RECOVERY_POWER` means wallet recovery is on: `k` guardians acting together can move 100% of the covered assets to any wallet they choose, and the owner can stop it only by checking in before the alarm window ends. Repeat it each time you report on the vault. If the owner no longer trusts any `k` of the guardians with everything, prepare `set-guardians` with recovery off.
-- `verify` exits 0 when the policy is proven and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
+- `verify` exits 0 when the policy is proven, `step()` on the processor matches the simulator on 64 seeded vectors (P9), the processor's code hashes match their pins and the vault matches the deployment, 3 when not, and 4 when the RPCs fail or disagree. Act on a vault only after `verify` exits 0 with `ok: true`. If `verify` fails, prepare nothing for that vault and say so plainly; exit 1, for example from a bad deployment file, also means stop.
 
 To check in:
 
