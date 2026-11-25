@@ -189,14 +189,28 @@ describe('WalletButton', () => {
     expect(label('Connect')).toHaveClass('sm:hidden', 'md:inline', 'lg:hidden');
     expect(label('Connect wallet')).toHaveClass('hidden', 'sm:inline', 'md:hidden', 'lg:inline');
 
+    // The placeholder of a reconnect is drawn in the account button's own box: the face, then the short address in
+    // the same ranges (spec §6; e2e wallet.spec test 1 measures the widths in a browser).
     r.update(walletValue({ status: 'restoring' }));
-    expect(screen.getByRole('status').firstElementChild).toHaveClass('w-24', 'sm:w-44', 'md:w-24', 'lg:w-44');
+    const placeholder = screen.getByRole('status');
+    const box = [...placeholder.classList];
+    const [face, bar] = [...placeholder.children];
+    expect(face?.firstElementChild).toHaveClass('size-6');
+    expect(bar).toHaveClass('hidden', 'sm:inline', 'md:hidden', 'lg:inline');
+    expect(bar?.firstElementChild).toHaveClass('voice-ledger', 'text-small', 'w-[20.8ch]');
 
     r.update(walletValue({ status: 'connected', wallet: on(196) }));
     const account = screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8' });
+    expect(account).toHaveClass(...box);
     expect(account).toHaveClass('whitespace-nowrap', 'shrink-0', 'sm:pr-3', 'md:pr-1.5', 'lg:pr-3');
     const short = account.querySelector('[data-part="short"]');
     expect(short).toHaveClass('hidden', 'sm:inline', 'md:hidden', 'lg:inline');
+    // The bar's 20.8ch: one ch for each glyph of the short address, and 1ch less the 0.55ch of word spacing for each
+    // space between its groups.
+    const glyphs = Array.from(short?.textContent ?? '');
+    const spaces = glyphs.filter((c) => c === ' ').length;
+    expect(spaces).toBe(4);
+    expect(glyphs.length - spaces + spaces * (1 - 0.55)).toBeCloseTo(20.8, 5);
     // Cased as the full address in the menu below it: the Ledger voice, a muted 0x, the checksum capitals at 650,
     // and its thin gaps drawn by word spacing, so the text shown stays the text of the button's name (WCAG 2.5.3).
     expect(short).toHaveClass('voice-ledger', '[word-spacing:-0.55ch]');

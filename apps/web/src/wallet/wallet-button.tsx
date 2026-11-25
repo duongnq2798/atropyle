@@ -9,7 +9,7 @@ import { Skeleton } from '@/ui/skeleton';
 import { Spinner } from '@/ui/spinner';
 import { connectSheet } from './connect-sheet-slot';
 import { useWallet } from './provider';
-import { WalletMenu } from './wallet-menu';
+import { ACCOUNT_BOX, SHORT_SHOWN, WalletMenu } from './wallet-menu';
 
 /**
  * Connect, a placeholder while a remembered wallet reconnects, or the account with its menu. While a press waits
@@ -22,9 +22,18 @@ export function WalletButton() {
   const sheet = useChunk(connectSheet, sheetOpen && wallet === null);
   if (wallet) return <WalletMenu />;
   if (status === 'restoring') {
+    // The account button's own box with its face and short address as Skeletons, so the button that replaces it has
+    // the same width in every range (spec §6). 20.8ch is compactAddress in the Ledger voice: 19 glyphs and four
+    // spaces of 1ch less the 0.55ch of the button's word spacing. The wrappers carry the shape: cn() joins classes
+    // without merging, so a Skeleton keeps its own rounded-lg and block.
     return (
-      <span role="status" className="inline-flex overflow-hidden rounded-full">
-        <Skeleton className="h-8 w-24 sm:w-44 md:w-24 lg:w-44" />
+      <span role="status" className={ACCOUNT_BOX}>
+        <span className="overflow-hidden rounded-full">
+          <Skeleton className="size-6" />
+        </span>
+        <span className={SHORT_SHOWN}>
+          <Skeleton className="voice-ledger h-3.5 w-[20.8ch] text-small" />
+        </span>
         <span className="sr-only">{t('restoring')}</span>
       </span>
     );

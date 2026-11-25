@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectWallet, expectAccessible, openSettings, setStoredLang, setStoredTheme, settle } from './helpers.ts';
 import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
@@ -14,6 +14,48 @@ const REFUSED = [
   ['eth_signTypedData_v4', [ANVIL[1], '{}']],
   ['eth_signTransaction', [{ from: ANVIL[1], to: ANVIL[2] }]],
 ] as const;
+
+/**
+ * Holds every page chunk whose code contains `marker` until the returned function is called, so a lazy load stays
+ * pending as long as the test needs: a slow network, without a timer. Other chunks pass straight through. The
+ * function resolves to the number of chunks it held, so a marker that no longer matches fails the test, rather than
+ * leave it to a race.
+ */
+async function holdChunks(page: Page, marker: string): Promise<() => Promise<number>> {
+  let open: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  let held = 0;
+  const pattern = '**/_next/static/chunks/**/*.js';
+  const handler = async (route: Route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    if (body.includes(marker)) {
+      held++;
+      await gate;
+    }
+    await route.fulfill({ response, body });
+  };
+  await page.route(pattern, handler);
+  return async () => {
+    open();
+    await page.unroute(pattern, handler);
+    return held;
+  };
+}
+
+/** The width of an element once the self-hosted mono faces it may draw with have loaded. */
+function settledWidth(target: Locator): Promise<number> {
+  return target.evaluate(async (el) => {
+    await Promise.all([
+      document.fonts.load('1em "Atropyle Mono"', '0'),
+      document.fonts.load('650 1em "Atropyle Mono"', 'C'),
+    ]);
+    await document.fonts.ready;
+    return el.getBoundingClientRect().width;
+  });
+}
 
 test('a wallet connects through the sheet, comes back after a reload without a prompt, and disconnects', async ({
   page,
@@ -37,6 +79,28 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   await expect(account).toBeVisible();
   // Quyết định 27: a remembered wallet comes back through eth_accounts, never through a prompt.
   expect(w.calls.slice(before).map((c) => c.method)).not.toContain('eth_requestAccounts');
+
+  // Spec §6, a Skeleton has the shape of the real content: the placeholder of a reconnect is as wide as the account
+  // button that replaces it, below sm and from md to lg (the face only), and from sm to md and from lg (the face and
+  // the address), so the header's right side does not move when the wallet comes back. The wallet code (the chunk that asks the wallet
+  // for eth_accounts) is held after each reload, which keeps the placeholder up, as on a slow network; the hold ends
+  // well inside the 4 s RESTORE_TIMEOUT_MS of provider.tsx.
+  const viewport = page.viewportSize();
+  const placeholder = page.locator('header.site-header [role="status"]');
+  for (const width of [390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const release = await holdChunks(page, 'eth_accounts');
+    // Not 'load': a chunk the page inserts before onload holds that event, and this one is held on purpose.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(placeholder).toBeVisible();
+    const held = await settledWidth(placeholder);
+    expect(await release(), 'chunks held').toBeGreaterThan(0);
+    await expect(account).toBeVisible();
+    await expect(placeholder).toBeHidden();
+    const shown = await settledWidth(account);
+    expect.soft(Math.abs(held - shown), `at ${width} px: placeholder ${held} px, account ${shown} px`).toBeLessThan(1);
+  }
+  if (viewport) await page.setViewportSize(viewport);
 
   await account.click();
   // Spec §18.4.2 Task 1: the checksum capitals at 650 move nothing, in Chromium with the self-hosted face. The groups
