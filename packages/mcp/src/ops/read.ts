@@ -5,14 +5,19 @@ import {
   decodeError,
   type EvalState,
   formatDuration,
+  isReleasedState,
   type PlanCheck,
   type PlanConfig,
   planError,
+  recoveryPowerWarning,
   rolesOf,
   type Timeline,
   timelineOf,
   toAddress,
+  type VaultConfig,
+  type VaultStatus,
   validatePlan,
+  type Warning,
   type WhatIfReport,
   ZERO_ADDRESS,
 } from '@atropyle/sdk';
@@ -91,8 +96,19 @@ export async function getVault(atro: AtropyleClient, input: GetVaultInput): Prom
     roles,
     explanation: explainStatus(status, config, timeline),
     summary: parts.join(' '),
-    warnings: status.assets.some((a) => a.coverage < a.held) ? [COVERAGE_WARNING] : [],
+    warnings: vaultWarnings(status, config),
   });
+}
+
+/** What a vault's status warns about, built from typed fields only. */
+export function vaultWarnings(status: VaultStatus, config: VaultConfig): Warning[] {
+  const warnings: Warning[] = [];
+  // Released or expired, the guardians can no longer vote a recovery.
+  if (config.recoveryEnabled && config.k > 0 && !isReleasedState(status.state) && !status.expired) {
+    warnings.push(recoveryPowerWarning(config.k, config.guardians.length, config.timing.window));
+  }
+  if (status.assets.some((a) => a.coverage < a.held)) warnings.push(COVERAGE_WARNING);
+  return warnings;
 }
 
 export async function listVaults(atro: AtropyleClient, input: ListVaultsInput): Promise<ListVaultsOutput> {

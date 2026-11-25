@@ -1,0 +1,514 @@
+{
+  "slither": [
+    {
+      "triage": "S-01",
+      "check": "divide-before-multiply",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "summary": "VaultDistribution._split20(uint256,address) (src/vault/VaultDistribution.sol#62-73) performs a multiplication on the result of a division:",
+      "fingerprint": "8d514df02ed66e72b9c212727adfa5e0dc536435d8f0a81d63977f92ccbbc0cb"
+    },
+    {
+      "triage": "S-02",
+      "check": "incorrect-equality",
+      "impact": "Medium",
+      "confidence": "High",
+      "summary": "AtropyleVault.distribute() (src/AtropyleVault.sol#207-219) uses a dangerous strict equality:",
+      "fingerprint": "d94d4de6e040b100bab898ec36c479f512aed72f5f9ae78be412888f2e1290ce"
+    },
+    {
+      "triage": "S-03",
+      "check": "incorrect-equality",
+      "impact": "Medium",
+      "confidence": "High",
+      "summary": "AtropyleVault._evaluate(bool,address) (src/AtropyleVault.sol#264-286) uses a dangerous strict equality:",
+      "fingerprint": "0223c4a580dc6f7c41272c2db9c887451716ef62af5f1a4531d131395edfa386"
+    },
+    {
+      "triage": "S-04",
+      "check": "incorrect-equality",
+      "impact": "Medium",
+      "confidence": "High",
+      "summary": "AtropyleVault._advance(bool,address) (src/AtropyleVault.sol#288-309) uses a dangerous strict equality:",
+      "fingerprint": "8d407ad86de9d2fe208cd0f740df2d031e3bca90c9bbf4052ab94fa7e06deb74"
+    },
+    {
+      "triage": "S-05",
+      "check": "missing-zero-check",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault.initialize(address,bool,VaultConfig.Config,address,uint256).owner_ (src/AtropyleVault.sol#97) lacks a zero-check on :",
+      "fingerprint": "cc93de0279647b6780e259f4f5f3c4e34b495719a68ba0789ab39332059c3c63"
+    },
+    {
+      "triage": "S-06",
+      "check": "calls-loop",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleFactory.constructor(address,address,uint256,address,address[]) (src/AtropyleFactory.sol#43-63) has external calls inside a loop: d = IERC20Metadata(t).decimals() (src/AtropyleFactory.sol#56)",
+      "fingerprint": "bf0fa03bde382ab93a6589d109c65072c9748d4276d4880ff54fb0292ef7a7be"
+    },
+    {
+      "triage": "S-07",
+      "check": "calls-loop",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._index(address) (src/AtropyleVault.sol#328-331) has external calls inside a loop: IVaultIndex(factory).index(account) (src/AtropyleVault.sol#330)",
+      "fingerprint": "5c0816c8a41bf5548ced7facc49c9f04974732d22112bf4b73753a4f0792b4df"
+    },
+    {
+      "triage": "S-08",
+      "check": "calls-loop",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._index(address) (src/AtropyleVault.sol#328-331) has external calls inside a loop: IVaultIndex(factory).index(account) (src/AtropyleVault.sol#330)",
+      "fingerprint": "0b868440ec97ab28f8db52245cf72765903b48ff343d5c486421701253583e3b"
+    },
+    {
+      "triage": "S-09",
+      "check": "calls-loop",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "VaultDistribution._send721(uint256,address,uint256,address) (src/vault/VaultDistribution.sol#101-109) has external calls inside a loop: IERC721(token).safeTransferFrom{gas: NFT_GAS}(owner,to,id) (src/vault/VaultDistribution.sol#104-108)",
+      "fingerprint": "975e1d0ef0d6fb88dc6dbfd2247cd963a6603acae255c1f41bf94e9ceed5c668"
+    },
+    {
+      "triage": "S-10",
+      "check": "calls-loop",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "VaultDistribution._send1155(uint256,address,uint256,address) (src/vault/VaultDistribution.sol#111-120) has external calls inside a loop: IERC1155(token).safeTransferFrom{gas: NFT_GAS}(owner,to,id,bal,) (src/vault/VaultDistribution.sol#115-119)",
+      "fingerprint": "2eb180466058cd553f48ca7a093c7618afce39353063cfc5d373bdc130a1ec3f"
+    },
+    {
+      "triage": "S-11",
+      "check": "reentrancy-benign",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in AtropyleFactory.createVault(VaultConfig.Config,bytes32,bool,address) (src/AtropyleFactory.sol#74-92):",
+      "fingerprint": "122ba1f25346e01041ea20f234dbe7a688712727d6d6114cfb7c510ea89c14ce"
+    },
+    {
+      "triage": "S-12",
+      "check": "reentrancy-events",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in AtropyleFactory.createVault(VaultConfig.Config,bytes32,bool,address) (src/AtropyleFactory.sol#74-92):",
+      "fingerprint": "9de6d9928d7a2a6de4b50e7000491bcc627c21c377fbe200279deb4b7f7f9fad"
+    },
+    {
+      "triage": "S-13",
+      "check": "reentrancy-events",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in AtropyleVault.initialize(address,bool,VaultConfig.Config,address,uint256) (src/AtropyleVault.sol#97-116):",
+      "fingerprint": "a898eb010dee8127ad35d2ba2f7307a925fd1d6520930b7271b8093668e82a7d"
+    },
+    {
+      "triage": "S-14",
+      "check": "reentrancy-events",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in VaultDistribution._distribute(bool,address) (src/vault/VaultDistribution.sol#47-60):",
+      "fingerprint": "07e1425d8eb54b79ef65563061d11ab07234213d89f650a4d7dc2e127189b79e"
+    },
+    {
+      "triage": "S-15",
+      "check": "reentrancy-events",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in VaultDistribution._send721(uint256,address,uint256,address) (src/vault/VaultDistribution.sol#101-109):",
+      "fingerprint": "81bca550ff81466afdf94c8552a4966b3b95cebf7337e144ee789fb8fe14fc47"
+    },
+    {
+      "triage": "S-16",
+      "check": "reentrancy-events",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "Reentrancy in VaultDistribution._send1155(uint256,address,uint256,address) (src/vault/VaultDistribution.sol#111-120):",
+      "fingerprint": "778b988e77e57c4bbc563e1878ff41dd343c40a503962df2caf6b978ea9952bd"
+    },
+    {
+      "triage": "S-17",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault.distribute() (src/AtropyleVault.sol#207-219) uses timestamp for comparisons",
+      "fingerprint": "84ba76a5b2200ca24be6b0cc8bc40fdb67d5e33e4a0dd3349416f72c17e0123a"
+    },
+    {
+      "triage": "S-18",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault.status() (src/AtropyleVault.sol#221-242) uses timestamp for comparisons",
+      "fingerprint": "191cb40a11204b27affd62a982199731b66980e99e7da1b6d8bbc5913ce711fa"
+    },
+    {
+      "triage": "S-19",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._expired() (src/AtropyleVault.sol#247-251) uses timestamp for comparisons",
+      "fingerprint": "bd1ca7efbfca8226b8e282543c1b9d569837c19922364458862c8c7c0e439aa8"
+    },
+    {
+      "triage": "S-20",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._evaluate(bool,address) (src/AtropyleVault.sol#264-286) uses timestamp for comparisons",
+      "fingerprint": "99de1d68ea1485c17177c8b688b7f4b447637617003f6868d67ff065c77d5681"
+    },
+    {
+      "triage": "S-21",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._advance(bool,address) (src/AtropyleVault.sol#288-309) uses timestamp for comparisons",
+      "fingerprint": "18a45f066fa407ee097f4d1bfdf7cef0c27647448b5602e6dac55e94ddd4072f"
+    },
+    {
+      "triage": "S-22",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._idle() (src/AtropyleVault.sol#311-316) uses timestamp for comparisons",
+      "fingerprint": "08b8c0c3e820e34bf590f196659ef25adcd311a86a0c656a989c08ed463f8d48"
+    },
+    {
+      "triage": "S-23",
+      "check": "timestamp",
+      "impact": "Low",
+      "confidence": "Medium",
+      "summary": "AtropyleVault._recBitmap(address) (src/AtropyleVault.sol#318-324) uses timestamp for comparisons",
+      "fingerprint": "d99dc6ed712023f438bb81fbe8386810ad511a598c2c6f3f9228c7db2d99b29a"
+    },
+    {
+      "triage": "S-24",
+      "check": "assembly",
+      "impact": "Informational",
+      "confidence": "High",
+      "summary": "VaultDistribution._send20(uint256,address,address,uint256) (src/vault/VaultDistribution.sol#75-99) uses assembly",
+      "fingerprint": "80da36de2efada64c27670d238a1de968fee90a007f9f3d2ead51608adce6c2c"
+    },
+    {
+      "triage": "S-25",
+      "check": "assembly",
+      "impact": "Informational",
+      "confidence": "High",
+      "summary": "VaultDistribution._viewWord(address,bytes) (src/vault/VaultDistribution.sol#141-148) uses assembly",
+      "fingerprint": "c6a63ede0037604880ad0c8744dd19c5eacd41d7c643c26ff417ffc8a92f1732"
+    },
+    {
+      "triage": "S-26",
+      "check": "pragma",
+      "impact": "Informational",
+      "confidence": "High",
+      "summary": "2 different versions of Solidity are used:",
+      "fingerprint": "7a45a12fe0e0d0151112a0009ae579d24820ff5905425f4b3aa88f5cd5d76da3"
+    },
+    {
+      "triage": "S-27",
+      "check": "unindexed-event-address",
+      "impact": "Informational",
+      "confidence": "High",
+      "summary": "Event AtropyleVault.AlarmRaised(uint8,address) (src/AtropyleVault.sol#50) has address parameters but no indexed parameters",
+      "fingerprint": "ca206ba5bd32ade184f01c9ba610ca94c40a3072ac3bd754651d648cdd5908b9"
+    },
+    {
+      "triage": "S-28",
+      "check": "unindexed-event-address",
+      "impact": "Informational",
+      "confidence": "High",
+      "summary": "Event AtropyleVault.Released(uint8,address) (src/AtropyleVault.sol#52) has address parameters but no indexed parameters",
+      "fingerprint": "055b7dfc337331eac05361dd12d3d1a5003444fedc1c2e3f0021383c6b8b5758"
+    },
+    {
+      "triage": "S-29",
+      "check": "cache-array-length",
+      "impact": "Optimization",
+      "confidence": "High",
+      "summary": "Loop condition i_scope_0 < _assets.length (src/vault/VaultConfig.sol#99) should use cached array length instead of referencing `length` member of the storage array.",
+      "fingerprint": "0427e16df6d1d0b4eb4288cb5c34cdd0dad687bcacbde3b0b7e353b7e16f2d4b"
+    }
+  ],
+  "forgeLint": [
+    {
+      "triage": "F-01",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:105:33",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:105:33"
+    },
+    {
+      "triage": "F-02",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:106:21",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:106:21"
+    },
+    {
+      "triage": "F-03",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:115:20",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:115:20"
+    },
+    {
+      "triage": "F-04",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:171:21",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:171:21"
+    },
+    {
+      "triage": "F-05",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:254:21",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:254:21"
+    },
+    {
+      "triage": "F-06",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:260:20",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:260:20"
+    },
+    {
+      "triage": "F-07",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:291:23",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:291:23"
+    },
+    {
+      "triage": "F-08",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:301:26",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:301:26"
+    },
+    {
+      "triage": "F-09",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:315:36",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:315:36"
+    },
+    {
+      "triage": "F-10",
+      "lint": "unsafe-typecast",
+      "location": "src/AtropyleVault.sol:322:59",
+      "fingerprint": "unsafe-typecast@src/AtropyleVault.sol:322:59"
+    },
+    {
+      "triage": "F-11",
+      "lint": "unsafe-typecast",
+      "location": "src/PolicyCodec.sol:46:23",
+      "fingerprint": "unsafe-typecast@src/PolicyCodec.sol:46:23"
+    },
+    {
+      "triage": "F-12",
+      "lint": "unsafe-typecast",
+      "location": "src/PolicyCodec.sol:47:23",
+      "fingerprint": "unsafe-typecast@src/PolicyCodec.sol:47:23"
+    },
+    {
+      "triage": "F-13",
+      "lint": "unsafe-typecast",
+      "location": "src/PolicyCodec.sol:48:23",
+      "fingerprint": "unsafe-typecast@src/PolicyCodec.sol:48:23"
+    },
+    {
+      "triage": "F-49",
+      "lint": "event-fields",
+      "location": "src/AtropyleVault.sol:50:11",
+      "fingerprint": "event-fields@src/AtropyleVault.sol:50:11"
+    },
+    {
+      "triage": "F-50",
+      "lint": "event-fields",
+      "location": "src/AtropyleVault.sol:52:11",
+      "fingerprint": "event-fields@src/AtropyleVault.sol:52:11"
+    },
+    {
+      "triage": "F-51",
+      "lint": "inline-assembly",
+      "location": "src/vault/VaultDistribution.sol:88:9",
+      "fingerprint": "inline-assembly@src/vault/VaultDistribution.sol:88:9"
+    },
+    {
+      "triage": "F-52",
+      "lint": "inline-assembly",
+      "location": "src/vault/VaultDistribution.sol:143:9",
+      "fingerprint": "inline-assembly@src/vault/VaultDistribution.sol:143:9"
+    },
+    {
+      "triage": "F-53",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:27:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:27:5"
+    },
+    {
+      "triage": "F-54",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:44:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:44:5"
+    },
+    {
+      "triage": "F-55",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:51:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:51:5"
+    },
+    {
+      "triage": "F-56",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:55:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:55:5"
+    },
+    {
+      "triage": "F-57",
+      "lint": "internal-function-used-once",
+      "location": "src/PolicyCodec.sol:68:5",
+      "fingerprint": "internal-function-used-once@src/PolicyCodec.sol:68:5"
+    },
+    {
+      "triage": "F-58",
+      "lint": "literal-instead-of-constant",
+      "location": "src/AtropyleVault.sol:315:26",
+      "fingerprint": "literal-instead-of-constant@src/AtropyleVault.sol:315:26"
+    },
+    {
+      "triage": "F-59",
+      "lint": "literal-instead-of-constant",
+      "location": "src/AtropyleVault.sol:315:31",
+      "fingerprint": "literal-instead-of-constant@src/AtropyleVault.sol:315:31"
+    },
+    {
+      "triage": "F-60",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:29",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:29"
+    },
+    {
+      "triage": "F-61",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:59",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:59"
+    },
+    {
+      "triage": "F-62",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:28:94",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:28:94"
+    },
+    {
+      "triage": "F-63",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:29:36",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:29:36"
+    },
+    {
+      "triage": "F-64",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:29:65",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:29:65"
+    },
+    {
+      "triage": "F-65",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:35:28",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:35:28"
+    },
+    {
+      "triage": "F-66",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:36:40",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:36:40"
+    },
+    {
+      "triage": "F-67",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:37:39",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:37:39"
+    },
+    {
+      "triage": "F-68",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:38:40",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:38:40"
+    },
+    {
+      "triage": "F-69",
+      "lint": "literal-instead-of-constant",
+      "location": "src/PolicyCodec.sol:39:33",
+      "fingerprint": "literal-instead-of-constant@src/PolicyCodec.sol:39:33"
+    },
+    {
+      "triage": "F-70",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:19:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:19:30"
+    },
+    {
+      "triage": "F-71",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:20:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:20:30"
+    },
+    {
+      "triage": "F-72",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:21:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:21:30"
+    },
+    {
+      "triage": "F-73",
+      "lint": "screaming-snake-case-immutable",
+      "location": "src/AtropyleFactory.sol:22:30",
+      "fingerprint": "screaming-snake-case-immutable@src/AtropyleFactory.sol:22:30"
+    },
+    {
+      "triage": "F-74",
+      "lint": "asm-keccak256",
+      "location": "src/AtropyleFactory.sol:137:16",
+      "fingerprint": "asm-keccak256@src/AtropyleFactory.sol:137:16"
+    },
+    {
+      "triage": "F-75",
+      "lint": "costly-loop",
+      "location": "src/AtropyleFactory.sol:59:13",
+      "fingerprint": "costly-loop@src/AtropyleFactory.sol:59:13"
+    },
+    {
+      "triage": "F-76",
+      "lint": "costly-loop",
+      "location": "src/AtropyleFactory.sol:60:13",
+      "fingerprint": "costly-loop@src/AtropyleFactory.sol:60:13"
+    },
+    {
+      "triage": "F-77",
+      "lint": "costly-loop",
+      "location": "src/AtropyleVault.sol:258:13",
+      "fingerprint": "costly-loop@src/AtropyleVault.sol:258:13"
+    },
+    {
+      "triage": "F-78",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:64:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:64:5"
+    },
+    {
+      "triage": "F-79",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:71:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:71:5"
+    },
+    {
+      "triage": "F-80",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:76:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:76:5"
+    },
+    {
+      "triage": "F-81",
+      "lint": "unwrapped-modifier-logic",
+      "location": "src/AtropyleVault.sol:81:5",
+      "fingerprint": "unwrapped-modifier-logic@src/AtropyleVault.sol:81:5"
+    }
+  ]
+}

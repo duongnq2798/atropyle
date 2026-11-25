@@ -74,6 +74,7 @@ export type WarningCode =
   | 'UNLIMITED_APPROVAL'
   | 'APPROVAL_FOR_ALL'
   | 'GUARDIAN_VERIFY_OUT_OF_BAND'
+  | 'RECOVERY_POWER'
   | 'DRILL_NOT_FOR_REAL_ASSETS'
   | 'NO_GUARDIANS'
   | 'HEIR_IS_CONTRACT'
@@ -84,4 +85,10 @@ export type WarningCode =
 export interface Warning {
   code: WarningCode;
   message: string;
+  /**
+   * The typed numbers `message` was built from, for apps that translate it (RECOVERY_POWER: k, guardians and window
+   * in seconds). Never text from the chain or from a link. JSON outputs of the CLI and the MCP server include it, as
+   * numbers.
+   */
+  params?: Record<string, number>;
 }

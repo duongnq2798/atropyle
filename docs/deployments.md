@@ -1,60 +1,62 @@
-# Atropyle — địa chỉ trên X Layer mainnet (chainId 196)
+# Atropyle: addresses on X Layer mainnet (chainId 196)
 
-Mọi địa chỉ dưới đây do ví deployer của dự án tạo, bằng `npm run deploy:mainnet` ngày 22/11/2026: 17 giao dịch, block 76566929 tới 76567053, tốn 0,14 BEM và 0,00407 OKB. Bản máy đọc: [`deployments/xlayer.json`](../deployments/xlayer.json), sinh bằng `npm run deployment:write` (chỉ đọc chain, qua hai RPC operator độc lập).
+The project's deployer wallet created every address below with `npm run deploy:mainnet` on 22 November 2026: 17 transactions, blocks 76566929 to 76567053, for 0.14 BEM and 0.00407 OKB. Machine-readable copy: [`deployments/xlayer.json`](../deployments/xlayer.json), written by `npm run deployment:write` (read-only chain reads, through two independent RPC operators).
 
-Kiểm lại bằng một lệnh, chỉ đọc chain (từ checkout: `node packages/cli/dist/bin.js verify`; sau khi publish npm: `npx atropyle verify`). Kết quả lúc ghi file, block 76567369: P1-P8 đúng trên cả 67.108.864 tổ hợp, netlist của cả ba circuit khớp source trong `circuits/`, beacon đã đóng băng, hai RPC operator đồng ý. Kiểm bằng Foundry: `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` với các biến env của `contracts/broadcast/atropyle-deploy/196/exports.env` (10 PASS, 1 SKIP là `test_tapeoutBudget`, đúng như thiết kế).
+Check it again with one read-only command (from a checkout: `node packages/cli/dist/bin.js verify`; after the npm publish: `npx atropyle verify`). Result when this file was written, at block 76567369: P1-P8 hold on all 67,108,864 combinations, the netlists of all three circuits match the source in `circuits/`, the beacon is frozen, and the two RPC operators agree. Check with Foundry: `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` with the environment variables of `contracts/broadcast/atropyle-deploy/196/exports.env` (10 PASS, 1 SKIP, which is `test_tapeoutBudget`, as designed).
 
-| Thành phần | Giá trị | Giao dịch |
+| Component | Value | Transaction |
 |---|---|---|
 | Deployer | [`0xC0a61674Fa1caAd04500073ea94Ec9006D7A2375`](https://www.oklink.com/xlayer/address/0xC0a61674Fa1caAd04500073ea94Ec9006D7A2375) | |
 | Processor `ATRO` (Circuits) | [`0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05`](https://www.oklink.com/xlayer/address/0x523db7bacD35a6EFc384367D66AEC1CBA07a4A05) | [`createCPU`](https://www.oklink.com/xlayer/tx/0xc7b23c69e2489d22656035afc127eb0e5baab5fe67657a02d8245977d9dd3978) |
-| Transistors của `ATRO` | [`0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc`](https://www.oklink.com/xlayer/address/0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc) | |
-| Beacon circuits (đã đóng băng) | `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` | |
-| Circuit `KofN5` | id 1 (8 vào, 1 ra, 41 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xd0d34990ea061bd1d0a5296bb2a9ea6db8e6dcd0314ab3db57005926719d97c2) |
-| Circuit `Ge4` | id 2 (8 vào, 1 ra, 25 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0x59ef44370f1c29a6e548285bf15714fe987d1654636b32724acd79f617fd187a) |
-| Circuit `AtropylePolicy v1` | id 3 (23 vào, 3 ra, 3 bit trạng thái, 199 cổng) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xff066290337ec07a39159ce060e69cbe0cb681d82f775cf39c8d530a6caa1afd) |
+| Transistors of `ATRO` | [`0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc`](https://www.oklink.com/xlayer/address/0x9d3Cf72bf9d080689bf97d54FF00758A7597caAc) | |
+| Circuits beacon (frozen) | `0xf70d1ed4f62CF3780157B0b421b7E2F45bD0991C` | |
+| Circuit `KofN5` | id 1 (8 in, 1 out, 41 gates) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xd0d34990ea061bd1d0a5296bb2a9ea6db8e6dcd0314ab3db57005926719d97c2) |
+| Circuit `Ge4` | id 2 (8 in, 1 out, 25 gates) | [`tapeout`](https://www.oklink.com/xlayer/tx/0x59ef44370f1c29a6e548285bf15714fe987d1654636b32724acd79f617fd187a) |
+| Circuit `AtropylePolicy v1` | id 3 (23 in, 3 out, 3 state bits, 199 gates) | [`tapeout`](https://www.oklink.com/xlayer/tx/0xff066290337ec07a39159ce060e69cbe0cb681d82f775cf39c8d530a6caa1afd) |
 | `AtropyleVault` (implementation) | [`0x96Ea6249e14F5F62ab87A5D76800B1C564c4d881`](https://www.oklink.com/xlayer/address/0x96Ea6249e14F5F62ab87A5D76800B1C564c4d881) | [create](https://www.oklink.com/xlayer/tx/0xb6f292f79f6e79591e64c990fe8d9448c378f7d6fcea7a70e2df8d24449666b0) |
 | `AtropyleFactory` | [`0x7eCbBECA8F90A868A12aF48B766264bf9c87a651`](https://www.oklink.com/xlayer/address/0x7eCbBECA8F90A868A12aF48B766264bf9c87a651) | [create](https://www.oklink.com/xlayer/tx/0xb4e4c9723a64903677d6292b11ee47d4d11298bc085f88c4fc7e7f1e3674b372) |
 | Treasury | [`0x990221559B7EB3516204dc73535d6581391cFAa4`](https://www.oklink.com/xlayer/address/0x990221559B7EB3516204dc73535d6581391cFAa4) | |
-| Vault Drill thử | [`0x481F28748959036B48bc6779797228D74f15f4b9`](https://www.oklink.com/xlayer/address/0x481F28748959036B48bc6779797228D74f15f4b9) | [`createVault`](https://www.oklink.com/xlayer/tx/0x237c4446b30a8ff889cd7eabd982452676baa4b6d2b72c6a67c88277e673b717), [`poke`](https://www.oklink.com/xlayer/tx/0x7702346baa6d84172b6b6900037e31f2db95d079760c410c95fa7c8764542e7d) |
+| Test Drill vault | [`0x481F28748959036B48bc6779797228D74f15f4b9`](https://www.oklink.com/xlayer/address/0x481F28748959036B48bc6779797228D74f15f4b9) | [`createVault`](https://www.oklink.com/xlayer/tx/0x237c4446b30a8ff889cd7eabd982452676baa4b6d2b72c6a67c88277e673b717), [`poke`](https://www.oklink.com/xlayer/tx/0x7702346baa6d84172b6b6900037e31f2db95d079760c410c95fa7c8764542e7d) |
 
-Phí tạo vault của factory: 1,99 (100 vault trả phí đầu tiên) rồi 9,90 USDT0, USDC hoặc USDG, chuyển thẳng về treasury. Vault Drill miễn phí.
+The factory's vault creation fee: 1.99 (for the first 100 paid vaults), then 9.90 USDT0, USDC or USDG, sent straight to the treasury. A Drill vault is free.
 
-Gas `step` đo trên các contract đã deploy (ForkTest, fork mainnet): 624406. Một vòng đời Drill đầy đủ (tạo, approve, poke, hai lần attestDeath, distribute): 3736276 gas.
+`step` gas measured on the deployed contracts (ForkTest, mainnet fork): 624406. A full Drill lifecycle (create, approve, poke, two attestDeath calls, distribute): 3736276 gas.
 
-Source chưa verify trên OKLink: bước này cần `OKLINK_API_KEY` của maintainer (lệnh ở `contracts/README.md`). Builder code chưa có: `builderCode` trong `deployments/xlayer.json` là `null` cho tới khi maintainer có code và chạy lại `npm run deployment:write -- --builder-code <code>`.
+The source is not verified on OKLink yet: that step needs the maintainer's `OKLINK_API_KEY` (commands in `contracts/README.md`). There is no builder code yet: `builderCode` in `deployments/xlayer.json` stays `null` until the maintainer has a code and runs `npm run deployment:write -- --builder-code <code>` again.
 
-Các giao dịch còn lại của năm bước (approve BEM, mint transistor) nằm trong `contracts/broadcast/atropyle-deploy/196/` trên máy deploy (git bỏ qua thư mục này).
+The other transactions of the five stages (BEM approvals, transistor mints) are in `contracts/broadcast/atropyle-deploy/196/` on the deploy machine (git ignores this folder).
 
-## Site DeWEB
+## DeWEB site
 
-Web app nằm trên DeWEB, trong container của một circuit neo trên chính processor `ATRO`. Bản máy đọc: [`deployments/deweb.json`](../deployments/deweb.json), sinh bằng `npm run deweb:site` (chỉ đọc chain). Chưa có gì được tape-out hay đăng trên mainnet: mọi ô "—" dưới đây chờ các bước 3 tới 6.
+The web app goes on DeWEB, in the container of a circuit anchored on the `ATRO` processor itself. Machine-readable copy: [`deployments/deweb.json`](../deployments/deweb.json), written by `npm run deweb:site` (read-only chain reads). Nothing has been taped out or published on mainnet yet: every "—" cell below waits for steps 3 to 6.
 
-| Thành phần | Giá trị | Giao dịch |
+| Component | Value | Transaction |
 |---|---|---|
-| Circuit neo `0x00000002000002` (NAND, 1 cổng) | id — | — |
-| Container (mở qua opener `0x536adD8F30f03b69f6fbF29d425A816A0dC50106`) | — | — |
-| Tên chính tắc (bind 120 tháng, `value = 0`) | — | — |
-| URL gateway (tự kiểm trong trình duyệt) | — | |
-| URL gateway, chế độ tương thích (`-open`, gateway kiểm hộ) | — | |
+| Anchor circuit `0x00000002000002` (NAND, 1 gate) | id — | — |
+| Container (opened through the opener `0x536adD8F30f03b69f6fbF29d425A816A0dC50106`) | — | — |
+| Canonical name (bound for 120 months, `value = 0`) | — | — |
+| Gateway URL (checks itself in the browser) | — | |
+| Gateway URL, compatibility mode (`-open`, the gateway checks on your behalf) | — | |
 | SiteRegistry | `0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6` | |
 | DomainBinding | `0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9` | |
 
-Không có ví operator và không có khoá nào trong repo. Người ký duy nhất là ví deployer (giữ NFT circuit neo), qua keystore Foundry `--account atropyle-deployer` trên mainnet. Việc đăng file đi qua `npm run deweb:publish -- --emit`, rồi `forge script script/07_DewebPublish.s.sol`: `--emit` chỉ đọc chain và ghi file lệnh, forge ký bằng keystore của người dùng. Bước diễn tập (bước 2) chỉ gửi giao dịch tới một anvil fork ở `127.0.0.1`, không bao giờ tới mạng thật.
+There is no operator wallet and no key in the repository. The only signer is the deployer wallet (which holds the anchor circuit NFT), through the Foundry keystore `--account atropyle-deployer` on mainnet. Files are published through `npm run deweb:publish -- --emit`, then `forge script script/07_DewebPublish.s.sol`: `--emit` only reads the chain and writes a calls file, and forge signs with the user's keystore. The rehearsal (step 2) sends transactions only to an anvil fork on `127.0.0.1`, never to the real network.
 
-Mọi lệnh `forge`, `cast`, `curl` dưới đây chạy trong Git Bash. Các lệnh `npm run` chạy ở gốc repo, các lệnh `forge script` chạy trong `contracts/`.
+Every `forge`, `cast` and `curl` command below runs in Git Bash. The `npm run` commands run at the repository root, and the `forge script` commands run in `contracts/`.
 
 ### Runbook
 
-Điều kiện: Plan 1 đã deploy xong trên mainnet và hai địa chỉ công khai `DEPLOYER`, `ATRO_CPU` có trong bảng ở đầu file này.
+Steps marked [USER] run in the maintainer's own terminal, with the deployer keystore. Steps marked [CLAUDE] only read the chain or send to a local anvil fork, so an agent can run them.
 
-Mỗi khối code là một phiên shell riêng; chạy cả khối. Biến shell không mang sang khối sau, nên mỗi khối tự `export` những biến nó cần (`<...>` là giá trị bạn điền).
+Precondition: Plan 1 is deployed on mainnet, and the two public addresses `DEPLOYER` and `ATRO_CPU` are in the table at the top of this file.
 
-#### 1. [CLAUDE] Kiểm trước, chỉ đọc mainnet (sau khi deploy mainnet xong)
+Each code block is its own shell session; run the whole block. Shell variables do not carry over to the next block, so every block `export`s the variables it needs (`<...>` is a value you fill in).
+
+#### 1. [CLAUDE] Pre-check, read-only on mainnet (after the mainnet deployment)
 
 ```bash
 export RPC=https://rpc.xlayer.tech
-export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
+export DEPLOYER=<deployer address> ATRO_CPU=<ATRO address>
 cast call 0x536adD8F30f03b69f6fbF29d425A816A0dC50106 "FEE()(uint256)" --rpc-url $RPC
 cast call $ATRO_CPU "TAPEOUT_FEE()(uint256)" --rpc-url $RPC
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "monthlyFee()(uint256)" --rpc-url $RPC
@@ -63,69 +65,69 @@ cast balance $DEPLOYER --rpc-url $RPC --ether
 cast call 0x60e62Efa9405d6873C5deaBD4E6CC91c25363952 "balanceOf(address)(uint256)" $DEPLOYER --rpc-url $RPC
 ```
 
-Kỳ vọng:
+Expected:
 
-- `FEE()` = `80000000000000000` (0,08 OKB); `TAPEOUT_FEE()` = `1300000000000000` (0,0013 OKB); `monthlyFee()` = `0`; `CHUNK_MAX()` = `24000`.
-- OKB của deployer đủ cho: phí tape-out, phí opener 0,08 OKB, gas, và số OKB để đăng site mà dry run (bước 4) in ra. Số cuối chỉ biết sau bước 4; nếu thiếu thì nạp thêm trước bước 5.
-- BEM đủ để mint một NAND (hoặc deployer đã có NAND thừa từ Plan 1).
+- `FEE()` = `80000000000000000` (0.08 OKB); `TAPEOUT_FEE()` = `1300000000000000` (0.0013 OKB); `monthlyFee()` = `0`; `CHUNK_MAX()` = `24000`.
+- The deployer's OKB covers: the tape-out fee, the 0.08 OKB opener fee, gas, and the OKB for publishing the site that the dry run (step 4) prints. The last amount is known only after step 4; if it falls short, top up before step 5.
+- Enough BEM to mint one NAND (or the deployer still has a spare NAND from Plan 1).
 
-Nếu một giá trị khác, dừng và báo người điều phối trước khi đi tiếp.
+If a value differs, stop and tell the coordinator before going on.
 
-#### 2. [CLAUDE] Diễn tập trên anvil fork (sau khi deploy, trước bước 3 của người dùng)
+#### 2. [CLAUDE] Rehearsal on an anvil fork (after the deployment, before the user's step 3)
 
-Bước này chỉ gửi giao dịch tới anvil fork ở `127.0.0.1` (chain 196, tài khoản `DEPLOYER` được impersonate). Nó không gửi gì tới mạng thật và không cần khoá. Chọn một cổng loopback còn trống khác 8545 (ví dụ 8546). Export và `forge` chạy trong cùng một khối.
+This step sends transactions only to an anvil fork on `127.0.0.1` (chain 196, with the `DEPLOYER` account impersonated). It sends nothing to the real network and needs no key. Pick a free loopback port other than 8545 (for example 8546). The exports and `forge` run in the same block.
 
-Rehearsal dùng `--emit` cộng forge/cast `--unlocked` vì `npm run deweb:publish -- --unlocked` từ chối mọi chain khác 31337, kể cả fork chain 196.
+The rehearsal uses `--emit` plus forge/cast `--unlocked`, because `npm run deweb:publish -- --unlocked` refuses every chain other than 31337, the chain-196 fork included.
 
-Chạy anvil trong terminal riêng của nó và để mở (dừng bằng Ctrl+C ở chính terminal đó, xem phần dọn dẹp):
+Run anvil in a terminal of its own and leave it open (stop it with Ctrl+C in that same terminal, see the cleanup):
 
 ```bash
 anvil --fork-url https://rpc.xlayer.tech --port 8546
 ```
 
-Khối tiếp theo chạy ở terminal khác:
+The next block runs in another terminal:
 
 ```bash
 export FORK=http://127.0.0.1:8546
-export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
+export DEPLOYER=<deployer address> ATRO_CPU=<ATRO address>
 cast rpc anvil_impersonateAccount $DEPLOYER --rpc-url $FORK
 cd contracts
-# lượt 1: tape-out circuit neo
+# pass 1: tape out the anchor circuit
 forge script script/06_DewebSite.s.sol --rpc-url $FORK --unlocked --sender $DEPLOYER --broadcast --slow
-# đặt DEWEB_TOKEN_ID bằng id mà lượt 1 in, rồi lượt 2: mở container
+# set DEWEB_TOKEN_ID to the id that pass 1 prints, then pass 2: open the container
 export DEWEB_TOKEN_ID=<n>
 forge script script/06_DewebSite.s.sol --rpc-url $FORK --unlocked --sender $DEPLOYER --broadcast --slow
 cd ..
 ```
 
-Lượt 2 in `export DEWEB_CONTAINER=<địa chỉ>`; giá trị này chỉ dùng cho bước bind bên dưới (các khối sau tự export lại).
+Pass 2 prints `export DEWEB_CONTAINER=<address>`; that value is used only by the bind step below (the later blocks export it again themselves).
 
-Ghi danh tính site của fork ra file tạm (không đụng `deployments/`), build, lập kế hoạch:
+Write the fork's site identity to a temporary file (leaving `deployments/` alone), build, and plan:
 
 ```bash
 export FORK=http://127.0.0.1:8546
-export ATRO_CPU=<địa chỉ ATRO> DEWEB_TOKEN_ID=<n>
+export ATRO_CPU=<ATRO address> DEWEB_TOKEN_ID=<n>
 npm run deweb:site -- --cpu $ATRO_CPU --token-id $DEWEB_TOKEN_ID --rpc $FORK --out site-dist/deweb-fork.json
 npm run site:build -- --target deweb --no-docs
 npm run deweb:publish -- --emit contracts/deweb-calls/fork.json --rpc $FORK --site site-dist/deweb-fork.json
 ```
 
-`--emit` in keccak256 của file và hai lệnh (kiểm `show()` và broadcast). Chạy chúng trên fork: trong lệnh broadcast, thay `--account atropyle-deployer` bằng `--unlocked --sender $DEPLOYER`, và dùng `--rpc-url $FORK` cho cả hai lệnh.
+`--emit` prints the keccak256 of the file and two commands (the `show()` check and the broadcast). Run them on the fork: in the broadcast command, replace `--account atropyle-deployer` with `--unlocked --sender $DEPLOYER`, and use `--rpc-url $FORK` for both commands.
 
 ```bash
 export FORK=http://127.0.0.1:8546
-export DEPLOYER=<địa chỉ deployer>
+export DEPLOYER=<deployer address>
 cd contracts
 DEWEB_CALLS=deweb-calls/fork.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url $FORK
 DEWEB_CALLS=deweb-calls/fork.json DEWEB_KECCAK=0x<hash> forge script script/07_DewebPublish.s.sol --rpc-url $FORK --unlocked --sender $DEPLOYER --broadcast --slow
 cd ..
 ```
 
-Nếu `--emit` chia site thành nhiều phần (mỗi file tối đa 1 MB dữ liệu): sau mỗi lần broadcast xoá file phần đó, chạy lại `--emit` cho phần kế, lặp tới khi dry run báo hết. Rồi bind và kiểm:
+If `--emit` splits the site into several parts (each file holds at most 1 MB of data): after each broadcast, delete that part's file, run `--emit` again for the next part, and repeat until the dry run reports nothing left. Then bind and check:
 
 ```bash
 export FORK=http://127.0.0.1:8546
-export DEPLOYER=<địa chỉ deployer> DEWEB_CONTAINER=<địa chỉ container của fork>
+export DEPLOYER=<deployer address> DEWEB_CONTAINER=<the fork's container address>
 export DEWEB_NAME=$(node -p "require('./site-dist/deweb-fork.json').name")
 cast send 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "bind(string,address,uint256)" "$DEWEB_NAME" $DEWEB_CONTAINER 120 --value 0 --from $DEPLOYER --unlocked --rpc-url $FORK
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "isLive(string,address)(bool)" "$DEWEB_NAME" $DEWEB_CONTAINER --rpc-url $FORK
@@ -133,54 +135,54 @@ cast call 0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6 "fallbackPath(address)(stri
 npm run deweb:publish -- --dry-run --rpc $FORK --site site-dist/deweb-fork.json
 ```
 
-Kỳ vọng: `deweb:site` ghi `name` = `<n>.2.<cpuIndex>.tape`; `bind` có `status 1 (success)`; `isLive` = `true`; `fallbackPath` = `"index.html"`; dry run in `Nothing to publish: the chain already has this site.`
+Expected: `deweb:site` writes `name` = `<n>.2.<cpuIndex>.tape`; `bind` has `status 1 (success)`; `isLive` = `true`; `fallbackPath` = `"index.html"`; the dry run prints `Nothing to publish: the chain already has this site.`
 
-Dọn dẹp: nhấn Ctrl+C trong terminal chạy anvil (chỉ anvil của bước này), rồi xoá phần dư ở terminal kia. Nếu đã chạy anvil nền với `anvil ... & ANVIL_PID=$!`, dừng bằng `kill "$ANVIL_PID"` trong cùng phiên shell đó.
+Cleanup: press Ctrl+C in the terminal that runs anvil (only the anvil of this step), then delete the leftovers in the other terminal. If you started anvil in the background with `anvil ... & ANVIL_PID=$!`, stop it with `kill "$ANVIL_PID"` in that same shell session.
 
 ```bash
 rm -rf contracts/broadcast/06_DewebSite.s.sol/196 contracts/broadcast/07_DewebPublish.s.sol/196
 rm -f contracts/deweb-calls/fork*.json site-dist/deweb-fork.json
 ```
 
-Hai thư mục `broadcast/.../196/` của fork phải bị xoá: chúng là bản ghi của fork, không phải của mainnet. Nếu để lại, `run-latest.json` của fork có thể bị nhầm với bản của mainnet khi lấy hash giao dịch ở bước 3. Nếu diễn tập lộ lỗi, sửa script trước khi người dùng chạy bước 3.
+The fork's two `broadcast/.../196/` folders must be deleted: they are the fork's records, not mainnet's. Left in place, the fork's `run-latest.json` could be mistaken for the mainnet one when the transaction hashes are taken in step 3. If the rehearsal shows a bug, fix the script before the user runs step 3.
 
-#### 3. [USER] Tape-out và mở container trên mainnet
+#### 3. [USER] Tape out and open the container on mainnet
 
-Trong terminal của người dùng, cùng keystore của Plan 1. Script chạy hai lượt; người dùng gõ mật khẩu keystore ở prompt của `forge`.
+In the user's terminal, with the same keystore as Plan 1. The script runs in two passes; the user types the keystore password at the `forge` prompt.
 
 ```bash
-export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
+export DEPLOYER=<deployer address> ATRO_CPU=<ATRO address>
 cd contracts
-# lượt 1: tape-out circuit neo (chỉ chạy MỘT lần)
+# pass 1: tape out the anchor circuit (run it only ONCE)
 forge script script/06_DewebSite.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
 ```
 
-Lượt 1 in `export DEWEB_TOKEN_ID=<n>`. Id đó lấy từ mô phỏng, nên kiểm trên chain trước khi đi tiếp: `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <n> --rpc-url https://rpc.xlayer.tech` phải trả về địa chỉ deployer.
+Pass 1 prints `export DEWEB_TOKEN_ID=<n>`. That id comes from the simulation, so check it on chain before going on: `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <n> --rpc-url https://rpc.xlayer.tech` must return the deployer address.
 
-**Không chạy lại lượt 1.** Script không phát hiện được circuit neo đã tồn tại: chạy lần hai sẽ tape-out thêm một circuit neo (0,0013 OKB). Nếu id đã in (từ mô phỏng) hoá ra sai, hoặc lượt 1 lỡ chạy hai lần, lấy id thật từ log `Transfer` của `cast receipt <hash tape-out> --rpc-url https://rpc.xlayer.tech`, hoặc từ `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`, rồi xác nhận bằng `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <id> --rpc-url https://rpc.xlayer.tech`. Rồi:
+**Do not run pass 1 again.** The script cannot detect an anchor circuit that already exists: a second run tapes out one more anchor circuit (0.0013 OKB). If the printed id (from the simulation) turns out wrong, or pass 1 ran twice by mistake, take the real id from the `Transfer` log of `cast receipt <tape-out hash> --rpc-url https://rpc.xlayer.tech`, or from `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`, and confirm it with `cast call $ATRO_CPU 'ownerOf(uint256)(address)' <id> --rpc-url https://rpc.xlayer.tech`. Then:
 
 ```bash
-export DEPLOYER=<địa chỉ deployer> ATRO_CPU=<địa chỉ ATRO>
+export DEPLOYER=<deployer address> ATRO_CPU=<ATRO address>
 cd contracts
 export DEWEB_TOKEN_ID=<n>
-# lượt 2: mở container (0,08 OKB)
+# pass 2: open the container (0.08 OKB)
 forge script script/06_DewebSite.s.sol --rpc-url xlayer --account atropyle-deployer --sender $DEPLOYER --broadcast --slow
 ```
 
-Lượt 2 từ chối chạy nếu circuit không thuộc về `DEPLOYER` hoặc netlist không phải circuit neo, và bỏ qua `open` nếu container đã có. Lượt 2 in `export DEWEB_CONTAINER=<địa chỉ>`.
+Pass 2 refuses to run if the circuit does not belong to `DEPLOYER` or its netlist is not the anchor circuit, and skips `open` if the container already exists. Pass 2 prints `export DEWEB_CONTAINER=<address>`.
 
-Sau mỗi lượt, người dùng gửi cho Claude các giá trị công khai đã in (`DEWEB_TOKEN_ID`, `DEWEB_CONTAINER`) và hash của từng giao dịch (từ output của `forge`, hoặc từ `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`).
+After each pass, the user sends Claude the public values it printed (`DEWEB_TOKEN_ID`, `DEWEB_CONTAINER`) and the hash of each transaction (from the `forge` output, or from `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`).
 
-#### 4. [CLAUDE] Ghi danh tính site, đổi `webUrl`, lập kế hoạch đăng
+#### 4. [CLAUDE] Record the site identity, change `webUrl`, plan the publish
 
-Với `DEWEB_TOKEN_ID` và `DEWEB_CONTAINER` từ bước 3:
+With `DEWEB_TOKEN_ID` and `DEWEB_CONTAINER` from step 3:
 
 ```bash
 export RPC=https://rpc.xlayer.tech
 export ATRO_CPU=$(node -p "require('./deployments/xlayer.json').cpu")
-export DEWEB_TOKEN_ID=<n do người dùng gửi>
-cast receipt <hash tape-out> --rpc-url $RPC      # kiểm từng hash người dùng gửi: status 1 (success)
-cast receipt <hash open> --rpc-url $RPC
+export DEWEB_TOKEN_ID=<n sent by the user>
+cast receipt <tape-out hash> --rpc-url $RPC      # check every hash the user sent: status 1 (success)
+cast receipt <open hash> --rpc-url $RPC
 npm run deweb:site -- --cpu $ATRO_CPU --token-id $DEWEB_TOKEN_ID
 node -e "JSON.parse(require('fs').readFileSync('deployments/deweb.json','utf8'))"
 export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
@@ -193,49 +195,49 @@ npm run site:build -- --target deweb
 npm run deweb:publish -- --dry-run
 ```
 
-Kỳ vọng:
+Expected:
 
-- `deployments/deweb.json` parse được; `chainId` 196, `container` = container người dùng gửi ở bước 3, `name` = `<DEWEB_TOKEN_ID>.2.<cpuIndex>.tape`, `gatewayUrl` = `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>.tapekit.org/`. Kiểm bằng `node`, không bằng Biome: `deployments/` nằm ngoài phạm vi Biome.
-- `deployments/xlayer.json` có `webUrl` = `gatewayUrl`; `builderCode` giữ nguyên giá trị cũ (nếu có); `factory` và `factoryBlock` không đổi. `--factory` và `--factory-block` lấy từ chính file đó, vì file broadcast của Plan 1 có thể không còn trong máy.
-- `site:build` in `… ready for deweb (web only)` khi chưa có `apps/docs`. Nếu docs có mà chưa sạch thì lệnh dừng; chạy lại với `--no-docs` (docs chỉ trên Pages).
-- Dry run in mọi file là `new`, dòng tổng phí và dòng khuyến nghị nạp tiền (ước tính ×3). Claude gửi số OKB này cho người dùng; deployer phải còn đủ số đó trước bước 5.
+- `deployments/deweb.json` parses; `chainId` 196, `container` = the container the user sent in step 3, `name` = `<DEWEB_TOKEN_ID>.2.<cpuIndex>.tape`, `gatewayUrl` = `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>.tapekit.org/`. Check it with `node`, not with Biome: `deployments/` is outside Biome's scope.
+- `deployments/xlayer.json` has `webUrl` = `gatewayUrl`; `builderCode` keeps its old value (if any); `factory` and `factoryBlock` do not change. `--factory` and `--factory-block` come from that same file, because the Plan 1 broadcast file may no longer be on the machine.
+- `site:build` prints `… ready for deweb (web only)` while there is no `apps/docs`. If the docs exist but are not clean, the command stops; run it again with `--no-docs` (the docs are only on Pages).
+- The dry run prints every file as `new`, a total fee line and a recommended top-up line (estimate ×3). Claude sends this OKB amount to the user; the deployer must still hold that amount before step 5.
 
-Điền các ô của bảng ở trên từ `deployments/deweb.json` (id, container, tên, hai URL; URL `-open` là `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>-open.tapekit.org/`) và hash giao dịch tape-out, `open`. Ô giao dịch của tên điền ở bước 6. Rồi:
+Fill in the cells of the table above from `deployments/deweb.json` (id, container, name, the two URLs; the `-open` URL is `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>-open.tapekit.org/`) and the tape-out and `open` transaction hashes. The name's transaction cell is filled in at step 6. Then:
 
 ```bash
 git add deployments/deweb.json deployments/xlayer.json packages/sdk/src/deployments/xlayer.ts docs/deployments.md
 git commit -m "feat(web): record the DeWEB site identity and point webUrl at the gateway"
 ```
 
-#### 5. [USER, với CLAUDE] Đăng site
+#### 5. [USER, with CLAUDE] Publish the site
 
-[CLAUDE] lập file lệnh (chỉ đọc chain, không gửi gì):
+[CLAUDE] writes the calls file (read-only chain reads, sends nothing):
 
 ```bash
 npm run deweb:publish -- --emit contracts/deweb-calls/site.json
 ```
 
-`--emit` ghi file, in keccak256 của file, rồi in hai lệnh để chạy trong `contracts/`. Mỗi file chứa tối đa 1 MB dữ liệu, nên site lớn cho nhiều phần.
+`--emit` writes the file, prints its keccak256, then prints two commands to run in `contracts/`. Each file holds at most 1 MB of data, so a large site gives several parts.
 
-[USER], trong terminal của mình, trước khi gõ bất kỳ mật khẩu nào:
+[USER], in their own terminal, before typing any password:
 
-1. Chạy lệnh kiểm `show()` mà `--emit` in. Lệnh này không cần khoá, không gửi gì, và in keccak256 cùng một dòng cho mỗi lệnh gọi (đích, tên hàm, đường dẫn):
+1. Run the `show()` check that `--emit` printed. It needs no key, sends nothing, and prints the keccak256 plus one line per call (target, function name, path):
    ```bash
    cd contracts
    DEWEB_CALLS=deweb-calls/site.json forge script script/07_DewebPublish.s.sol --sig 'show()' --rpc-url 'https://rpc.xlayer.tech'
    ```
-2. So keccak256 đó với keccak256 mà `--emit` đã in. Khác nhau thì dừng.
-3. Vẫn trong `contracts/`, chạy lệnh broadcast (có `DEWEB_KECCAK`). Nếu file khác file đã kiểm, forge dừng với `HashMismatch` hoặc `NoExpectedHash` và không gửi gì:
+2. Compare that keccak256 with the keccak256 that `--emit` printed. If they differ, stop.
+3. Still in `contracts/`, run the broadcast command (with `DEWEB_KECCAK`). If the file differs from the one checked, forge stops with `HashMismatch` or `NoExpectedHash` and sends nothing:
    ```bash
    DEWEB_CALLS=deweb-calls/site.json DEWEB_KECCAK=0x<hash> forge script script/07_DewebPublish.s.sol --rpc-url 'https://rpc.xlayer.tech' --account atropyle-deployer --broadcast --slow
    ```
-4. Xoá file phần vừa gửi xong: `rm contracts/deweb-calls/site.json` (từ gốc repo) hoặc `rm deweb-calls/site.json` (trong `contracts/`).
+4. Delete the file of the part just sent: `rm contracts/deweb-calls/site.json` (from the repository root) or `rm deweb-calls/site.json` (in `contracts/`).
 
-[CLAUDE] chạy `npm run deweb:publish -- --dry-run` ở gốc repo. Kỳ vọng: `Nothing to publish: the chain already has this site.`, hoặc một kế hoạch cho phần kế. Nếu còn phần, chạy lại `--emit` rồi lặp bước kiểm và broadcast cho phần đó. Khi hết gì để đăng, `--emit` tự xoá file đã dùng của cùng container.
+[CLAUDE] runs `npm run deweb:publish -- --dry-run` at the repository root. Expected: `Nothing to publish: the chain already has this site.`, or a plan for the next part. If parts remain, run `--emit` again, then repeat the check and the broadcast for that part. When nothing is left to publish, `--emit` deletes the used files of the same container itself.
 
-Nếu bị ngắt giữa chừng (mạng, hết gas): chạy lại `--emit`. File đã đủ bị bỏ qua, file dở được nối tiếp. Không broadcast lại file phần cũ: nó sẽ cắt một file về các chunk đầu.
+If interrupted halfway (network, out of gas): run `--emit` again. Complete files are skipped and partial ones are resumed. Do not broadcast an old part file again: it would cut a file back to its first chunks.
 
-#### 6. [USER] Bind tên chính tắc
+#### 6. [USER] Bind the canonical name
 
 ```bash
 export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
@@ -243,42 +245,42 @@ export DEWEB_CONTAINER=$(node -p "require('./deployments/deweb.json').container"
 cast send 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "bind(string,address,uint256)" "$DEWEB_NAME" $DEWEB_CONTAINER 120 --value 0 --rpc-url https://rpc.xlayer.tech --account atropyle-deployer
 ```
 
-Kỳ vọng: `status 1 (success)`. Gửi hash cho Claude để điền vào bảng.
+Expected: `status 1 (success)`. Send the hash to Claude for the table.
 
-#### 7. [CLAUDE] Kiểm chain và gateway (chỉ đọc)
+#### 7. [CLAUDE] Check the chain and the gateway (read-only)
 
 ```bash
 export RPC=https://rpc.xlayer.tech
 export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
 export DEWEB_CONTAINER=$(node -p "require('./deployments/deweb.json').container")
-cast receipt <hash bind> --rpc-url $RPC
+cast receipt <bind hash> --rpc-url $RPC
 cast call 0x68809Fd2fb343aA57D0aeB7f33Defe477c9666f9 "isLive(string,address)(bool)" "$DEWEB_NAME" $DEWEB_CONTAINER --rpc-url $RPC
 cast call 0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6 "fallbackPath(address)(string)" $DEWEB_CONTAINER --rpc-url $RPC
 npm run deweb:publish -- --dry-run
 curl -s -D - -o /dev/null "$(node -p "require('./deployments/deweb.json').gatewayUrl.replace('.tapekit.org', '-open.tapekit.org')")"
 ```
 
-Kỳ vọng:
+Expected:
 
 - `isLive` = `true`; `fallbackPath` = `"index.html"`.
-- Dry run in `Nothing to publish: the chain already has this site.`
-- `curl` in dòng trạng thái `200` cùng các header `x-tape-status: ok`, `x-tape-name: <DEWEB_NAME>`, `x-tape-container: <DEWEB_CONTAINER>`.
+- The dry run prints `Nothing to publish: the chain already has this site.`
+- `curl` prints a `200` status line with the headers `x-tape-status: ok`, `x-tape-name: <DEWEB_NAME>`, `x-tape-container: <DEWEB_CONTAINER>`.
 
-Chỉ khi cả ba đúng mới điền hash `bind` vào bảng và đổi các ô "—" còn lại; nếu một mục sai, giữ "—" và báo người dùng. Rồi commit `docs/deployments.md`.
+Only when all three hold, fill in the `bind` hash in the table and replace the remaining "—" cells; if one item is wrong, keep "—" and tell the user. Then commit `docs/deployments.md`.
 
-#### 8. [USER] Kiểm trong trình duyệt thật
+#### 8. [USER] Check in a real browser
 
-Mở `gatewayUrl` trong Chrome có OKX Wallet, rồi:
+Open `gatewayUrl` in Chrome with OKX Wallet, then:
 
-1. Trang chủ hiện, banner "Beta — unaudited" có mặt. Mở `#/proof`, bấm chạy; chờ kết quả.
-2. Bấm "Connect wallet": OKX Wallet hiện trong danh sách (extension inject được dưới CSP của site). Nếu không có ví nào, ghi lại thông báo lỗi CSP trong DevTools Console.
-3. Mở `/.tape/status` trên cùng host: có badge "100% on-chain", danh sách external và off-chain đều trống.
-4. Mở một trang vault (địa chỉ vault thật, ví dụ vault Drill thử trong bảng đầu file): trang đọc được dữ liệu từ chain.
-5. Trong DevTools Console chạy `await window.okxwallet.request({ method: 'wallet_getCapabilities', params: [(await window.okxwallet.request({ method: 'eth_requestAccounts' }))[0], ['0xc4']] })` và gửi kết quả cho Claude (câu hỏi mở về EIP-5792 trên chain 196).
-6. Mở URL `-open` trong trình duyệt của OKX App trên điện thoại: trang hiện và ví của App kết nối được.
+1. The home page shows, with the "Beta — unaudited" banner. Open `#/proof`, press run, and wait for the result.
+2. Press "Connect wallet": OKX Wallet shows in the list (the extension can inject under the site's CSP). If no wallet shows, note the CSP error message in the DevTools Console.
+3. Open `/.tape/status` on the same host: it has the "100% on-chain" badge, and the external and off-chain lists are both empty.
+4. Open a vault page (a real vault address, for example the test Drill vault in the table at the top of this file): the page reads data from the chain.
+5. In the DevTools Console, run `await window.okxwallet.request({ method: 'wallet_getCapabilities', params: [(await window.okxwallet.request({ method: 'eth_requestAccounts' }))[0], ['0xc4']] })` and send the result to Claude (an open question about EIP-5792 on chain 196).
+6. Open the `-open` URL in the OKX App browser on a phone: the page shows and the App's wallet connects.
 
-Báo kết quả từng mục cho Claude. Mục 2, 3 hoặc 4 hỏng thì Claude mở issue và sửa trước khi đưa link DeWEB vào README hay bài nộp.
+Report the result of each item to Claude. If item 2, 3 or 4 fails, Claude opens an issue and fixes it before the DeWEB link goes into the README or the submission.
 
-#### 9. Đăng lại khi docs có mặt (sau Plan 6)
+#### 9. Publish again once the docs exist (after Plan 6)
 
-Khi `apps/docs` đã có: [CLAUDE] chạy `npm run site:build -- --target deweb`. Nếu báo docs chưa sạch, ghi danh sách lỗi cho Plan 6 và giữ bản web-only. Nếu sạch, làm lại bước 5 (`--emit`, kiểm `show()`, broadcast bằng keystore của người dùng) và bước 7. Không có operator và không có khoá nào để thiết lập.
+Once `apps/docs` exists: [CLAUDE] runs `npm run site:build -- --target deweb`. If it reports the docs are not clean, record the list of errors for Plan 6 and keep the web-only build. If they are clean, redo step 5 (`--emit`, the `show()` check, the broadcast with the user's keystore) and step 7. There is no operator and no key to set up.
