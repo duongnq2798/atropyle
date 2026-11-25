@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { buildEnvFor } from './build-env';
+import { applyCompileHints } from './compile-hints';
 import { applyCsp } from './csp';
 
 export const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
@@ -41,7 +42,10 @@ export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{
   });
 }
 
-/** `next build` into out/, then the postbuild step: a hashed CSP in every page (Quyết định 12). */
+/**
+ * `next build` into out/, then the postbuild steps: a hashed CSP in every page (Quyết định 12), and the V8 compile hint
+ * on every chunk (compile-hints.ts). The CSP hashes only inline scripts, so the hint leaves it valid.
+ */
 export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
   const built = await runNext('build', o);
   if (built.code !== 0) return built;
@@ -50,8 +54,11 @@ export async function buildApp(o: RunOptions = {}): Promise<{ code: number; outp
   // A plain record, as buildEnvFor takes: ProcessEnv declares TZ and NODE_ENV, which share no key with CspEnv.
   const env: Readonly<Record<string, string | undefined>> = buildEnvFor(o.env ?? process.env);
   const pages = applyCsp(OUT_DIR, env);
+  const hinted = pages > 0 ? applyCompileHints(OUT_DIR) : 0;
   const line =
-    pages > 0 ? `csp: ${pages} pages carry a hashed Content-Security-Policy\n` : 'csp: out/ has no HTML page\n';
+    pages > 0
+      ? `csp: ${pages} pages carry a hashed Content-Security-Policy\nhints: ${hinted} chunks compile on load\n`
+      : 'csp: out/ has no HTML page\n';
   if (!o.quiet) process.stdout.write(line);
   return { code: pages > 0 ? 0 : 1, output: built.output + line };
 }
