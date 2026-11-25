@@ -24,7 +24,7 @@ export function WalletButton() {
   if (status === 'restoring') {
     return (
       <span role="status" className="inline-flex overflow-hidden rounded-full">
-        <Skeleton className="h-8 w-24 sm:w-44" />
+        <Skeleton className="h-8 w-24 sm:w-44 md:w-24 lg:w-44" />
         <span className="sr-only">{t('restoring')}</span>
       </span>
     );
@@ -48,8 +48,9 @@ export function WalletButton() {
         t('connecting')
       ) : (
         <>
-          <span className="sm:hidden">{t('connectShort')}</span>
-          <span className="hidden sm:inline">{t('connect')}</span>
+          {/* The short label below sm, and from md to lg, where the bar nav takes the header's room (parked 7B-T1). */}
+          <span className="sm:hidden md:inline lg:hidden">{t('connectShort')}</span>
+          <span className="hidden sm:inline md:hidden lg:inline">{t('connect')}</span>
         </>
       )}
     </Button>

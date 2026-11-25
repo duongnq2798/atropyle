@@ -1,6 +1,7 @@
+import type { Page } from '@playwright/test';
 import { ANVIL, expect, test } from './fixtures.ts';
-import { connectWallet, expectAccessible, openSettings, settle } from './helpers.ts';
-import { captureScreens, shouldCapture } from './screens.ts';
+import { connectWallet, expectAccessible, openSettings, setStoredLang, setStoredTheme, settle } from './helpers.ts';
+import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
 import { rpcCall } from './state.ts';
 
 /** compactAddress of ANVIL[1] (Task 5). */
@@ -122,6 +123,24 @@ test('a wallet connects through the sheet, comes back after a reload without a p
     expect(Math.abs(menu.right - anchor)).toBeLessThan(1);
     expect(menu.width).toBeCloseTo(352, 0);
   }
+  // The hint under Disconnect starts in the column of its icon, as the Network label does in its pill: the menu keeps
+  // two left edges, the blocks' and the content's inside them, not a third 8 px off.
+  const hint = await page.getByRole('dialog', { name: 'Wallet', exact: true }).evaluate((m) => {
+    const disconnect = [...m.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Disconnect');
+    const p = disconnect?.parentElement?.querySelector(':scope > p');
+    const range = document.createRange();
+    if (p) range.selectNodeContents(p);
+    return {
+      icon: disconnect?.querySelector('svg')?.getBoundingClientRect().left ?? Number.NaN,
+      text: range.getClientRects()[0]?.left ?? Number.NaN,
+    };
+  });
+  expect(Math.abs(hint.text - hint.icon)).toBeLessThan(1);
+  await expectAccessible(page);
+  // The same audit in vellum: the reload that sets the theme closes the menu, so it opens again.
+  await setStoredTheme(page, 'light');
+  await account.click();
+  await expect(groups).toBeVisible();
   await expectAccessible(page);
   await page.getByRole('button', { name: 'Disconnect' }).click();
   const connect = page.getByRole('button', { name: 'Connect wallet' });
@@ -129,6 +148,93 @@ test('a wallet connects through the sheet, comes back after a reload without a p
   await page.reload();
   await expect(connect).toBeVisible();
   await expect(account).toBeHidden();
+});
+
+/**
+ * What breaks the header's one row at this width: a link or button whose text runs onto a second line, one that
+ * passes the row's content edge, or one that overlaps the next. From md up the footer's link columns are checked the
+ * same way. A line is a distinct top among the client rects of the element's text nodes: a block link that wraps
+ * still has one client rect of its own.
+ */
+function headerRow(page: Page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    const lines = (el: Element) => {
+      const tops = new Set<number>();
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        // A hidden label (" (opens in a new tab)") is a 1 px box of its own, not a line.
+        if (!n.textContent?.trim() || n.parentElement?.closest('.sr-only')) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
+      }
+      return tops.size;
+    };
+    const shown = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const name = (el: Element) => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
+    const row = document.querySelector('header.site-header > div');
+    if (!row) throw new Error('no header row');
+    const box = row.getBoundingClientRect();
+    const end = box.right - Number.parseFloat(getComputedStyle(row).paddingRight);
+    const items = [...row.querySelectorAll('a, button')]
+      .filter(shown)
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .sort((a, b) => a.r.left - b.r.left);
+    const footer = window.innerWidth >= 768 ? [...document.querySelectorAll('footer nav li > *')].filter(shown) : [];
+    return {
+      wrapped: [...items.map((i) => i.el), ...footer].filter((el) => lines(el) > 1).map(name),
+      outside: items.filter((i) => i.r.right > end + 0.5).map((i) => name(i.el)),
+      overlaps: items.slice(1).flatMap((i, k) => (i.r.left < (items[k]?.r.right ?? 0) - 0.5 ? [name(i.el)] : [])),
+      account: document.querySelector('[data-wallet-button]')?.getBoundingClientRect().height ?? 0,
+      // The widest gap between two neighbours: the room ml-auto leaves between the nav and the actions.
+      free: Math.max(0, ...items.slice(1).map((i, k) => i.r.left - (items[k]?.r.right ?? 0))),
+    };
+  });
+}
+
+/** sm, md and lg, and the tablet widths between them (iPad mini and Air portrait at 768 and 820, 834). */
+const HEADER_WIDTHS = [640, 700, 768, 800, 820, 834, 900, 1000, 1023, 1024, 1280] as const;
+
+/**
+ * Parked 7B-T1: from md (768 px) the header holds the wordmark, the four nav links, the wallet and the settings in
+ * one row. With a wallet connected, the account pill and "My vaults" wrapped onto two lines between 768 and about
+ * 830 px. Every width from sm to past lg, in both languages, without a wallet and with one.
+ */
+test('the header keeps one row from sm to lg, without a wallet and with one, in English and Vietnamese', async ({
+  page,
+  state,
+  wallet,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'the widths are set here; the phone project adds nothing');
+  await wallet({ account: ANVIL[1] });
+  await page.goto(state.siteUrl);
+  const account = page.getByRole('button', { name: /^(Wallet|Ví) 0x7099 7970 … 17dc 79C8$/ });
+  const check = async (label: string, connected: boolean) => {
+    for (const width of HEADER_WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      if (connected) await expect(account).toBeVisible();
+      const m = await headerRow(page);
+      const at = `${label} at ${width} px: ${JSON.stringify(m)}`;
+      // Soft: one run names every width and state that breaks, not only the first.
+      expect.soft(m.wrapped, at).toEqual([]);
+      expect.soft(m.outside, at).toEqual([]);
+      expect.soft(m.overlaps, at).toEqual([]);
+      if (connected) expect.soft(m.account, at).toBe(32);
+    }
+  };
+  await check('en, no wallet', false);
+  await setStoredLang(page, 'vi');
+  await check('vi, no wallet', false);
+  await setStoredLang(page, 'en');
+  await connectWallet(page);
+  await check('en, wallet', true);
+  // The remembered wallet comes back after the reload through eth_accounts, without a prompt.
+  await setStoredLang(page, 'vi');
+  await check('vi, wallet', true);
 });
 
 /**
@@ -209,18 +315,22 @@ test('the wallet refuses signing and raw-transaction methods before anvil sees t
 
 /**
  * Spec §18.4.2 Task 1: the wallet menu is the screen of 7A that shows an address in full, so it carries the review
- * shots of the Ledger voice. Each reload (theme, language) closes the menu; `ready` opens it again. After a reload
- * the remembered wallet comes back through eth_accounts, so the account button returns without a prompt.
+ * shots of the Ledger voice, and of the header with a wallet: the full matrix, since the header changes shape at md
+ * (parked 7B-T1). The header without a wallet is shot at 768 first. Each reload (theme, language) closes the menu;
+ * `ready` opens it again. After a reload the remembered wallet comes back through eth_accounts, so the account button
+ * returns without a prompt.
  */
 test('screens of the wallet menu: the full address in the Ledger voice', async ({ page, state, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   await wallet({ account: ANVIL[1] });
   await page.goto(state.siteUrl);
+  await captureScreens(page, 'header-no-wallet', { shots: FULL_MATRIX.filter((s) => s.width === 768) });
   await connectWallet(page);
   const account = page.getByRole('button', { name: /^(Wallet|Ví) 0x7099 7970 … 17dc 79C8$/ });
   const menu = page.getByRole('dialog').filter({ has: page.locator(`[data-address="${ANVIL[1]}"]`) });
   await captureScreens(page, 'wallet-menu', {
+    shots: FULL_MATRIX,
     ready: async () => {
       if (!(await menu.isVisible())) await account.click();
       await expect(menu).toBeVisible();

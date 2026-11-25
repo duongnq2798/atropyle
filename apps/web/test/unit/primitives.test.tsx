@@ -38,9 +38,10 @@ function renderInMotion(ui: ReactElement) {
       <m.span data-motion-probe="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
     </MotionProvider>,
   );
-  // Animations are skipped in unit tests, so the probe jumps to 1 as soon as an m.* element can animate at all.
+  // Animations are skipped in unit tests, so the probe jumps to 1 as soon as an m.* element can animate at all. The
+  // features come in a lazy chunk, which took over vi.waitFor's 1 s default under load (parked 7B-T1).
   const probe = () => r.container.querySelector<HTMLElement>('[data-motion-probe]')?.style.opacity;
-  return { ...r, ready: () => vi.waitFor(() => expect(probe()).toBe('1')) };
+  return { ...r, ready: () => vi.waitFor(() => expect(probe()).toBe('1'), { timeout: 5_000 }) };
 }
 
 /**

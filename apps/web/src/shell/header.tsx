@@ -24,7 +24,7 @@ export function Header() {
         <NavLink href={ROUTES.home} prefetch={false} aria-label={u('home')} className="-ml-1 rounded-full p-1">
           <Wordmark />
         </NavLink>
-        <nav aria-label={t('navLabel')} className="ml-6 hidden md:block">
+        <nav aria-label={t('navLabel')} className="ml-4 hidden md:block lg:ml-6">
           <NavList layout="bar" />
         </nav>
         <div className="ml-auto flex items-center gap-2">

@@ -120,7 +120,8 @@ for (const target of ['vercel', 'deweb'] as const) {
       const css = builtCss(out);
       expect(css).toMatch(/\.voice-ledger\{[^}]*font-family:var\(--font-mono\)/);
       expect(css).toMatch(/\.voice-ledger\{[^}]*font-variant-ligatures:none/);
-      expect(css).toMatch(/font-weight:650/);
+      // The rule of the class Address and the account button give the capitals, not any rule at 650.
+      expect(css).toMatch(/\.font-\\\[650\\\]\{[^}]*font-weight:650/);
       expect(css).not.toMatch(/"SOFT"|"WONK"/);
     });
 

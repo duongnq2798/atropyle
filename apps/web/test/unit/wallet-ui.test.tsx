@@ -182,6 +182,33 @@ describe('WalletButton', () => {
     expect(screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8, wrong network' })).toBeTruthy();
   });
 
+  it('keeps the header row: one line, and the short forms where the bar nav takes the room (md to lg)', () => {
+    const r = withWallet(<WalletButton />, walletValue());
+    const connect = screen.getByRole('button', { name: 'Connect wallet' });
+    const label = (text: string) => [...connect.querySelectorAll('span')].find((s) => s.textContent === text);
+    expect(label('Connect')).toHaveClass('sm:hidden', 'md:inline', 'lg:hidden');
+    expect(label('Connect wallet')).toHaveClass('hidden', 'sm:inline', 'md:hidden', 'lg:inline');
+
+    r.update(walletValue({ status: 'restoring' }));
+    expect(screen.getByRole('status').firstElementChild).toHaveClass('w-24', 'sm:w-44', 'md:w-24', 'lg:w-44');
+
+    r.update(walletValue({ status: 'connected', wallet: on(196) }));
+    const account = screen.getByRole('button', { name: 'Wallet 0x7099 7970 … 17dc 79C8' });
+    expect(account).toHaveClass('whitespace-nowrap', 'shrink-0', 'sm:pr-3', 'md:pr-1.5', 'lg:pr-3');
+    const short = account.querySelector('[data-part="short"]');
+    expect(short).toHaveClass('hidden', 'sm:inline', 'md:hidden', 'lg:inline');
+    // Cased as the full address in the menu below it: the Ledger voice, a muted 0x, the checksum capitals at 650,
+    // and its thin gaps drawn by word spacing, so the text shown stays the text of the button's name (WCAG 2.5.3).
+    expect(short).toHaveClass('voice-ledger', '[word-spacing:-0.55ch]');
+    expect(short?.textContent).toBe('0x7099 7970 … 17dc 79C8');
+    expect(account.getAttribute('aria-label')).toContain(short?.textContent);
+    expect(short?.firstElementChild).toHaveClass('text-ink-muted');
+    expect(short?.firstElementChild?.textContent).toBe('0x');
+    const upper = [...(short?.querySelectorAll('[data-case="upper"]') ?? [])];
+    expect(upper.map((u) => u.textContent)).toEqual(['C']);
+    for (const u of upper) expect(u).toHaveClass('font-[650]');
+  });
+
   it('the wallet menu shows the full address, the network and Disconnect', async () => {
     const disconnect = vi.fn();
     withWallet(<WalletButton />, walletValue({ status: 'connected', wallet: on(196), disconnect }));
@@ -189,6 +216,8 @@ describe('WalletButton', () => {
     const menu = await screen.findByRole('dialog', { name: 'Wallet' });
     expect(menu.querySelector(`[data-address="${PEOPLE.owner}"]`)).toBeTruthy();
     expect(menu.textContent).toContain('X Layer');
+    // The chain ID is chain data: the Ledger voice (spec §18.2 rule 7).
+    expect([...menu.querySelectorAll('span')].find((s) => s.textContent === '· 196')).toHaveClass('voice-ledger');
     fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
     expect(disconnect).toHaveBeenCalledTimes(1);
   });

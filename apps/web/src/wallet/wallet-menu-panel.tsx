@@ -75,7 +75,7 @@ export function WalletMenuPanel({
           <span className={cn('inline-flex items-center gap-1.5', wrongChain ? 'text-grace' : 'text-ink')}>
             <span aria-hidden="true" className={cn('size-2 rounded-full', wrongChain ? 'bg-grace' : 'bg-alive')} />
             {networkName(wallet.chainId)}
-            <span className="font-mono text-ink-muted">· {wallet.chainId}</span>
+            <span className="voice-ledger text-ink-muted">· {wallet.chainId}</span>
           </span>
         </div>
         {wrongChain ? <SwitchNetworkButton /> : null}
@@ -90,7 +90,7 @@ export function WalletMenuPanel({
               {t('disconnect')}
             </Button>
           </PopoverClose>
-          <p className="px-1 text-caption text-ink-muted">{t('disconnectHint')}</p>
+          <p className="px-3 text-caption text-ink-muted">{t('disconnectHint')}</p>
         </div>
       </div>
     </AnchoredPopover>

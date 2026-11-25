@@ -2,34 +2,19 @@
 
 import { Fragment } from 'react';
 import { useT } from '@/i18n/provider';
-import { addressGroups, caseRuns, isAddressText } from '@/lib/address';
+import { addressGroups, isAddressText } from '@/lib/address';
 import { cn } from '@/lib/cn';
 import { explorerAddress, explorerName } from '@/lib/links';
 import { messages as ui } from '@/messages/ui.messages';
 import { Avatar } from './avatar';
 import { CopyButton } from './copy-button';
+import { Digits } from './digits';
 import { ExternalLink } from './external-link';
 import { VisuallyHidden } from './visually-hidden';
 
-// The face moved to avatar.tsx, so the account button can show it without loading the rest of this file (R23).
+// The face moved to avatar.tsx and the digits to digits.tsx, so the account button can show both without loading the
+// rest of this file (R23).
 export { Avatar };
-
-/** A group of hex digits: the checksum capitals at weight 650, the rest at the 400 of the voice. */
-function Digits({ group }: { group: string }) {
-  return (
-    <>
-      {caseRuns(group).map((r) =>
-        r.upper ? (
-          <span key={r.at} data-case="upper" className="font-[650]">
-            {r.text}
-          </span>
-        ) : (
-          <Fragment key={r.at}>{r.text}</Fragment>
-        ),
-      )}
-    </>
-  );
-}
 
 /**
  * An address in full, in the Ledger voice and in groups of four (spec §4.2, §18.4.2 Task 1), so two addresses can be

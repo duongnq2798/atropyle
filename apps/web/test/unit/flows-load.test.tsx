@@ -18,8 +18,12 @@ function files(dir: string): string[] {
   );
 }
 
-/** An import of the hook or of the logic itself; src/flows/load.ts stays allowed, for a preload on hover or focus. */
-const FLOWS = /['"](?:@\/|(?:\.\.?\/)+)flows\/(?:use-flows|impl(?:\/index)?)['"]/;
+/**
+ * An import of the hook or of the logic itself, with or without an extension; src/flows/load.ts stays allowed, for a
+ * preload on hover or focus. A deep import of one module (`@/flows/impl/<module>`) passes here: lazy-boundary.test.ts
+ * guards every static import of impl/, so the two tests together cover it.
+ */
+const FLOWS = /['"](?:@\/|(?:\.\.?\/)+)flows\/(?:use-flows|impl(?:\/index)?)(?:\.[cm]?[jt]sx?)?['"]/;
 
 describe('flow logic chunk', () => {
   it('loads once, offline too, then every component gets it synchronously', async () => {
@@ -62,6 +66,9 @@ describe('flow logic chunk', () => {
       '@/flows/impl/index',
       '../flows/use-flows',
       '../../flows/impl',
+      '@/flows/use-flows.ts',
+      '../flows/impl/index.tsx',
+      '@/flows/impl.js',
     ])
       expect(FLOWS.test(`import { x } from '${spec}';`), spec).toBe(true);
     for (const spec of ['@/flows/load', '@/flows/impl/time-machine', '@/flows/time-machine/load'])
