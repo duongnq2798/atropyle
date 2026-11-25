@@ -43,10 +43,12 @@ const NATIVE = 'OKB';
 
 /**
  * Label and value side by side while the box has room; in a narrow box (a phone, inside a step) the label sits above
- * its value, so a full address keeps the width and wraps in two or three lines instead of ten.
+ * its value, so a full address keeps the width and wraps in two or three lines instead of ten. Side by side, the
+ * label column starts at 8rem so that the bundle's network row and each call's fields line up.
  */
 const FIELDS =
-  'grid grid-cols-1 gap-y-0.5 text-small @sm:grid-cols-[auto_minmax(0,1fr)] @sm:items-baseline @sm:gap-x-4 @sm:gap-y-2';
+  'grid grid-cols-1 gap-y-0.5 text-small @sm:grid-cols-[minmax(8rem,auto)_minmax(0,1fr)] @sm:items-baseline ' +
+  '@sm:gap-x-4 @sm:gap-y-2';
 
 function Field({ label, testId, children }: { label: string; testId?: string; children: ReactNode }) {
   return (

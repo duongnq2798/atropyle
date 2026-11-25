@@ -92,12 +92,15 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
                   className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-muted"
                 >
                   <span>{t('receiptDecided')}</span>
-                  {/* The change reads as one unit: on a phone the label may wrap, never the arrow between states. */}
-                  <span className="inline-flex items-center gap-2">
+                  {/* The change reads as one unit after the label; where two long badges do not fit (Vietnamese on a
+                      phone), the second line starts with the arrow, never with a lone badge or a lone arrow. */}
+                  <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                     <StateBadge state={c.from} size="sm" />
-                    <ArrowRight aria-hidden="true" size={14} strokeWidth={1.5} />
-                    <VisuallyHidden>{t('receiptTo')}</VisuallyHidden>
-                    <StateBadge state={c.to} size="sm" />
+                    <span className="inline-flex items-center gap-2">
+                      <ArrowRight aria-hidden="true" size={14} strokeWidth={1.5} />
+                      <VisuallyHidden>{t('receiptTo')}</VisuallyHidden>
+                      <StateBadge state={c.to} size="sm" />
+                    </span>
                   </span>
                 </p>
               ))}
