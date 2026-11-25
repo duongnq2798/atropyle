@@ -109,6 +109,8 @@ npx -y supabase@3.2.0 functions deploy --use-api
 
 This deploys the eight functions declared in `supabase/config.toml`. Each comes from its pre-built `supabase/functions/<name>/index.js` and is bundled on Supabase's side, so no Docker is needed. JWT verification is off: the public endpoints take no Supabase session, and the two cron endpoints check `x-cron-secret`.
 
+If the deploy times out (`TransportError`), deploy the functions one at a time and retry the one that failed, for example `npx -y supabase@3.2.0 functions deploy tick --use-api`.
+
 ### 6. Vault secrets for the schedule
 
 In the SQL editor:
@@ -121,13 +123,16 @@ select vault.create_secret('<the CRON_SECRET value>', 'atropyle_cron_secret');
 ### 7. Schema and schedule
 
 ```bash
-npx -y supabase@3.2.0 db push
+npx -y supabase@3.2.0 db push --remote
 ```
+
+Without `--remote`, the CLI targets a local database on port 54322. It asks before it changes the linked project; answer `y`.
 
 This applies `supabase/migrations/` in order:
 
 - the schema, with RLS on and no policy, so nothing is exposed through the REST API;
-- the schedule: `tick` every minute, `integrity` every 10 minutes, and the cleanup at 03:17 UTC every day.
+- the schedule: `tick` every minute, `integrity` every 10 minutes, and the cleanup at 03:17 UTC every day;
+- a repair of the rows that the backend stored before the jsonb fix of 25 Nov 2026 (a no-op on a new project).
 
 The first `tick` runs within a minute.
 
