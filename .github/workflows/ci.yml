@@ -37,6 +37,27 @@ jobs:
         working-directory: contracts
       - run: forge test
         working-directory: contracts
+      # Static analysis, triaged in docs/security/static-analysis.md. Each step fails only on a finding that is not in
+      # the triaged baseline: the inline forge-lint comments in src/, plus contracts/static-analysis.baseline.json for
+      # unsafe-typecast (excluded in foundry.toml) and for Slither.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: forge lint, every warning or note not suppressed in src/ fails
+        run: forge lint src --deny notes
+        working-directory: contracts
+      - name: forge lint, unsafe-typecast against the baseline
+        run: |
+          forge lint src --json --only-lint unsafe-typecast > "$RUNNER_TEMP/forge-lint-typecast.jsonl"
+          python static-analysis-gate.py forge-lint "$RUNNER_TEMP/forge-lint-typecast.jsonl"
+        working-directory: contracts
+      - run: pip install uv==0.11.8
+      # Last on purpose: crytic-compile runs forge clean, then rebuilds src/ and lib/ only, with build info.
+      - name: Slither against the baseline
+        run: |
+          uvx --python 3.12 --from slither-analyzer==0.11.6 --with crytic-compile==0.4.2 slither . --fail-none --json "$RUNNER_TEMP/slither.json"
+          python static-analysis-gate.py slither "$RUNNER_TEMP/slither.json"
+        working-directory: contracts
 
   lint:
     runs-on: ubuntu-latest
