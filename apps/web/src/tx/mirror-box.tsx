@@ -1,0 +1,203 @@
+'use client';
+
+import { TriangleExclamationPoint } from 'lucide-react';
+import { type ReactNode, useId } from 'react';
+import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
+import { formatAmount } from '@/lib/format';
+import { messages } from '@/messages/tx-flow.messages';
+import { Address } from '@/ui/address';
+import { Amount } from '@/ui/amount';
+import { UntrustedText } from '@/ui/untrusted-text';
+import { networkName } from '@/wallet/network';
+import {
+  approvalSpender,
+  type ContractRole,
+  isZero,
+  type MirrorCall,
+  type MirrorDanger,
+  mirrorDangers,
+} from './mirror';
+
+const ROLE_KEY = {
+  factory: 'roleFactory',
+  vault: 'roleVault',
+  token: 'roleToken',
+  feeToken: 'roleFeeToken',
+  other: 'roleOther',
+} as const satisfies Record<ContractRole, string>;
+
+const DANGER_KEY = {
+  unlimited: 'dangerUnlimited',
+  all: 'dangerAll',
+  unknownSpender: 'dangerUnknownSpender',
+  unknownContract: 'dangerUnknownContract',
+  unknownCall: 'dangerUnknownCall',
+} as const satisfies Record<MirrorDanger, string>;
+
+/**
+ * X Layer's native coin; the mirror shows the value even when it is 0, so the reader can check nothing is sent. A
+ * constant of this page, not chain text: plain text, never UntrustedText (Amount's symbol path would mark it).
+ */
+const NATIVE = 'OKB';
+
+function Field({ label, testId, children }: { label: string; testId?: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-ink-muted">{label}</dt>
+      <dd data-testid={testId} className="min-w-0 text-ink">
+        {children}
+      </dd>
+    </>
+  );
+}
+
+function Danger({ testId, children }: { testId: string; children: ReactNode }) {
+  return (
+    <p data-testid={testId} className="flex items-start gap-2 text-danger text-small">
+      <TriangleExclamationPoint aria-hidden="true" size={16} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function Party({ address, role, explorer }: { address: string; role: ContractRole; explorer: string | null }) {
+  const t = useT(messages);
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <Address address={address} size="sm" avatar={false} explorer={explorer} />
+      <span className={cn('text-caption', role === 'other' ? 'text-danger' : 'text-ink-muted')}>
+        {t(ROLE_KEY[role])}
+      </span>
+    </span>
+  );
+}
+
+function Approves({ call }: { call: MirrorCall }) {
+  const t = useT(messages);
+  const a = call.approval;
+  if (!a) return null;
+  switch (a.kind) {
+    case 'erc20':
+      if (a.amount === 0n) return t('approveNone');
+      if (a.unlimited) return <strong className="text-danger">{t('approveUnlimited')}</strong>;
+      return <Amount raw={a.amount} decimals={call.token?.decimals ?? null} symbol={call.token?.symbol ?? null} />;
+    case 'erc721':
+      return isZero(a.spender) ? (
+        t('approveNftNone', { id: a.id })
+      ) : (
+        <span className="voice-ledger">{t('approveNft', { id: a.id })}</span>
+      );
+    case 'all':
+      return a.on ? <strong className="text-danger">{t('approveAll')}</strong> : t('approveAllNone');
+    case 'unknown':
+      return <span className="voice-ledger">{t('approveRaw', { raw: a.raw })}</span>;
+  }
+}
+
+function CallFields({ call, explorer, testId }: { call: MirrorCall; explorer: string | null; testId: string }) {
+  const t = useT(messages);
+  const a = call.approval;
+  const spender = a ? approvalSpender(a) : null;
+  return (
+    <>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 text-small">
+        <Field label={t('mirrorNetwork')}>
+          <span className="voice-ledger">{`${networkName(call.chainId)} (${call.chainId})`}</span>
+        </Field>
+        <Field label={t('mirrorContract')}>
+          <Party address={call.to} role={call.role} explorer={explorer} />
+        </Field>
+        <Field label={t('mirrorFn')}>
+          <code className="voice-ledger">{call.fn}</code>
+        </Field>
+        <Field label={t('mirrorSends')} testId={`${testId}-mirror-${call.index}-sends`}>
+          {/* Every one of the 18 decimals, never truncated: the reader compares it with the wallet's figure. */}
+          <span className="voice-ledger tabular-nums">{`${formatAmount(call.value, 18, 18)} ${NATIVE}`}</span>
+        </Field>
+        {call.vote ? (
+          <Field label={t('mirrorVotesFor')}>
+            {isZero(call.vote) ? (
+              t('mirrorWithdraw')
+            ) : (
+              <Address address={call.vote} size="sm" avatar={false} explorer={explorer} />
+            )}
+          </Field>
+        ) : null}
+        {a ? (
+          <>
+            <Field label={t('mirrorToken')} testId={`${testId}-mirror-${call.index}-token`}>
+              {call.token?.symbol ? (
+                <UntrustedText value={call.token.symbol} max={32} className="voice-ledger" />
+              ) : (
+                <span className="text-ink-muted">{t('tokenUnknown')}</span>
+              )}
+            </Field>
+            {spender && !isZero(spender) ? (
+              <Field label={a.kind === 'all' ? t('mirrorOperator') : t('mirrorSpender')}>
+                <Party address={spender} role={a.spenderRole} explorer={explorer} />
+              </Field>
+            ) : null}
+            <Field label={t('mirrorApproves')}>
+              <Approves call={call} />
+            </Field>
+          </>
+        ) : null}
+      </dl>
+      {mirrorDangers(call).map((d) => (
+        <Danger key={d} testId={`${testId}-mirror-${call.index}-danger-${d}`}>
+          {t(DANGER_KEY[d])}
+        </Danger>
+      ))}
+    </>
+  );
+}
+
+/**
+ * "Your wallet should show" (R18.8): one call, or every call of a wallet_sendCalls bundle, decoded from calldata.
+ * The words say "should show" and copy no wallet's look: each wallet draws its own window.
+ */
+export function MirrorBox({
+  calls,
+  explorer,
+  testId,
+  bundle = false,
+}: {
+  calls: readonly MirrorCall[];
+  explorer: string | null;
+  testId: string;
+  bundle?: boolean;
+}) {
+  const t = useT(messages);
+  const headingId = useId();
+  const first = calls[0];
+  if (!first) return null;
+  return (
+    <section
+      aria-labelledby={headingId}
+      data-testid={bundle ? `${testId}-mirror-bundle` : `${testId}-mirror-${first.index}`}
+      className="mt-2 flex flex-col gap-3 rounded-2xl border border-line-strong bg-surface-2/60 p-4"
+    >
+      <h4 id={headingId} className="font-medium text-ink text-small">
+        {bundle ? t('mirrorBundle', { n: calls.length }) : t('mirrorTitle')}
+      </h4>
+      {bundle ? (
+        <ol className="flex flex-col gap-4">
+          {calls.map((c, i) => (
+            <li
+              key={c.index}
+              data-testid={`${testId}-mirror-${c.index}`}
+              className="flex flex-col gap-2 border-line border-t pt-3 first:border-t-0 first:pt-0"
+            >
+              <p className="text-caption text-ink-muted">{t('mirrorCall', { n: i + 1 })}</p>
+              <CallFields call={c} explorer={explorer} testId={testId} />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <CallFields call={first} explorer={explorer} testId={testId} />
+      )}
+      <Danger testId={`${testId}-mirror-reject`}>{t('dangerReject')}</Danger>
+    </section>
+  );
+}
