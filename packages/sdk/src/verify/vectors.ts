@@ -69,7 +69,7 @@ export interface P9OperatorRead {
   blockNumber: bigint;
   /** Multicall3, with its canonical code, carried at least one batch. */
   multicall: boolean;
-  /** eth_call requests sent to this operator. */
+  /** eth_call requests sent to this operator, retries included. */
   calls: number;
   answers: P9Answer[];
 }
@@ -205,11 +205,14 @@ async function readOperator(
   o: ReadP9Options,
 ): Promise<P9OperatorRead> {
   let calls = 0;
-  /** eth_call at the pinned block: the returned bytes, or the error. */
+  /** eth_call at the pinned block: the returned bytes, or the error. Every attempt counts as a request. */
   const call = async (to: Address, d: Hex): Promise<{ data: Hex } | { error: unknown }> => {
-    calls++;
     try {
-      return { data: (await retrying(() => c.call({ to, data: d, blockNumber }), o)).data ?? '0x' };
+      const r = await retrying(() => {
+        calls++;
+        return c.call({ to, data: d, blockNumber });
+      }, o);
+      return { data: r.data ?? '0x' };
     } catch (error) {
       return { error };
     }
@@ -237,10 +240,18 @@ async function readOperator(
       const args = [batch.map((callData) => ({ target: cpu, allowFailure: true, callData }))] as const;
       const r = await call(MULTICALL3, encodeFunctionData({ abi: multicall3Abi, functionName: 'aggregate3', args }));
       got = 'data' in r ? decodeBatch(r.data, batch.length) : null;
-      if (got) multicall = true;
+      if (got) {
+        multicall = true;
+        // An entry that failed (or does not decode) inside the batch is not yet the processor's answer: under an
+        // eth_call gas cap just below what the batch needs, the last step() runs out of the gas aggregate3 can pass
+        // on (EIP-150 keeps 1/64 back) while aggregate3 itself succeeds. Each such entry is asked again on its own,
+        // where a revert is the processor's answer.
+        got = await Promise.all(got.map((a, j) => ('error' in a ? single(batch[j]) : a)));
+      }
     }
-    // No Multicall3 with the canonical code, or a batch it did not carry (a revert, an eth_call gas cap, a malformed
-    // result): one call per vector. A dead RPC fails these too, and that failure is thrown.
+    // No Multicall3 with the canonical code, or a batch it did not carry (a revert, an eth_call gas cap below what
+    // aggregate3 needs to finish, a malformed result): one call per vector. A dead RPC fails these too, and that
+    // failure is thrown.
     got ??= await Promise.all(batch.map(single));
     answers.push(...got);
   }

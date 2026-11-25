@@ -103,6 +103,13 @@ interface Behaviour {
   mc3Code?: Hex;
   /** aggregate3 itself fails like this (a revert, or a node's eth_call gas cap). */
   aggregateFails?: () => Error;
+  /**
+   * The entry at this position of a batch fails inside aggregate3 while aggregate3 succeeds, as the last step() does
+   * when the node's eth_call gas cap is just below what the batch needs. The same step() alone succeeds.
+   */
+  outOfGasInBatch?: (position: number) => boolean;
+  /** The first n eth_call requests fail with a rate limit. */
+  flakyCalls?: number;
   /** Rewrites the answer to the step() of one vector, by its packed state and inputs. */
   answer?: (state: Hex, inputs: Hex, a: { next: Hex; out: Hex }) => { next: Hex; out: Hex } | 'revert';
   /** Every request fails like this. */
@@ -112,6 +119,7 @@ interface Behaviour {
 /** One RPC operator in front of a processor that runs this repository's policy. */
 function operator(b: Behaviour = {}) {
   const log: { method: string; to?: string; block?: string }[] = [];
+  let flaky = b.flakyCalls ?? 0;
   const step = (data: Hex): { ok: boolean; data: Hex } => {
     const { args } = decodeFunctionData({ abi: cpuAbi, data });
     const [id, state, inputs] = args as [bigint, Hex, Hex];
@@ -129,12 +137,17 @@ function operator(b: Behaviour = {}) {
     if (method === 'eth_chainId') return '0xc4';
     if (method === 'eth_getCode') return b.mc3Code ?? fake.MC3_CODE;
     if (method !== 'eth_call') throw new Error(`unexpected ${method}`);
+    if (flaky > 0) {
+      flaky--;
+      throw rateLimit();
+    }
     const { to, data } = p[0] as { to: string; data: Hex };
     if (to.toLowerCase() === MULTICALL3.toLowerCase()) {
       if (b.aggregateFails) throw b.aggregateFails();
       const { args } = decodeFunctionData({ abi: aggregate3Abi, data });
       const calls = args[0] as readonly { target: Address; allowFailure: boolean; callData: Hex }[];
-      const results = calls.map((c) => {
+      const results = calls.map((c, position) => {
+        if (b.outOfGasInBatch?.(position)) return { success: false, returnData: '0x' as Hex };
         const r = step(c.callData);
         return { success: r.ok, returnData: r.data };
       });
@@ -219,6 +232,27 @@ describe('readP9 + evaluateP9', () => {
     }
   });
 
+  it('asks a step() that ran out of gas inside a batch again on its own, instead of reporting a revert', async () => {
+    // Read-only probe on rpc.xlayer.tech, 25 Nov 2026: aggregate3 of 16 step() calls at 9.25M to 9.40M gas succeeded
+    // with the 16th call failed; at 9.45M all 16 succeeded.
+    const a = operator({ outOfGasInBatch: (position) => position === 15 });
+    const reads = await readP9([a.client], CPU, POLICY_ID, 77n, 9n, quick);
+    expect(reads.operators[0]).toMatchObject({ multicall: true, calls: 4 + 4 });
+    const singles = a.log.filter((x) => x.method === 'eth_call' && x.to?.toLowerCase() === CPU.toLowerCase());
+    expect(singles).toHaveLength(4);
+    const r = evaluateP9(program, reads);
+    expect(r).toMatchObject({ ok: true, mismatches: [] });
+    expect(r.operators[0].matched).toBe(64);
+  });
+
+  it('counts every eth_call attempt, retries included', async () => {
+    const a = operator({ flakyCalls: 2 });
+    const reads = await readP9([a.client], CPU, POLICY_ID, 77n, 9n, quick);
+    expect(reads.operators[0]).toMatchObject({ multicall: true, calls: 4 + 2 });
+    expect(a.log.filter((x) => x.method === 'eth_call')).toHaveLength(6);
+    expect(evaluateP9(program, reads).ok).toBe(true);
+  });
+
   it('pins a wrong answer and a revert on the operator that gave them', async () => {
     const vectors = p9Vectors(9n);
     const target = vectorBytes(vectors[3]);
@@ -234,6 +268,8 @@ describe('readP9 + evaluateP9', () => {
     const r = evaluateP9(program, await readP9([honest.client, liar.client], CPU, POLICY_ID, 77n, 9n, quick));
     expect(r.ok).toBe(false);
     expect(r.operators.map((o) => o.matched)).toEqual([64, 62]);
+    // The entry that failed inside its batch was asked again on its own, where it reverted too.
+    expect(r.operators.map((o) => o.calls)).toEqual([4, 5]);
     expect(r.mismatches.map((m) => [m.operator, m.index, m.next, m.error])).toEqual([
       [2, 3, '0x06', null],
       [2, 10, null, 'reverted'],
