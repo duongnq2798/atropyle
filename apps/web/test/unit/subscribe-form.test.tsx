@@ -185,11 +185,11 @@ describe('SubscribeForm on the hosted build', () => {
       website: '',
     });
     await waitFor(() => expect(screen.getByText('Check your inbox')).toHaveFocus());
-    await waitFor(() =>
-      expect(live().textContent).toBe(
-        'If ana@example.com can get alerts for this vault, a confirmation email is on its way. Nothing else is sent until you open the link in it.',
-      ),
-    );
+    const help =
+      'If ana@example.com can get alerts for this vault, a confirmation email is on its way. Nothing else is sent until you open the link in it.';
+    await waitFor(() => expect(live().textContent).toBe(help));
+    // On screen the address is a node of its own, set apart in the same sentence.
+    expect(screen.getByText('ana@example.com').parentElement?.textContent).toBe(help);
   });
 
   it('mails in the page language until the reader picks one', async () => {

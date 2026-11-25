@@ -26,7 +26,7 @@ import { hostedHref } from './hosted';
 export interface SubscribeFormProps {
   vault: `0x${string}`; // checksummed
   role: 'owner' | 'guardian' | 'heir';
-  /** Tighter layout for the wizard's Done step and /join/. */
+  /** Tighter padding for the wizard's Done step and /join/; the layout follows the card's own width either way. */
   compact?: boolean;
 }
 
@@ -67,7 +67,15 @@ const LANGS: readonly { value: Lang; label: 'langEn' | 'langVi' }[] = [
   { value: 'vi', label: 'langVi' },
 ];
 
-const BOX = 'flex flex-col gap-4 rounded-3xl border border-line bg-surface-1';
+/**
+ * A container, so the form lays out by the card's own width (the `@xl:` variants below), not the viewport's: a
+ * compact card in a two-column grid on a wide screen stacks like a phone. `w-full`, because inline-size containment
+ * would let the card shrink to nothing in a parent that does not stretch it.
+ */
+const BOX = '@container flex w-full flex-col gap-4 rounded-3xl border border-line bg-surface-1';
+
+/** Stands for the address in the done sentence, which is split there so the address can stand out. */
+const SLOT = '\u0000';
 
 /** The segmented radios of LangSwitch, at the input's height so the two line up. */
 const RADIO =
@@ -169,6 +177,8 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
   const [said, setSaid] = useState({ n: 0, text: '' });
   const mailLang = chosen ?? lang;
   const done = sub.isSuccess;
+  // The same sentence the live region says, with the address set apart, so a typo in it shows at a glance.
+  const [helpBefore, helpAfter = ''] = t('checkInboxHelp', { email: SLOT }).split(SLOT);
 
   // The form leaves the page on success and comes back on "Use another email address"; the focus goes with it.
   useEffect(() => {
@@ -221,7 +231,9 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
               {t('checkInbox')}
             </p>
             <p className="max-w-[60ch] text-ink-muted text-small wrap-anywhere">
-              {t('checkInboxHelp', { email: sub.variables?.email ?? '' })}
+              {helpBefore}
+              <span className="font-medium text-ink">{sub.variables?.email ?? ''}</span>
+              {helpAfter}
             </p>
             <p className="text-caption text-ink-muted">{t('checkSpam')}</p>
           </div>
@@ -238,7 +250,7 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
       ) : (
         <form noValidate onSubmit={submit} className="relative flex flex-col gap-4">
           <p className="text-ink-muted text-small">{t(ROLE_LINE[role])}</p>
-          <div className={cn('grid gap-4', !compact && 'sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end')}>
+          <div className="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_auto] @xl:items-end">
             <TextField
               ref={emailRef}
               label={t('email')}
@@ -294,7 +306,7 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
               <span data-testid="subscribe-error">{t(subscribeFailKey(sub.error))}</span>
             </InlineError>
           ) : null}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex flex-col gap-3 @xl:flex-row @xl:items-center @xl:gap-4">
             <Button
               type="submit"
               variant="primary"
@@ -303,7 +315,7 @@ export function HostedFormView({ vault, role, compact = false, sub }: HostedForm
               icon={<Mail aria-hidden="true" strokeWidth={1.5} />}
               aria-describedby={sub.isError ? errorId : undefined}
               data-testid="subscribe-send"
-              className="w-full shrink-0 sm:w-auto"
+              className="w-full shrink-0 @xl:w-auto"
             >
               {t('send')}
             </Button>
