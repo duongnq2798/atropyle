@@ -28,7 +28,6 @@ export function Footer() {
             <p className="text-ink-muted text-small">{t('footer')}</p>
             <NavLink
               href={LIMITS_HREF}
-              prefetch={false}
               className="rounded-sm font-medium text-small text-thread underline decoration-thread/40 underline-offset-4 transition-colors duration-150 hover:decoration-thread"
             >
               {t('knownLimits')}

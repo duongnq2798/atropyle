@@ -1,8 +1,12 @@
 import { STATE_CODES } from '@atropyle/sdk';
+import { P9_VECTORS } from '@atropyle/sdk/verify';
 import { hexToBytes, hexToNumber } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { metadata } from '../../src/app/proof/page';
 import { STEP_EXAMPLE } from '../../src/content/commands';
+import { formatCount } from '../../src/lib/count';
 import { messages } from '../../src/messages/proof.messages';
+import { TOTAL_CASES } from '../../src/proof/paint';
 
 const LANGS = ['en', 'vi'] as const;
 type Key = keyof typeof messages.en;
@@ -49,5 +53,9 @@ describe('proof messages', () => {
       }
     }
     expect(messages.en.P8).toBe(P8);
+  });
+
+  it('gives search engines the numbers of the page, from the same constants', () => {
+    expect(digitsOf(String(metadata.description))).toEqual(digitsOf(`${formatCount(TOTAL_CASES, 'en')} ${P9_VECTORS}`));
   });
 });

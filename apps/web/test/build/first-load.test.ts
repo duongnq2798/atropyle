@@ -22,9 +22,12 @@ import { outOf } from './paths';
  *   reads. No file of src/ carries it: this site words that hint itself (src/tx/impl/errors-view.ts).
  * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
  * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
- * or a tooltip, or read the chain, from its first paint, inside its 240 kB.
+ * or a tooltip, or read the chain, from its first paint, inside its 240 kB. /proof/ is held to the same, ruling R17 of
+ * 7C T3.
  */
 const SHELL_PAGES = new Set(['index.html', '404.html', '404/index.html', '_not-found/index.html']);
+/** `/proof/` too: its proof code, the SDK and viem load when the reader presses Run (or points at it), never first. */
+const LEAN_PAGES = new Set([...SHELL_PAGES, 'proof/index.html']);
 const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' }> = {
   'the motion features': { markers: [/["'`]projectionUpdate["'`]/, /["'`]:focus-visible["'`]/], pages: 'all' },
   'the QR encoder': { markers: [/["'`]0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ \$%\*\+-\.\/:["'`]/], pages: 'shell' },
@@ -67,10 +70,10 @@ for (const target of ['vercel', 'deweb'] as const) {
     const name = (file: string) => relative(out, file).split(sep).join('/');
 
     for (const [what, { markers, pages: scope }] of Object.entries(LAZY)) {
-      const which = scope === 'all' ? 'any page' : 'the shell pages';
+      const which = scope === 'all' ? 'any page' : 'the shell pages and /proof/';
       it(`loads ${what} only through a dynamic import, in no first-load script of ${which}`, () => {
         expect(pages.map(name)).toContain('index.html');
-        for (const page of SHELL_PAGES) expect(pages.map(name)).toContain(page);
+        for (const page of LEAN_PAGES) expect(pages.map(name)).toContain(page);
         // The markers are real: the build carries each of them, in a chunk that no page loads first.
         for (const marker of markers) {
           expect(
@@ -78,7 +81,7 @@ for (const target of ['vercel', 'deweb'] as const) {
             `${marker} in out/_next/static`,
           ).toBe(true);
         }
-        for (const page of pages.filter((p) => scope === 'all' || SHELL_PAGES.has(name(p)))) {
+        for (const page of pages.filter((p) => scope === 'all' || LEAN_PAGES.has(name(p)))) {
           for (const file of firstLoad(out, page)) {
             const code = readFileSync(file, 'utf8');
             for (const marker of markers)
