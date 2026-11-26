@@ -27,7 +27,12 @@ export interface TabsProps {
  */
 export function Tabs({ items, value, onValueChange, label, testId, className }: TabsProps) {
   return (
-    <T.Root value={value} onValueChange={onValueChange} data-testid={testId} className={cn('flex flex-col gap-6', className)}>
+    <T.Root
+      value={value}
+      onValueChange={onValueChange}
+      data-testid={testId}
+      className={cn('flex flex-col gap-6', className)}
+    >
       <T.List aria-label={label} className="flex gap-1 overflow-x-auto border-line border-b">
         {items.map((it) => (
           <T.Trigger

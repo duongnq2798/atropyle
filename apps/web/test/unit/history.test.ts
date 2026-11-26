@@ -7,7 +7,13 @@ import { PEOPLE } from './fixtures';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const hashOf = (n: number): Hex => `0x${n.toString(16).padStart(64, '0')}`;
-const ev = (name: string, args: Record<string, unknown>, blockNumber: bigint, logIndex: number, hash: Hex): VaultEvent => ({
+const ev = (
+  name: string,
+  args: Record<string, unknown>,
+  blockNumber: bigint,
+  logIndex: number,
+  hash: Hex,
+): VaultEvent => ({
   address: PEOPLE.vault,
   name,
   args,
@@ -42,7 +48,10 @@ describe('vault history', () => {
     });
     expect(txs[2].rows).toEqual([{ logIndex: 1, kind: 'vote', guardian: PEOPLE.g2, target: null }]);
     expect(txs[3].rows).toEqual([{ logIndex: 0, kind: 'vote', guardian: PEOPLE.g1, target: PEOPLE.heirB }]);
-    expect(txs[4]).toMatchObject({ rows: [{ kind: 'alarm', state: 'grace', target: null }], decided: [{ from: 'active', to: 'grace' }] });
+    expect(txs[4]).toMatchObject({
+      rows: [{ kind: 'alarm', state: 'grace', target: null }],
+      decided: [{ from: 'active', to: 'grace' }],
+    });
     expect(txs[5].rows).toEqual([{ logIndex: 0, kind: 'config', part: 'guardians' }]);
     // Alive carries its own time: no block read is needed for it.
     expect(txs[6]).toMatchObject({ rows: [{ kind: 'checkIn' }], at: 1_000n });

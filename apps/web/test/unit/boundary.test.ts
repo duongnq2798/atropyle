@@ -36,7 +36,9 @@ afterEach(() => {
 
 describe('nextBoundary', () => {
   it('is the nearest moment after now among lateAt, alarmAt, windowEndsAt, expiresAt and any more', () => {
-    expect(nextBoundary({ lateAt: 1_050n, alarmAt: 900n, windowEndsAt: 1_200n, expiresAt: 5_000n }, 1_000n)).toBe(1_050n);
+    expect(nextBoundary({ lateAt: 1_050n, alarmAt: 900n, windowEndsAt: 1_200n, expiresAt: 5_000n }, 1_000n)).toBe(
+      1_050n,
+    );
     expect(nextBoundary({ lateAt: 990n, ...NONE }, 1_000n)).toBeNull();
     expect(nextBoundary({ lateAt: 990n, ...NONE }, 1_000n, [1_500n, null])).toBe(1_500n);
     // A moment that is now has passed: the block that carries it already exists.

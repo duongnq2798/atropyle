@@ -110,7 +110,14 @@ export function historyTxs(events: readonly VaultEvent[]): HistoryTx[] {
     let g = groups.get(key);
     if (!g) {
       g = {
-        tx: { hash: e.transactionHash, blockNumber: e.blockNumber, logIndex: e.logIndex, at: null, rows: [], decided: [] },
+        tx: {
+          hash: e.transactionHash,
+          blockNumber: e.blockNumber,
+          logIndex: e.logIndex,
+          at: null,
+          rows: [],
+          decided: [],
+        },
         events: [],
         transfers: null,
       };

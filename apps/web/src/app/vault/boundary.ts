@@ -16,7 +16,11 @@ export type BoundaryStatus = Pick<VaultStatus, 'lateAt' | 'alarmAt' | 'windowEnd
  * late, an alarm, the end of the window, the Drill's expiry, and any `more` (the 15-period fallback, from the
  * timeline). Chain time, in seconds.
  */
-export function nextBoundary(status: BoundaryStatus, now: bigint, more: readonly (bigint | null)[] = []): bigint | null {
+export function nextBoundary(
+  status: BoundaryStatus,
+  now: bigint,
+  more: readonly (bigint | null)[] = [],
+): bigint | null {
   let next: bigint | null = null;
   for (const t of [status.lateAt, status.alarmAt, status.windowEndsAt, status.expiresAt, ...more]) {
     if (t !== null && t > now && (next === null || t < next)) next = t;
