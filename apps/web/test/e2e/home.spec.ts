@@ -1043,20 +1043,21 @@ function spine(page: Page) {
 }
 
 // (c)
-test('from 48rem the spine runs down one line beside every block, a node on each first line, never under text', async ({
+test('from 78rem the spine runs down one line beside every block, a node on each first line, never under text', async ({
   page,
   state,
 }) => {
   // Reduced motion: no rise, so every anchor stands where it is laid out.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(state.siteUrl);
-  for (const width of [768, 1024, 1440]) {
+  for (const width of [1248, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const { segs, nodes } = await spine(page);
     expect(segs).toHaveLength(STORY.length);
     expect(nodes).toHaveLength(STORY.length);
     const x = segs[0].x;
-    expect(x, `${width} px`).toBeGreaterThan(4);
+    // In the gutter, 1.5rem left of the box, and never nearer the screen's edge than the page's own 1.5rem.
+    expect(x, `${width} px`).toBeGreaterThanOrEqual(23.5);
     for (const [i, s] of segs.entries()) {
       const at = `${width} px, piece ${i}`;
       expect(s.shown, at).toBe(true);
@@ -1073,8 +1074,15 @@ test('from 48rem the spine runs down one line beside every block, a node on each
     // The line ends at the closing scene's node.
     expect(Math.abs((segs.at(-1)?.bottom ?? 0) - (nodes.at(-1)?.y ?? 0)), `${width} px`).toBeLessThanOrEqual(1.5);
   }
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect((await spine(page)).segs.some((s) => s.shown)).toBe(false);
+  // Narrower there is no gutter: the line would sit at the screen's edge, so it does not show (fix round 1).
+  for (const width of [390, 768, 1024, 1247]) {
+    await page.setViewportSize({ width, height: 900 });
+    const { segs } = await spine(page);
+    expect(
+      segs.some((s) => s.shown),
+      `${width} px`,
+    ).toBe(false);
+  }
 });
 
 /** The vertical scale of an element's transform, 1 for none. */
@@ -1164,7 +1172,7 @@ test('screens of the story after the stage, for the design review', async ({ pag
   // The spine mid-read. A full-page shot does not scroll, so its scroll timelines show the top of the page: these are
   // viewport shots with the trust band in the middle.
   await setStoredTheme(page, 'light');
-  for (const width of [1440, 768]) {
+  for (const width of [1440, 1280, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('#trust').evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await settle(page);

@@ -855,22 +855,18 @@
 }
 
 /* The spine (spec §18.4.3 Task 7a, R18.5): not a Thread but a 2 px line down every block of .story, one piece per
-   block, with an HTML node on each block's first line. From 48rem only: on a phone it would crowd the text. It runs
-   0.625rem inside the 72rem box (whose padding is 1.5rem), and from 76.25rem in the gutter, 1.5rem left of the box.
+   block, with an HTML node on each block's first line. It runs in the gutter, 1.5rem left of the 72rem box, and so
+   shows only from 78rem, where that gutter keeps it the page's own 1.5rem from the screen's edge. Narrower it would
+   sit at the edge like a stray border, crowding the text (7C-T7a fix round 1, the same ruling as on phones).
    A node sits in an anchor that starts at the box's padding, hence the 1.5rem taken off its left. */
 .story {
-  --spine-x: 0.625rem;
-}
-@media (min-width: 76.25rem) {
-  .story {
-    --spine-x: -1.5rem;
-  }
+  --spine-x: -1.5rem;
 }
 .spine-seg,
 .spine-node {
   display: none;
 }
-@media (min-width: 48rem) {
+@media (min-width: 78rem) {
   .story .spine-seg {
     position: absolute;
     top: 0;

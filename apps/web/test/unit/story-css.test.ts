@@ -26,6 +26,24 @@ describe('the story after the hero (7C-T7a, R18.4)', () => {
     expect(CSS.slice(media, uses[2])).not.toContain('\n}\n');
   });
 
+  it('shows the spine only from 78rem, in the gutter left of the box, never inside it (fix round 1)', () => {
+    const start = CSS.indexOf('\n.story {\n');
+    const end = CSS.indexOf('@supports not (top: 1lh)', start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const rules = CSS.slice(start, end);
+    // One place for the line: 1.5rem left of the 72rem box, at every width it shows.
+    expect(rules).toMatch(/^\n\.story \{\n {2}--spine-x: -1\.5rem;\n\}/);
+    expect([...rules.matchAll(/--spine-x:\s*([^;]+);/g)].map((m) => m[1])).toEqual(['-1.5rem']);
+    // Hidden by default; the one media query that shows it is the gutter's.
+    expect(rules).toMatch(/\n\.spine-seg,\n\.spine-node \{\n {2}display: none;\n\}/);
+    expect([...rules.matchAll(/@media \(min-width: ([^)]+)\)/g)].map((m) => m[1])).toEqual(['78rem']);
+    const media = rules.indexOf('@media (min-width: 78rem) {');
+    for (const selector of ['.story .spine-seg {', '.spine-fill {', '.story .spine-node {', '.spine-node > span {']) {
+      expect(rules.indexOf(selector), selector).toBeGreaterThan(media);
+    }
+  });
+
   it('shows the language that <html lang> names and hides the other', () => {
     expect(CSS).toMatch(/\n\.say-vi \{\n {2}display: none;\n\}/);
     expect(CSS).toMatch(/\n:root:lang\(vi\) \.say-en \{\n {2}display: none;\n\}/);
