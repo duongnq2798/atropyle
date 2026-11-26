@@ -42,6 +42,8 @@ export interface ActionFlowProps {
   tokens?: readonly MirrorToken[];
   /** The Receipt's footer: the page's next step. */
   receiptFooter?: ReactNode;
+  /** Offer "Start over" while a plan is held (default). False once a one-shot send is done: nothing to start over. */
+  resettable?: boolean;
   onDone?(r: SendResult): void;
   onPlan?(held: boolean): void;
   onProgress?(p: FlowProgress): void;
@@ -122,7 +124,7 @@ export function ActionFlow(p: ActionFlowProps) {
             onDone={(r) => p.onDone?.(r)}
             onProgress={onProgress}
           />
-          {a.locked ? null : (
+          {a.locked || p.resettable === false ? null : (
             <Button
               variant="ghost"
               size="sm"

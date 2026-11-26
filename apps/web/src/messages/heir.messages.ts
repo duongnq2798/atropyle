@@ -22,6 +22,7 @@ export const messages = defineMessages(
       'The guardians have started a wallet recovery. If the owner does not stop it, the assets go to the recovery wallet, not to the heirs.',
     openReleased:
       "Since {date} the vault has passed to the heirs. The assets stay in the owner's wallet until someone delivers them; anyone can, you included.",
+    openDelivered: 'On {date} the vault passed to the heirs, and your share has reached your wallet.',
     openReleasedRecover: 'The vault passed to the recovery wallet the guardians chose. Nothing goes to the heirs.',
     openExpired: 'This Drill has expired: it was a rehearsal, and nothing more will happen to it.',
     openRecoverPending:
@@ -30,6 +31,7 @@ export const messages = defineMessages(
       'The owner did not stop the recovery. The vault can now pass to this wallet: anyone can make that happen, you included.',
     openRecoverReleased:
       "Since {date} the vault has passed to this wallet. The assets stay in the owner's old wallet until someone delivers them; anyone can, you included.",
+    openRecoverDelivered: 'On {date} the vault passed to this wallet, and the covered assets have reached it.',
     body: "Atropyle never holds the assets. A circuit on X Layer decides when the vault passes on, and the vault's contract decides who receives how much. Anyone can check each step below.",
     drillNote: 'This vault is a Drill (a rehearsal) with test tokens. Nothing in it has value.',
     threadLabel: "The vault's thread: {state}",
@@ -43,6 +45,8 @@ export const messages = defineMessages(
     shareYou: 'you',
     shareNft: 'NFT',
     sharesEmpty: "The owner's wallet holds nothing the vault covers right now.",
+    sharesEmptyReleased: "Nothing the vault covers is left in the owner's wallet to deliver.",
+    receivedTitle: 'What you received',
     shareUncovered: "Part of this token is not covered: it stays in the owner's wallet.",
     signed: 'Signed by their last check-in · {date}',
     vaultOn: 'This vault on {name}',
@@ -59,6 +63,7 @@ export const messages = defineMessages(
     moveHelpRecover:
       'The time to stop the recovery is over. This passes the vault to this wallet; then step 3 sends the assets here.',
     stepReceiveTitle: 'Receive',
+    stepReceivedTitle: 'Received',
     receiveHelp:
       "Sends each heir their share from the owner's wallet, in one transaction. Anyone can send it; the assets go only to the heirs.",
     receiveHelpRecover:
@@ -68,6 +73,7 @@ export const messages = defineMessages(
     receiveDone: 'Now confirm in your wallet',
     received: 'Received · block {block}',
     receiveIdle: 'Nothing to receive now.',
+    receivedNote: 'Delivered to your wallet: what you received is in the letter above.',
     resultsTitle: 'Transfers',
   },
   {
@@ -86,6 +92,7 @@ export const messages = defineMessages(
       'Những người giám hộ đã bắt đầu khôi phục ví. Nếu chủ vault không ngăn lại, tài sản sẽ chuyển sang ví khôi phục, không đến những người thừa kế.',
     openReleased:
       'Từ {date}, đã tới lúc vault trao tài sản cho những người thừa kế. Tài sản vẫn nằm trong ví chủ vault cho tới khi có người chuyển đi; bất kỳ ai cũng làm được, kể cả bạn.',
+    openDelivered: 'Ngày {date}, vault đã trao cho những người thừa kế, và phần của bạn đã về ví của bạn.',
     openReleasedRecover:
       'Đã tới lúc vault trao tài sản cho ví khôi phục mà những người giám hộ chọn. Những người thừa kế sẽ không nhận gì.',
     openExpired: 'Drill (bản diễn tập) này đã hết hạn: đó chỉ là buổi diễn tập, và sẽ không có gì xảy ra với nó nữa.',
@@ -95,6 +102,7 @@ export const messages = defineMessages(
       'Chủ vault đã không ngăn lần khôi phục. Giờ vault có thể trao cho ví này: bất kỳ ai cũng làm được, kể cả bạn.',
     openRecoverReleased:
       'Từ {date}, đã tới lúc vault trao tài sản cho ví này. Tài sản vẫn nằm trong ví cũ của chủ vault cho tới khi có người chuyển đi; bất kỳ ai cũng làm được, kể cả bạn.',
+    openRecoverDelivered: 'Ngày {date}, vault đã trao cho ví này, và tài sản vault phủ đã về ví này.',
     body: 'Atropyle không bao giờ giữ tài sản. Một mạch trên X Layer quyết định khi nào vault được trao, còn hợp đồng của vault quyết định ai nhận bao nhiêu. Ai cũng có thể kiểm tra từng bước dưới đây.',
     drillNote: 'Vault này là Drill (bản diễn tập), dùng token thử. Không thứ gì trong đó có giá trị.',
     threadLabel: 'Sợi chỉ của vault: {state}',
@@ -108,6 +116,8 @@ export const messages = defineMessages(
     shareYou: 'bạn',
     shareNft: 'NFT',
     sharesEmpty: 'Ví chủ vault hiện không có gì mà vault đang phủ.',
+    sharesEmptyReleased: 'Trong ví chủ vault không còn gì vault phủ để chuyển đi.',
+    receivedTitle: 'Những gì bạn đã nhận',
     shareUncovered: 'Một phần token này chưa được phủ: phần đó ở lại ví chủ vault.',
     signed: 'Ký bằng lần điểm danh cuối · {date}',
     vaultOn: 'Vault này trên {name}',
@@ -124,6 +134,7 @@ export const messages = defineMessages(
     moveHelpRecover:
       'Thời gian ngăn lần khôi phục đã hết. Việc này trao vault cho ví này; sau đó bước 3 chuyển tài sản về đây.',
     stepReceiveTitle: 'Nhận',
+    stepReceivedTitle: 'Đã nhận',
     receiveHelp:
       'Chuyển phần của từng người thừa kế từ ví chủ vault, trong một giao dịch. Ai cũng gửi được; tài sản chỉ đến những người thừa kế.',
     receiveHelpRecover:
@@ -133,6 +144,7 @@ export const messages = defineMessages(
     receiveDone: 'Giờ hãy xác nhận trong ví của bạn',
     received: 'Đã nhận · block {block}',
     receiveIdle: 'Hiện chưa có gì để nhận.',
+    receivedNote: 'Đã chuyển về ví của bạn: những gì bạn đã nhận có trong lá thư phía trên.',
     resultsTitle: 'Các lần chuyển',
   },
 );

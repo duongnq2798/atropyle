@@ -206,6 +206,19 @@ test('an heir reads the letter, moves the vault on, and receives with a hold', a
   await send.press('Enter');
   await expect(page.getByTestId('heir-received')).toBeVisible();
   await expect(page.getByTestId('heir-results-0')).toHaveAttribute('data-ok', 'true');
+  // The letter says the share reached the reader and lists it; step 3 is done, with nothing to start over.
+  await expect(letter).toHaveAttribute('data-opening', 'openDelivered');
+  await expect(page.getByTestId('heir-got-0')).toBeVisible();
+  await expect(page.getByTestId('heir-step-3')).toHaveAttribute('data-done', 'true');
+  await expect(page.getByTestId('heir-receive-reset')).toHaveCount(0);
+  await expect(page.getByTestId('heir-receive-help')).toHaveCount(0);
+  await expectAccessible(page);
+  // After a reload the receipt is gone, but the vault events still say what reached the reader.
+  await page.reload();
+  await connected(page);
+  await expect(letter).toHaveAttribute('data-opening', 'openDelivered', { timeout: 30_000 });
+  await expect(page.getByTestId('heir-got-0')).toBeVisible();
+  await expect(page.getByTestId('heir-receive-done')).toBeVisible();
   void atro;
 });
 
@@ -355,6 +368,16 @@ test('screens', async ({ page, state, atro, wallet }, info) => {
     await page.screenshot({ path: `test-results/screens/vault-heir-received/vellum-en-${width}.png`, fullPage: true });
   }
   await setStoredTheme(page, 'dark');
+  // After a reload: the letter finds the delivery in the vault events, so the whole matrix holds.
+  await captureScreens(page, 'vault-heir-delivered', {
+    shots: SHOTS,
+    ready: async () => {
+      await connectedAtTop(page);
+      await expect(page.getByTestId('heir-letter')).toHaveAttribute('data-opening', 'openDelivered', {
+        timeout: 30_000,
+      });
+    },
+  });
 
   for (const g of [G1, G2]) {
     await atro.send(

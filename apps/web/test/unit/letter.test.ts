@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { headerThread } from '../../src/app/vault/header-thread';
 import { letterOpening } from '../../src/app/vault/letter-opening';
 import { branchWeights, letterThread } from '../../src/app/vault/letter-thread';
+import { keepDate } from '../../src/app/vault/standing';
+import { chainDate } from '../../src/lib/when';
 import { fixtureSnapshot, fixtureTimeline } from './fixtures';
 
 function status(state: StateName, pending: StateName, extra: Record<string, unknown> = {}) {
@@ -30,6 +32,48 @@ describe('letterOpening', () => {
 
   it('an expired Drill says so whatever its state', () => {
     expect(letterOpening(status('grace', 'grace', { expired: true }), false, 'en').key).toBe('openExpired');
+  });
+
+  // Each moment on its own day, so a date taken from the wrong field cannot pass (Ruling 31: grace reads lastAlive).
+  const DAY = 86_400n;
+  const T = {
+    lastAlive: DAY * 400n + 3_600n,
+    alarmAt: DAY * 403n + 3_600n,
+    windowEndsAt: DAY * 405n + 3_600n,
+    releasedAt: DAY * 407n + 3_600n,
+    blockTimestamp: DAY * 409n + 3_600n,
+  };
+  const dated: [StateName, StateName, boolean, string, keyof typeof T][] = [
+    ['active', 'active', false, 'openActive', 'lastAlive'],
+    ['active', 'grace', false, 'openSilent', 'lastAlive'],
+    ['grace', 'grace', false, 'openAlarm', 'lastAlive'],
+    ['grace', 'releasedInherit', false, 'openDue', 'lastAlive'],
+    ['releasedInherit', 'releasedInherit', false, 'openReleased', 'releasedAt'],
+    ['releasedRecover', 'releasedRecover', true, 'openRecoverReleased', 'releasedAt'],
+    ['recovery', 'recovery', true, 'openRecoverPending', 'windowEndsAt'],
+  ];
+  it.each(dated)('%s (pending %s, recover %s): %s is dated by %s', (state, pending, recover, key, field) => {
+    for (const lang of ['en', 'vi'] as const) {
+      const o = letterOpening(status(state, pending, T), recover, lang);
+      expect(o.key).toBe(key);
+      expect(o.params.date).toBe(keepDate(chainDate(T[field], lang, true)));
+    }
+  });
+
+  it('once the reader has received, the released letter says the share reached their wallet', () => {
+    const released = status('releasedInherit', 'releasedInherit', T);
+    expect(letterOpening(released, false, 'en', false).key).toBe('openReleased');
+    const o = letterOpening(released, false, 'en', true);
+    expect(o.key).toBe('openDelivered');
+    expect(o.params.date).toBe(keepDate(chainDate(T.releasedAt, 'en', true)));
+    const rec = letterOpening(status('releasedRecover', 'releasedRecover', T), true, 'en', true);
+    expect(rec.key).toBe('openRecoverDelivered');
+    expect(rec.params.date).toBe(keepDate(chainDate(T.releasedAt, 'en', true)));
+    // Received means nothing before the vault passed to the reader.
+    expect(letterOpening(status('grace', 'releasedInherit', T), false, 'en', true).key).toBe('openDue');
+    expect(letterOpening(status('releasedRecover', 'releasedRecover', T), false, 'en', true).key).toBe(
+      'openReleasedRecover',
+    );
   });
 
   it('dates are chain time with the time of day, kept whole with no-break spaces', () => {

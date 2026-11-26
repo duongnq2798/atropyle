@@ -18,7 +18,8 @@ const at = (ts: bigint, lang: Lang) => keepDate(chainDate(ts, lang, true));
  * time, with the time of day (a Drill's moments are minutes apart), and stay whole on a phone (keepDate). Before
  * anything is due the date is the last check-in: "Nothing has happened" (active), "They have been silent since" (late,
  * alarm, due).
- * `recover`: the reader is the recovery wallet the guardians chose.
+ * `recover`: the reader is the recovery wallet the guardians chose. `received`: a transfer of the vault reached the
+ * reader (the receipt of their own send, or the vault events after a reload); once released, the letter says so.
  */
 export function letterOpening(
   s: Pick<
@@ -27,17 +28,24 @@ export function letterOpening(
   >,
   recover: boolean,
   lang: Lang,
+  received = false,
 ): LetterOpening {
   if (s.expired) return { key: 'openExpired', params: {} };
   if (recover) {
     if (s.state === 'releasedRecover')
-      return { key: 'openRecoverReleased', params: { date: at(s.releasedAt ?? s.blockTimestamp, lang) } };
+      return {
+        key: received ? 'openRecoverDelivered' : 'openRecoverReleased',
+        params: { date: at(s.releasedAt ?? s.blockTimestamp, lang) },
+      };
     if (s.pending === 'releasedRecover') return { key: 'openRecoverDue', params: {} };
     return { key: 'openRecoverPending', params: { date: at(s.windowEndsAt ?? s.blockTimestamp, lang) } };
   }
   switch (s.state) {
     case 'releasedInherit':
-      return { key: 'openReleased', params: { date: at(s.releasedAt ?? s.blockTimestamp, lang) } };
+      return {
+        key: received ? 'openDelivered' : 'openReleased',
+        params: { date: at(s.releasedAt ?? s.blockTimestamp, lang) },
+      };
     case 'releasedRecover':
       return { key: 'openReleasedRecover', params: {} };
     case 'recovery':

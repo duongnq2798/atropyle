@@ -1,7 +1,12 @@
 'use client';
 
 import type { SendResult, StateName, VaultAction } from '@atropyle/sdk';
+import { useQuery } from '@tanstack/react-query';
+import { Check } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
+import type { Address as Addr } from 'viem';
+import { CHAIN_ID } from '@/chain/hooks';
+import { chainKeys } from '@/chain/keys';
 import { useChainNow } from '@/chain/time';
 import { SubscribeForm } from '@/components/subscribe/SubscribeForm';
 import type { TransferRow } from '@/flows/impl/heir';
@@ -10,7 +15,7 @@ import { Glossary } from '@/letter/glossary';
 import { LetterSheet } from '@/letter/letter-sheet';
 import { cn } from '@/lib/cn';
 import { formatBps } from '@/lib/format';
-import { explorerAddress, explorerName } from '@/lib/links';
+import { explorerAddress, explorerName, explorerTx } from '@/lib/links';
 import { chainDate } from '@/lib/when';
 import { messages } from '@/messages/heir.messages';
 import { messages as labels, THREAD_STATE_KEY } from '@/messages/labels.messages';
@@ -52,6 +57,45 @@ const MOVE_HELP = {
 
 const lower = (a: string | null | undefined) => (a ?? '').toLowerCase();
 
+/** The reader's own send, kept by the letter: its receipt in step 3 and what it moved. */
+interface Sent {
+  result: SendResult;
+  rows: TransferRow[];
+}
+
+/** The recipients of "Who receives what", one per address, each with its amounts in plan order. */
+function byRecipient<R extends { to: Addr }>(rows: readonly R[]): { to: Addr; rows: R[] }[] {
+  const out = new Map<string, { to: Addr; rows: R[] }>();
+  for (const r of rows) {
+    const key = lower(r.to);
+    const group = out.get(key);
+    if (group) group.rows.push(r);
+    else out.set(key, { to: r.to, rows: [r] });
+  }
+  return [...out.values()];
+}
+
+/**
+ * What reached the reader: the transfers of their own send, or, after a reload, those the vault events show (one
+ * history window, under the history's query key so a refresh of the page resets it too). The events are read only
+ * once the vault has passed to the reader and nothing is left to deliver to them: before that, nothing reached them.
+ */
+function useReceived(p: PanelProps, sent: Sent | null, wanted: boolean): TransferRow[] {
+  const { flows, sdk, loaded, view, account } = p;
+  const mine = sent ? flows.receivedBy(sent.rows, account) : [];
+  const q = useQuery({
+    queryKey: [...chainKeys.history(CHAIN_ID, view.vault), 'to', lower(account)],
+    queryFn: () =>
+      flows.deliveriesTo(sdk.atro, view.vault, account, loaded.snap.status.blockNumber, sdk.deployment.factoryBlock),
+    enabled: wanted && mine.length === 0,
+    // A window read once never changes; rows hold bigints.
+    structuralSharing: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+  return mine.length > 0 ? mine : wanted ? (q.data ?? []) : [];
+}
+
 /**
  * The heir letter (spec §16.2, §18.4.2 T11), for an heir and for the recovery wallet the guardians chose: a sheet of
  * vellum in the Letter voice that says where the vault stands, the reader's share on the vault's own thread, and who
@@ -61,6 +105,7 @@ export function HeirLetter(p: PanelProps) {
   const { flows, sdk, loaded, view, account } = p;
   const t = useT(messages);
   const l = useT(labels);
+  const v = useT(vaultMessages);
   const { lang } = useLang();
   const snap = loaded.snap;
   const s = snap.status;
@@ -73,9 +118,16 @@ export function HeirLetter(p: PanelProps) {
   // Who would receive what if the vault passed to the heirs now: the branches' weights and the legend's amounts.
   const inherit = flows.recipientsFor(snap, 'releasedInherit', null);
   const thread = letterThread(snap.config, s, loaded.timeline, now, { heir, recover }, inherit);
-  const opening = letterOpening(s, recover, lang);
   const next: StateName = recover || s.state === 'releasedRecover' ? 'releasedRecover' : 'releasedInherit';
   const shares = next === 'releasedInherit' ? inherit : flows.recipientsFor(snap, next, s.recoveryTarget);
+  // The vault passed to this reader: once something reached them, the letter says so and lists it.
+  const releasedToMe = s.state === (recover ? 'releasedRecover' : 'releasedInherit');
+  const [sent, setSent] = useState<Sent | null>(null);
+  const owed = shares.some((r) => lower(r.to) === lower(account));
+  const got = useReceived(p, sent, releasedToMe && !owed);
+  const received = releasedToMe && got.length > 0;
+  const opening = letterOpening(s, recover, lang, received);
+  const groups = byRecipient(shares);
   // The label says the stored state first; a dashed thread also says where it leads.
   const stateLabel = l(THREAD_STATE_KEY[s.expired ? 'expired' : s.state]);
   const threadLabel = thread.predicted
@@ -210,59 +262,115 @@ export function HeirLetter(p: PanelProps) {
           ) : null}
         </figure>
 
-        <section aria-labelledby="heir-shares-title" className="flex flex-col gap-3">
-          <h3 id="heir-shares-title" className="text-lead text-ink">
-            {t('sharesTitle')}
-          </h3>
-          {s.state === 'releasedInherit' || s.state === 'releasedRecover' ? null : (
-            <p className="text-caption text-ink-muted">{t('sharesCaption')}</p>
-          )}
-          {shares.length === 0 ? (
-            <p data-testid="heir-share-empty" className="text-small text-ink-muted">
-              {t('sharesEmpty')}
-            </p>
-          ) : (
+        {received ? (
+          // Spec §18.4.2 T11, fix round 1: after the send the letter lists what reached the reader, in the Ledger voice.
+          <section aria-labelledby="heir-got-title" data-testid="heir-got" className="flex flex-col gap-3">
+            <h3 id="heir-got-title" className="text-lead text-ink">
+              {t('receivedTitle')}
+            </h3>
             <ul className="flex flex-col divide-y divide-line">
-              {shares.map((r, i) => {
+              {got.map((r, i) => {
                 const a = view.assets.find((x) => x.index === r.assetIndex);
-                const you = lower(r.to) === lower(account);
                 return (
                   <li
-                    key={`${r.assetIndex}-${r.to}`}
-                    data-testid={`heir-share-${i}`}
-                    data-you={you ? 'true' : 'false'}
-                    data-amount={String(r.amount)}
-                    className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    key={`${r.hash}-${r.logIndex}`}
+                    data-testid={`heir-got-${i}`}
+                    className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Address address={r.to} explorer={explorer} size="sm" />
-                      {you ? <span className="text-caption text-thread">({t('shareYou')})</span> : null}
-                    </span>
-                    <span className="flex flex-col items-start gap-1 sm:items-end">
-                      {r.kind === 'erc20' && a ? (
-                        <Amount
-                          raw={r.amount}
-                          decimals={a.info.decimals}
-                          symbol={a.info.symbol}
-                          className="voice-ledger"
-                        />
+                    <span className="voice-ledger text-lead text-ink tabular-nums">
+                      {r.amount === null ? null : a?.kind === 'erc20' ? (
+                        <Amount raw={r.amount} decimals={a.info.decimals} symbol={a.info.symbol} />
                       ) : (
-                        <span className="voice-ledger text-small">
-                          {t('shareNft')} {a ? <UntrustedText value={a.info.symbol} max={16} /> : null}
-                        </span>
+                        <>
+                          {t('shareNft')} {a ? <UntrustedText value={a.info.symbol} max={16} /> : null} #
+                          {r.amount.toString()}
+                        </>
                       )}
-                      {view.lowCoverage.includes(r.assetIndex) ? (
-                        <span data-testid={`heir-share-${i}-uncovered`} className="text-caption text-ink-muted">
-                          {t('shareUncovered')}
-                        </span>
-                      ) : null}
                     </span>
+                    {explorer ? (
+                      <ExternalLink href={explorerTx(explorer, r.hash)} className="text-small">
+                        {v('viewTx', { name: explorerName(explorer) })}
+                      </ExternalLink>
+                    ) : null}
                   </li>
                 );
               })}
             </ul>
-          )}
-        </section>
+          </section>
+        ) : (
+          <section aria-labelledby="heir-shares-title" className="flex flex-col gap-3">
+            <h3 id="heir-shares-title" className="text-lead text-ink">
+              {t('sharesTitle')}
+            </h3>
+            {s.state === 'releasedInherit' || s.state === 'releasedRecover' ? null : (
+              <p className="text-caption text-ink-muted">{t('sharesCaption')}</p>
+            )}
+            {groups.length === 0 ? (
+              <p data-testid="heir-share-empty" className="text-small text-ink-muted">
+                {t(
+                  s.state === 'releasedInherit' || s.state === 'releasedRecover'
+                    ? 'sharesEmptyReleased'
+                    : 'sharesEmpty',
+                )}
+              </p>
+            ) : (
+              // One line per recipient (fix round 1): an heir with a token and an NFT reads once, amounts stacked.
+              <ul className="flex flex-col divide-y divide-line">
+                {groups.map((g, i) => {
+                  const you = lower(g.to) === lower(account);
+                  return (
+                    <li
+                      key={g.to}
+                      data-testid={`heir-share-${i}`}
+                      data-to={g.to}
+                      data-you={you ? 'true' : 'false'}
+                      className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Address address={g.to} explorer={explorer} size="sm" />
+                        {you ? <span className="text-caption text-thread">({t('shareYou')})</span> : null}
+                      </span>
+                      <span className="flex flex-col items-start gap-1 sm:items-end">
+                        {g.rows.map((r, j) => {
+                          const a = view.assets.find((x) => x.index === r.assetIndex);
+                          return (
+                            <span
+                              key={r.assetIndex}
+                              data-testid={`heir-share-${i}-${j}`}
+                              data-amount={String(r.amount)}
+                              className="flex flex-col items-start gap-0.5 sm:items-end"
+                            >
+                              {r.kind === 'erc20' && a ? (
+                                <Amount
+                                  raw={r.amount}
+                                  decimals={a.info.decimals}
+                                  symbol={a.info.symbol}
+                                  className="voice-ledger tabular-nums"
+                                />
+                              ) : (
+                                <span className="voice-ledger text-small tabular-nums">
+                                  {t('shareNft')} {a ? <UntrustedText value={a.info.symbol} max={16} /> : null}
+                                </span>
+                              )}
+                              {view.lowCoverage.includes(r.assetIndex) ? (
+                                <span
+                                  data-testid={`heir-share-${i}-${j}-uncovered`}
+                                  className="text-caption text-ink-muted sm:text-right"
+                                >
+                                  {t('shareUncovered')}
+                                </span>
+                              ) : null}
+                            </span>
+                          );
+                        })}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
       </LetterSheet>
 
       <section aria-labelledby="heir-steps-title" data-testid="heir-steps" className="flex flex-col gap-6">
@@ -284,8 +392,8 @@ export function HeirLetter(p: PanelProps) {
           <Step n={2} title={t('stepMoveTitle')}>
             <MoveStep {...p} recover={recover} />
           </Step>
-          <Step n={3} title={t('stepReceiveTitle')} last>
-            <ReceiveStep {...p} recover={recover} />
+          <Step n={3} title={t(received ? 'stepReceivedTitle' : 'stepReceiveTitle')} done={received} last>
+            <ReceiveStep {...p} recover={recover} sent={sent} onSent={setSent} received={received} />
           </Step>
         </ol>
       </section>
@@ -300,15 +408,35 @@ export function HeirLetter(p: PanelProps) {
  * One step of the three, on a rail: its number in a ring (the list itself numbers it for a screen reader), a line down
  * to the next step, then its heading and what it offers.
  */
-function Step({ n, title, last = false, children }: { n: number; title: string; last?: boolean; children: ReactNode }) {
+function Step({
+  n,
+  title,
+  last = false,
+  done = false,
+  children,
+}: {
+  n: number;
+  title: string;
+  last?: boolean;
+  /** The step is behind the reader: its ring fills with the thread and holds a check. */
+  done?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <li className="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-4">
+    <li
+      data-testid={`heir-step-${n}`}
+      data-done={done ? 'true' : 'false'}
+      className="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-4"
+    >
       {last ? null : <span aria-hidden className="absolute top-11 bottom-2 left-[1.125rem] w-px bg-line" />}
       <span
         aria-hidden
-        className="voice-ledger grid size-9 place-items-center rounded-full border border-line-strong bg-surface-1 text-small text-ink"
+        className={cn(
+          'voice-ledger grid size-9 place-items-center rounded-full border text-small',
+          done ? 'border-thread bg-thread text-on-thread' : 'border-line-strong bg-surface-1 text-ink',
+        )}
       >
-        {n}
+        {done ? <Check size={18} strokeWidth={2.25} /> : n}
       </span>
       <div className={cn('flex min-w-0 flex-col gap-2 pt-1', last ? null : 'pb-8')}>
         <h3 className="text-lead text-ink">{title}</h3>
@@ -361,28 +489,46 @@ function MoveStep({ flows, sdk, loaded, view, account, onChanged, recover }: Pan
  * Step 3: Receive, a hold (spec §4.6), only once the vault has passed to this reader and the owner's wallet still holds
  * something covered (R10). The hold only opens the wallet: it says "Now confirm in your wallet" and ties no knot
  * (R18.16); the receipt's footer says the block. The flow stays on screen after the send even though the refreshed
- * vault no longer offers it, so the receipt and the transfers do not vanish.
+ * vault no longer offers it, so the receipt and the transfers do not vanish; it offers no "Start over" then, and the
+ * help that came before the send is gone. The letter keeps the send (`sent`): it says what reached the reader.
  */
-function ReceiveStep({ flows, sdk, loaded, view, account, onChanged, recover }: PanelProps & { recover: boolean }) {
+function ReceiveStep({
+  flows,
+  sdk,
+  loaded,
+  view,
+  account,
+  onChanged,
+  recover,
+  sent,
+  onSent,
+  received,
+}: PanelProps & { recover: boolean; sent: Sent | null; onSent(s: Sent): void; received: boolean }) {
   const t = useT(messages);
   const [held, setHeld] = useState(false);
-  const [sent, setSent] = useState<SendResult | null>(null);
-  const [results, setResults] = useState<TransferRow[] | null>(null);
   const s = loaded.snap.status;
   const explorer = sdk.deployment.explorerUrl;
   const { canDeliver } = publicOffers(view, s, false);
   const mine = s.state === (recover ? 'releasedRecover' : 'releasedInherit');
   const offer = canDeliver && mine;
   if (!offer && !held && !sent)
-    return (
+    return received ? (
+      <p data-testid="heir-receive-done" className="text-small text-ink-muted">
+        {t('receivedNote')}
+      </p>
+    ) : (
       <p data-testid="heir-receive-idle" className="text-small text-ink-muted">
         {t('receiveIdle')}
       </p>
     );
-  const block = sent?.steps.at(-1)?.blockNumber;
+  const block = sent?.result.steps.at(-1)?.blockNumber;
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-small text-ink-muted">{t(recover ? 'receiveHelpRecover' : 'receiveHelp')}</p>
+      {sent ? null : (
+        <p data-testid="heir-receive-help" className="text-small text-ink-muted">
+          {t(recover ? 'receiveHelpRecover' : 'receiveHelp')}
+        </p>
+      )}
       <LazyActionFlow
         flows={flows}
         sdk={sdk}
@@ -395,6 +541,7 @@ function ReceiveStep({ flows, sdk, loaded, view, account, onChanged, recover }: 
         confirm="hold"
         tone="danger"
         hold={{ hint: t('receiveHint'), doneLabel: t('receiveDone'), showKnot: false }}
+        resettable={sent === null}
         receiptFooter={
           block !== undefined ? (
             <p data-testid="heir-received" data-block={String(block)} className="text-small text-ink">
@@ -404,16 +551,15 @@ function ReceiveStep({ flows, sdk, loaded, view, account, onChanged, recover }: 
         }
         onPlan={setHeld}
         onDone={(r) => {
-          setSent(r);
           // One transaction: even a resumed send carries all of its events.
-          setResults(flows.transferRows(r.steps.flatMap((x) => x.events)));
+          onSent({ result: r, rows: flows.transferRows(r.steps.flatMap((x) => x.events)) });
           onChanged(r);
         }}
       />
-      {results ? (
+      {sent ? (
         <div className="flex flex-col gap-3">
           <h4 className="text-small text-ink">{t('resultsTitle')}</h4>
-          <TransferTable rows={results} view={view} explorer={explorer} testId="heir-results" />
+          <TransferTable rows={sent.rows} view={view} explorer={explorer} testId="heir-results" />
         </div>
       ) : null}
     </div>
