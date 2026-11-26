@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { flipCase } from './flows.ts';
-import { expectAccessible, expectAccessibleInBothThemes, setStoredTheme } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
 import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
 
@@ -149,6 +149,56 @@ test('a first read that fails shows the error with Retry in both themes, and Ret
   await page.getByTestId('join-error').getByRole('button', { name: 'Retry' }).click();
   await expect(join(page)).toHaveAttribute('data-state', 'ready', SLOW);
   await expect(page.getByTestId('join-error')).toHaveCount(0);
+});
+
+/** The top and the height of an element, in page pixels; a missing one fails at once. */
+async function boxOf(page: Page, testId: string): Promise<{ y: number; height: number }> {
+  const box = await page.getByTestId(testId).boundingBox({ timeout: 5_000 });
+  if (!box) throw new Error(`${testId} has no box`);
+  return box;
+}
+
+test('the first paint is the final layout: the vault card does not move when the chain read lands', async ({
+  page,
+  state,
+}) => {
+  test.setTimeout(300_000);
+  const g = state.seeded.guarded;
+  const hang = () => undefined;
+  for (const lang of ['en', 'vi'] as const) {
+    await page.goto(at(state.siteUrl, `join/#${g}.heir`));
+    await expect(inState(page, 'ready')).toBeVisible();
+    await setStoredLang(page, lang);
+    for (const role of ['heir', 'guardian'] as const) {
+      for (const width of [390, 768, 1440]) {
+        const name = `${lang} ${role} ${width} px`;
+        await page.setViewportSize({ width, height: 900 });
+        // A node that never answers holds the page in its loading shape, after hydration (the language is set).
+        await page.route(rpc, hang);
+        await page.goto('about:blank');
+        await page.goto(at(state.siteUrl, `join/#${g}.${role}`));
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        await expect(inState(page, 'loading')).toBeVisible();
+        const loading = await boxOf(page, 'join-vault-skeleton');
+        // The footer starts below the fold, as it does on the ready page.
+        const footer = await page.locator('footer').last().boundingBox();
+        expect.soft(footer?.y ?? 0, `${name}: the footer below the fold`).toBeGreaterThan(900);
+        await page.unroute(rpc, hang);
+        await page.reload();
+        await expect(inState(page, 'ready')).toBeVisible({ timeout: 30_000 });
+        const ready = await boxOf(page, 'join-vault');
+        expect
+          .soft(Math.abs(ready.y - loading.y), `${name}: the card top, ${loading.y} -> ${ready.y}`)
+          .toBeLessThanOrEqual(8);
+        expect
+          .soft(
+            Math.abs(ready.height - loading.height),
+            `${name}: the card height, ${loading.height} -> ${ready.height}`,
+          )
+          .toBeLessThanOrEqual(8);
+      }
+    }
+  }
 });
 
 /**

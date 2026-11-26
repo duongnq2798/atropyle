@@ -5,7 +5,8 @@ import type { ReactNode } from 'react';
 import { errorCode } from '@/chain/query-client';
 import { SubscribeForm } from '@/components/subscribe/SubscribeForm';
 import { ENV, explorerUrlOf } from '@/config/env';
-import { useT } from '@/i18n/provider';
+import type { Lang } from '@/i18n/core';
+import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { formatBps } from '@/lib/format';
 import { useLocationHash } from '@/lib/hash';
@@ -105,7 +106,7 @@ export function JoinPage() {
   let body: ReactNode;
   switch (view.kind) {
     case 'loading':
-      body = <Loading />;
+      body = <Loading role={invite.ok ? invite.role : 'heir'} />;
       break;
     case 'invalid':
       body = (
@@ -165,25 +166,102 @@ function Header({ title, lead }: { title: string; lead?: string }) {
   );
 }
 
-/** The shape of the ready page: the header, the vault card and the first section. */
-function Loading() {
+/**
+ * The ready page's layout, so the read lands without moving anything (spec §18.2 rule 6): a title of the ready
+ * title's height, the lead's lines, the vault card row for row, the steps, and the safety rules, which need no chain
+ * data. `role` only sizes the shapes (the prerender, which has no hash, takes the heir's); nothing says it before the
+ * chain has confirmed the vault.
+ */
+function Loading({ role }: { role: InviteRole }) {
   const t = useT(messages);
+  const { lang } = useLang();
+  const shape = role === 'guardian' ? GUARDIAN_SHAPE : HEIR_SHAPE;
   return (
     <>
-      <Header title={t('loadingTitle')} />
-      <div aria-hidden="true" className="flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-4 w-48 max-w-full" />
-          <Skeleton className="h-8 w-28 rounded-full" />
+      <header className="flex flex-col gap-4">
+        <p className="font-medium text-caption text-thread uppercase tracking-[0.16em]">{t('eyebrow')}</p>
+        <h1
+          id={TITLE_ID}
+          tabIndex={-1}
+          className={cn('text-balance font-display text-h1 text-ink outline-none', shape.title[lang])}
+        >
+          {t('loadingTitle')}
+        </h1>
+        <div data-testid="join-lead-skeleton" aria-hidden="true" className="flex max-w-[60ch] flex-col text-lead">
+          {shape.lead.map((row) => (
+            <Skeleton key={row.at} className={cn('my-[0.2lh] h-[0.6lh]', row.className)} />
+          ))}
+        </div>
+      </header>
+      <div
+        data-testid="join-vault-skeleton"
+        aria-hidden="true"
+        className="flex min-w-0 flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Skeleton className="my-0.5 h-4 w-60 max-w-full" />
+          <Skeleton className="h-8 w-36 rounded-full" />
         </div>
         <Skeleton className="h-16 w-full rounded-2xl" />
-        <Skeleton className="h-4 w-3/4 max-w-96" />
-        <Skeleton className="h-4 w-1/2 max-w-72" />
+        <div className="grid min-w-0 grid-cols-1 gap-y-0.5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-x-4 sm:gap-y-3">
+          <Skeleton className="my-0.5 h-3.5 w-16" />
+          <Skeleton className="h-12 w-72 max-w-full sm:h-[52px]" />
+          <Skeleton className="mt-3.5 mb-0.5 h-3.5 w-16 sm:my-0.5" />
+          <Skeleton className="h-10 w-60 max-w-full sm:h-11" />
+          <Skeleton className="mt-3.5 mb-0.5 h-3.5 w-16 sm:my-0.5" />
+          <Skeleton className="my-0.5 h-4 w-6" />
+          <Skeleton className="mt-3.5 mb-0.5 h-3.5 w-16 sm:my-0.5" />
+          <Skeleton className="my-0.5 h-4 w-56 max-w-full" />
+        </div>
+        <div className="flex flex-col">
+          <Skeleton className="my-0.5 h-[13px] w-80 max-w-full" />
+          <Skeleton className="my-0.5 h-[13px] w-24 sm:hidden" />
+        </div>
+        <div className="h-[141px] rounded-2xl border border-line-strong/45 border-dashed sm:h-[76px]" />
+        <Skeleton className="h-10 w-44 rounded-full" />
       </div>
-      <Skeleton className="h-7 w-64 max-w-full rounded-md" />
+      <div aria-hidden="true" className="flex flex-col gap-5">
+        <Skeleton className="my-1 h-7 w-64 max-w-full" />
+        <div className="ml-3 flex flex-col gap-5 border-line border-l pl-7">
+          <Skeleton className="h-6 w-full max-w-[62ch]" />
+          <Skeleton className="h-6 w-11/12 max-w-[56ch]" />
+          <Skeleton className="h-6 w-full max-w-[62ch]" />
+        </div>
+      </div>
+      <Safety />
     </>
   );
 }
+
+type Shape = { title: Record<Lang, string>; lead: readonly { at: number; className: string }[] };
+
+/**
+ * The lines of the ready title and lead, measured at 390, 768 and 1440 px (e2e "the first paint is the final layout",
+ * which fails when a copy change moves them): the titles take two lines on a phone and from lg, one at md except the
+ * English guardian title; the heir lead takes five lines on a phone and three from sm, the guardian lead four and two.
+ * Where the ready title takes two lines, a narrower measure gives the loading title two lines too, so the reserved
+ * height is filled with words rather than left as a gap.
+ */
+const ONE_LINE_AT_MD = 'min-h-[2lh] md:min-h-0 lg:min-h-[2lh] lg:max-w-[14ch]';
+const HEIR_SHAPE: Shape = {
+  title: { en: ONE_LINE_AT_MD, vi: ONE_LINE_AT_MD },
+  lead: [
+    { at: 0, className: 'w-full' },
+    { at: 1, className: 'w-11/12' },
+    { at: 2, className: 'w-full sm:w-2/3' },
+    { at: 3, className: 'w-full sm:hidden' },
+    { at: 4, className: 'w-1/3 sm:hidden' },
+  ],
+};
+const GUARDIAN_SHAPE: Shape = {
+  title: { en: 'min-h-[2lh] md:max-w-[14ch]', vi: ONE_LINE_AT_MD },
+  lead: [
+    { at: 0, className: 'w-full' },
+    { at: 1, className: 'w-11/12 sm:w-1/2' },
+    { at: 2, className: 'w-full sm:hidden' },
+    { at: 3, className: 'w-1/2 sm:hidden' },
+  ],
+};
 
 function Problem({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   const t = useT(messages);
