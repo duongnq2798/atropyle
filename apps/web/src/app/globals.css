@@ -482,3 +482,14 @@
     transform: translateY(100%);
   }
 }
+
+/* /create/ (WCAG 2.4.11): a field that takes focus is scrolled clear of the sticky header (4rem) and, below lg, of
+   the fixed dock with its strip (wizard.tsx), never left under them. */
+:root:has([data-create-dock]) {
+  scroll-padding-top: 5rem;
+}
+@media (max-width: 63.99rem) {
+  :root:has([data-create-dock]) {
+    scroll-padding-bottom: calc(10rem + env(safe-area-inset-bottom));
+  }
+}

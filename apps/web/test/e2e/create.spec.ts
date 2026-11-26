@@ -51,6 +51,8 @@ test('a Drill is created through wallet_sendCalls', async ({ page, state, atro, 
   await expect(page.getByTestId('create-asset-0-token')).toHaveValue(token);
   await page.getByTestId('create-next').click();
   await expect(wizard).toHaveAttribute('data-step', 'review');
+  // Before any wallet: the summary names the asset the vault may move, in full.
+  await expect(page.getByTestId('create-sum-asset-0')).toContainText('Token');
   await expectAccessibleInBothThemes(page, page.getByTestId('create-connect'));
 
   await connectFrom(page, page.getByTestId('create-connect'));
@@ -65,6 +67,11 @@ test('a Drill is created through wallet_sendCalls', async ({ page, state, atro, 
       'data-signed',
       'true',
     );
+    // The words under the gate never widen the Thread past the rail.
+    const rail = await box(page.getByTestId('create-preview'));
+    const drawn = await box(page.getByTestId('create-preview-thread').locator('[data-thread]'));
+    expect(drawn.x + drawn.width).toBeLessThanOrEqual(rail.x + rail.width);
+    expect(drawn.width / drawn.height).toBeCloseTo(5, 1);
   } else {
     await expect(page.getByTestId('create-strip').locator('[data-thread]')).toHaveAttribute('data-signed', 'true');
   }
@@ -92,6 +99,10 @@ test('a Drill is created through wallet_sendCalls', async ({ page, state, atro, 
   await expect(page.getByTestId('create-done-thread-signed')).toBeVisible();
   await expect(page.getByTestId('create-invite-heir')).toContainText(`/join/#${vault}.heir`);
   await expect(page.getByTestId('create-invite-guardian')).toHaveCount(0);
+  // A lone heirs card spans the page, and the restart button closes it, aligned to the page's edge.
+  const page0 = await box(done);
+  expect((await box(page.getByTestId('create-invite-heir'))).width).toBeGreaterThan(page0.width * 0.9);
+  expect(Math.abs((await box(page.getByTestId('create-restart'))).x - page0.x)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId('create-open-vault')).toHaveAttribute('href', new RegExp(`/vault/#${vault}$`));
   await expectAccessibleInBothThemes(page, page.getByTestId('create-done'));
 });
@@ -162,6 +173,45 @@ test('the strip at 390 covers no input and hides while one has focus', async ({ 
   await expect(page.getByTestId('create-sheet-thread').locator('[data-thread]')).toHaveAttribute('role', 'img');
 });
 
+// WCAG 2.2 2.4.11: below lg the fixed dock covers the bottom of the screen, and the browser leaves a field it covers
+// where it is unless scroll-padding reserves the dock (globals.css). Keyboard only, from the h1 to Next.
+test('at 390 the dock and the header never hide the field that has focus', async ({ page, state }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.goto(`${state.siteUrl}create/#drill`);
+  await ready(page);
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-heir-0-account').fill(HEIR);
+  await page.getByTestId('create-add-heir').click();
+  await page.getByTestId('create-add-heir').click();
+  await page.getByTestId('create-heir-1-account').fill(ANVIL[4]);
+  await page.getByTestId('create-heir-2-account').fill(ANVIL[5]);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('#create-step-title').focus();
+  const hidden: string[] = [];
+  let reached = false;
+  for (let i = 0; i < 60 && !reached; i++) {
+    await page.keyboard.press('Tab');
+    const seen = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      const dock = document.querySelector('[data-testid="create-dock"]');
+      const header = document.querySelector('header');
+      if (!el || !dock || !header) return null;
+      const r = el.getBoundingClientRect();
+      const d = dock.getBoundingClientRect();
+      const h = header.getBoundingClientRect();
+      const name = el.dataset.testid ?? el.id ?? el.tagName;
+      // Both bars span the width: a field is hidden when no part of it shows between them.
+      const covered = !dock.contains(el) && (r.top >= d.top || r.bottom <= h.bottom);
+      return { name, covered, next: el.dataset.testid === 'create-next' };
+    });
+    if (!seen) throw new Error('no focus');
+    if (seen.covered) hidden.push(seen.name);
+    reached = seen.next;
+  }
+  expect(reached).toBe(true);
+  expect(hidden).toEqual([]);
+});
+
 test('leaving mid-wizard asks first', async ({ page, state }) => {
   await page.goto(`${state.siteUrl}create/#drill`);
   await ready(page);
@@ -173,9 +223,9 @@ test('leaving mid-wizard asks first', async ({ page, state }) => {
 });
 
 // Review Focus 1: a plan is never signed for a different form, even when the edit comes through the hash.
-test('an edit after prepare drops the plan', async ({ page, state, wallet }) => {
-  await wallet({ account: OWNER, sendCalls: true });
-  await page.goto(`${state.siteUrl}create/#drill`);
+/** A Drill prepared on the review step, then back on the first step: the wallet has not seen the plan. */
+async function preparedThenKind(page: Page, siteUrl: string) {
+  await page.goto(`${siteUrl}create/#drill`);
   await ready(page);
   const wizard = page.getByTestId('create');
   await page.getByTestId('create-next').click();
@@ -192,9 +242,34 @@ test('an edit after prepare drops the plan', async ({ page, state, wallet }) => 
   // The wallet has not seen the plan: the steps before are still open.
   await page.getByTestId('create-progress-kind').getByRole('button').click();
   await expect(wizard).toHaveAttribute('data-step', 'kind');
-  await page.evaluate(() => {
-    window.location.hash = '#real';
-  });
+}
+const setHash = (page: Page, hash: string) =>
+  page.evaluate((h) => {
+    window.location.hash = h;
+  }, hash);
+
+test('a kind change through the hash alone drops the plan', async ({ page, state, wallet }) => {
+  await wallet({ account: OWNER, sendCalls: true });
+  await preparedThenKind(page, state.siteUrl);
+  const wizard = page.getByTestId('create');
+  // Real and back to Drill through the hash only: the form ends where it was, but the plan was dropped on the way.
+  await setHash(page, '#real');
+  await expect(page.getByTestId('create-kind-real')).toBeChecked();
+  await setHash(page, '#drill');
+  await expect(page.getByTestId('create-kind-drill')).toBeChecked();
+  // kind → heirs → guardians → timing → assets → review, with no edit on the way (no setForm call).
+  for (let i = 0; i < 5; i++) await page.getByTestId('create-next').click();
+  await expect(wizard).toHaveAttribute('data-step', 'review');
+  await expect(page.getByTestId('create-tx')).toHaveCount(0);
+  await expect(page.getByTestId('create-resume-failed')).toHaveCount(0);
+  await expect(page.getByTestId('create-prepare')).toBeVisible();
+});
+
+test('an edit after prepare drops the plan', async ({ page, state, wallet }) => {
+  await wallet({ account: OWNER, sendCalls: true });
+  await preparedThenKind(page, state.siteUrl);
+  const wizard = page.getByTestId('create');
+  await setHash(page, '#real');
   await expect(page.getByTestId('create-kind-real')).toBeChecked();
   // kind → heirs (kept) → guardians; a real vault starts guarded, so pick none
   await page.getByTestId('create-next').click();

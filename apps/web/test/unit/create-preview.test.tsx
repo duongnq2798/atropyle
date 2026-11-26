@@ -37,6 +37,26 @@ describe('loom preview', () => {
     expect(screen.getByText('Check in every 30 days')).toBeInTheDocument();
   });
 
+  it('names the route under the gate: the heirs, and when', () => {
+    renderWithProviders(<Probe form={{ ...two, template: 'simple', guardians: [] }} />);
+    const gate = screen.getByTestId('probe-gate');
+    expect(gate).toHaveTextContent(/^Heirs after 194 days$/);
+    // Hugs the gate's foot at any width: an offset in the box's own proportion, then 6 px.
+    expect(gate.style.marginTop).toMatch(/^calc\(.*% \+ 4\.2% \+ 6px\)$/);
+  });
+
+  it('with guardians, says the gate needs them and when the heirs receive without them', () => {
+    const form = { ...two, guardians: [PEOPLE.g1, PEOPLE.g2], k: '2' };
+    renderWithProviders(<Probe form={form} />);
+    const gate = screen.getByTestId('probe-gate');
+    expect(gate).toHaveTextContent('Heirs after 194 days, if guardians confirm');
+    expect(screen.getByTestId('probe-gate-fallback')).toHaveTextContent('otherwise after 15 months');
+    expect(gate.style.marginTop).toContain('min(1.5rem, 8%)');
+    expect(thread()?.getAttribute('aria-label')).toMatch(
+      /your heirs can receive 194 days after it is created if your guardians confirm, otherwise after 15 months/,
+    );
+  });
+
   it('n posts at the gate, k of them needed, and an exit when recovery is on', () => {
     const form = { ...two, guardians: [PEOPLE.g1, PEOPLE.g2, PEOPLE.stranger], k: '2', recoveryEnabled: true };
     const { container } = renderWithProviders(<Probe form={form} />);

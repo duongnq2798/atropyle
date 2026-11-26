@@ -176,6 +176,8 @@ export function Wizard() {
         {dock ? (
           <div
             data-testid="create-dock"
+            // globals.css keeps a focused field clear of the dock below lg (scroll-padding, WCAG 2.4.11).
+            data-create-dock=""
             className={cn(
               'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-line max-lg:border-t',
               'max-lg:bg-bg max-lg:pb-[env(safe-area-inset-bottom)] lg:border-line lg:border-t lg:pt-6',

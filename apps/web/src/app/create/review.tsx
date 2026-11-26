@@ -1,18 +1,20 @@
 'use client';
 
-import type { PlanCheck, TxPlan, Warning } from '@atropyle/sdk';
+import type { AssetKind, PlanCheck, TxPlan, Warning } from '@atropyle/sdk';
 import { skipToken, useMutation, useQuery } from '@tanstack/react-query';
 import { type ReactNode, useEffect } from 'react';
 import type { Address as Addr } from 'viem';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useSdk } from '@/chain/use-sdk';
 import { IssueList } from '@/flows/editors/issue-list';
+import type { AssetRow } from '@/flows/impl/create-form';
 import type { FlowsImpl } from '@/flows/load';
 import { sharesOf } from '@/flows/shares';
 import { useLang, useT } from '@/i18n/provider';
 import { durationWords } from '@/lib/duration';
 import { formatAmount, formatBps } from '@/lib/format';
 import { jsonStringify } from '@/lib/store';
+import { messages as assetWords } from '@/messages/assets.messages';
 import { messages as common } from '@/messages/common.messages';
 import { messages } from '@/messages/create.messages';
 import { messages as editors } from '@/messages/editors.messages';
@@ -109,9 +111,51 @@ function PlanSummary({ wizard, explorer }: { wizard: Wizard; explorer: string | 
         </SummaryRow>
       ) : null}
       <SummaryRow label={t('stepAssets')}>
-        <p>{f.assets.length > 0 ? t('sumAssets', { n: f.assets.length }) : t('sumNoAssets')}</p>
+        <AssetsSummary assets={f.assets} explorer={explorer} />
       </SummaryRow>
     </section>
+  );
+}
+
+const KIND_KEY = {
+  erc20: 'kindErc20',
+  erc721: 'kindErc721',
+  erc1155: 'kindErc1155',
+} as const satisfies Record<AssetKind, keyof typeof assetWords.en>;
+
+/**
+ * Every asset the vault will be allowed to move, before any wallet connects: its kind, its address in full and, for
+ * an NFT or a multi-token, its id and heir. The names the tokens give themselves come after the chain check.
+ */
+export function AssetsSummary({ assets, explorer }: { assets: readonly AssetRow[]; explorer: string | null }) {
+  const t = useT(messages);
+  const a = useT(assetWords);
+  if (assets.length === 0) return <p>{t('sumNoAssets')}</p>;
+  return (
+    <>
+      <p>{t('sumAssets', { n: assets.length })}</p>
+      <ul className="space-y-3">
+        {assets.map((x, i) => {
+          const id = x.id.trim();
+          const heir = Number(x.heir);
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: assets are positional, like the plan's
+            <li key={i} data-testid={`create-sum-asset-${i}`} className="space-y-1">
+              <p className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-line bg-bg px-2.5 py-0.5 font-medium text-caption text-ink">
+                  {a(KIND_KEY[x.kind])}
+                  {x.kind !== 'erc20' && id !== '' ? ` #${id}` : ''}
+                </span>
+                {x.kind !== 'erc20' && Number.isInteger(heir) ? (
+                  <span className="text-ink-muted text-small">{t('sumAssetHeir', { n: heir + 1 })}</span>
+                ) : null}
+              </p>
+              <Address address={x.token.trim()} explorer={explorer} copy />
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

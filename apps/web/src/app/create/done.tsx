@@ -8,6 +8,7 @@ import { SubscribeForm } from '@/components/subscribe/SubscribeForm';
 import type { CreateForm } from '@/flows/impl/create-form';
 import type { FlowsImpl } from '@/flows/load';
 import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
 import { explorerAddress, explorerName } from '@/lib/links';
 import { messages } from '@/messages/create.messages';
 import { joinHref, vaultHref } from '@/routes';
@@ -125,7 +126,8 @@ export function DoneStep({
           {t('invitesTitle')}
         </h2>
         <p className="max-w-prose text-body text-ink-muted">{t('invitesHelp')}</p>
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Two columns only for two invitations: a lone heirs card spans the page rather than leave a hole. */}
+        <div className={cn('grid gap-4', guardians.length > 0 && 'md:grid-cols-2')}>
           <Invite vault={vault} invite="guardian" people={guardians} />
           <Invite vault={vault} invite="heir" people={heirs} />
         </div>
@@ -136,9 +138,16 @@ export function DoneStep({
         </h2>
         <SubscribeForm vault={vault} role={OWNER} compact />
       </section>
-      <button type="button" className={buttonClass({ variant: 'ghost' })} onClick={onRestart}>
-        {t('newVault')}
-      </button>
+      <div className="border-line border-t pt-6">
+        <button
+          type="button"
+          data-testid="create-restart"
+          className={buttonClass({ variant: 'secondary' })}
+          onClick={onRestart}
+        >
+          {t('newVault')}
+        </button>
+      </div>
     </div>
   );
 }

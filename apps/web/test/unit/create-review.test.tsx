@@ -2,7 +2,7 @@ import type { PlanCheck, Warning } from '@atropyle/sdk';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { planTokens } from '../../src/app/create/plan-tokens';
-import { CheckResult, CheckWarnings } from '../../src/app/create/review';
+import { AssetsSummary, CheckResult, CheckWarnings } from '../../src/app/create/review';
 import { untrusted } from '../../src/lib/untrusted';
 import { renderWithProviders } from '../helpers/render';
 import { PEOPLE } from './fixtures';
@@ -174,5 +174,33 @@ describe('the check result', () => {
     );
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
     expect(screen.getByText('A Drill has no Atropyle fee. You pay only network gas.')).toBeInTheDocument();
+  });
+});
+
+describe('the summary of the assets', () => {
+  it('names every asset in full: its kind, its address, and for an NFT its heir', () => {
+    renderWithProviders(
+      <AssetsSummary
+        explorer={null}
+        assets={[
+          { kind: 'erc20', token: PEOPLE.token, id: '', heir: '0' },
+          { kind: 'erc721', token: PEOPLE.nft, id: '7', heir: '1' },
+        ]}
+      />,
+    );
+    const rows = screen.getAllByTestId(/^create-sum-asset-\d$/);
+    expect(rows).toHaveLength(2);
+    expect(screen.getByText('Assets the vault watches: 2.')).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText('Token')).toBeInTheDocument();
+    expect(rows[0]?.textContent?.replace(/\s/g, '')).toContain(PEOPLE.token.slice(2));
+    expect(within(rows[1] as HTMLElement).getByText('NFT #7')).toBeInTheDocument();
+    expect(rows[1]).toHaveTextContent('to Heir 2');
+    expect(rows[1]?.textContent?.replace(/\s/g, '')).toContain(PEOPLE.nft.slice(2));
+  });
+
+  it('says when there is none', () => {
+    renderWithProviders(<AssetsSummary explorer={null} assets={[]} />, { lang: 'vi' });
+    expect(screen.getByText('Chưa có tài sản.')).toBeInTheDocument();
+    expect(screen.queryAllByTestId(/^create-sum-asset-\d$/)).toHaveLength(0);
   });
 });
