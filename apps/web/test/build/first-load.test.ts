@@ -57,6 +57,13 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   'the Ask X Layer calls': { markers: [/["'`]0xe8281a1a/], pages: 'shell' },
 };
 
+/**
+ * Code a page must load once (7C T6, ruling R33): the Thread, known by its `thread-tremble` animation class, which
+ * only thread.tsx writes. The 404 boundary's chunk, which every page loads, and the home stage's both use it, and
+ * Turbopack copies a module of the not-found boundary into a page's own chunk unless the shell imports it too.
+ */
+const ONCE: Record<string, RegExp> = { 'the Thread': /thread-tremble/ };
+
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
@@ -101,6 +108,15 @@ for (const target of ['vercel', 'deweb'] as const) {
             for (const marker of markers)
               expect(marker.test(code), `${name(page)} loads ${name(file)}: ${marker}`).toBe(false);
           }
+        }
+      });
+    }
+
+    for (const [what, marker] of Object.entries(ONCE)) {
+      it(`loads ${what} once on each page of the shell and on /proof/`, () => {
+        for (const page of LEAN_PAGES) {
+          const holders = firstLoad(out, join(out, page)).filter((f) => marker.test(readFileSync(f, 'utf8')));
+          expect(holders.map(name), page).toHaveLength(1);
         }
       });
     }

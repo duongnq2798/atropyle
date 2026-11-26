@@ -9,6 +9,11 @@ import { LoadNotice } from './load-notice';
 import { ProofLine } from './proof-line';
 import { SkipLink } from './skip-link';
 import { useWarmOverlays } from './warm-overlays';
+// The Thread in the shell's chunk, once (7C T6, ruling R33): the 404 boundary (app/not-found.tsx), whose chunk every
+// page loads, draws it, and so do the pages (the home stage, the vault). Turbopack does not count the not-found
+// boundary's modules as loaded for a page's own chunk, so without this import `/` carried the Thread, its geometry
+// and its colours twice (4.6 kB gzip). test/build/first-load.test.ts holds it to one copy.
+import '@/thread/thread';
 
 /**
  * Every page. The skip button comes first for the keyboard (WCAG 2.4.1; hidden until focused), then the proof line,
