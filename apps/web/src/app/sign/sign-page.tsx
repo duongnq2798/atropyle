@@ -121,7 +121,8 @@ function Verdict({
         <h2 id={`${id}-title`} className="font-display text-ink text-title">
           {title}
         </h2>
-        <div className="text-body text-ink-muted">{children}</div>
+        {/* A <div>, since a body may hold a block: the global `p { text-wrap: pretty }` does not reach it. */}
+        <div className="text-pretty text-body text-ink-muted">{children}</div>
         {footer ? <div className="mt-1.5">{footer}</div> : null}
       </div>
     </>
@@ -354,6 +355,10 @@ function SignChecked({
     [client, flows, hash, payload],
   );
   const failure = view.failed[0]?.simulation;
+  // A link that creates its vault draws it once, in the terms card under the heading that says what it is.
+  const vault = check.vault;
+  const createsVault =
+    vault !== null && check.steps.some((s) => s.create !== null && sameAddress(s.create.vault, vault));
   const send = useSendChunk();
   const Send = send.data?.SignSend ?? null;
 
@@ -402,9 +407,9 @@ function SignChecked({
           <Fact label={t('chain')}>
             <span className="text-ink">{networkName(check.chainId)}</span>
           </Fact>
-          {check.vault ? (
+          {vault && !createsVault ? (
             <Fact label={t('vault')}>
-              <Address address={check.vault} explorer={explorer} />
+              <Address address={vault} explorer={explorer} />
             </Fact>
           ) : null}
         </dl>

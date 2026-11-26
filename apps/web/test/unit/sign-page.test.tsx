@@ -200,6 +200,9 @@ describe('SignPage: what the link asks', () => {
       'This signing link is broken or was changed',
     );
     expect(box.textContent).toContain('Ask whoever sent it for a new link.');
+    // The body is a <div>, out of reach of the global `p { text-wrap: pretty }`: it asks for it itself, so no word
+    // is left alone on its last line.
+    expect(within(box).getByText(/^Ask whoever sent it/).className).toContain('text-pretty');
     expect(box.textContent).not.toContain('Only open signing links you created yourself');
     expect(box.textContent).not.toContain('The signing link is not valid.');
     expect(within(box).getByRole('link', { name: /How to fix this/ })).toBeTruthy();
@@ -614,10 +617,18 @@ describe('SignPage createVault terms', () => {
     const card = await screen.findByTestId('sign-terms-0');
     expect(card.querySelector(`[data-address="${DRILL}"]`)).toBeTruthy();
     const earliest = screen.getByTestId('sign-terms-0-earliest');
-    expect(earliest.textContent).toBe(
-      'Earliest time the assets can leave your wallet: 2 minutes after the vault is created, so not before 2027-01-15 08:02 UTC.',
-    );
+    // The card's main fact in three lines: what it is, how long after creation, then the date, which never breaks.
+    expect([...earliest.querySelectorAll('p')].map((p) => p.textContent)).toEqual([
+      'Earliest the assets can leave your wallet',
+      '2 minutes after the vault is created',
+      'Not before 2027-01-15 08:02 UTC',
+    ]);
+    const date = earliest.querySelector('time');
+    expect(date?.textContent).toBe('2027-01-15 08:02 UTC');
+    expect(date?.getAttribute('datetime')).toBe('2027-01-15T08:02:00.000Z');
+    expect(date?.className).toContain('whitespace-nowrap');
     expect(earliest.getAttribute('data-route')).toBe('recovery');
+    expect(earliest.getAttribute('data-after')).toBe('120');
     const routes = [...screen.getByTestId('sign-terms-0-routes').querySelectorAll('li')];
     expect(routes.map((li) => [li.getAttribute('data-route'), li.getAttribute('data-after')])).toEqual([
       ['recovery', '120'],
@@ -636,6 +647,11 @@ describe('SignPage createVault terms', () => {
     expect(within(heirs).queryByRole('button')).toBeNull();
     const guardians = screen.getByTestId('sign-terms-0-guardians');
     expect(guardians.querySelector(`[data-address="${GUARD}"]`)).toBeTruthy();
+    // A guardian's row has the heirs' columns, its number where an heir's share is, so every address starts at one edge.
+    const guardianRow = guardians.querySelector(`[data-address="${GUARD}"]`)?.closest('li');
+    expect(guardianRow?.className).toContain('grid-cols-[3.5rem_minmax(0,1fr)]');
+    expect(guardianRow?.firstElementChild?.textContent).toBe('G1');
+    expect(heirs.querySelector('li')?.className).toContain('grid-cols-[3.5rem_minmax(0,1fr)]');
     expect(guardians.textContent).toContain('1 of 1 must confirm. Wallet recovery is on.');
     expect(within(guardians).queryByRole('button')).toBeNull();
     expect(card.textContent).toContain(
@@ -669,6 +685,35 @@ describe('SignPage createVault terms', () => {
     expect(card.textContent).toContain('Đây là Drill (bản diễn tập)');
     expect(screen.getByTestId('sign-terms-0-guardians').textContent).toBe('Không có người giám hộ.');
     expect(screen.getByTestId('sign-terms-0-routes').textContent).toContain('không cần ai ký');
+    expect([...screen.getByTestId('sign-terms-0-earliest').querySelectorAll('p')].map((p) => p.textContent)).toEqual([
+      'Sớm nhất tài sản có thể rời ví của bạn',
+      '4 phút sau khi vault được tạo',
+      'Không trước 2027-01-15 08:02 UTC',
+    ]);
+  });
+
+  it('draws the vault it creates once above the steps, in the terms card that says what it is', async () => {
+    drillPage();
+    const tx = await screen.findByTestId('sign-tx');
+    // Compared without case by hand: the DOM of these tests ignores a selector's `i` flag.
+    const above = [...document.querySelectorAll('[data-address]')].filter(
+      (el) =>
+        el.getAttribute('data-address')?.toLowerCase() === DRILL.toLowerCase() &&
+        el.compareDocumentPosition(tx) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(above).toHaveLength(1);
+    expect(screen.getByTestId('sign-terms-0').contains(above[0])).toBe(true);
+    // The checks card still names the signer and the network.
+    expect(screen.getByText('Signer')).toBeTruthy();
+    expect(screen.queryByText('Vault', { selector: 'dt' })).toBeNull();
+  });
+
+  it('keeps the vault in the checks card for a link that acts on a vault it does not create', async () => {
+    link(payloadOf([{ to: V, data: CHECK_IN }]), checkOf([step()]));
+    show();
+    await screen.findByTestId('sign-checks');
+    const fact = screen.getByText('Vault', { selector: 'dt' }).parentElement;
+    expect(fact?.querySelector(`[data-address="${V}"]`)).toBeTruthy();
   });
 });
 

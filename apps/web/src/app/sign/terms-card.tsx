@@ -8,6 +8,14 @@ import { messages as labels } from '@/messages/labels.messages';
 import { messages } from '@/messages/sign.messages';
 import { Address } from '@/ui/address';
 
+const MAX_DATE_MS = 8.64e15;
+
+/** A chain timestamp as ISO 8601 for <time dateTime>; none past the range of a Date, which would throw. */
+function isoOf(ts: bigint): string | undefined {
+  const ms = Number(ts) * 1000;
+  return Number.isFinite(ms) && Math.abs(ms) <= MAX_DATE_MS ? new Date(ms).toISOString() : undefined;
+}
+
 /**
  * Who gets what and how early, as the SDK decoded it from the createVault calldata. The SDK refuses a second
  * createVault, a vault that already exists and any later call to that vault in the same link, so these terms are
@@ -41,14 +49,23 @@ export function TermsCard({ index, terms, explorer }: { index: number; terms: Cr
       </header>
 
       {e.earliest && terms.earliestAt !== null ? (
-        <p
+        // The card's main fact, in three lines: what it is, how long after creation in the display voice, then the
+        // date as one unbreakable piece, so a narrow screen never splits it at a space or inside the date.
+        <div
           data-testid={`${id}-earliest`}
           data-after={String(e.earliest.after)}
           data-route={e.earliest.route}
-          className="rounded-2xl border border-grace/45 bg-grace/8 p-4 font-medium text-body text-ink"
+          className="flex flex-col gap-1 rounded-2xl border border-grace/45 bg-grace/8 p-4 sm:p-5"
         >
-          {t('earliest', { time: words(e.earliest.after), date: formatTimestamp(terms.earliestAt) })}
-        </p>
+          <p className="text-ink-muted text-small">{t('earliestLabel')}</p>
+          <p className="font-display text-ink text-title">{t('earliestAfter', { time: words(e.earliest.after) })}</p>
+          <p className="text-ink-muted text-small">
+            {t('earliestNotBefore')}{' '}
+            <time dateTime={isoOf(terms.earliestAt)} className="voice-ledger whitespace-nowrap text-ink">
+              {formatTimestamp(terms.earliestAt)}
+            </time>
+          </p>
+        </div>
       ) : (
         <p
           data-testid={`${id}-earliest`}
@@ -110,14 +127,19 @@ export function TermsCard({ index, terms, explorer }: { index: number; terms: Cr
           </p>
         ) : (
           <div data-testid={`${id}-guardians`} className="flex flex-col gap-2">
+            {/* The heirs' columns, each guardian's number where an heir's share is: every address in the card, and the
+                line under them (3.5rem plus the gap), start at one left edge. */}
             <ul className="flex flex-col gap-2">
-              {terms.guardians.map((g) => (
-                <li key={g}>
+              {terms.guardians.map((g, i) => (
+                <li key={g} className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3">
+                  <span className="font-mono text-ink-muted text-small tabular-nums">
+                    {t('guardianTag', { n: i + 1 })}
+                  </span>
                   <Address address={g} size="sm" copy={false} />
                 </li>
               ))}
             </ul>
-            <p className="text-ink text-small">
+            <p className="ps-[4.25rem] text-ink text-small">
               {t(terms.recoveryEnabled ? 'guardiansOn' : 'guardiansOff', { k: terms.k, n: terms.guardians.length })}
             </p>
           </div>
