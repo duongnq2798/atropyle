@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,8 @@ afterAll(() => {
 describe('the share card', () => {
   it('lives on the production host, the webUrl of the X Layer deployment', () => {
     expect(SHARE.origin).toBe(deployment.webUrl);
-    expect(SHARE_IMAGE_URL).toBe('https://atropyle.xyz/og.png');
+    expect(SHARE_IMAGE_URL).toBe(`https://atropyle.xyz/${SHARE.image.path}`);
+    expect(SHARE.image.path).toMatch(/^og-v\d+\.png$/);
   });
 
   it('holds attribute-safe text, and an alt that fits the X limit of 420 characters', () => {
@@ -86,9 +87,9 @@ describe('addShareImage', () => {
     const deweb = mkdtempSync(join(tmpdir(), 'atropyle-share-'));
     temps.push(vercel, deweb);
     expect(addShareImage(vercel, 'vercel')).toBe(true);
-    expect(readFileSync(join(vercel, 'og.png')).equals(readFileSync(SHARE_IMAGE_FILE))).toBe(true);
+    expect(readFileSync(join(vercel, SHARE.image.path)).equals(readFileSync(SHARE_IMAGE_FILE))).toBe(true);
     expect(addShareImage(deweb, 'deweb')).toBe(false);
     expect(addShareImage(deweb, undefined)).toBe(false);
-    expect(existsSync(join(deweb, 'og.png'))).toBe(false);
+    expect(readdirSync(deweb)).toEqual([]);
   });
 });

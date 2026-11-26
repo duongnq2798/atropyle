@@ -1,14 +1,13 @@
-// npm run og:image -w apps/web: renders share/og.png, the share card of src/config/share.ts, with Chromium.
+// npm run og:image -w apps/web: renders share/<SHARE.image.path>, the share card of src/config/share.ts, in Chromium.
 // The card uses the site's own fonts (src/fonts/files), its night colours (globals.css, tokens:dark) and the Thread of
 // the home hero, drawn by src/thread/geometry.ts. Nothing is fetched: the fonts go in as data URLs.
 // Rendering differs a little between systems, so CI checks the committed file (test/unit/share.test.ts), not a rerun.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { SHARE } from '../src/config/share';
 import { MAIN_WIDTH, type Point, threadGeometry, VIEW } from '../src/thread/geometry';
+import { SHARE_IMAGE_FILE } from './lib/share-image';
 
-const OUT = fileURLToPath(new URL('../share/og.png', import.meta.url));
 const font = (file: string) =>
   `data:font/woff2;base64,${readFileSync(new URL(`../src/fonts/files/${file}`, import.meta.url)).toString('base64')}`;
 
@@ -84,9 +83,11 @@ h1 { margin-top: 18px; font-family: 'Atropyle Fraunces', serif; font-weight: 500
 h1 em { font-style: normal; color: ${NIGHT.thread}; }
 .lead { margin-top: 22px; max-width: 900px; font-size: 27px; line-height: 1.42; color: ${NIGHT.muted}; }
 .thread { position: absolute; left: 0; top: ${BOX.top}px; }
-.foot { position: absolute; left: 72px; right: 72px; bottom: 52px; display: flex; justify-content: space-between; align-items: baseline; font-family: 'Atropyle Mono', monospace; font-size: 23px; }
-.cmd b { color: ${NIGHT.thread}; font-weight: 500; }
-.site { color: ${NIGHT.muted}; }
+.foot { position: absolute; left: 72px; right: 72px; bottom: 52px; display: flex; justify-content: space-between; align-items: baseline; }
+.run { font-size: 25px; font-weight: 500; }
+.run b { color: ${NIGHT.thread}; font-weight: 500; }
+.where { font-family: 'Atropyle Mono', monospace; font-size: 23px; color: ${NIGHT.muted}; }
+.where b { color: ${NIGHT.thread}; font-weight: 500; }
 </style></head><body>
 <div class="brand">${MARK}<span>${SHARE.siteName}</span></div>
 <div class="chain">X Layer · chain 196</div>
@@ -96,7 +97,7 @@ h1 em { font-style: normal; color: ${NIGHT.thread}; }
   <p class="lead">Check in now and then. If you stop, your heirs can claim.</p>
 </div>
 <div class="thread">${threadSvg()}</div>
-<div class="foot"><span class="cmd"><b>$</b> npx atropyle verify</span><span class="site">atropyle.xyz</span></div>
+<div class="foot"><span class="run">Run the proof in your browser <b>&rarr;</b></span><span class="where">atropyle.xyz<b>/#/proof</b></span></div>
 </body></html>`;
 
 const browser = await chromium.launch();
@@ -108,8 +109,8 @@ try {
   });
   const faces = await page.evaluate(() => [...document.fonts].filter((f) => f.status === 'loaded').length);
   if (faces < 3) throw new Error(`only ${faces} of the 3 fonts loaded`);
-  writeFileSync(OUT, await page.screenshot({ type: 'png' }));
-  console.log(`share/og.png: ${W}x${H}`);
+  writeFileSync(SHARE_IMAGE_FILE, await page.screenshot({ type: 'png' }));
+  console.log(`share/${SHARE.image.path}: ${W}x${H}`);
 } finally {
   await browser.close();
 }

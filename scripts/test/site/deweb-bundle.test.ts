@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -92,8 +92,9 @@ test('the vercel bundle carries the large X card, with absolute https URLs and t
     'twitter:image': SHARE_IMAGE_URL,
     'twitter:image:alt': SHARE.image.alt,
   });
-  const image = readFileSync(join(dirs.vercel, 'og.png'));
-  expect(image.equals(readFileSync(new URL('../../../apps/web/share/og.png', import.meta.url)))).toBe(true);
+  const image = readFileSync(join(dirs.vercel, SHARE.image.path));
+  const source = new URL(`../../../apps/web/share/${SHARE.image.path}`, import.meta.url);
+  expect(image.equals(readFileSync(source))).toBe(true);
 });
 
 test('the deweb and pages bundles carry the card text only: no URL, no image', () => {
@@ -105,6 +106,9 @@ test('the deweb and pages bundles carry the card text only: no URL, no image', (
       [...card.values()].filter((v) => v.includes('://')),
       target,
     ).toEqual([]);
-    expect(existsSync(join(dirs[target], 'og.png')), target).toBe(false);
+    expect(
+      readdirSync(dirs[target]).filter((f) => /^og.*\.png$/.test(f)),
+      target,
+    ).toEqual([]);
   }
 });

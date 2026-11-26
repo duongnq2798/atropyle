@@ -60,7 +60,7 @@ export async function buildApp(o: RunOptions = {}): Promise<{ code: number; outp
   const shared = pages > 0 && addShareImage(OUT_DIR, env.NEXT_PUBLIC_TARGET);
   const line =
     pages > 0
-      ? `csp: ${pages} pages carry a hashed Content-Security-Policy\nhints: ${hinted} chunks compile on load\n${shared ? 'share: og.png at the root of out/\n' : ''}`
+      ? `csp: ${pages} pages carry a hashed Content-Security-Policy\nhints: ${hinted} chunks compile on load\n${shared ? 'share: the card image at the root of out/\n' : ''}`
       : 'csp: out/ has no HTML page\n';
   if (!o.quiet) process.stdout.write(line);
   return { code: pages > 0 ? 0 : 1, output: built.output + line };

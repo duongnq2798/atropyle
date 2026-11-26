@@ -11,12 +11,15 @@ export const SHARE = {
   description:
     'A vault for crypto inheritance and wallet recovery on X Layer. A circuit decides every lifecycle transition of a vault, and so every release of its assets. Anyone can prove it.',
   image: {
-    /** At the root of the site, from share/og.png (npm run og:image); only a build that knows its origin carries it. */
-    path: 'og.png',
+    /**
+     * At the root of the site, from share/ under the same name (npm run og:image); only a build that knows its origin
+     * carries it. A new image gets a new name: X and other readers keep a card, image included, by its URL.
+     */
+    path: 'og-v2.png',
     type: 'image/png',
     width: 1200,
     height: 630,
-    alt: 'Atropyle. A circuit decides, not an admin. Inheritance and wallet recovery on X Layer: check in now and then; if you stop, your heirs can claim. A gold thread with three check-in knots runs across the dark card, above the command npx atropyle verify and atropyle.xyz.',
+    alt: 'Atropyle. A circuit decides, not an admin. Inheritance and wallet recovery on X Layer: check in now and then; if you stop, your heirs can claim. A gold thread with three check-in knots runs across the dark card, above the line Run the proof in your browser, at atropyle.xyz/#/proof.',
   },
 } as const;
 
