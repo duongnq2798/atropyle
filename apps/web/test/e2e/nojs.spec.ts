@@ -106,10 +106,18 @@ async function expectProof(page: Page): Promise<void> {
   await expectSeen(main.getByTestId('proof-limits-close'));
 }
 
+/** `/me/` (7C T8): the title, what connecting shares, and the command that reads the same list with no wallet. */
+async function expectMe(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'My vaults' }));
+  await expectSeen(page.getByRole('heading', { level: 2, name: 'Connect a wallet to see its vaults' }));
+  await expectSeen(page.getByTestId('me-cli').getByText('npx -y atropyle vaults <address>'));
+}
+
 /** Every page that must read without JavaScript. Plan 7B Task 12 adds 'verify/'. */
 const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [
   { path: '', content: expectHome },
   { path: 'proof/', content: expectProof },
+  { path: 'me/', content: expectMe },
 ];
 if (PAGES.length === 0) throw new Error('nojs.spec.ts checks no page');
 

@@ -120,5 +120,47 @@ for (const target of ['vercel', 'deweb'] as const) {
         }
       });
     }
+
+    // 7C T8. TanStack's query observer, known by its method getOptimisticResult (@tanstack/query-core, queryObserver),
+    // a property name the minifier keeps. A page that calls useQuery through a module the shell loads (chain/hooks.ts)
+    // brings it into the first load of every page (7B T4), so each hook a page calls has a module of its own
+    // (use-sdk.ts, use-my-vaults.ts). /sign/ and /proof/ load it first, so the marker is real.
+    it('loads the query observer in no first-load script of the shell pages', () => {
+      const marker = /\bgetOptimisticResult\b/;
+      expect(
+        scripts.some((f) => marker.test(readFileSync(f, 'utf8'))),
+        `${marker} in out/_next/static`,
+      ).toBe(true);
+      for (const page of SHELL_PAGES) {
+        for (const file of firstLoad(out, join(out, page))) {
+          expect(marker.test(readFileSync(file, 'utf8')), `${page} loads ${name(file)}: ${marker}`).toBe(false);
+        }
+      }
+    });
+
+    // 7C T8: /me/ reads the chain after its first paint (Decision 13): its first load is the shell and the page.
+    it('loads viem and the SDK in no first-load script of /me/', () => {
+      expect(pages.map(name)).toContain('me/index.html');
+      const markers = [...LAZY.viem.markers, ...LAZY['the SDK'].markers];
+      for (const file of firstLoad(out, join(out, 'me', 'index.html'))) {
+        const code = readFileSync(file, 'utf8');
+        for (const marker of markers) {
+          expect(marker.test(code), `me/index.html loads ${name(file)}: ${marker}`).toBe(false);
+        }
+      }
+    });
+
+    // 7C T9: /join/ checks the link's checksum through the SDK's toAddress, after its first paint; the email pages
+    // never read the chain. None of the three loads viem or the SDK first.
+    it('loads viem and the SDK in no first-load script of /join/ and the email pages', () => {
+      const markers = [...LAZY.viem.markers, ...LAZY['the SDK'].markers];
+      for (const page of ['join/index.html', 'alerts/confirm/index.html', 'alerts/unsubscribe/index.html']) {
+        expect(pages.map(name)).toContain(page);
+        for (const file of firstLoad(out, join(out, ...page.split('/')))) {
+          const code = readFileSync(file, 'utf8');
+          for (const marker of markers) expect(marker.test(code), `${page} loads ${name(file)}: ${marker}`).toBe(false);
+        }
+      }
+    });
   });
 }
