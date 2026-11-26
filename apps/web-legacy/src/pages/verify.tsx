@@ -66,19 +66,21 @@ export function VerifyPage({ sdk, vault }: { sdk: Sdk; vault: Address }) {
           <Banner kind={allPass ? 'info' : 'warn'}>{allPass ? t('overallOk') : t('overallNo')}</Banner>
         )}
       </div>
-      <table class="table">
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} data-testid={`verify-row-${r.id}`} data-state={r.state}>
-              <td>{t(ROW[r.id])}</td>
-              <td>
-                <span class={BADGE[r.state]}>{t(STATE[r.state])}</span>
-              </td>
-              <td class="mono">{r.detail ? <UntrustedText value={r.detail} max={160} /> : null}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="table">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} data-testid={`verify-row-${r.id}`} data-state={r.state}>
+                <td>{t(ROW[r.id])}</td>
+                <td>
+                  <span class={BADGE[r.state]}>{t(STATE[r.state])}</span>
+                </td>
+                <td class="mono wrap-anywhere">{r.detail ? <UntrustedText value={r.detail} max={160} /> : null}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {running && progress ? (
         <div>
           <progress data-testid="verify-progress" max={progress[1]} value={progress[0]} />

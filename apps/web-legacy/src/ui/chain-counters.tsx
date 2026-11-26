@@ -9,10 +9,9 @@ import { useAsync } from './use-async';
 export type CountersLoad = () => Promise<ChainCounters>;
 
 /**
- * Vaults the card reads one by one, for released vaults and stablecoins (3 to 5 view calls each). The home page keeps
- * it small; the status page reads as many as the SDK default.
+ * Vaults the card reads one by one, for released vaults and stablecoins (3 to 5 view calls each): as many as the SDK
+ * default. Only the status page shows the card.
  */
-export const HOME_MAX_VAULTS = 50;
 export const STATUS_MAX_VAULTS = 200;
 
 function Body({ c, detail, maxVaults }: { c: ChainCounters; detail: boolean; maxVaults: number }) {
@@ -22,19 +21,19 @@ function Body({ c, detail, maxVaults }: { c: ChainCounters; detail: boolean; max
   const capped = c.read >= maxVaults;
   return (
     <>
-      <div class="grid2">
+      <div class="tiles">
         {counterTiles(c).map((x) => (
           <div
             key={x.id}
-            class="stack"
+            class="tile"
             data-testid={`counter-${x.id}`}
             data-value={x.rawAll}
             data-outside={x.rawOutsideTeam}
             data-lower-bound={String(x.lowerBound)}
           >
-            <strong class="mono">{x.lowerBound ? t('atLeast', { n: x.all }) : x.all}</strong>
-            <span>{t(x.id)}</span>
-            <span class="muted">
+            <strong class="tile-value">{x.lowerBound ? t('atLeast', { n: x.all }) : x.all}</strong>
+            <span class="tile-label">{t(x.id)}</span>
+            <span class="tile-label muted">
               {t('outside', { n: x.lowerBound ? t('atLeast', { n: x.outsideTeam }) : x.outsideTeam })}
             </span>
           </div>

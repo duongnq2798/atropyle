@@ -13,6 +13,10 @@ export const team: TeamFile = {
         {
           "address": "0x990221559B7EB3516204dc73535d6581391cFAa4",
           "role": "treasury"
+        },
+        {
+          "address": "0x2b1b3E6b62E9798fF5aC6470A341edFb3d882628",
+          "role": "keeper"
         }
       ]
     }

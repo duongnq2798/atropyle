@@ -1,7 +1,13 @@
+import type { Metadata } from 'next';
+import { ENV } from '@/config/env';
+import { shareMetadata } from '@/config/share-metadata';
 import { AgentBand, CloseScene, Quiet, TrustBand } from '@/home/bands';
 import { HomeHero } from '@/home/hero';
 import { HomeStage } from '@/home/stage';
 import { WeaveArt } from '@/home/weave-svg';
+
+// The link people post. On vercel its card carries og:url and the large image.
+export const metadata: Metadata = shareMetadata(ENV.target, '/');
 
 /**
  * The home page (spec §18.4.3 Task 7a): the hero (Task 4, 5′), then the story along its spine: a quiet paragraph, the

@@ -5,7 +5,7 @@ export const messages = defineMessages(
     title: 'Developers',
     intro:
       'Everything the web app does is in the SDK, the CLI and the MCP server. They read the same contracts on X Layer.',
-    published: 'These commands work once the packages are published to npm.',
+    published: 'Version {version} of each package is on npm.',
     docs: 'Read the docs',
     repo: 'Source on GitHub',
     packages: 'Packages on npm',
@@ -33,7 +33,7 @@ export const messages = defineMessages(
   {
     title: 'Developer',
     intro: 'Mọi việc web app làm đều có trong SDK, CLI và MCP server. Tất cả đọc cùng các contract trên X Layer.',
-    published: 'Các lệnh này chạy được khi các gói đã được publish lên npm.',
+    published: 'Bản {version} của mỗi gói đã có trên npm.',
     docs: 'Đọc tài liệu',
     repo: 'Mã nguồn trên GitHub',
     packages: 'Các gói trên npm',

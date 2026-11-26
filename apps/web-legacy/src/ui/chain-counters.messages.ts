@@ -14,7 +14,7 @@ export const messages = defineMessages(
     failed: 'The counters could not be read from the RPC right now.',
     retry: 'Try again',
     partial:
-      'Released vaults and stablecoins count the {read} of {all} vaults this page read. Run the full count on the home page, then reload, to read them all.',
+      'Released vaults and stablecoins count the {read} of {all} vaults this page read. Run the full count below, then reload the page, to read them all.',
     partialCap:
       'Released vaults and stablecoins count the {read} of {all} vaults this page read: it reads at most {max} vaults, so the true numbers may be higher.',
     teamPartial:
@@ -43,7 +43,7 @@ export const messages = defineMessages(
     failed: 'Hiện chưa đọc được số liệu từ RPC.',
     retry: 'Thử lại',
     partial:
-      'Vault đã giải phóng và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc. Chạy lần đếm đầy đủ ở trang chủ rồi tải lại trang để đọc hết.',
+      'Vault đã giải phóng và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc. Chạy lần đếm đầy đủ ở bên dưới rồi tải lại trang để đọc hết.',
     partialCap:
       'Vault đã giải phóng và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc: trang chỉ đọc tối đa {max} vault, nên số thực có thể cao hơn.',
     teamPartial: 'Danh sách vault của đội ngũ quá dài để đọc hết, nên số ngoài đội ngũ có thể cao hơn thực tế.',

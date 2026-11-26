@@ -5,6 +5,7 @@ import { buildEnvFor } from './build-env';
 import { applyCompileHints } from './compile-hints';
 import { applyCsp } from './csp';
 import { flattenSegments } from './segments';
+import { addShareImage } from './share-image';
 
 export const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 export const OUT_DIR = fileURLToPath(new URL('../../out', import.meta.url));
@@ -45,8 +46,9 @@ export function runNext(command: 'build' | 'dev', o: RunOptions = {}): Promise<{
 
 /**
  * `next build` into out/, then the postbuild steps: the prefetch files of nested routes under their flat names, which
- * a Windows build gets wrong (segments.ts); a hashed CSP in every page (Quyết định 12); and the V8 compile hint on
- * every chunk (compile-hints.ts). The CSP hashes only inline scripts, so the hint leaves it valid.
+ * a Windows build gets wrong (segments.ts); a hashed CSP in every page (Quyết định 12); the V8 compile hint on every
+ * chunk (compile-hints.ts); and the share card on vercel (share-image.ts). The CSP hashes only inline scripts, so the
+ * hint leaves it valid.
  */
 export async function buildApp(o: RunOptions = {}): Promise<{ code: number; output: string }> {
   const built = await runNext('build', o);
@@ -58,11 +60,12 @@ export async function buildApp(o: RunOptions = {}): Promise<{ code: number; outp
   const env: Readonly<Record<string, string | undefined>> = buildEnvFor(o.env ?? process.env);
   const pages = applyCsp(OUT_DIR, env);
   const hinted = pages > 0 ? applyCompileHints(OUT_DIR) : 0;
+  const shared = pages > 0 && addShareImage(OUT_DIR, env.NEXT_PUBLIC_TARGET);
   const segments = flattened > 0 ? `segments: ${flattened} prefetch files moved to their flat names\n` : '';
   const line =
     segments +
     (pages > 0
-      ? `csp: ${pages} pages carry a hashed Content-Security-Policy\nhints: ${hinted} chunks compile on load\n`
+      ? `csp: ${pages} pages carry a hashed Content-Security-Policy\nhints: ${hinted} chunks compile on load\n${shared ? 'share: the card image at the root of out/\n' : ''}`
       : 'csp: out/ has no HTML page\n');
   if (!o.quiet) process.stdout.write(line);
   return { code: pages > 0 ? 0 : 1, output: built.output + line };

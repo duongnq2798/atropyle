@@ -11,12 +11,7 @@ Atropyle is the inheritance and recovery rule nobody has to trust, already live 
   npx -y atropyle@0.1.0 verify
   ```
 
-  The npm publish is planned. Until then, run it from a checkout of this repository. It needs Node.js 24, and neither Foundry nor the contract build:
-
-  ```bash
-  npm ci && npm run build && npm run build -w packages/mcp && npm run build -w packages/cli
-  node packages/cli/dist/bin.js verify
-  ```
+  It needs Node.js 20 or newer, and neither Foundry nor the contract build. From a checkout of this repository, it needs Node.js 24 and still no Foundry. Run `npm ci && npm run build && npm run build -w packages/mcp && npm run build -w packages/cli`, then `node packages/cli/dist/bin.js verify`.
 
 ## What it does
 
@@ -95,6 +90,7 @@ Circuits on `ATRO`: `KofN5` is id 1, `Ge4` is id 2 and `AtropylePolicy v1` is id
 
 | Package                                                       | What it is                                                                                                                           |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@atropyle/circuits`](circuits)                              | The policy circuit, a 32-lane bitsliced simulator, the reference model and the exhaustive P1-P8 check (`verifyPolicy`)               |
 | [`@atropyle/sdk`](packages/sdk)                               | TypeScript SDK: read a vault at one block, predict its timeline with the on-chain netlist, prepare and simulate transactions, verify |
 | [`@atropyle/mcp`](packages/mcp)                               | MCP server (stdio) with seven tools: reads, simulations, verify and unsigned transactions. It never signs                            |
 | [`atropyle`](packages/cli)                                    | The CLI: `verify`, `status`, `vaults`, `simulate`, `plan`, `prepare`, `doctor` and `mcp`, with a `--json` mode for agents            |
@@ -102,7 +98,17 @@ Circuits on `ATRO`: `KofN5` is id 1, `Ge4` is id 2 and `AtropylePolicy v1` is id
 | [`atropyle-guardian`](skills/atropyle-guardian)               | Agent Skill: verify a vault, then attest, vote for recovery or claim                                                                 |
 | [Claude Code plugin](.claude-plugin)                          | Both skills and the MCP server                                                                                                       |
 
-None of them asks for a private key: they prepare transactions, and you sign in your own wallet. All are at version 0.1.0. The npm publish of `@atropyle/sdk`, `@atropyle/mcp` and `atropyle` is planned and not done yet, so the `npx` commands in this repository work only after it; until then, run them from a checkout. The OKX Agentic Wallet hand-off (`--format okx`) is described in [`packages/cli/README.md`](packages/cli/README.md).
+None of them asks for a private key: they prepare transactions, and you sign in your own wallet. The four packages are on npm at version 0.1.0: [`@atropyle/circuits`](https://www.npmjs.com/package/@atropyle/circuits), [`@atropyle/sdk`](https://www.npmjs.com/package/@atropyle/sdk), [`@atropyle/mcp`](https://www.npmjs.com/package/@atropyle/mcp) and [`atropyle`](https://www.npmjs.com/package/atropyle). The two skills and the Claude Code plugin, at 0.1.0 too, install from this repository.
+
+```bash
+npm install @atropyle/sdk viem                         # the SDK, in your project
+claude mcp add atropyle -- npx -y @atropyle/mcp@0.1.0  # the MCP server, in Claude Code
+npx -y atropyle@0.1.0 verify                           # the CLI, read-only
+```
+
+In Claude Code, `/plugin marketplace add duongnq2798/atropyle` and then `/plugin install atropyle@atropyle` add both skills and the MCP server. [`examples/agent-mcp-client`](examples/agent-mcp-client) has the configs for Claude Desktop and Cursor.
+
+The OKX Agentic Wallet hand-off (`--format okx`) is described in [`packages/cli/README.md`](packages/cli/README.md).
 
 ## Build log
 
@@ -115,6 +121,7 @@ Key milestones, with the dates of their commits in `git log` (UTC+7):
 - **22 Nov.** Mainnet deployment (blocks 76566929 to 76567053), recorded in `deployments/xlayer.json` (PR #7).
 - **23 Nov.** The backend: email alerts and the keeper (PR #9).
 - **25 Nov.** The web app v2 on Next.js (PR #10). The Vercel production target for https://atropyle.xyz/ (`72b09a4`) and the packages made ready for npm 0.1.0 (`c9e67cd`).
+- **26 Nov.** The first npm release: `@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and the CLI `atropyle`, all at 0.1.0, built from `f6de83f` (PR #25).
 
 ## Traction
 
@@ -142,14 +149,14 @@ The deployer and the treasury are team wallets, listed with a public source for 
 - **A Drill expires after 7 days.** After that, every transaction to it reverts; reads still work.
 - **The OKX Agentic Wallet path is not tested end to end** ([`packages/cli/README.md`](packages/cli/README.md)).
 - **The keeper is a convenience.** `poke()` and `distribute()` are permissionless: anyone can call them, from any wallet ([`SECURITY.md`](SECURITY.md#if-atropyle-disappears)). The keeper in [`apps/backend`](apps/backend) only pays the gas for them.
-- **Still to do.** The source verification on OKLink, a builder code (`builderCode` is `null` in [`deployments/xlayer.json`](deployments/xlayer.json)), the DeWEB copy of the site, and the npm publish.
+- **Still to do.** The source verification on OKLink, a builder code (`builderCode` is `null` in [`deployments/xlayer.json`](deployments/xlayer.json)), the DeWEB copy of the site, and the listing of the MCP server in the MCP registry ([`server.json`](server.json)).
 
 ## Repository layout
 
 | Path               | What                                                                                                                              |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `contracts/`       | Solidity contracts (Foundry)                                                                                                      |
-| `circuits/`        | The policy circuit and its netlists                                                                                               |
+| `circuits/`        | `@atropyle/circuits`: the policy circuit and its netlists                                                                         |
 | `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                               |
 | `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                           |
 | `packages/cli/`    | `atropyle`: the CLI                                                                                                               |

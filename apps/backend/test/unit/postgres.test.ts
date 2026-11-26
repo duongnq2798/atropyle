@@ -1,5 +1,6 @@
+import postgres from 'postgres';
 import { describe, expect, it } from 'vitest';
-import { connectPostgres, type PgClient, type PgQueryable } from '../../src/db/postgres';
+import { connectPostgres, PG_OPTIONS, type PgClient, type PgQueryable } from '../../src/db/postgres';
 
 function fakeClient() {
   const calls: { where: string; text: string; params: unknown[] }[] = [];
@@ -51,6 +52,17 @@ describe('connectPostgres (production driver, spec §9.2)', () => {
       });
     });
     expect(f.calls.map((c) => `${c.where}:${c.text}`)).toEqual(['tx:select 1', 'tx:select 2']);
+  });
+
+  it('sends the JSON text of a jsonb or json parameter as it is', () => {
+    // The server describes $n::jsonb as jsonb (oid 3802), and postgres.js serializes each parameter with the
+    // serializer of the described type. Its default JSON.stringify would store a JSON string, not the object.
+    // postgres() opens no connection here: it connects on the first query.
+    const sql = postgres('postgres://u:p@127.0.0.1:1/x', PG_OPTIONS as Parameters<typeof postgres>[1]);
+    const text = '{"block":"197","head":"200"}';
+    expect(sql.options.serializers[3802](text)).toBe(text);
+    expect(sql.options.serializers[114](text)).toBe(text);
+    expect(sql.options.parsers[3802](text)).toEqual({ block: '197', head: '200' });
   });
 
   it('closes the pool with a timeout', async () => {
