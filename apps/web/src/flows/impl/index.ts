@@ -24,3 +24,4 @@ export * from './sign';
 export * from './sign-gate';
 export * from './vault-view';
 export * from './wizard';
+export * from './history';
