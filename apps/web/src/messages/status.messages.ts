@@ -19,9 +19,9 @@ export const messages = defineMessages(
     orMore: 'or more',
     asOf: 'Read from the factory and vault contracts at block {block}, {time}.',
     partial:
-      'Released vaults and stablecoins count the {read} of {all} vaults this page read. Count from the events below to read them all.',
+      'Released vaults and stablecoins are lower bounds: this page has read {read} of {all} vaults so far. Count from the events below to read every vault.',
     partialCap:
-      'Released vaults and stablecoins count the {read} of {all} vaults this page read: it reads at most {max}, so the true numbers may be higher.',
+      'Released vaults and stablecoins are lower bounds: this page has read {read} of {all} vaults, and it reads at most {max}, so the true numbers may be higher.',
     teamPartial:
       'The team’s vault list was too long to read to its end, so the counts outside the team may be too high.',
     defTitle: 'How each number is counted',
@@ -149,9 +149,9 @@ export const messages = defineMessages(
     orMore: 'trở lên',
     asOf: 'Đọc từ hợp đồng factory và vault ở block {block}, {time}.',
     partial:
-      'Vault đã tới lượt trao và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc. Đếm từ các sự kiện ở bên dưới để đọc hết.',
+      'Vault đã tới lượt trao và stablecoin là mức tối thiểu: trang này mới đọc {read} trên {all} vault. Đếm từ các sự kiện bên dưới để đọc hết.',
     partialCap:
-      'Vault đã tới lượt trao và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc: trang chỉ đọc tối đa {max} vault, nên số thực có thể cao hơn.',
+      'Vault đã tới lượt trao và stablecoin là mức tối thiểu: trang này đã đọc {read} trên {all} vault và chỉ đọc tối đa {max}, nên số thực có thể cao hơn.',
     teamPartial: 'Danh sách vault của đội ngũ quá dài để đọc hết, nên số ngoài đội ngũ có thể cao hơn thực tế.',
     defTitle: 'Cách đếm từng con số',
     defTeamTerm: 'Ngoài đội ngũ',

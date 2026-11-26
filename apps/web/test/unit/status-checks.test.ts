@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CHECK_KEYS, checkKey } from '../../src/app/status/checks';
+import { CHECK_KEYS, checkKey, expectedCheckCount } from '../../src/app/status/checks';
 import { messages as status } from '../../src/messages/status.messages';
 
 const INTEGRITY = readFileSync(new URL('../../../../packages/sdk/src/verify/integrity.ts', import.meta.url), 'utf8');
@@ -45,5 +45,21 @@ describe('integrity check labels', () => {
       expect(status.en[k]).toBeTruthy();
       expect(status.vi[k]).toBeTruthy();
     }
+  });
+
+  it('count the rows a report will have, so the loading list has the same height', () => {
+    const read = (f: string) =>
+      JSON.parse(readFileSync(new URL(`../../../../deployments/${f}`, import.meta.url), 'utf8')) as Parameters<
+        typeof expectedCheckCount
+      >[0];
+    // Devnet: factory code, four factory reads, three fee tokens and the vault code hash.
+    expect(expectedCheckCount(read('local.json'))).toBe(9);
+    // Mainnet adds five TapeOut checks, the three pinned code checks and three netlists.
+    expect(expectedCheckCount(read('xlayer.json'))).toBe(20);
+    // Mainnet without TapeOut or circuit records still reports one failed row for each.
+    expect(expectedCheckCount({ chainId: 196, feeTokens: [] })).toBe(8);
+    // The SDK still builds the rows this count follows.
+    for (const s of ["checks.push({ name: 'factory.code'", 'for (const token of d.feeTokens)', 'if (d.tapeout)'])
+      expect(INTEGRITY).toContain(s);
   });
 });

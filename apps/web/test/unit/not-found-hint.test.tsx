@@ -19,10 +19,22 @@ describe('the 404 hint', () => {
     expect(box.querySelector('a')?.getAttribute('href')).toBe('/proof/');
   });
 
-  it('offers the vault and its verification for an address', () => {
+  it('offers the vault and its verification for an address', async () => {
     renderWithProviders(<NotFoundHint pathname={`/${V}`} />);
-    const hrefs = [...screen.getByTestId('not-found-vault').querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    const hrefs = [...(await screen.findByTestId('not-found-vault')).querySelectorAll('a')].map((a) =>
+      a.getAttribute('href'),
+    );
     expect(hrefs).toEqual([`/vault/#${V}`, `/verify/#${V}`]);
+  });
+
+  it('shows the address in groups of four, in full, with no copy button', async () => {
+    renderWithProviders(<NotFoundHint pathname={`/${V}`} />);
+    const box = await screen.findByTestId('not-found-vault');
+    expect(box.hasAttribute('data-nf-vault')).toBe(true);
+    const addr = box.querySelector(`[data-address="${V}"]`);
+    expect(addr).not.toBeNull();
+    expect(addr?.querySelector('[data-part="groups"]')?.textContent?.replace(/\s/g, '')).toBe(V);
+    expect(box.querySelectorAll('button')).toHaveLength(0);
   });
 
   it('renders nothing when nothing is close', () => {

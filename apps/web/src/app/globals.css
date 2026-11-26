@@ -774,3 +774,11 @@
   background-color: var(--atro-surface-2);
   color: var(--atro-ink);
 }
+/* Fix round 1 of 7C T10: when the 404 page offers a vault, its card shows the address in full, in groups of four, so
+   the raw path above it keeps to one line and ends in an ellipsis instead of wrapping at any character. */
+.nf:has([data-nf-vault]) > p > code {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

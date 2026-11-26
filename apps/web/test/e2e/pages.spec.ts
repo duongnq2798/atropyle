@@ -1,5 +1,6 @@
 import { VERSION } from '@atropyle/sdk';
 import type { Page } from '@playwright/test';
+import { expectedCheckCount } from '../../src/app/status/checks.ts';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectWallet, expectAccessibleInBothThemes, setStoredLang } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
@@ -12,6 +13,7 @@ test('/status/ shows the chain counters first, then the checks, and its diagnost
   state,
   wallet,
   atro,
+  deployment,
 }) => {
   await wallet({ account: ANVIL[1] });
   await page.goto(at(state.siteUrl, 'status/'));
@@ -40,6 +42,8 @@ test('/status/ shows the chain counters first, then the checks, and its diagnost
   await expect(main.getByTestId('counter-releases')).toHaveAttribute('data-lower-bound', 'false');
 
   await expect(page.getByTestId('status-integrity')).toHaveAttribute('data-ok', 'true');
+  // The loading list draws this many rows (fix round 1): the real report must have as many.
+  await expect(page.getByTestId('status-check')).toHaveCount(expectedCheckCount(deployment));
   for (const row of await page.getByTestId('status-check').all())
     await expect(row).toHaveAttribute('data-label', 'true');
   await expect(page.getByTestId('status-rpc-0')).toHaveAttribute('data-ok', 'true');
@@ -201,4 +205,34 @@ test('screens of /status/ while it reads, and when every node fails', async ({ p
       await expect(p.getByTestId('counters').getByTestId('error')).toBeVisible({ timeout: 60_000 });
     },
   });
+});
+
+test('/status/ keeps the shape of its lists while it reads, and nodes that do not answer are no broken contract', async ({
+  page,
+  state,
+  deployment,
+}) => {
+  test.setTimeout(120_000);
+  // Every node call waits: the lists hold the rows they will have, and "Check again" waits with them.
+  await page.route(
+    (url) => OKX_ORIGINS.includes(url.origin),
+    () => new Promise<void>(() => undefined),
+  );
+  await page.goto(at(state.siteUrl, 'status/'));
+  await expect(page.getByTestId('status-integrity-skeleton').locator('li')).toHaveCount(expectedCheckCount(deployment));
+  await expect(page.getByTestId('status-rpcs-skeleton').locator('li')).toHaveCount(2);
+  await expect(page.getByTestId('status-recheck')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByTestId('glance-contracts')).toHaveAttribute('data-tone', 'checking');
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+
+  // Every node refuses: the nodes are the problem, the contracts are unknown, not red.
+  await page.route(
+    (url) => OKX_ORIGINS.includes(url.origin),
+    (route) => route.abort('connectionrefused'),
+  );
+  await page.goto(at(state.siteUrl, 'status/'));
+  await expect(page.getByTestId('glance-nodes')).toHaveAttribute('data-tone', 'bad', { timeout: 30_000 });
+  await expect(page.getByTestId('glance-contracts')).toHaveAttribute('data-tone', 'unknown', { timeout: 60_000 });
+  await expect(page.getByTestId('status-rpc-0')).toHaveAttribute('data-ok', 'false');
+  await expect(page.getByTestId('status-recheck')).not.toHaveAttribute('aria-busy', 'true');
 });

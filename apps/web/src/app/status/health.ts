@@ -121,3 +121,28 @@ const RANK: Record<HealthTone, number> = { ok: 0, unknown: 1, warn: 2, bad: 3 };
 export function worstTone(tones: readonly HealthTone[]): HealthTone {
   return tones.reduce<HealthTone>((w, t) => (RANK[t] > RANK[w] ? t : w), 'ok');
 }
+
+/**
+ * The contracts glance. Red only for a check that failed: a read that failed (the nodes did not answer) says nothing
+ * about the contracts, so it reads as unknown, and the nodes glance names the cause. null while it reads.
+ */
+export function contractsTone(report: { ok: boolean } | undefined, failed: boolean): HealthTone | null {
+  if (report) return report.ok ? 'ok' : 'bad';
+  return failed ? 'unknown' : null;
+}
+
+/**
+ * The backend glance: 'off' where this copy has no backend or never asks it; unknown when it does not answer (a
+ * backend that cannot be reached has not reported a failure); the worst of its rows otherwise. null while it reads.
+ */
+export function backendTone(b: {
+  hosted: boolean;
+  rows: readonly HealthRow[] | null;
+  failed: boolean;
+  idle: boolean;
+}): HealthTone | 'off' | null {
+  if (!b.hosted) return 'off';
+  if (b.rows) return worstTone(b.rows.map((r) => r.tone));
+  if (b.failed) return 'unknown';
+  return b.idle ? 'off' : null;
+}

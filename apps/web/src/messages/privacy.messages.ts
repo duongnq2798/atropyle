@@ -26,7 +26,7 @@ export const messages = defineMessages(
       'Every email has a link to stop alerts. Stopping deletes your sign-up, with the record of which alerts were sent.',
     meTitle: 'Your vault list',
     me1: 'My vaults finds your vaults by reading the chain with your public address, through the same public nodes. It never asks the Atropyle backend.',
-    onchainTitle: 'The on-chain copy',
+    onchainTitle: 'The copy on X Layer',
     onchain1:
       'The copy of this site served from X Layer has no backend at all: no email alerts, no index, and no server of ours that sees you.',
     contactTitle: 'Questions',
@@ -58,7 +58,7 @@ export const messages = defineMessages(
       'Mỗi email đều có link để ngừng cảnh báo. Ngừng thì đăng ký của bạn bị xoá, cùng bản ghi những cảnh báo đã gửi.',
     meTitle: 'Danh sách vault của bạn',
     me1: 'Trang Vault của tôi tìm vault của bạn bằng cách đọc chain với địa chỉ công khai của bạn, qua cùng các node công khai. Nó không bao giờ hỏi backend của Atropyle.',
-    onchainTitle: 'Bản on-chain',
+    onchainTitle: 'Bản trên X Layer',
     onchain1:
       'Bản site được phục vụ từ X Layer không có backend nào: không cảnh báo email, không chỉ mục, và không máy chủ nào của chúng tôi thấy bạn.',
     contactTitle: 'Câu hỏi',

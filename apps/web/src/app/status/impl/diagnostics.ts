@@ -1,6 +1,5 @@
 import { decodeError, type IntegrityReport, VERSION as SDK_VERSION, stringify, untrusted } from '@atropyle/sdk';
 import { createPublicClient, http } from 'viem';
-import type { RpcPlan } from '@/chain/types';
 import type { Target } from '@/config/env';
 import type { Lang } from '@/i18n/core';
 
@@ -19,10 +18,7 @@ export async function rpcBlockNumber(url: string): Promise<bigint> {
   return client.getBlockNumber({ cacheTime: 0 });
 }
 
-/** Every URL the page reads or verifies through, once each, in plan order. */
-export function rpcUrlsOf(rpc: RpcPlan): string[] {
-  return [...new Set([...rpc.read, ...rpc.verify.flat()])];
-}
+export { rpcUrlsOf } from '../rpc-urls';
 
 export async function probeRpc(
   url: string,

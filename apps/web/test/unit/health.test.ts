@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HealthResponse } from '../../src/api/types';
-import { formatAge, healthRows, okbText, worstTone } from '../../src/app/status/health';
+import { backendTone, contractsTone, formatAge, healthRows, okbText, worstTone } from '../../src/app/status/health';
 
 const NOW = Date.parse('2026-11-23T12:00:00.000Z');
 const ago = (sec: number) => new Date(NOW - sec * 1000).toISOString();
@@ -55,5 +55,25 @@ describe('backend health', () => {
     expect(worstTone(['ok', 'unknown'])).toBe('unknown');
     expect(worstTone(['ok', 'warn', 'unknown'])).toBe('warn');
     expect(worstTone(['warn', 'bad', 'ok'])).toBe('bad');
+  });
+
+  it('reads a failed read as unknown, and keeps red for a check that failed', () => {
+    expect(contractsTone({ ok: true }, false)).toBe('ok');
+    expect(contractsTone({ ok: false }, false)).toBe('bad');
+    // The RPC did not answer: nothing says the contracts are wrong (fix round 1).
+    expect(contractsTone(undefined, true)).toBe('unknown');
+    expect(contractsTone(undefined, false)).toBeNull();
+    // A report in hand wins over a later failed refetch.
+    expect(contractsTone({ ok: true }, true)).toBe('ok');
+  });
+
+  it('reads the backend glance: off where there is none, unknown when it does not answer', () => {
+    expect(backendTone({ hosted: false, rows: null, failed: true, idle: false })).toBe('off');
+    expect(backendTone({ hosted: true, rows: null, failed: true, idle: false })).toBe('unknown');
+    expect(backendTone({ hosted: true, rows: null, failed: false, idle: true })).toBe('off');
+    expect(backendTone({ hosted: true, rows: null, failed: false, idle: false })).toBeNull();
+    expect(backendTone({ hosted: true, rows: healthRows(GOOD, NOW), failed: false, idle: false })).toBe('ok');
+    const failed = { ...GOOD, integrity: { ...GOOD.integrity!, ok: false } };
+    expect(backendTone({ hosted: true, rows: healthRows(failed, NOW), failed: false, idle: false })).toBe('bad');
   });
 });

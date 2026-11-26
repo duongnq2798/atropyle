@@ -2,6 +2,7 @@
 
 import type { IntegrityReport } from '@atropyle/sdk';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { Info } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useHealth } from '@/api/hooks';
 import { CHAIN_ID } from '@/chain/hooks';
@@ -26,11 +27,12 @@ import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { networkName } from '@/wallet/network';
 import { useWallet } from '@/wallet/provider';
-import { checkKey } from './checks';
+import { checkKey, expectedCheckCount } from './checks';
 import { type CounterId, counterTiles, coverageOf, tileText } from './counters-view';
-import { formatAge, type HealthRow, type HealthTone, healthRows, worstTone } from './health';
+import { backendTone, contractsTone, formatAge, type HealthRow, type HealthTone, healthRows } from './health';
 import type { RpcProbe } from './impl/diagnostics';
 import { STATUS_MAX_VAULTS, useCounters, useDiagnosticsImpl, useIntegrity, useProbes } from './queries';
+import { rpcUrlsOf } from './rpc-urls';
 
 type Tone = HealthTone | 'off';
 type GlanceId = 'contracts' | 'nodes' | 'backend';
@@ -175,12 +177,20 @@ function Counters({ round }: { round: number }) {
         </p>
       ) : null}
       {c && cov !== 'complete' ? (
-        <p data-testid="counters-partial" data-cap={String(cov === 'cap')} className="text-pretty text-small">
-          {t(cov === 'cap' ? 'partialCap' : 'partial', {
-            read: formatCount(c.read, lang),
-            all: formatCount(c.vaults.all, lang),
-            max: formatCount(STATUS_MAX_VAULTS, lang),
-          })}
+        // A footnote to the "or more" tiles, not a headline: muted, with a small glyph in the grace tone.
+        <p
+          data-testid="counters-partial"
+          data-cap={String(cov === 'cap')}
+          className="flex items-start gap-2 text-pretty text-ink-muted text-small"
+        >
+          <Info aria-hidden="true" focusable="false" className="mt-[0.2em] size-4 shrink-0 text-grace" />
+          <span>
+            {t(cov === 'cap' ? 'partialCap' : 'partial', {
+              read: formatCount(c.read, lang),
+              all: formatCount(c.vaults.all, lang),
+              max: formatCount(STATUS_MAX_VAULTS, lang),
+            })}
+          </span>
         </p>
       ) : null}
       {c && !c.teamComplete ? (
@@ -354,15 +364,60 @@ export function IntegrityChecks({ report: r }: { report: IntegrityReport }) {
   );
 }
 
+/** Check rows before the SDK has read the deployment: the devnet's count (ruling T10-F1). */
+const CHECK_ROWS_BEFORE_SDK = 9;
+/** Nodes before the SDK has read the deployment: the two X Layer operators. */
+const NODE_ROWS_BEFORE_SDK = 2;
+const placeholders = (n: number) => Array.from({ length: n }, (_, i) => `p${i}`);
+
+/** The visible "Checking…" of a list that is still being read, said once to a screen reader. */
+function Checking() {
+  const t = useT(status);
+  return (
+    <p role="status" className="voice-ledger text-caption text-ink-muted">
+      {t('loading')}
+    </p>
+  );
+}
+
+/** The integrity report's shape while it is read: the summary, then one row per check the report will hold. */
+function IntegritySkeleton({ rows }: { rows: number }) {
+  return (
+    <div data-testid="status-integrity-skeleton" aria-hidden="true" className="flex min-w-0 flex-col gap-4">
+      <span className="flex flex-col gap-1">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-3 w-64 max-w-full" />
+      </span>
+      <ul className="flex flex-col divide-y divide-line">
+        {placeholders(rows).map((k) => (
+          <li key={k} className="flex min-w-0 flex-col gap-1 py-3">
+            <span className="flex items-center justify-between gap-3">
+              <Skeleton className="h-4 w-[min(22rem,70%)]" />
+              <Skeleton className="h-4 w-10 shrink-0" />
+            </span>
+            <Skeleton className="h-3 w-32" />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Integrity({ q }: { q: UseQueryResult<IntegrityReport> }) {
   const t = useT(status);
   const sdk = useSdk();
   const r = q.data;
+  const rows = sdk.data ? expectedCheckCount(sdk.data.deployment) : CHECK_ROWS_BEFORE_SDK;
   return (
     <Section id="status-contracts" title={t('integrityTitle')} lead={t('integrityLead')}>
       {sdk.isError ? <ErrorBox error={sdk.error} onRetry={() => void sdk.refetch()} /> : null}
       {q.isError ? <ErrorBox error={q.error} onRetry={() => void q.refetch()} /> : null}
-      {!r && !q.isError && !sdk.isError ? <Spinner label={t('loading')} /> : null}
+      {!r && !q.isError && !sdk.isError ? (
+        <>
+          <Checking />
+          <IntegritySkeleton rows={rows} />
+        </>
+      ) : null}
       {r ? <IntegrityChecks report={r} /> : null}
     </Section>
   );
@@ -371,6 +426,8 @@ function Integrity({ q }: { q: UseQueryResult<IntegrityReport> }) {
 function Nodes({ probes, onRecheck }: { probes: UseQueryResult<RpcProbe[]>; onRecheck: () => void }) {
   const t = useT(status);
   const { lang } = useLang();
+  const s = useSdk().data;
+  const nodes = s ? rpcUrlsOf(s.rpc).length : NODE_ROWS_BEFORE_SDK;
   return (
     <Section id="status-nodes" title={t('rpcTitle')} lead={t('rpcLead')}>
       {probes.data ? (
@@ -398,9 +455,26 @@ function Nodes({ probes, onRecheck }: { probes: UseQueryResult<RpcProbe[]>; onRe
           ))}
         </ul>
       ) : (
-        <Spinner label={t('loading')} />
+        <>
+          <Checking />
+          {/* One row per node, as the probes will draw them: the URL, then its answer. */}
+          <ul data-testid="status-rpcs-skeleton" aria-hidden="true" className="flex flex-col divide-y divide-line">
+            {placeholders(nodes).map((k) => (
+              <li key={k} className="flex min-w-0 flex-col gap-1 py-3">
+                <Skeleton className="h-4 w-48 max-w-full" />
+                <Skeleton className="h-3 w-36" />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-      <Button variant="secondary" className="self-start" onClick={onRecheck}>
+      <Button
+        data-testid="status-recheck"
+        variant="secondary"
+        className="self-start"
+        loading={probes.isFetching}
+        onClick={onRecheck}
+      >
         {t('recheck')}
       </Button>
     </Section>
@@ -471,22 +545,12 @@ export function StatusPage() {
       ? 'unknown'
       : null;
   const glance: { id: GlanceId; tone: Tone | null }[] = [
-    {
-      id: 'contracts',
-      tone: integrity.data ? (integrity.data.ok ? 'ok' : 'bad') : integrity.isError || sdk.isError ? 'bad' : null,
-    },
+    // A read that failed is unknown, never red: red is for a check that failed (fix round 1).
+    { id: 'contracts', tone: contractsTone(integrity.data, integrity.isError || sdk.isError) },
     { id: 'nodes', tone: nodesTone },
     {
       id: 'backend',
-      tone: !IS_VERCEL
-        ? 'off'
-        : rows
-          ? worstTone(rows.map((r) => r.tone))
-          : health.isError
-            ? 'bad'
-            : health.fetchStatus === 'idle'
-              ? 'off'
-              : null,
+      tone: backendTone({ hosted: IS_VERCEL, rows, failed: health.isError, idle: health.fetchStatus === 'idle' }),
     },
   ];
 
