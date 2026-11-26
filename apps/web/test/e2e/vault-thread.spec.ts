@@ -96,6 +96,55 @@ test("the guardians' posts stand inside the gate: n posts, a bar over k, the con
   await expect(thread(page, 'none').locator('[data-part="posts"]')).toHaveCount(0);
 });
 
+test('on a phone the posts can be told apart, the bar stands clear of them, and a gate without posts keeps its size', async ({
+  page,
+  state,
+}) => {
+  await open(page, state.siteUrl);
+  const measure = (id: string) =>
+    thread(page, id).evaluate((root) => {
+      const box = (root.querySelector('[data-layer="marks"]') as HTMLElement).getBoundingClientRect();
+      const gate = (root.querySelector('[data-part="gate"]') as HTMLElement).getBoundingClientRect();
+      const posts = [...root.querySelectorAll('[data-part="post"]')].map((p) => p.getBoundingClientRect());
+      const bar = root.querySelector('[data-part="quorum"]')?.getBoundingClientRect() ?? null;
+      return {
+        box: { top: box.top, bottom: box.bottom, height: box.height },
+        gate: { top: gate.top, bottom: gate.bottom, height: gate.height },
+        posts: posts.map((b) => ({ left: b.left, right: b.right, top: b.top, width: b.width, height: b.height })),
+        barBottom: bar?.bottom ?? null,
+      };
+    });
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const id of ['vault-a', 'grace', 'released', 'five']) {
+      const m = await measure(id);
+      const at = `${id} at ${width}`;
+      // A floor of 44 px on a gate with posts: five posts 2 px wide and 15 px tall, more than 1 px apart.
+      expect(m.gate.height, at).toBeGreaterThanOrEqual(43.5);
+      for (const p of m.posts) {
+        expect(p.width, at).toBeGreaterThanOrEqual(2);
+        expect(p.height, at).toBeGreaterThanOrEqual(14);
+      }
+      for (let i = 1; i < m.posts.length; i++) {
+        expect(m.posts[i].left - m.posts[i - 1].right, at).toBeGreaterThanOrEqual(1);
+      }
+      // The quorum bar is a lintel over the posts, not a cap on them.
+      expect(m.barBottom, at).not.toBeNull();
+      expect(Math.min(...m.posts.map((p) => p.top)) - (m.barBottom ?? 0), at).toBeGreaterThanOrEqual(1);
+    }
+    const none = await measure('none');
+    expect(none.gate.height / none.box.height, `none at ${width}`).toBeCloseTo(0.42, 2);
+  }
+  // In a box too low for the floor, the gate with posts still stands inside it, arch and all.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await thread(page, 'five').evaluate((root) => {
+    (root as HTMLElement).style.width = '200px';
+  });
+  const small = await measure('five');
+  expect(small.gate.top).toBeGreaterThanOrEqual(small.box.top - 0.5);
+  expect(small.gate.bottom).toBeLessThanOrEqual(small.box.bottom + 0.5);
+});
+
 test('nothing scrolls sideways at 390 px', async ({ page, state }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await open(page, state.siteUrl);

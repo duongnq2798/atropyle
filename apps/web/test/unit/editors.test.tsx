@@ -60,12 +60,42 @@ describe('AddressInput', () => {
     expect(field).toHaveAttribute('data-issue', 'addrInvalid');
   });
 
-  it('shows a valid address checksummed, in groups of four', () => {
+  it('shows a valid address checksummed, drawn as every address is: the Ledger voice, in groups of four', () => {
     renderWithProviders(<Address initial={PEOPLE.heirA.toLowerCase()} />);
-    expect(
-      screen.getByText('Check it in groups of four: 0x 3C44 CdDd B6a9 00fa 2b58 5dd2 99e0 3d12 FA42 93BC'),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId('a')).not.toHaveAttribute('data-issue');
+    const field = screen.getByTestId('a');
+    expect(field).not.toHaveAttribute('data-issue');
+    // A screen reader hears the lead and the address once, whole: the drawn groups are aria-hidden.
+    expect(field).toHaveAccessibleDescription(
+      `Compare it group by group with the wallet it belongs to: ${PEOPLE.heirA}`,
+    );
+    const hint = document.getElementById(field.getAttribute('aria-describedby') ?? '');
+    const drawn = hint?.querySelector<HTMLElement>(`[data-address="${PEOPLE.heirA}"]`);
+    const groups = drawn?.querySelector<HTMLElement>('[data-part="groups"]');
+    expect(groups).toHaveClass('voice-ledger');
+    expect(groups).toHaveAttribute('aria-hidden', 'true');
+    expect([...(groups?.querySelectorAll(':scope > span') ?? [])].map((s) => s.textContent)).toEqual([
+      '0x',
+      '3C44',
+      'CdDd',
+      'B6a9',
+      '00fa',
+      '2b58',
+      '5dd2',
+      '99e0',
+      '3d12',
+      'FA42',
+      '93BC',
+    ]);
+    // A hint, not a card: no copy button and no face.
+    expect(drawn?.querySelector('button')).toBeNull();
+    expect(drawn?.querySelector('svg')).toBeNull();
+  });
+
+  it('leads the address in Vietnamese', () => {
+    renderWithProviders(<Address initial={PEOPLE.heirA} />, { lang: 'vi' });
+    expect(screen.getByTestId('a')).toHaveAccessibleDescription(
+      `Đối chiếu từng cụm với ví của người đó: ${PEOPLE.heirA}`,
+    );
   });
 
   it('lets the plan check win, and keeps its live region quiet then', () => {
@@ -233,6 +263,20 @@ describe('GuardiansEditor', () => {
     );
   });
 
+  it('keeps recovery a native checkbox, out of sight, and draws the switch beside it', () => {
+    renderWithProviders(<Guardians />);
+    const box = screen.getByRole('checkbox', { name: /^Let guardians move this vault to a new wallet/ });
+    expect(box).toBe(screen.getByTestId('g-recovery'));
+    expect(box).not.toBeChecked();
+    // Chromium's native box in night is a filled grey square that reads as disabled: the product draws its own.
+    expect(box).toHaveClass('peer', 'sr-only');
+    const drawn = box.nextElementSibling;
+    expect(drawn).toHaveAttribute('aria-hidden', 'true');
+    expect(drawn).toHaveAttribute('data-part', 'switch');
+    fireEvent.click(box.closest('label') as HTMLElement);
+    expect(box).toBeChecked();
+  });
+
   it('reads k as the plan will: a majority when empty, a whole number from 1 to n, else nothing', () => {
     expect(effectiveK('', 3)).toBe(2);
     expect(effectiveK(' 3 ', 3)).toBe(3);
@@ -269,6 +313,27 @@ describe('TimingEditor', () => {
     expect(screen.getByTestId('t-window')).toHaveValue('2m');
     expect(screen.getAllByText('At least 1 minute.')).toHaveLength(2);
     expect(screen.getByText(`At most ${flows.LIMITS.maxThreshold}.`)).toBeInTheDocument();
+  });
+
+  it('keeps each preset a native radio, out of sight, and draws the radio and the picked card from it', () => {
+    renderWithProviders(<Timing drill={false} />);
+    const radios = screen.getAllByRole('radio');
+    expect(radios.map((r) => r.dataset.testid)).toEqual([
+      't-preset-sixMonths',
+      't-preset-twelveMonths',
+      't-preset-custom',
+    ]);
+    for (const r of radios) {
+      expect(r).toHaveClass('peer', 'sr-only');
+      expect(r.nextElementSibling).toHaveAttribute('aria-hidden', 'true');
+      expect(r.nextElementSibling).toHaveAttribute('data-part', 'radio');
+      // The card follows its input (has-checked), never a branch in the code that could drift from it.
+      expect(r.closest('label')).toHaveClass('has-checked:border-thread', 'has-focus-visible:outline-2');
+    }
+    expect(screen.getByRole('radio', { name: /^About six months/ })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: /^About a year/ }).closest('label') as HTMLElement);
+    expect(screen.getByTestId('t-preset-twelveMonths')).toBeChecked();
+    expect(screen.getByTestId('t-preset-sixMonths')).not.toBeChecked();
   });
 
   it('offers a real vault six or twelve months, with floors of a day and three days', () => {

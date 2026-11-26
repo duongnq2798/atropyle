@@ -15,6 +15,7 @@ import { THREAD_COLOR, type ThreadState } from '@/thread/state';
 import { StateBadge } from '@/thread/state-badge';
 import { Thread } from '@/thread/thread';
 import { Avatar } from '@/ui/avatar';
+import { KNOB, SWITCH } from '@/ui/switch';
 import { frameIndex, scrubAxis } from './frame';
 import type { TimeMachineImpl } from './load';
 import {
@@ -68,14 +69,6 @@ const CLOSED_KEY: Partial<Record<ThreadState, 'closedReleased' | 'closedRecover'
   releasedRecover: 'closedRecover',
   expired: 'closedExpired',
 };
-/** "I check in again" is a native checkbox drawn as a switch: the track follows the input (peer), the knob slides. */
-const SWITCH =
-  'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-line-strong bg-surface-3 ' +
-  'transition-colors duration-150 peer-checked:border-thread peer-checked:bg-thread ' +
-  'peer-focus-visible:outline-2 peer-focus-visible:outline-thread peer-focus-visible:outline-offset-2 ' +
-  'group-hover:border-ink-muted peer-checked:[&>span]:translate-x-4 peer-checked:[&>span]:bg-on-thread';
-const KNOB =
-  'ml-0.5 block size-4.5 rounded-full bg-ink-muted shadow-sm motion-safe:transition-transform motion-safe:duration-150';
 
 type MomentKey =
   | 'momentNow'
@@ -272,7 +265,8 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
               onChange={(e) => setBack(e.currentTarget.checked)}
               className="peer sr-only"
             />
-            <span aria-hidden="true" className={SWITCH}>
+            {/* "I check in again" is a native checkbox drawn as a switch. */}
+            <span aria-hidden="true" data-part="switch" className={SWITCH}>
               <span className={KNOB} />
             </span>
             {t('checkInAgain')}

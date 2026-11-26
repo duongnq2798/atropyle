@@ -22,7 +22,7 @@ export const messages = defineMessages(
       'The capital letters do not match this address, so one character may be wrong. Copy it again from the wallet.',
     addrZero: 'The zero address burns what it receives. Use a real wallet.',
     addrDuplicate: 'This address is already in the list.',
-    addrGroups: 'Check it in groups of four: {groups}',
+    addrGroupsLead: 'Compare it group by group with the wallet it belongs to:',
     guardiansTitle: 'Guardians',
     guardiansHelp:
       'People you trust. When your check-ins stop and the alarm runs, enough of them confirm it and your heirs receive when the alarm ends. If they stay silent, your heirs still receive, only later. Guardians never receive anything themselves.',
@@ -79,7 +79,7 @@ export const messages = defineMessages(
     addrChecksum: 'Chữ hoa không khớp với địa chỉ này, nên có thể sai một ký tự. Hãy chép lại từ ví.',
     addrZero: 'Địa chỉ 0 đốt mọi thứ nó nhận. Hãy dùng một ví thật.',
     addrDuplicate: 'Địa chỉ này đã có trong danh sách.',
-    addrGroups: 'Đối chiếu từng cụm bốn ký tự: {groups}',
+    addrGroupsLead: 'Đối chiếu từng cụm với ví của người đó:',
     guardiansTitle: 'Người giám hộ',
     guardiansHelp:
       'Những người bạn tin. Khi bạn ngừng điểm danh và báo động đang chạy, đủ số người trong họ xác nhận thì người thừa kế nhận khi báo động kết thúc. Nếu họ im lặng, người thừa kế vẫn nhận, chỉ muộn hơn. Người giám hộ không bao giờ tự nhận gì.',

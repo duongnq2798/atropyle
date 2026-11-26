@@ -7,6 +7,7 @@ import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { durationWords } from '@/lib/duration';
 import { messages } from '@/messages/editors.messages';
+import { RADIO, RADIO_DOT } from '@/ui/switch';
 import { TextField } from '@/ui/text-field';
 import { useIssueText } from './issue-list';
 
@@ -15,6 +16,24 @@ const PRESET_KEY = {
   sixMonths: 'presetSixMonths',
   twelveMonths: 'presetTwelveMonths',
 } as const satisfies Record<PresetName, keyof typeof messages.en>;
+
+/**
+ * A preset is a card around a native radio drawn as the product's (ui/switch.ts). The card follows its input: picked
+ * (has-checked) and focused from the keyboard (has-focus-visible), since the ring itself is small.
+ */
+const CARD =
+  'flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-1 p-4 ' +
+  'transition-colors duration-150 hover:not-has-checked:border-line-strong has-checked:border-thread has-checked:bg-surface-2 ' +
+  'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-thread';
+
+/** The drawn radio, lined up with the first line of the card's text. */
+function Mark() {
+  return (
+    <span aria-hidden="true" data-part="radio" className={cn(RADIO, 'mt-0.5')}>
+      <span className={RADIO_DOT} />
+    </span>
+  );
+}
 
 export interface TimingEditorProps {
   flows: FlowsImpl;
@@ -42,40 +61,37 @@ export function TimingEditor({ flows, value: v, drill, issues, showIssues, testI
       threshold: flows.PRESETS[p].threshold,
       window: words(flows.PRESETS[p].window),
     });
-  const card = (checked: boolean) =>
-    cn(
-      'flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-4',
-      checked ? 'border-thread bg-surface-2' : 'border-line bg-surface-1',
-    );
   const name = `${testId}-timing`;
   return (
     <fieldset className="space-y-3">
       <legend className="font-display text-h2 text-ink">{t('timingTitle')}</legend>
       {flows.presetsFor(drill).map((p) => (
-        <label key={p} className={card(v.preset === p)}>
+        <label key={p} className={CARD}>
           <input
             type="radio"
             name={name}
             data-testid={`${testId}-preset-${p}`}
             checked={v.preset === p}
             onChange={() => onChange({ ...v, preset: p })}
-            className="mt-1 size-5 shrink-0 accent-thread"
+            className="peer sr-only"
           />
+          <Mark />
           <span>
             <span className="block text-body text-ink">{t(PRESET_KEY[p])}</span>
             <span className="block text-small text-ink-muted">{line(p)}</span>
           </span>
         </label>
       ))}
-      <label className={card(v.preset === 'custom')}>
+      <label className={CARD}>
         <input
           type="radio"
           name={name}
           data-testid={`${testId}-preset-custom`}
           checked={v.preset === 'custom'}
           onChange={() => onChange(v.preset === 'custom' ? v : flows.customFrom(v.preset))}
-          className="mt-1 size-5 shrink-0 accent-thread"
+          className="peer sr-only"
         />
+        <Mark />
         <span className="text-body text-ink">{t('presetCustom')}</span>
       </label>
       {err('timing') ? <p className="text-small text-danger">{err('timing')}</p> : null}

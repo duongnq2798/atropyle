@@ -4,12 +4,14 @@ import type { PlanIssue } from '@atropyle/sdk';
 import { KeyRound, Plus, X } from 'lucide-react';
 import type { FlowsImpl } from '@/flows/load';
 import { useLang, useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
 import { durationWords } from '@/lib/duration';
 import { messages } from '@/messages/editors.messages';
 import { messages as warnings } from '@/messages/warnings.messages';
 import { Button } from '@/ui/button';
 import { InlineError } from '@/ui/inline-error';
 import { PlainIconButton } from '@/ui/plain-icon-button';
+import { KNOB, SWITCH } from '@/ui/switch';
 import { TextField } from '@/ui/text-field';
 import { AddressInput } from './address-input';
 import { useIssueText } from './issue-list';
@@ -133,14 +135,18 @@ export function GuardiansEditor({
             error={err('k')}
             onChange={(e) => set({ k: e.target.value })}
           />
-          <label className="flex min-h-11 items-start gap-3">
+          {/* A native checkbox drawn as the product's switch (ui/switch.ts): off is the default here. */}
+          <label className="group flex min-h-11 cursor-pointer items-start gap-3">
             <input
               type="checkbox"
               data-testid={`${testId}-recovery`}
               checked={v.recoveryEnabled}
               onChange={(e) => set({ recoveryEnabled: e.target.checked })}
-              className="mt-1 size-5 shrink-0 accent-thread"
+              className="peer sr-only"
             />
+            <span aria-hidden="true" data-part="switch" className={cn(SWITCH, 'mt-0.5')}>
+              <span className={KNOB} />
+            </span>
             <span>
               <span className="block text-body text-ink">{t('recovery')}</span>
               <span className="block text-small text-ink-muted">{t('recoveryHelp')}</span>

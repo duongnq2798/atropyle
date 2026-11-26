@@ -117,7 +117,11 @@ function Posts({ posts: p }: { posts: ThreadPosts }) {
       {p.bar ? (
         <span
           data-part="quorum"
-          className={cn('absolute top-0 h-0.5 -translate-y-full rounded-full', met ? 'bg-current' : 'bg-ink-muted')}
+          // A lintel over the posts, 1.5 px clear of their tops: flush on them, it read as one more post's cap.
+          className={cn(
+            'absolute top-0 h-0.5 -translate-y-[calc(100%+1.5px)] rounded-full',
+            met ? 'bg-current' : 'bg-ink-muted',
+          )}
           style={{ left: `${p.bar.left}%`, width: `${p.bar.width}%` }}
         />
       ) : null}
@@ -296,10 +300,16 @@ export function Thread({
 
       <div data-layer="marks" data-highlight={highlighted} className="absolute inset-0">
         {g.gate ? (
-          // The guardians' posts stand inside this box, under the arch.
+          // The guardians' posts stand inside this box, under the arch. With posts the gate is at least 44 px tall
+          // (21 px wide), so five posts on a phone are 2 px wide and 15 px tall with 1.3 px between them, not one
+          // block; never more than 80 % of the box, so in a low box the arch stays inside it (the wave keeps the
+          // gate's centre between 42.5 % and 57.5 %). Without posts the gate keeps its 42 %.
           <span
             data-part="gate"
-            className="absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2"
+            className={cn(
+              'absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2',
+              g.posts && 'min-h-[min(2.75rem,80%)]',
+            )}
             style={at(g.gate)}
           >
             <span data-part="arch" className="absolute inset-0 rounded-t-full border-2 border-ink-muted border-b-0" />

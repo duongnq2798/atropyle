@@ -12,6 +12,7 @@ import type { CreateForm, HeirRow, TimingForm } from '@/flows/impl/create-form';
 import { evenSplit, withShares } from '@/flows/shares';
 import { useT } from '@/i18n/provider';
 import { messages } from '@/messages/editors.messages';
+import { KNOB, SWITCH } from '@/ui/switch';
 
 /**
  * The plan editors on one page, for axe, the keyboard path and the review screenshots (test/e2e/editors.spec.ts).
@@ -67,14 +68,17 @@ export default function EditorsPreview() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-4 py-10 sm:px-6">
       <h1 className="font-display text-ink text-title">Editors</h1>
-      <label className="flex min-h-11 items-center gap-3 text-body text-ink">
+      <label className="group flex min-h-11 cursor-pointer items-center gap-3 text-body text-ink">
         <input
           type="checkbox"
           data-testid="preview-show-issues"
           checked={show}
           onChange={(e) => setShow(e.target.checked)}
-          className="size-5 accent-thread"
+          className="peer sr-only"
         />
+        <span aria-hidden="true" data-part="switch" className={SWITCH}>
+          <span className={KNOB} />
+        </span>
         Show the plan check
       </label>
       <IssueList flows={flows} drill issues={show ? issues : []} testId="preview-issues" />
