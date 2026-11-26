@@ -48,6 +48,7 @@ test('a visitor reads the vault, its plan and what happened', async ({ page, sta
   await expect(page.getByTestId('vault-last-alive')).toHaveAttribute('data-ts', String(status.lastAlive));
   await expect(page.getByTestId('vault-next')).toHaveAttribute('data-kind', 'alarm');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-moment', 'none');
+  await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestActive');
   await expect(page.getByTestId('vault-plan')).toContainText('100%');
   await expect(page.getByTestId('vault-verify')).toHaveAttribute('href', new RegExp(`/verify/#${vault}$`));
   await expect(page.getByTestId('vault-guest-connect')).toBeVisible();
@@ -88,6 +89,7 @@ test('a late vault: the page reads it again at the boundary, says what the rules
   await expect(moment).toHaveAttribute('data-moment', 'predicted', { timeout: 20_000 });
   await expect(moment).toHaveAttribute('data-pending', 'grace');
   await expect(moment).toContainText('Nobody has raised it yet');
+  await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestLate');
   await stateIs(page, 'active');
 
   await connectFrom(page, page.getByTestId('vault-guest-connect'));
@@ -146,6 +148,7 @@ test('a stranger releases a late vault to the heir and delivers it; the history 
   await page.goto(`${state.siteUrl}vault/#${vault}`);
   await stateIs(page, 'grace');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-pending', 'releasedInherit');
+  await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestDue');
   await connectFrom(page, page.getByTestId('vault-guest-connect'));
   await expect(page.getByTestId('vault-no-role')).toBeVisible();
 

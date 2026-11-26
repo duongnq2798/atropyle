@@ -30,6 +30,7 @@ import { vaultRefetchMs } from './boundary';
 import { GuestView } from './guest';
 import { HistoryThread } from './history-thread';
 import { type Moved, movedOf } from './moment';
+import { StandingLine } from './standing-line';
 import { VaultHeader, VaultPlan } from './vault-header';
 
 export type PanelRole = 'owner' | 'guardian' | 'heir';
@@ -235,7 +236,7 @@ function VaultScreen({ vault }: { vault: Addr }) {
         sdk={sdk}
         loaded={data}
         view={view}
-        lead={null}
+        lead={<StandingLine loaded={data} view={view} />}
         moved={moved}
         refreshing={refresh.busy}
         onRefresh={refresh.run}
