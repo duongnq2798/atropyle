@@ -32,6 +32,10 @@ export interface ScrubberProps {
    */
   playhead?(at: bigint): string;
   testId?: string;
+  /**
+   * For the wrapper, an inline-size container (the Thread's height and the dot's rise are in cqw): its width comes
+   * from outside, so place it in a block or a stretched flex item, never in a box that shrinks to its content.
+   */
   className?: string;
 }
 
