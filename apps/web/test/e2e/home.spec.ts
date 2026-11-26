@@ -562,10 +562,42 @@ test('screens of the stage, for the design review', async ({ page, state }, info
     ready: async (p) => {
       await storyChip(p, 'recover').click();
       const back = stage(p).getByTestId('home-stage-back');
-      if (!(await back.isChecked())) await stage(p).locator('label', { has: back }).click();
+      // `has` is relative to the label: the test id alone, not the stage's locator.
+      if (!(await back.isChecked()))
+        await stage(p)
+          .locator('label', { has: p.getByTestId('home-stage-back') })
+          .click();
       await stage(p).getByTestId('home-stage-beat-3').click();
       await expect(stage(p)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
       await expect(stage(p)).toHaveAttribute('data-day', String(20));
     },
   });
+  // Nobody confirms: the gate opens at the fallback, after 15 periods, in the released state.
+  await captureScreens(page, 'home-stage-fallback', {
+    ready: async (p) => {
+      const confirm = stage(p).getByTestId('home-stage-confirm');
+      await expect(confirm).toBeEnabled();
+      if (await confirm.isChecked())
+        await stage(p)
+          .locator('label', { has: p.getByTestId('home-stage-confirm') })
+          .click();
+      await expect(stage(p)).toHaveAttribute('data-story', 'silent');
+      await stage(p).getByTestId('home-stage-beat-3').click();
+      await expect(stage(p)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+      await expect(stage(p)).toHaveAttribute('data-state', 'releasedInherit');
+    },
+  });
+  // The simulator cannot load: the prerender stays, the footer says so and offers Try again. One shot per width,
+  // without captureScreens: its reloads would fail with every chunk blocked.
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    await hydrated(page);
+    await page.route('**/_next/static/chunks/**', (r) => r.abort());
+    await stage(page).getByTestId('home-stage-beat-2').click();
+    await expect(stage(page)).toHaveAttribute('data-ready', 'error', { timeout: 20_000 });
+    await settle(page);
+    await page.screenshot({ path: `test-results/screens/home-stage-failed/night-en-${width}.png`, fullPage: true });
+    await page.unroute('**/_next/static/chunks/**');
+  }
 });

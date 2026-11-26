@@ -135,6 +135,8 @@ describe('the stage before its simulator loads', () => {
     await waitFor(() => expect(stage().dataset.ready).toBe('error'));
     expect(stage().dataset.engine).toBe('prerender');
     expect(rows()).toHaveLength(5);
+    // The still thread cannot be dragged: the hint keeps its place and is not shown.
+    expect(screen.getByText('Drag the thread, or use the arrow keys.').className).toContain('invisible');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(stage().dataset.ready).toBe('true'), { timeout: 30_000 });
     expect(load).toHaveBeenCalledTimes(2);

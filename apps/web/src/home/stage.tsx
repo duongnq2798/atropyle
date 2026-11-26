@@ -343,7 +343,8 @@ export function HomeStage() {
             </Stamp>
             <p className="text-balance text-ink text-lead">{say(beat)}</p>
           </div>
-          <p id={hintId} className="text-pretty text-caption text-ink-muted">
+          {/* Without its simulator the thread cannot be dragged: the hint keeps its place and says nothing. */}
+          <p id={hintId} className={cn('text-pretty text-caption text-ink-muted', phase === 'failed' && 'invisible')}>
             {t('hint')}
             <span className="block text-balance pointer-coarse:sr-only"> {t('hintKeys')}</span>
           </p>
