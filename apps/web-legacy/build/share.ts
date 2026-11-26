@@ -5,7 +5,7 @@ import type { HtmlTagDescriptor, Plugin } from 'vite';
 import { SHARE, SHARE_IMAGE_URL } from '../../web/src/config/share.ts';
 
 /** The image web v2 ships too, rendered by apps/web/scripts/og-image.ts. */
-export const SHARE_IMAGE_FILE = fileURLToPath(new URL('../../web/share/og.png', import.meta.url));
+export const SHARE_IMAGE_FILE = fileURLToPath(new URL(`../../web/share/${SHARE.image.path}`, import.meta.url));
 
 /**
  * The origin a site build is served from, when the build knows it. Only the production host does (VITE_TARGET is

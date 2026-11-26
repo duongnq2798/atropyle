@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SHARE_IMAGE_FILE } from '../../scripts/lib/share-image';
@@ -46,7 +46,7 @@ describe('vercel share card', () => {
   });
 
   it('serves the image it links, at the root of the site', () => {
-    expect(readFileSync(join(outOf('vercel'), 'og.png')).equals(readFileSync(SHARE_IMAGE_FILE))).toBe(true);
+    expect(readFileSync(join(outOf('vercel'), SHARE.image.path)).equals(readFileSync(SHARE_IMAGE_FILE))).toBe(true);
   });
 });
 
@@ -61,6 +61,6 @@ describe('deweb share card', () => {
         file,
       ).toEqual([]);
     }
-    expect(existsSync(join(outOf('deweb'), 'og.png'))).toBe(false);
+    expect(readdirSync(outOf('deweb')).filter((f) => /^og.*\.png$/.test(f))).toEqual([]);
   });
 });
