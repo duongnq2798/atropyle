@@ -23,7 +23,7 @@ import { Amount } from '@/ui/amount';
 import { buttonClass } from '@/ui/button';
 import { ExternalLink } from '@/ui/external-link';
 import { UntrustedText } from '@/ui/untrusted-text';
-import { POKE_HELP_KEY, POKE_KEY, publicOffers } from './guest';
+import { POKE_KEY, publicOffers } from './guest';
 import { LazyActionFlow } from './lazy-action-flow';
 import { letterOpening } from './letter-opening';
 import { letterThread } from './letter-thread';
@@ -42,6 +42,13 @@ const SERVES: Record<'heir' | 'recover', readonly StateName[]> = {
 
 /** The alerts form's role (an expression: a literal `role` reads as an ARIA role to the linter). */
 const ALERTS_ROLE = 'heir' as const;
+
+/** What each of those pokes does, in the heir's words: the vault's own help says "nothing comes to your wallet". */
+const MOVE_HELP = {
+  grace: 'moveHelpAlarm',
+  releasedInherit: 'moveHelpRelease',
+  releasedRecover: 'moveHelpRecover',
+} as const satisfies Partial<Record<StateName, keyof typeof messages.en>>;
 
 const lower = (a: string | null | undefined) => (a ?? '').toLowerCase();
 
@@ -319,6 +326,7 @@ function MoveStep({ flows, sdk, loaded, view, account, onChanged, recover }: Pan
   const s = loaded.snap.status;
   const { canPoke } = publicOffers(view, s, held);
   const serves = canPoke && SERVES[recover ? 'recover' : 'heir'].includes(s.pending);
+  const help = s.pending in MOVE_HELP ? MOVE_HELP[s.pending as keyof typeof MOVE_HELP] : null;
   if (!serves && !held)
     return (
       <p data-testid="heir-move-idle" className="text-small text-ink-muted">
@@ -327,7 +335,11 @@ function MoveStep({ flows, sdk, loaded, view, account, onChanged, recover }: Pan
     );
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-small text-ink-muted">{v(POKE_HELP_KEY[s.pending])}</p>
+      {help ? (
+        <p data-testid="heir-move-help" className="text-small text-ink-muted">
+          {t(help)}
+        </p>
+      ) : null}
       <LazyActionFlow
         flows={flows}
         sdk={sdk}

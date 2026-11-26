@@ -52,6 +52,12 @@ export const messages = defineMessages(
     stepVerifyGo: 'Run the check',
     stepMoveTitle: 'Move the vault on',
     stepMoveIdle: 'Nothing to move on now.',
+    moveHelpAlarm:
+      'The owner has missed their check-ins. Raising the alarm gives them one last window to answer; if they do not, the vault passes to the heirs. Anyone can raise it, you included.',
+    moveHelpRelease:
+      'The time to answer the alarm is over. This passes the vault to the heirs; then step 3 sends each their share.',
+    moveHelpRecover:
+      'The time to stop the recovery is over. This passes the vault to this wallet; then step 3 sends the assets here.',
     stepReceiveTitle: 'Receive',
     receiveHelp:
       "Sends each heir their share from the owner's wallet, in one transaction. Anyone can send it; the assets go only to the heirs.",
@@ -111,6 +117,12 @@ export const messages = defineMessages(
     stepVerifyGo: 'Chạy kiểm tra',
     stepMoveTitle: 'Đẩy vault đi tiếp',
     stepMoveIdle: 'Hiện chưa có gì để đẩy đi tiếp.',
+    moveHelpAlarm:
+      'Chủ vault đã lỡ các lần điểm danh. Báo động cho chủ vault một khoảng thời gian cuối để trả lời; nếu không, vault sẽ trao cho những người thừa kế. Bất kỳ ai cũng bật được, kể cả bạn.',
+    moveHelpRelease:
+      'Thời gian trả lời báo động đã hết. Việc này trao vault cho những người thừa kế; sau đó bước 3 chuyển phần của từng người.',
+    moveHelpRecover:
+      'Thời gian ngăn lần khôi phục đã hết. Việc này trao vault cho ví này; sau đó bước 3 chuyển tài sản về đây.',
     stepReceiveTitle: 'Nhận',
     receiveHelp:
       'Chuyển phần của từng người thừa kế từ ví chủ vault, trong một giao dịch. Ai cũng gửi được; tài sản chỉ đến những người thừa kế.',

@@ -154,6 +154,8 @@ describe('the heir letter', () => {
   it('offers the poke that serves the heir, named by what it does', () => {
     letter(PEOPLE.heirA, loadedWith({ state: 'grace', pending: 'releasedInherit' }));
     expect(screen.getByTestId('heir-poke').textContent).toBe('Release to the heirs');
+    // In the heir's words: the vault's generic help would say "nothing comes to your wallet".
+    expect(screen.getByTestId('heir-move-help').textContent).toMatch(/^The time to answer the alarm is over/);
     expect(screen.getByTestId('heir-letter').getAttribute('data-opening')).toBe('openDue');
   });
 
