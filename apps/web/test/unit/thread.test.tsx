@@ -106,6 +106,36 @@ describe('Thread', () => {
       unmount();
     }
   });
+  it('draws the recovery exit, dashed, with its end mark', () => {
+    const { container } = renderWithProviders(<Thread state="releasedInherit" branches={[1, 1]} exit predicted />);
+    expect(parts(container, 'exit')).toHaveLength(1);
+    expect(parts(container, 'exit')[0]?.getAttribute('stroke-dasharray')).toBe('5 5');
+    expect(parts(container, 'exit')[0]?.getAttribute('class')).toContain('stroke-recovery');
+    expect(parts(container, 'exit-end')).toHaveLength(1);
+    const plain = renderWithProviders(<Thread state="releasedInherit" branches={[1, 1]} />).container;
+    expect(parts(plain, 'exit')).toHaveLength(0);
+    expect(parts(plain, 'exit-end')).toHaveLength(0);
+  });
+
+  it('paints each branch and its end in its heir colour when asked, unless one heir is highlighted', () => {
+    const { container } = renderWithProviders(<Thread state="releasedInherit" branches={[1, 1, 1]} heirColors />);
+    const branches = [...parts(container, 'branch')];
+    expect(branches.map((b) => b.getAttribute('data-tone'))).toEqual(['heir', 'heir', 'heir']);
+    expect(branches.map((b) => b.getAttribute('class'))).toEqual([
+      'stroke-branch-1',
+      'stroke-branch-2',
+      'stroke-branch-3',
+    ]);
+    expect([...parts(container, 'dot')].map((d) => d.getAttribute('class')?.includes('bg-branch-'))).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    const hi = renderWithProviders(
+      <Thread state="releasedInherit" branches={[1, 1]} heirColors highlight={1} />,
+    ).container;
+    expect([...parts(hi, 'branch')].map((b) => b.getAttribute('data-tone'))).toEqual(['muted', 'highlight']);
+  });
 });
 
 describe('StateGlyph', () => {

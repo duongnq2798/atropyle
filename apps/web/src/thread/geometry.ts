@@ -320,6 +320,11 @@ export interface ThreadInput {
   signature?: string;
   /** The guardians at the gate: n of them, k must confirm, `lit` have. Drawn only where a gate stands. */
   posts?: { n: number; k: number; lit: number };
+  /**
+   * The recovery exit (loom-preview): a dashed path that leaves the course before the gate, for a plan whose guardians
+   * can move it to a new wallet. Drawn on `releasedInherit` only.
+   */
+  exit?: boolean;
 }
 
 /** `plain` takes the state's colour; `highlight` and `muted` come from `highlight`. */
@@ -354,6 +359,8 @@ export interface ThreadGeometry {
   beat: ThreadBeat | null;
   /** The guardians' posts in the gate (postsOf), or null: no gate, no guardian, or no `posts`. */
   posts: ThreadPosts | null;
+  /** The recovery exit: its path and where it ends, or null. */
+  exit: { d: string; end: Point } | null;
   /** The wave is a vault's own: `signature` was an address. */
   signed: boolean;
 }
@@ -376,6 +383,20 @@ function marksOn(axis: ThreadAxis, wy: Wave): Point[] {
 function branch(gx: number, gy: number, y: number): string {
   const k = (BRANCH_END_X - gx) / (BRANCH_END_X - GATE_X);
   return `M${gx} ${gy} C${r(gx + 60 * k)} ${gy} ${r(gx + 106 * k)} ${y} ${BRANCH_END_X} ${y}`;
+}
+
+/** How far before the gate the recovery exit leaves the course. */
+export const EXIT_LEAD = 120;
+
+/**
+ * The dashed recovery exit: off the course EXIT_LEAD before the gate, up to near the top edge, ending before the
+ * gate's arch, so it reads as another way out of the vault than the heirs' gate.
+ */
+function exitPath(gateX: number, wy: Wave): { d: string; end: Point } {
+  const x0 = Math.max(24, gateX - EXIT_LEAD);
+  const y0 = r(wy(x0));
+  const end: Point = [r(Math.max(x0 + 48, gateX - 36)), 12];
+  return { d: `M${r(x0)} ${y0} C${r(x0 + 40)} ${y0} ${r(end[0] - 30)} ${end[1]} ${end[0]} ${end[1]}`, end };
 }
 
 /** Three strands from x0 to x1 that part from the thread and meet again at the gate. */
@@ -422,6 +443,7 @@ function draw(state: ThreadState, input: ThreadInput, sig: ThreadSignature | nul
     ghost: null,
     dash: input.predicted ? PREDICTED_DASH : null,
     beat: null,
+    exit: null,
   };
   const knotsAt = (end: number): Point[] => (axis ? marksOn(axis, wy) : knotsOn(input.knots, end, wy));
   const withPending = (g: Drawn): Drawn => ({
@@ -528,6 +550,7 @@ function draw(state: ThreadState, input: ThreadInput, sig: ThreadSignature | nul
       gate: [gateX, gateY],
       branches: ys.map((y, i) => ({ d: branch(gateX, gateY, y), width: widths[i], tone: tone(i) })),
       dots: ys.map((y, i) => ({ at: [BRANCH_END_X, y] as Point, tone: tone(i) })),
+      exit: state === 'releasedInherit' && input.exit ? exitPath(gateX, wy) : null,
     };
   }
 

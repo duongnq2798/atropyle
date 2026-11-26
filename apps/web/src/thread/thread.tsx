@@ -4,12 +4,14 @@ import { type ReactNode, type Ref, useMemo } from 'react';
 import { cn } from '@/lib/cn';
 import { RevealWindow, type RevealWindowHandle, useMoveWith } from '@/motion/reveal-window';
 import { THREAD_VT_NAME } from '@/motion/view-transition';
+import { BRANCH_BG, BRANCH_STROKE } from './branches';
 import {
   MAIN_WIDTH,
   POST_HEIGHT,
   POST_STUB,
   POST_WIDTH,
   type Point,
+  PREDICTED_DASH,
   pctX,
   pctY,
   type ThreadBeat,
@@ -35,6 +37,11 @@ export interface ThreadProps extends ThreadInput {
    * the window: "now", the pending knot and every mark are props, and the caller re-renders them to move them.
    */
   revealRef?: Ref<RevealWindowHandle>;
+  /**
+   * Paint each branch and its end in its heir's colour (the share splitter's, BRANCH_STROKE): the wizard's preview,
+   * where the heirs are being told apart. A `highlight` wins over it.
+   */
+  heirColors?: boolean;
   /** Size of the box: a width, and a height to change the 5:1 ratio. */
   className?: string;
 }
@@ -46,7 +53,8 @@ const BEAT_CLASS: Record<ThreadBeat, string> = {
   mid: 'motion-safe:animate-thread-pulse-mid',
   fast: 'motion-safe:animate-thread-pulse-fast',
 };
-const BRANCH_TONE: Record<ThreadTone, { stroke?: string; className?: string; opacity?: number }> = {
+type BranchTone = { stroke?: string; className?: string; opacity?: number };
+const BRANCH_TONE: Record<ThreadTone, BranchTone> = {
   plain: { stroke: 'currentColor' },
   highlight: { className: 'stroke-thread' },
   muted: { className: 'stroke-ink-muted', opacity: 0.35 },
@@ -169,6 +177,8 @@ export function Thread({
   highlight,
   signature,
   posts,
+  exit,
+  heirColors = false,
   label,
   shared = false,
   revealRef,
@@ -189,9 +199,26 @@ export function Thread({
         highlight,
         signature,
         posts: postsN === undefined ? undefined : { n: postsN, k: postsK ?? 0, lit: postsLit ?? 0 },
+        exit,
       }),
-    [state, remaining, knots, branches, axis, predicted, pendingKnot, highlight, signature, postsN, postsK, postsLit],
+    [
+      state,
+      remaining,
+      knots,
+      branches,
+      axis,
+      predicted,
+      pendingKnot,
+      highlight,
+      signature,
+      postsN,
+      postsK,
+      postsLit,
+      exit,
+    ],
   );
+  /** A plain branch in its heir's colour, when asked: the i-th stroke and end of the palette. */
+  const heirTone = (tone: ThreadTone) => heirColors && tone === 'plain';
   const dash = g.dash ?? undefined;
   // Set whenever the prop is, in every state; only the branch styling needs an index that names a branch.
   const highlighted = highlight !== undefined ? String(highlight) : undefined;
@@ -243,8 +270,9 @@ export function Thread({
             data-part="ghost"
           />
         ) : null}
-        {g.branches.map((b) => {
-          const tone = BRANCH_TONE[b.tone];
+        {g.branches.map((b, i) => {
+          const own = heirTone(b.tone);
+          const tone: BranchTone = own ? { className: BRANCH_STROKE[i % BRANCH_STROKE.length] } : BRANCH_TONE[b.tone];
           return (
             <path
               key={b.d}
@@ -256,10 +284,20 @@ export function Thread({
               strokeDasharray={dash}
               vectorEffect="non-scaling-stroke"
               data-part="branch"
-              data-tone={b.tone}
+              data-tone={own ? 'heir' : b.tone}
             />
           );
         })}
+        {g.exit ? (
+          <path
+            d={g.exit.d}
+            className="stroke-recovery"
+            strokeWidth={1.5}
+            strokeDasharray={PREDICTED_DASH}
+            vectorEffect="non-scaling-stroke"
+            data-part="exit"
+          />
+        ) : null}
         {g.curl ? (
           <path
             d={g.curl}
@@ -327,15 +365,21 @@ export function Thread({
             style={at(k)}
           />
         ))}
-        {g.dots.map((dot) => (
-          <span
-            key={`${dot.at[0]}-${dot.at[1]}`}
-            data-part="dot"
-            data-tone={dot.tone}
-            className={cn(MARK, 'size-2', DOT_TONE[dot.tone])}
-            style={at(dot.at)}
-          />
-        ))}
+        {g.dots.map((dot, i) => {
+          const own = heirTone(dot.tone);
+          return (
+            <span
+              key={`${dot.at[0]}-${dot.at[1]}`}
+              data-part="dot"
+              data-tone={own ? 'heir' : dot.tone}
+              className={cn(MARK, 'size-2', own ? BRANCH_BG[i % BRANCH_BG.length] : DOT_TONE[dot.tone])}
+              style={at(dot.at)}
+            />
+          );
+        })}
+        {g.exit ? (
+          <span data-part="exit-end" className={cn(MARK, 'size-2 bg-recovery')} style={at(g.exit.end)} />
+        ) : null}
         {g.now ? <NowAt at={g.now} pending={g.pending !== null} /> : null}
       </div>
     </>

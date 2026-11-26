@@ -766,3 +766,26 @@ describe('thread state', () => {
     expect(threadRemaining({ ...base, state: 'active', lateAt: 1000n }, 1000n)).toBe(0);
   });
 });
+
+describe('the recovery exit (spec §18.4.2 T7, loom-preview)', () => {
+  it('only when asked, only on releasedInherit, leaving the course before the gate', () => {
+    expect(threadGeometry('releasedInherit', {}).exit).toBeNull();
+    expect(threadGeometry('active', { exit: true }).exit).toBeNull();
+    expect(threadGeometry('releasedRecover', { exit: true }).exit).toBeNull();
+    const g = threadGeometry('releasedInherit', { exit: true });
+    expect(g.exit).not.toBeNull();
+    const [x0] = (g.exit?.d.match(/^M([\d.]+) /) ?? []).slice(1).map(Number);
+    expect(x0).toBeLessThan(g.gateX);
+    expect(g.exit?.end[0]).toBeLessThan(g.gateX);
+    expect(g.exit?.end[1]).toBeLessThan(24);
+    expect(g.exit?.d).toMatch(VALID);
+  });
+
+  it('follows the gate on a time axis, and starts on the wave', () => {
+    const axis: ThreadAxis = { from: 0n, to: 1_000n, now: 0n, releaseAt: 400n };
+    const g = threadGeometry('releasedInherit', { axis, exit: true });
+    const [x0, y0] = (g.exit?.d.match(/^M([\d.]+) ([\d.]+) /) ?? []).slice(1).map(Number);
+    expect(x0).toBeCloseTo(g.gateX - 120, 1);
+    expect(y0).toBeCloseTo(waveY(x0 as number), 1);
+  });
+});
