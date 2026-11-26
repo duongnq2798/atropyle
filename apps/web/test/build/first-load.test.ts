@@ -149,5 +149,18 @@ for (const target of ['vercel', 'deweb'] as const) {
         }
       }
     });
+
+    // 7C T9: /join/ checks the link's checksum through the SDK's toAddress, after its first paint; the email pages
+    // never read the chain. None of the three loads viem or the SDK first.
+    it('loads viem and the SDK in no first-load script of /join/ and the email pages', () => {
+      const markers = [...LAZY.viem.markers, ...LAZY['the SDK'].markers];
+      for (const page of ['join/index.html', 'alerts/confirm/index.html', 'alerts/unsubscribe/index.html']) {
+        expect(pages.map(name)).toContain(page);
+        for (const file of firstLoad(out, join(out, ...page.split('/')))) {
+          const code = readFileSync(file, 'utf8');
+          for (const marker of markers) expect(marker.test(code), `${page} loads ${name(file)}: ${marker}`).toBe(false);
+        }
+      }
+    });
   });
 }
