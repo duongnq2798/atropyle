@@ -52,11 +52,13 @@ export interface ConfirmFlow {
 
 /**
  * Double opt-in: the page confirms by itself, with one POST per token (Decision 11). The ref keeps that through
- * StrictMode's second effect run. The backend's confirm is idempotent, so Retry after a timeout is safe.
+ * StrictMode's second effect run. The backend's confirm is idempotent, so Retry after a timeout is safe. The
+ * mutation's status, result and error count only for the token it was last sent (`variables`): after a second link
+ * in the same tab, the first link's answer is never shown as the second's.
  */
 export function useConfirmFlow(): ConfirmFlow {
   const read = useHashToken();
-  const { mutate, data, error, status } = useConfirm();
+  const { mutate, data, error, status, variables } = useConfirm();
   const hosted = getApi() !== null;
   const token = read.status === 'found' ? read.token : null;
   const sentFor = useRef<string | null>(null);
@@ -68,15 +70,16 @@ export function useConfirmFlow(): ConfirmFlow {
   const retry = useCallback(() => {
     if (token !== null && hosted) mutate(token);
   }, [token, hosted, mutate]);
+  const mine = token !== null && variables === token;
   let state: ConfirmState;
   if (read.status === 'reading') state = 'reading';
   else if (read.status === 'invalid') state = 'invalid';
   else if (!hosted) state = 'hostedOnly';
-  else if (status === 'success') state = 'done';
-  else if (status === 'error') state = 'error';
+  else if (mine && status === 'success') state = 'done';
+  else if (mine && status === 'error') state = 'error';
   // idle until the effect sends, then pending
   else state = 'working';
-  return { state, result: data ?? null, error: error ?? null, retry };
+  return { state, result: mine ? (data ?? null) : null, error: mine ? (error ?? null) : null, retry };
 }
 
 export type UnsubscribeState = 'reading' | 'invalid' | 'hostedOnly' | 'ready' | 'working' | 'done' | 'error';
@@ -90,11 +93,12 @@ export interface UnsubscribeFlow {
 /**
  * Nothing is sent until the person presses the button: mail scanners open links and may run scripts (Decision 11).
  * The ref holds a second press from mutate() until it settles; the mutation's own status reaches this closure only
- * at the next render (as `sending` of SubscribeForm).
+ * at the next render (as `sending` of SubscribeForm). The status counts only for the token it was last sent
+ * (`variables`): a second link in the same tab is 'ready' until pressed, never "Alerts stopped" from the first.
  */
 export function useUnsubscribeFlow(): UnsubscribeFlow {
   const read = useHashToken();
-  const { mutate, error, status } = useUnsubscribe();
+  const { mutate, error, status, variables } = useUnsubscribe();
   const hosted = getApi() !== null;
   const token = read.status === 'found' ? read.token : null;
   const busy = useRef(false);
@@ -107,13 +111,14 @@ export function useUnsubscribeFlow(): UnsubscribeFlow {
       },
     });
   }, [token, hosted, mutate]);
+  const mine = token !== null && variables === token;
   let state: UnsubscribeState;
   if (read.status === 'reading') state = 'reading';
   else if (read.status === 'invalid') state = 'invalid';
   else if (!hosted) state = 'hostedOnly';
-  else if (status === 'success') state = 'done';
-  else if (status === 'error') state = 'error';
-  else if (status === 'pending') state = 'working';
+  else if (mine && status === 'success') state = 'done';
+  else if (mine && status === 'error') state = 'error';
+  else if (mine && status === 'pending') state = 'working';
   else state = 'ready';
-  return { state, error: error ?? null, stop };
+  return { state, error: mine ? (error ?? null) : null, stop };
 }

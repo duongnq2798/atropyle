@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readToken, TOKEN_RE, useConfirmFlow, useUnsubscribeFlow } from '../../src/app/alerts/token';
+import { readToken, TOKEN_RE, useConfirmFlow, useHashToken, useUnsubscribeFlow } from '../../src/app/alerts/token';
 import { makeWrapper } from '../helpers/render';
 
 const fake = vi.hoisted(() => ({
@@ -127,6 +127,73 @@ describe('email links', () => {
     await waitFor(() => expect(result.current.state).toBe('done'));
     expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
     expect(fake.unsubscribe.mock.calls[0][0]).toBe(TOKEN);
+  });
+
+  it('unsubscribe a second link opened in the same tab only when pressed again, never with the first result', async () => {
+    open(`/alerts/unsubscribe/#t=${TOKEN}`);
+    fake.unsubscribe.mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useUnsubscribeFlow(), { wrapper: strict() });
+    await waitFor(() => expect(result.current.state).toBe('ready'));
+    act(() => result.current.stop());
+    await waitFor(() => expect(result.current.state).toBe('done'));
+    act(() => {
+      open(`/alerts/unsubscribe/#t=${OTHER}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    // A's "Alerts stopped" is not B's: B's alerts keep coming until B is sent.
+    await waitFor(() => expect(result.current.state).toBe('ready'));
+    expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(window.location.href).not.toContain(OTHER);
+    act(() => result.current.stop());
+    await waitFor(() => expect(result.current.state).toBe('done'));
+    expect(fake.unsubscribe).toHaveBeenCalledTimes(2);
+    expect(fake.unsubscribe.mock.calls[1][0]).toBe(OTHER);
+  });
+
+  it('do not carry a failed unsubscribe over to a second link', async () => {
+    open(`/alerts/unsubscribe/#t=${TOKEN}`);
+    fake.unsubscribe.mockRejectedValueOnce(Object.assign(new Error('down'), { name: 'ApiError', code: 'NETWORK' }));
+    const { result } = renderHook(() => useUnsubscribeFlow(), { wrapper: strict() });
+    await waitFor(() => expect(result.current.state).toBe('ready'));
+    act(() => result.current.stop());
+    await waitFor(() => expect(result.current.state).toBe('error'));
+    act(() => {
+      open(`/alerts/unsubscribe/#t=${OTHER}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    await waitFor(() => expect(result.current.state).toBe('ready'));
+    expect(result.current.error).toBeNull();
+    expect(fake.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('never show the first confirmation as the second link’s while the second is on its way', async () => {
+    open(`/alerts/confirm/#t=${TOKEN}`);
+    fake.confirm.mockResolvedValueOnce({ ok: true, vault: VAULT, role: 'heir' });
+    let release: (v: unknown) => void = () => {};
+    fake.confirm.mockReturnValueOnce(new Promise((r) => (release = r)));
+    // States of the renders that have read the second token (a twin read updates in the same commit).
+    const seen: string[] = [];
+    const { result } = renderHook(
+      () => {
+        const flow = useConfirmFlow();
+        const read = useHashToken();
+        if (read.status === 'found' && read.token === OTHER) seen.push(flow.state);
+        return flow;
+      },
+      { wrapper: strict() },
+    );
+    await waitFor(() => expect(result.current.state).toBe('done'));
+    act(() => {
+      open(`/alerts/confirm/#t=${OTHER}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    await waitFor(() => expect(fake.confirm).toHaveBeenCalledTimes(2));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).not.toContain('done');
+    expect(result.current.result).toBeNull();
+    await act(async () => release({ ok: true, vault: VAULT, role: 'owner' }));
+    await waitFor(() => expect(result.current.state).toBe('done'));
+    expect(result.current.result).toEqual({ ok: true, vault: VAULT, role: 'owner' });
   });
 
   it('send nothing for a malformed token, or when this build has no backend', async () => {
