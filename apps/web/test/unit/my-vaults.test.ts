@@ -2,8 +2,10 @@
 import { AtropyleError, factoryAbi, type VaultRef, vaultAbi } from '@atropyle/sdk';
 import { HttpRequestError } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
+import { failedEmpty } from '../../src/chain/hooks';
 import { ME_LIMIT, myVaults } from '../../src/chain/impl/my-vaults';
 import type { Sdk } from '../../src/chain/types';
+import { failedFirst } from '../../src/chain/use-my-vaults';
 import { PEOPLE } from './fixtures';
 
 const FACTORY = '0x1111111111111111111111111111111111111111';
@@ -115,5 +117,17 @@ describe('myVaults', () => {
     f.vaultsOf.mockRejectedValueOnce(boom);
     await expect(myVaults(f.sdk, PEOPLE.owner)).rejects.toBe(boom);
     expect(f.getBlock).not.toHaveBeenCalled();
+  });
+});
+
+describe('failedFirst', () => {
+  it('is failedEmpty of hooks.ts: a read that failed before it had data, and only that', () => {
+    for (const data of [undefined, null, 0, { vaults: [] }]) {
+      for (const status of ['pending', 'error', 'success']) {
+        const q = { state: { data, status } };
+        expect(failedFirst(q), `${String(data)} ${status}`).toBe(failedEmpty(q));
+      }
+    }
+    expect(failedFirst({ state: { data: undefined, status: 'error' } })).toBe(true);
   });
 });
