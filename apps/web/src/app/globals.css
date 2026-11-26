@@ -139,6 +139,11 @@
   --color-on-danger: var(--atro-on-danger);
   --color-line: var(--atro-line);
   --color-line-strong: var(--atro-line-strong);
+  --color-branch-1: var(--atro-branch-1);
+  --color-branch-2: var(--atro-branch-2);
+  --color-branch-3: var(--atro-branch-3);
+  --color-branch-4: var(--atro-branch-4);
+  --color-branch-5: var(--atro-branch-5);
 
   --font-display: "Atropyle Fraunces", "Atropyle Fraunces Fallback", ui-serif, Georgia, serif;
   --font-sans: "Atropyle Inter", "Atropyle Inter Fallback", ui-sans-serif, system-ui, sans-serif;
@@ -199,6 +204,12 @@
   --atro-on-danger: #0b0d12;
   --atro-line: #2a303c;
   --atro-line-strong: #737985;
+  /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
+  --atro-branch-1: #e8b65a;
+  --atro-branch-2: #5ec4e8;
+  --atro-branch-3: #f2879f;
+  --atro-branch-4: #7fd48a;
+  --atro-branch-5: #c99cff;
   --avatar-l: 0.78;
 }
 
@@ -221,6 +232,12 @@
   --atro-on-danger: #fffdf8;
   --atro-line: #ddd3c2;
   --atro-line-strong: #80766a;
+  /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
+  --atro-branch-1: #86590e;
+  --atro-branch-2: #1f6f8b;
+  --atro-branch-3: #b03c78;
+  --atro-branch-4: #2f7a3a;
+  --atro-branch-5: #7048b8;
   --avatar-l: 0.52;
 }
 
@@ -244,6 +261,12 @@
     --atro-on-danger: #fffdf8;
     --atro-line: #ddd3c2;
     --atro-line-strong: #80766a;
+    /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
+    --atro-branch-1: #86590e;
+    --atro-branch-2: #1f6f8b;
+    --atro-branch-3: #b03c78;
+    --atro-branch-4: #2f7a3a;
+    --atro-branch-5: #7048b8;
     --avatar-l: 0.52;
   }
 }

@@ -4,7 +4,7 @@ import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RevealWindow, type RevealWindowHandle, revealTransforms } from '../../src/motion/reveal-window';
 import { SPRING_EASING, SPRING_MS } from '../../src/motion/tokens';
-import type { ThreadAxis } from '../../src/thread/geometry';
+import { pctY, type ThreadAxis, threadSignature, waveY } from '../../src/thread/geometry';
 import { THREAD_STATES } from '../../src/thread/state';
 import { Thread, type ThreadProps } from '../../src/thread/thread';
 
@@ -12,6 +12,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const VAULT = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const AXIS: ThreadAxis = { from: 0n, to: 600n, now: 150n, alarmAt: 450n, releaseAt: 500n, marks: [60n, 120n] };
 const ds = (c: HTMLElement) => [...c.querySelectorAll('path')].map((p) => p.getAttribute('d'));
 const BOXES = ['outer', 'middle', 'inner'] as const;
@@ -34,6 +35,7 @@ const placed = (c: HTMLElement) =>
 const EVERY: ThreadProps[] = THREAD_STATES.flatMap((state) => [
   { state, remaining: 0.3, knots: [0.2], branches: [2, 1], predicted: true, pendingKnot: true, highlight: 0 },
   { state, axis: AXIS, branches: [2, 1] },
+  { state, axis: AXIS, branches: [2, 1], signature: VAULT, posts: { n: 3, k: 2, lit: 1 } },
 ]);
 
 let renders = 0;
@@ -253,6 +255,42 @@ describe('Thread layers (R18.4)', () => {
     expect(knots).toEqual(['10%', '20%']);
     const dots = [...container.querySelectorAll<HTMLElement>('[data-part="dot"]')].map((d) => d.style.left);
     expect(dots).toEqual(['99%', '99%']);
+  });
+
+  it("draws the guardians' posts inside the gate: n posts, a bar over k, the lit ones filled", () => {
+    for (const [n, k, lit] of [
+      [3, 2, 0],
+      [3, 2, 2],
+      [5, 3, 4],
+      [1, 1, 1],
+    ] as const) {
+      const { container, unmount } = render(<Thread state="active" axis={AXIS} posts={{ n, k, lit }} />);
+      const posts = container.querySelector<HTMLElement>('[data-part="gate"] > [data-part="posts"]');
+      expect(posts?.dataset).toMatchObject({ n: String(n), k: String(k), lit: String(lit), met: String(lit >= k) });
+      const each = [...(posts?.querySelectorAll<HTMLElement>('[data-part="post"]') ?? [])];
+      expect(each).toHaveLength(n);
+      expect(each.filter((p) => p.dataset.lit === 'true')).toHaveLength(lit);
+      expect(posts?.querySelectorAll('[data-part="quorum"]')).toHaveLength(1);
+      unmount();
+    }
+    for (const props of [
+      { state: 'active', axis: AXIS, posts: { n: 0, k: 0, lit: 0 } },
+      { state: 'active', posts: { n: 3, k: 2, lit: 1 } },
+    ] as ThreadProps[]) {
+      const { container, unmount } = render(<Thread {...props} />);
+      expect(container.querySelector('[data-part="posts"]')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('a signed thread says so and ties its knots on its own wave; an address-less one does not', () => {
+    const { container } = render(<Thread state="active" axis={AXIS} signature={VAULT} />);
+    expect(container.querySelector('[data-thread]')).toHaveAttribute('data-signed', 'true');
+    const sig = threadSignature(VAULT);
+    const tops = [...container.querySelectorAll<HTMLElement>('[data-part="knot"]')].map((k) => k.style.top);
+    expect(tops).toEqual([60, 120].map((x) => `${pctY(Math.round(waveY(x, sig) * 100) / 100)}%`));
+    const plain = render(<Thread state="active" axis={AXIS} signature="nope" />);
+    expect(plain.container.querySelector('[data-thread]')).not.toHaveAttribute('data-signed');
   });
 
   it('prerenders the window where it rests, so the first paint is the final layout', () => {

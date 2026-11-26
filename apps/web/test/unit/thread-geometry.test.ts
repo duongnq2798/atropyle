@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { LIMITS } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import {
   BEAT_SECONDS,
@@ -8,17 +9,25 @@ import {
   beatOf,
   branchEnds,
   branchWidths,
+  CALM,
   courseX,
   drawnAxis,
   FRAY_X,
   GATE_MAX_X,
   GATE_X,
+  HARMONIC_BANDS,
+  MAX_POSTS,
+  POST_WIDTH,
+  type Point,
   PREDICTED_DASH,
+  postsOf,
   RECOVERY_END,
   smoothPath,
   type ThreadAxis,
   type ThreadInput,
+  type ThreadSignature,
   threadGeometry,
+  threadSignature,
   VIEW,
   waveSegment,
   waveY,
@@ -424,6 +433,280 @@ describe('every path', () => {
         expect(g.litFrom, s).toBeLessThanOrEqual(g.litTo);
       }
     }
+  });
+});
+
+const VAULT = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** A small deterministic generator (as in shares.test.ts): a failure replays with the same seed. */
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 1_664_525) + 1_013_904_223) >>> 0;
+    return s;
+  };
+}
+
+/** n addresses, each five whole 32-bit draws: the low bits of one draw alone would repeat every 16. */
+function addresses(n: number, seed: number): string[] {
+  const next = lcg(seed);
+  return Array.from(
+    { length: n },
+    () => `0x${Array.from({ length: 5 }, () => next().toString(16).padStart(8, '0')).join('')}`,
+  );
+}
+const ADDRESSES = addresses(1_000, 196);
+
+/** Steepest |dy/dx| of a wave, on a 0.5 grid. */
+function steepest(sig?: ThreadSignature | null): number {
+  let max = 0;
+  for (let x = 0; x < VIEW.w; x += 0.5) max = Math.max(max, Math.abs(waveY(x + 0.5, sig) - waveY(x, sig)) / 0.5);
+  return max;
+}
+
+/** Where a wave turns from rising to falling or back, on a 0.5 grid. */
+function turns(sig: ThreadSignature): number[] {
+  const out: number[] = [];
+  let prev = 0;
+  for (let x = 0; x < VIEW.w; x += 0.5) {
+    const s = Math.sign(waveY(x + 0.5, sig) - waveY(x, sig));
+    if (s !== 0 && prev !== 0 && s !== prev) out.push(x);
+    if (s !== 0) prev = s;
+  }
+  return out;
+}
+
+/** The y of a smoothPath (M then C segments) at x: bisection on the segment that holds x. */
+function pathY(d: string, x: number): number {
+  const n = d.replace(/[MC]/g, ' ').trim().split(/\s+/).map(Number);
+  let p: Point = [n[0], n[1]];
+  for (let i = 2; i + 5 < n.length; i += 6) {
+    const c: Point[] = [p, [n[i], n[i + 1]], [n[i + 2], n[i + 3]], [n[i + 4], n[i + 5]]];
+    if (x >= c[0][0] && x <= c[3][0]) {
+      const at = (t: number, k: 0 | 1) => {
+        const u = 1 - t;
+        return u * u * u * c[0][k] + 3 * u * u * t * c[1][k] + 3 * u * t * t * c[2][k] + t * t * t * c[3][k];
+      };
+      let lo = 0;
+      let hi = 1;
+      for (let j = 0; j < 40; j++) {
+        const m = (lo + hi) / 2;
+        if (at(m, 0) < x) lo = m;
+        else hi = m;
+      }
+      return at((lo + hi) / 2, 1);
+    }
+    p = c[3];
+  }
+  return Number.NaN;
+}
+
+const SIGNED_AXIS: ThreadAxis = {
+  from: 0n,
+  to: 600n,
+  now: 250n,
+  alarmAt: 450n,
+  releaseAt: 500n,
+  marks: [60n, 120n, 300n],
+};
+
+describe('the vault thread (spec §18.4.2 T6, R18.3)', () => {
+  it('reads three harmonics from the address, the same in any case, and nothing from what is not an address', () => {
+    const sig = threadSignature(VAULT);
+    // Pinned: the heirs must see the very thread the owner saw, in every release of the app.
+    const want = [
+      { f: 1.5 + (0.5 * 54) / 63, phase: (2 * Math.PI * 13) / 64, w: 0.7844426771075492 },
+      { f: 2 + 41 / 63, phase: (2 * Math.PI * 5) / 64, w: 0.13379420041600393 },
+      { f: 3 + 4 / 63, phase: (2 * Math.PI * 4) / 64, w: 0.08176312247644685 },
+    ];
+    expect(sig).toHaveLength(3);
+    for (const [i, h] of (sig ?? []).entries()) {
+      expect(h.f, `f${i}`).toBeCloseTo(want[i].f, 12);
+      expect(h.phase, `phase${i}`).toBeCloseTo(want[i].phase, 12);
+      expect(h.w, `w${i}`).toBeCloseTo(want[i].w, 12);
+    }
+    const hex = VAULT.slice(2);
+    expect(threadSignature(`0x${hex.toLowerCase()}`)).toEqual(sig);
+    expect(threadSignature(`0x${hex.toUpperCase()}`)).toEqual(sig);
+    expect(threadSignature(`  ${VAULT} `)).toEqual(sig);
+    for (const text of ['', 'nope', '0x1234', `${VAULT}00`, `0X${hex}`, `0x${'g'.repeat(40)}`]) {
+      expect(threadSignature(text), text).toBeNull();
+    }
+  });
+
+  it('gives 1,000 seeded addresses each its own calm wave inside the band', () => {
+    const DEFAULT = steepest();
+    const seen = new Set<string>();
+    for (const a of ADDRESSES) {
+      const sig = threadSignature(a);
+      if (!sig) throw new Error(a);
+      seen.add(JSON.stringify(sig));
+      expect(
+        sig.reduce((s, h) => s + h.w, 0),
+        a,
+      ).toBeCloseTo(1, 12);
+      for (const [i, h] of sig.entries()) {
+        expect(h.f, a).toBeGreaterThanOrEqual(HARMONIC_BANDS[i][0]);
+        expect(h.f, a).toBeLessThanOrEqual(HARMONIC_BANDS[i][1]);
+        expect(h.phase, a).toBeGreaterThanOrEqual(0);
+        expect(h.phase, a).toBeLessThan(2 * Math.PI);
+        expect(h.w, a).toBeGreaterThan(0);
+      }
+      // The clamp: the higher harmonics turn the slope at most CALM of what the first one does.
+      expect(sig[1].w * sig[1].f + sig[2].w * sig[2].f, a).toBeLessThanOrEqual(CALM * sig[0].w * sig[0].f + 1e-12);
+      // Every sample, through its lowest and highest: one expect per bound, as 1.2 million calls would take half a minute.
+      let lo = Number.POSITIVE_INFINITY;
+      let hi = Number.NEGATIVE_INFINITY;
+      for (let x = 0; x <= VIEW.w; x += 1) {
+        const y = waveY(x, sig);
+        lo = Math.min(lo, y);
+        hi = Math.max(hi, y);
+      }
+      expect(lo, a).toBeGreaterThanOrEqual(VIEW.mid - VIEW.amp);
+      expect(hi, a).toBeLessThanOrEqual(VIEW.mid + VIEW.amp);
+      expect(steepest(sig), a).toBeLessThanOrEqual(2 * DEFAULT);
+      const t = turns(sig);
+      for (let i = 1; i < t.length; i++) expect(t[i] - t[i - 1], a).toBeGreaterThanOrEqual(VIEW.w / 6);
+    }
+    expect(seen.size).toBe(ADDRESSES.length);
+  });
+
+  it('puts the knots, "now" and the gate on the signed wave, and the drawn course passes through them', () => {
+    for (const a of ADDRESSES) {
+      const sig = threadSignature(a);
+      const g = threadGeometry('active', { axis: SIGNED_AXIS, signature: a });
+      expect(g.signed, a).toBe(true);
+      expect(g.knots, a).toHaveLength(3);
+      for (const [x, y] of [...g.knots, g.gate as Point, g.now as Point]) {
+        expect(y, `${a} at ${x}`).toBe(r2(waveY(x, sig)));
+        expect(y, `${a} at ${x}`).toBeGreaterThanOrEqual(VIEW.mid - VIEW.amp);
+        expect(y, `${a} at ${x}`).toBeLessThanOrEqual(VIEW.mid + VIEW.amp);
+        expect(Math.abs(pathY(g.track, x) - y), `${a} at ${x}`).toBeLessThanOrEqual(0.5);
+      }
+    }
+  });
+
+  it('starts every branch, strand, bend and curl on the signed wave', () => {
+    // How many of the 50 waves stand apart from the default one at BEND_X (seeded, so always the same count).
+    let bentApart = 0;
+    for (const a of ADDRESSES.slice(0, 50)) {
+      const sig = threadSignature(a);
+      const at = (x: number) => `M${r2(x)} ${r2(waveY(x, sig))}`;
+      const released = threadGeometry('releasedInherit', { axis: SIGNED_AXIS, signature: a, branches: [2, 1] });
+      for (const b of released.branches) expect(b.d.startsWith(`${at(500)} `), a).toBe(true);
+      expect(released.lit.startsWith(waveSegment(0, 500, undefined, sig)), a).toBe(true);
+      const grace = threadGeometry('grace', { axis: SIGNED_AXIS, signature: a });
+      for (const f of grace.fibers) expect(f.startsWith(`${at(450)} `), a).toBe(true);
+      const recovery = threadGeometry('recovery', { axis: SIGNED_AXIS, signature: a });
+      expect(recovery.gate, a).toEqual([GATE_MAX_X, r2(waveY(GATE_MAX_X, sig))]);
+      expect(recovery.ghost, a).toBe(waveSegment(GATE_MAX_X, VIEW.w, undefined, sig));
+      expect(threadGeometry('expired', { signature: a }).curl?.startsWith(`${at(BEND_X)} `), a).toBe(true);
+
+      // Without an axis: the strands of grace leave the thread at FRAY_X (fy).
+      const graceFree = threadGeometry('grace', { signature: a, remaining: 0.5 });
+      expect(graceFree.fibers, a).toHaveLength(3);
+      for (const f of graceFree.fibers) expect(f.startsWith(`${at(FRAY_X)} `), a).toBe(true);
+      // Without an axis: the knots and "now" of active, at fractions of VIEW.w.
+      const activeFree = threadGeometry('active', { signature: a, remaining: 0.5, knots: [0.1, 0.5] });
+      expect(
+        activeFree.knots.map(([x]) => x),
+        a,
+      ).toEqual([60, 300]);
+      expect(activeFree.now?.[0], a).toBe(300);
+      for (const [x, y] of [...activeFree.knots, activeFree.now as Point]) {
+        expect(y, `${a} at ${x}`).toBe(r2(waveY(x, sig)));
+      }
+      // Without an axis: the recovery bends at BEND_X, on the signed wave, and the ghost runs on from there.
+      const recoveryFree = threadGeometry('recovery', { signature: a });
+      const [ex, ey] = RECOVERY_END;
+      expect(recoveryFree.lit, a).toBe(
+        `${waveSegment(0, BEND_X, undefined, sig)} C${BEND_X + 90} ${r2(waveY(BEND_X, sig))} ${ex - 70} ${ey} ${ex} ${ey}`,
+      );
+      expect(recoveryFree.ghost, a).toBe(waveSegment(BEND_X, VIEW.w, undefined, sig));
+      // Not the default wave by chance: at these x every one of the 50 waves has another y.
+      for (const x of [60, 300, FRAY_X]) expect(r2(waveY(x, sig)), `${a} at ${x}`).not.toBe(r2(waveY(x)));
+      if (r2(waveY(BEND_X, sig)) !== r2(waveY(BEND_X))) bentApart++;
+    }
+    // At BEND_X one of the 50 waves crosses the default one; the other 49 test the bend for real.
+    expect(bentApart).toBe(49);
+  });
+
+  it('without a signature, or with one that is not an address, draws exactly what it drew before', () => {
+    const inputs: ThreadInput[] = [
+      { remaining: 0.3, knots: [0.1, 0.5] },
+      { axis: SIGNED_AXIS, branches: [2, 1] },
+      { axis: { ...SIGNED_AXIS, now: 599n }, predicted: true, pendingKnot: true, highlight: 1 },
+    ];
+    for (const s of THREAD_STATES)
+      for (const input of inputs) {
+        const plain = threadGeometry(s, input);
+        expect(plain.signed, s).toBe(false);
+        for (const signature of [undefined, '', 'nope', '0x1234']) {
+          expect(threadGeometry(s, { ...input, signature }), `${s} ${signature}`).toEqual(plain);
+        }
+      }
+    for (let x = 0; x <= VIEW.w; x += 13) {
+      expect(waveY(x, null)).toBe(waveY(x));
+      expect(waveY(x, undefined)).toBe(waveY(x));
+    }
+    expect(waveSegment(0, VIEW.w, undefined, null)).toBe(waveSegment(0, VIEW.w));
+  });
+
+  it('samples a signed wave twice as finely, so the curve stays on it', () => {
+    const sig = threadSignature(VAULT);
+    expect(waveSegment(0, VIEW.w, undefined, sig).match(/C/g)).toHaveLength(32);
+    expect(waveSegment(0, VIEW.w).match(/C/g)).toHaveLength(16);
+    expect(waveSegment(0, VIEW.w, 8, sig).match(/C/g)).toHaveLength(8);
+  });
+});
+
+describe("the guardians' posts (spec §18.4.2 T6)", () => {
+  it('stands n posts from 0 to 5, a bar over the first k, the lit ones counted, all inside the gate', () => {
+    expect(MAX_POSTS).toBe(LIMITS.maxGuardians);
+    for (let n = 0; n <= MAX_POSTS; n++)
+      for (let k = 0; k <= n; k++)
+        for (let lit = 0; lit <= n; lit++) {
+          const p = postsOf({ n, k, lit });
+          if (n === 0) {
+            expect(p).toBeNull();
+            continue;
+          }
+          if (!p) throw new Error(`${n} ${k} ${lit}`);
+          expect(p).toMatchObject({ n, k, lit });
+          expect(p.left).toHaveLength(n);
+          for (const [i, x] of p.left.entries()) {
+            expect(x).toBeGreaterThanOrEqual(0);
+            expect(x + POST_WIDTH).toBeLessThanOrEqual(100);
+            if (i > 0) expect(x).toBeGreaterThan(p.left[i - 1] + POST_WIDTH);
+          }
+          // Centred: as much room on the left as on the right.
+          expect(p.left[0]).toBeCloseTo(100 - (p.left[n - 1] + POST_WIDTH), 1);
+          if (k === 0) expect(p.bar).toBeNull();
+          else {
+            expect(p.bar?.left).toBeCloseTo(p.left[0], 2);
+            expect((p.bar?.left ?? 0) + (p.bar?.width ?? 0)).toBeCloseTo(p.left[k - 1] + POST_WIDTH, 1);
+          }
+        }
+  });
+
+  it('clamps what it cannot draw: never more than MAX_POSTS, k and lit never above n, nothing for NaN', () => {
+    expect(postsOf({ n: 9, k: 7, lit: 8 })).toMatchObject({ n: 5, k: 5, lit: 5 });
+    expect(postsOf({ n: 3, k: -1, lit: Number.NaN })).toMatchObject({ n: 3, k: 0, lit: 0, bar: null });
+    expect(postsOf({ n: 2.7, k: 1.9, lit: 1 })).toMatchObject({ n: 2, k: 1, lit: 1 });
+    expect(postsOf({ n: Number.NaN, k: 1, lit: 1 })).toBeNull();
+    expect(postsOf(undefined)).toBeNull();
+  });
+
+  it('stands only where a gate stands', () => {
+    const posts = { n: 3, k: 2, lit: 1 };
+    expect(threadGeometry('active', { posts }).posts).toBeNull();
+    expect(threadGeometry('active', { axis: SIGNED_AXIS, posts }).posts).toMatchObject(posts);
+    expect(threadGeometry('grace', { axis: SIGNED_AXIS, posts }).posts).toMatchObject(posts);
+    expect(threadGeometry('releasedInherit', { axis: SIGNED_AXIS, posts, branches: [1] }).posts).toMatchObject(posts);
+    expect(threadGeometry('recovery', { posts }).posts).toBeNull();
+    expect(threadGeometry('expired', { axis: SIGNED_AXIS, posts }).posts).toBeNull();
+    expect(threadGeometry('active', { axis: SIGNED_AXIS }).posts).toBeNull();
   });
 });
 

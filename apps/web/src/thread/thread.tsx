@@ -6,11 +6,14 @@ import { RevealWindow, type RevealWindowHandle, useMoveWith } from '@/motion/rev
 import { THREAD_VT_NAME } from '@/motion/view-transition';
 import {
   MAIN_WIDTH,
+  POST_HEIGHT,
+  POST_WIDTH,
   type Point,
   pctX,
   pctY,
   type ThreadBeat,
   type ThreadInput,
+  type ThreadPosts,
   type ThreadTone,
   threadGeometry,
   VIEW,
@@ -82,6 +85,46 @@ function NowAt({ at: [x, y], pending }: { at: Point; pending: boolean }) {
   );
 }
 
+/**
+ * The guardians' posts at the gate (spec §18.4.2 T6): one per guardian, a bar over the k who must confirm, the ones
+ * who confirmed filled. HTML in percent of the gate's box (POST_WIDTH, POST_HEIGHT), so nothing stretches (R18.4);
+ * nothing here ever moves.
+ */
+function Posts({ posts: p }: { posts: ThreadPosts }) {
+  const met = p.k > 0 && p.lit >= p.k;
+  return (
+    <span
+      data-part="posts"
+      data-n={p.n}
+      data-k={p.k}
+      data-lit={p.lit}
+      data-met={met ? 'true' : 'false'}
+      className="absolute inset-x-0 bottom-0"
+      style={{ height: `${POST_HEIGHT}%` }}
+    >
+      {p.left.map((left, i) => (
+        <span
+          key={left}
+          data-part="post"
+          data-lit={i < p.lit ? 'true' : 'false'}
+          className={cn(
+            'absolute bottom-0 h-full min-w-px rounded-t-[1px]',
+            i < p.lit ? 'bg-current' : 'bg-line-strong',
+          )}
+          style={{ left: `${left}%`, width: `${POST_WIDTH}%` }}
+        />
+      ))}
+      {p.bar ? (
+        <span
+          data-part="quorum"
+          className={cn('absolute top-0 h-0.5 -translate-y-full rounded-full', met ? 'bg-current' : 'bg-ink-muted')}
+          style={{ left: `${p.bar.left}%`, width: `${p.bar.width}%` }}
+        />
+      ) : null}
+    </span>
+  );
+}
+
 /** A root SVG of the Thread: the view stretched to the box. Only the root itself ever animates. */
 function Svg(p: { layer: 'base' | 'glow' | 'lit'; beat?: ThreadBeat; className?: string; children: ReactNode }) {
   return (
@@ -117,14 +160,30 @@ export function Thread({
   predicted,
   pendingKnot,
   highlight,
+  signature,
+  posts,
   label,
   shared = false,
   revealRef,
   className,
 }: ThreadProps) {
+  const postsN = posts?.n;
+  const postsK = posts?.k;
+  const postsLit = posts?.lit;
   const g = useMemo(
-    () => threadGeometry(state, { remaining, knots, branches, axis, predicted, pendingKnot, highlight }),
-    [state, remaining, knots, branches, axis, predicted, pendingKnot, highlight],
+    () =>
+      threadGeometry(state, {
+        remaining,
+        knots,
+        branches,
+        axis,
+        predicted,
+        pendingKnot,
+        highlight,
+        signature,
+        posts: postsN === undefined ? undefined : { n: postsN, k: postsK ?? 0, lit: postsLit ?? 0 },
+      }),
+    [state, remaining, knots, branches, axis, predicted, pendingKnot, highlight, signature, postsN, postsK, postsLit],
   );
   const dash = g.dash ?? undefined;
   // Set whenever the prop is, in every state; only the branch styling needs an index that names a branch.
@@ -136,6 +195,7 @@ export function Thread({
     'data-predicted': predicted ? 'true' : undefined,
     'data-pending-knot': pendingKnot ? 'true' : undefined,
     'data-highlight': highlighted,
+    'data-signed': g.signed ? 'true' : undefined,
     className: cn('pointer-events-none relative aspect-[5/1] overflow-clip', THREAD_COLOR[state], className),
     // Named on the element itself, so it is named in every transition, also the ones NavLink starts. React's
     // <ViewTransition name> names an element only inside a transition React starts (Task 15, outcome B).
@@ -236,13 +296,14 @@ export function Thread({
 
       <div data-layer="marks" data-highlight={highlighted} className="absolute inset-0">
         {g.gate ? (
-          // The slot of the guardians' posts (Plan 7B): they go inside this box, next to the arch.
+          // The guardians' posts stand inside this box, under the arch.
           <span
             data-part="gate"
             className="absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2"
             style={at(g.gate)}
           >
             <span data-part="arch" className="absolute inset-0 rounded-t-full border-2 border-ink-muted border-b-0" />
+            {g.posts ? <Posts posts={g.posts} /> : null}
           </span>
         ) : null}
         {g.knots.map((k) => (
