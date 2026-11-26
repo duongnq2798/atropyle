@@ -156,6 +156,12 @@ describe('/join/ for an heir', () => {
     expect(screen.getByText(/The vault address in the link is not valid/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/');
     expect(screen.queryByTestId('subscribe-stub')).toBeNull();
+    // An edited link is what a scam looks like: the safety rules stay, without the address line it cannot show.
+    const safety = within(screen.getByRole('region', { name: 'Stay safe' })).getAllByRole('listitem');
+    expect(safety.map((li) => li.textContent)).toEqual([
+      'Atropyle never asks for your secret phrase or private key, and never contacts you first.',
+      'This page asks you to sign nothing.',
+    ]);
   });
 
   it('says there is no vault for an address that is not one, or that the factory did not make', async () => {

@@ -43,6 +43,7 @@ export function ConfirmView({ state, result, error, onRetry }: ConfirmViewProps)
     title = t('confirmTitle');
     said = state === 'reading' ? t('saidReading') : t('saidConfirming');
     icon = <StateIcon tone="busy" />;
+    body = <p className="text-pretty text-ink-muted text-lead">{t('confirmWorking')}</p>;
   } else if (state === 'invalid') {
     title = t('invalidTitle');
     said = title;

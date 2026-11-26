@@ -30,6 +30,7 @@ export const messages = defineMessages(
     unsubError: 'The alerts could not be stopped',
     saidReading: 'Reading your link…',
     saidConfirming: 'Confirming…',
+    confirmWorking: 'One moment: this page is telling Atropyle that this email address is yours. Nothing else is sent.',
     tokenNote:
       'The code from your link is no longer in the address bar, so a screenshot or a shared address cannot reveal it.',
     privacyLead: 'What Atropyle keeps, and for how long:',
@@ -65,6 +66,8 @@ export const messages = defineMessages(
     unsubError: 'Chưa ngừng được cảnh báo',
     saidReading: 'Đang đọc link của bạn…',
     saidConfirming: 'Đang xác nhận…',
+    confirmWorking:
+      'Chờ một chút: trang này đang báo cho Atropyle rằng địa chỉ email này là của bạn. Không gửi gì khác.',
     tokenNote: 'Mã trong link không còn trên thanh địa chỉ, nên ảnh chụp màn hình hay địa chỉ chia sẻ không làm lộ nó.',
     privacyLead: 'Atropyle giữ gì, và giữ bao lâu:',
   },

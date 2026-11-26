@@ -199,6 +199,8 @@ function Problem({ icon, title, children }: { icon: ReactNode; title: string; ch
       <NavLink href={ROUTES.home} className={buttonClass({ variant: 'secondary' })}>
         {t('home')}
       </NavLink>
+      {/* A broken or edited link is what a scam looks like: the same safety rules, without the address to check. */}
+      <Safety address={false} />
     </div>
   );
 }
@@ -415,12 +417,13 @@ function Steps({ lines }: { lines: string[] }) {
   );
 }
 
-function Safety() {
+/** `address`: the page shows a vault address the reader can check against what the owner told them. */
+function Safety({ address = true }: { address?: boolean }) {
   const t = useT(messages);
   return (
     <section
       aria-labelledby="join-safety"
-      className="flex flex-col gap-4 rounded-3xl border border-line bg-surface-2 p-5 sm:p-6"
+      className="flex w-full flex-col gap-4 rounded-3xl border border-line bg-surface-2 p-5 sm:p-6"
     >
       <h2 id="join-safety" className="flex items-center gap-2 font-medium text-body text-ink">
         <ShieldCheck aria-hidden="true" size={20} strokeWidth={1.5} className="shrink-0 text-alive" />
@@ -429,7 +432,7 @@ function Safety() {
       <ul className="flex list-disc flex-col gap-2 pl-5 text-pretty text-ink-muted text-small marker:text-line-strong">
         <li>{t('safety1')}</li>
         <li>{t('safety2')}</li>
-        <li>{t('safety3')}</li>
+        {address ? <li>{t('safety3')}</li> : null}
       </ul>
     </section>
   );

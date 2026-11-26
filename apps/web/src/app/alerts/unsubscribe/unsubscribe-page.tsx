@@ -41,6 +41,7 @@ export function UnsubscribeView({ state, error, onStop }: UnsubscribeViewProps) 
       title = t('unsubTitle');
       said = t('saidReading');
       icon = <StateIcon tone="busy" />;
+      body = <p className="text-pretty text-ink-muted text-lead">{t('saidReading')}</p>;
       break;
     case 'invalid':
       title = t('invalidTitle');

@@ -44,6 +44,13 @@ describe('the confirm page', () => {
     expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy/');
   });
 
+  it('says what it is doing while it confirms', () => {
+    renderWithProviders(<ConfirmView state="working" result={null} error={null} onRetry={noop} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Confirming your email alerts' })).toBeInTheDocument();
+    expect(screen.getByText(/this page is telling Atropyle that this email address is yours/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Confirming…');
+  });
+
   it('calls an unknown token expired, with no Retry, and points to the vaults', () => {
     renderWithProviders(
       <ConfirmView state="error" result={null} error={new ApiError('TOKEN_INVALID', 404, 'x')} onRetry={noop} />,
