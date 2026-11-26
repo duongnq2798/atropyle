@@ -23,7 +23,7 @@
    - Sau khi vault release, keeper tự `distribute`, nên người thừa kế không cần biết dùng crypto vẫn nhận được tài sản.
    - Khi keeper chết, ai cũng có thể tự gọi hai hàm này.
 7. **Sản phẩm vẫn chạy khi server của chúng tôi chết.** Web app, CLI, MCP stdio và SDK đều nói chuyện thẳng với RPC của X Layer. Bản web trên DeWEB không gọi Worker, để giữ badge "100% on-chain" (§11.2).
-8. **Số liệu thật, lấy từ chain.** Số vault, số Drill, số lần check-in, báo động và release được đếm từ event, hiện ở trang chủ, và xuất ra `TRACTION.md` bằng một lệnh. Giám khảo tự kiểm lại được.
+8. **Số liệu thật, lấy từ chain.** Số vault, số Drill, số lần check-in, báo động và release được đếm từ event, hiện ở trang Status (trang chủ có link tới đó), và xuất ra `TRACTION.md` bằng một lệnh. Giám khảo tự kiểm lại được.
 
 ## 1. Mục tiêu và căn cứ
 
@@ -636,7 +636,7 @@ Thiết kế dự kiến được ghi trong roadmap: mã hoá trên trình duy�
   - `/health` trả `ok` hoặc `degraded`, kèm: hai RPC có truy cập được không, tuổi của lần cron gần nhất, độ trễ của cursor so với đầu chain, kết quả integrity, số dư ví keeper.
 - **Cảnh báo vận hành** gửi tới `OPS_CHAT_ID`: integrity hỏng, cron dừng quá 5 phút, ví keeper sắp cạn, keeper gửi giao dịch thất bại.
 - **Trang `#/status`** tự kiểm integrity trực tiếp trên chain. Bản mirror trên GitHub Pages đọc thêm `/health`; bản DeWEB thì không, để giữ badge (§11.2).
-- **Traction:** `stats()` hiện ở trang chủ. `npm run traction` ghi `TRACTION.md` (số liệu, block, thời điểm, và cách tự kiểm lại); bản cuối được commit trước khi nộp.
+- **Traction:** `stats()` hiện ở trang Status, trang chủ có link tới đó. `npm run traction` ghi `TRACTION.md` (số liệu, block, thời điểm, và cách tự kiểm lại); bản cuối được commit trước khi nộp.
 - **SDK:** hook `logger` (thời gian RPC, retry, kết quả mô phỏng). Không có telemetry.
 - **CLI:** `--verbose` in từng RPC call. `doctor --json` tạo bản chẩn đoán; người dùng tự quyết có chia sẻ hay không.
 - **Web:** nút "Copy diagnostics". Không có tracker bên thứ ba.
@@ -659,7 +659,7 @@ Thiết kế dự kiến được ghi trong roadmap: mã hoá trên trình duy�
 - **`#/proof`:** chạy `verifyPolicy` trong Web Worker.
 - **`#/status`:** như §14.
 - **`#/developers`:** link docs, npm, lệnh thêm MCP và lệnh cài plugin.
-- **Trang chủ:** số liệu `stats()` đọc thẳng từ chain, cache trong `localStorage`.
+- **Trang chủ:** một dòng link tới `#/status`, nơi có số liệu `stats()` đọc thẳng từ chain (cache trong `localStorage`) và bộ đếm từ chain.
 
 ## 16. Bảo mật và độ tin cậy
 

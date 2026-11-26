@@ -3,27 +3,13 @@ import { useState } from 'preact/hooks';
 import type { Address } from 'viem';
 import { href } from '../lib/route';
 import type { Sdk } from '../lib/sdk';
-import { type CachedStats, loadStats, type StatTileId, saveStats, statsTiles } from '../lib/stats-view';
 import { useApp, useT } from '../ui/app-context';
-import { ChainCountersCard, type CountersLoad, HOME_MAX_VAULTS } from '../ui/chain-counters';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, ErrorBox } from '../ui/components';
 import { messages as labels, ROLE_KEY, STATE_KEY } from '../ui/labels.messages';
+import { messages as shell } from '../ui/shell.messages';
 import { useAsync } from '../ui/use-async';
 import { messages } from './home.messages';
-
-type HomeKey = keyof typeof messages.en;
-
-const TILE = {
-  vaults: 'tileVaults',
-  paid: 'tilePaid',
-  drill: 'tileDrill',
-  owners: 'tileOwners',
-  checkIns: 'tileCheckIns',
-  alarms: 'tileAlarms',
-  releases: 'tileReleases',
-  distributions: 'tileDistributions',
-} as const satisfies Record<StatTileId, HomeKey>;
 
 function OpenVault() {
   const t = useT(messages);
@@ -122,65 +108,10 @@ function MyVaults({ sdk }: { sdk: Sdk }) {
   );
 }
 
-/** Reads the chain only when the button is pressed (plan decision 17); the cached counts show without a request. */
-function StatsPanel({ sdk }: { sdk: Sdk }) {
-  const app = useApp();
+/** The chain counts and the full count live on the status page; the home page links there in one line. */
+export function HomePage({ sdk }: { sdk: Sdk }) {
   const t = useT(messages);
-  const d = sdk.deployment;
-  const [cached, setCached] = useState<CachedStats | null>(() => loadStats(app.kv, d.chainId, d.factory));
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [error, setError] = useState<unknown>(null);
-
-  const run = async () => {
-    setError(null);
-    setProgress({ done: 0, total: 0 });
-    try {
-      const s = await sdk.atro.stats({
-        resume: cached?.cursor,
-        onProgress: (done, total) => setProgress({ done, total }),
-      });
-      setCached(saveStats(app.kv, d.chainId, d.factory, s, Date.now()));
-    } catch (e) {
-      setError(e);
-    } finally {
-      setProgress(null);
-    }
-  };
-
-  return (
-    <section class="card stack" data-testid="stats">
-      <h2>{t('statsTitle')}</h2>
-      {cached ? (
-        <>
-          <div class="grid2">
-            {statsTiles(cached.stats).map((tile) => (
-              <div key={tile.id} class="stack" data-testid={`stat-${tile.id}`} data-value={tile.value}>
-                <strong class="mono">{tile.value}</strong>
-                <span class="muted">{t(TILE[tile.id])}</span>
-              </div>
-            ))}
-          </div>
-          <p class="muted">{t('statsAsOf', { block: cached.stats.toBlock })}</p>
-        </>
-      ) : (
-        <p class="muted">{t('statsNone')}</p>
-      )}
-      {progress ? (
-        <progress data-testid="stats-progress" value={progress.done} max={progress.total || 1} />
-      ) : (
-        <button type="button" class="btn" data-testid="stats-load" onClick={run}>
-          {cached ? t('statsUpdate') : t('statsLoad')}
-        </button>
-      )}
-      <p class="muted">{t('statsNote')}</p>
-      {error ? <ErrorBox error={error} onRetry={run} /> : null}
-    </section>
-  );
-}
-
-/** `counters` is a seam for unit tests; the app reads the chain. */
-export function HomePage({ sdk, counters }: { sdk: Sdk; counters?: CountersLoad }) {
-  const t = useT(messages);
+  const s = useT(shell);
   return (
     <div class="stack">
       <section class="card stack">
@@ -199,10 +130,15 @@ export function HomePage({ sdk, counters }: { sdk: Sdk; counters?: CountersLoad 
         </div>
         <p class="muted">{t('drillNote')}</p>
       </section>
-      <ChainCountersCard sdk={sdk} maxVaults={HOME_MAX_VAULTS} load={counters} />
+      <p class="muted" data-testid="home-status-note">
+        {t('statusNote')}{' '}
+        <a href={href({ name: 'status' })} data-testid="home-status-link">
+          {s('navStatus')}
+        </a>
+        .
+      </p>
       <OpenVault />
       <MyVaults sdk={sdk} />
-      <StatsPanel sdk={sdk} />
     </div>
   );
 }

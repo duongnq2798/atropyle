@@ -10,6 +10,7 @@ import { useApp, useT } from '../ui/app-context';
 import { ChainCountersCard, type CountersLoad, STATUS_MAX_VAULTS } from '../ui/chain-counters';
 import { messages as common } from '../ui/common.messages';
 import { AddressText, Banner, CopyButton, ErrorBox, UntrustedText } from '../ui/components';
+import { StatsPanel } from '../ui/stats-panel';
 import { type AsyncState, useAsync } from '../ui/use-async';
 import { messages } from './status.messages';
 
@@ -40,28 +41,42 @@ function IntegrityView({ report }: { report: IntegrityReport }) {
           {w.message}
         </Banner>
       ))}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>{t('colCheck')}</th>
-            <th>{t('colResult')}</th>
-            <th>{t('colExpected')}</th>
-            <th>{t('colActual')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.checks.map((x) => (
-            <tr key={x.name} data-ok={String(x.ok)}>
-              <td class="mono">{x.name}</td>
-              <td>
-                <Verdict ok={x.ok} />
-              </td>
-              <td class="mono">{x.expected === undefined ? '' : <UntrustedText value={x.expected} max={80} />}</td>
-              <td class="mono">{x.actual === undefined ? '' : <UntrustedText value={x.actual} max={80} />}</td>
+      {/* Fixed columns: Expected and Found have the same width, so one hash breaks at the same character in both.
+          On a phone each check is stacked: name and verdict, then Expected and Found at full width. */}
+      <div class="table-wrap">
+        <table class="table table-fixed table-stack" data-testid="status-checks">
+          <colgroup>
+            <col class="col-check" />
+            <col class="col-result" />
+            <col class="col-value" />
+            <col class="col-value" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{t('colCheck')}</th>
+              <th>{t('colResult')}</th>
+              <th>{t('colExpected')}</th>
+              <th>{t('colActual')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {report.checks.map((x) => (
+              <tr key={x.name} data-ok={String(x.ok)}>
+                <td class="mono">{x.name}</td>
+                <td>
+                  <Verdict ok={x.ok} />
+                </td>
+                <td class="mono wrap-anywhere" data-label={t('colExpected')}>
+                  {x.expected === undefined ? null : <UntrustedText value={x.expected} max={80} />}
+                </td>
+                <td class="mono wrap-anywhere" data-label={t('colActual')}>
+                  {x.actual === undefined ? null : <UntrustedText value={x.actual} max={80} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -69,32 +84,34 @@ function IntegrityView({ report }: { report: IntegrityReport }) {
 function ProbeTable({ probes }: { probes: readonly RpcProbe[] }) {
   const t = useT(messages);
   return (
-    <table class="table" data-testid="status-rpcs">
-      <thead>
-        <tr>
-          <th>{t('colRpc')}</th>
-          <th>{t('colResult')}</th>
-          <th>{t('colBlock')}</th>
-          <th>{t('colMs')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {probes.map((p, i) => (
-          <tr key={p.url} data-testid={`status-rpc-${i}`} data-ok={String(p.ok)}>
-            <td class="mono">{p.url}</td>
-            <td>
-              {p.ok ? (
-                <span class="badge badge-ok">{t('reachable')}</span>
-              ) : (
-                <span class="badge badge-bad">{p.error}</span>
-              )}
-            </td>
-            <td class="mono">{p.block === null ? '' : p.block.toString()}</td>
-            <td class="mono">{p.ms ?? ''}</td>
+    <div class="table-wrap">
+      <table class="table" data-testid="status-rpcs">
+        <thead>
+          <tr>
+            <th>{t('colRpc')}</th>
+            <th>{t('colResult')}</th>
+            <th>{t('colBlock')}</th>
+            <th>{t('colMs')}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {probes.map((p, i) => (
+            <tr key={p.url} data-testid={`status-rpc-${i}`} data-ok={String(p.ok)}>
+              <td class="mono wrap-anywhere">{p.url}</td>
+              <td>
+                {p.ok ? (
+                  <span class="badge badge-ok">{t('reachable')}</span>
+                ) : (
+                  <span class="badge badge-bad">{p.error}</span>
+                )}
+              </td>
+              <td class="mono">{p.block === null ? '' : p.block.toString()}</td>
+              <td class="mono">{p.ms ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -121,7 +138,7 @@ function CrossCheck({ sdk }: { sdk: Sdk }) {
           <p>{t('offchainList')}</p>
           <ul>
             {sdk.rpc.offchain.map((u) => (
-              <li key={u} class="mono">
+              <li key={u} class="mono wrap-anywhere">
                 {u}
               </li>
             ))}
@@ -162,28 +179,30 @@ function HealthView({ health }: { health: Health }) {
             : null}
         </li>
       </ul>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>{t('colRpc')}</th>
-            <th>{t('colResult')}</th>
-            <th>{t('colMs')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {health.rpcs.map((r) => (
-            <tr key={r.url} data-ok={String(r.ok)}>
-              <td>
-                <UntrustedText value={r.url} max={80} />
-              </td>
-              <td>
-                <Verdict ok={r.ok} />
-              </td>
-              <td class="mono">{r.ms ?? ''}</td>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{t('colRpc')}</th>
+              <th>{t('colResult')}</th>
+              <th>{t('colMs')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {health.rpcs.map((r) => (
+              <tr key={r.url} data-ok={String(r.ok)}>
+                <td class="wrap-anywhere">
+                  <UntrustedText value={r.url} max={80} />
+                </td>
+                <td>
+                  <Verdict ok={r.ok} />
+                </td>
+                <td class="mono">{r.ms ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -241,11 +260,13 @@ export function StatusPage(props: {
     <div class="stack" data-testid="status">
       <h1>{t('title')}</h1>
       <p class="muted">{t('intro')}</p>
+      {/* The counts come first: the home page links here for them, and the check table below is long on a phone. */}
+      <ChainCountersCard sdk={sdk} detail maxVaults={STATUS_MAX_VAULTS} load={props.counters} />
+      <StatsPanel sdk={sdk} />
       <section class="card stack">
         <h2>{t('integrityTitle')}</h2>
         <AsyncView state={integrity}>{(r) => <IntegrityView report={r} />}</AsyncView>
       </section>
-      <ChainCountersCard sdk={sdk} detail maxVaults={STATUS_MAX_VAULTS} load={props.counters} />
       <section class="card stack">
         <h2>{t('rpcTitle')}</h2>
         <AsyncView state={probes}>{(list) => <ProbeTable probes={list} />}</AsyncView>

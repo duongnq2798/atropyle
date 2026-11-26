@@ -153,56 +153,61 @@ function AssetsCard({ view, explorer }: { view: VaultView; explorer: string | nu
       {view.assets.length === 0 ? (
         <p class="muted">{t('noAssets')}</p>
       ) : (
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>{t('colAsset')}</th>
-              <th>{t('colHeld')}</th>
-              <th>{t('colCoverage')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.assets.map((a) => (
-              <tr
-                key={a.index}
-                data-testid={`asset-${a.index}`}
-                data-coverage={a.percent === null ? '' : String(a.percent)}
-              >
-                <td>{a.index + 1}</td>
-                <td class="stack">
-                  <span data-testid={`asset-${a.index}-name`}>
-                    <UntrustedText value={a.info.name} max={32} />
-                  </span>
-                  <span data-testid={`asset-${a.index}-symbol`}>
-                    <UntrustedText value={a.info.symbol} max={16} />
-                  </span>
-                  <AddressText address={a.token} explorer={explorer} />
-                  {a.kind !== 'erc20' ? <span class="muted">{t('nftId', { id: a.id })}</span> : null}
-                  {a.recipient ? (
-                    <span data-testid={`asset-${a.index}-heir`}>
-                      {t('goesTo')} <AddressText address={a.recipient} />
-                    </span>
-                  ) : null}
-                </td>
-                <td>
-                  {a.kind === 'erc20' ? (
-                    <TokenAmount raw={a.held} token={a.info} />
-                  ) : (
-                    <span class="mono">{a.held.toString()}</span>
-                  )}
-                </td>
-                <td>
-                  {a.percent === null ? (
-                    <span class="badge">{t('notHeld')}</span>
-                  ) : (
-                    <span class={a.percent === 100 ? 'badge badge-ok' : 'badge badge-warn'}>{a.percent}%</span>
-                  )}
-                </td>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{t('colAsset')}</th>
+                <th>{t('colHeld')}</th>
+                <th>{t('colCoverage')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {view.assets.map((a) => (
+                <tr
+                  key={a.index}
+                  data-testid={`asset-${a.index}`}
+                  data-coverage={a.percent === null ? '' : String(a.percent)}
+                >
+                  <td>{a.index + 1}</td>
+                  {/* One block per line: inline parts would run together ("USD CoinUSDC0x779D…"). */}
+                  <td class="wrap-anywhere">
+                    <div data-testid={`asset-${a.index}-name`}>
+                      <UntrustedText value={a.info.name} max={32} />
+                    </div>
+                    <div data-testid={`asset-${a.index}-symbol`}>
+                      <UntrustedText value={a.info.symbol} max={16} />
+                    </div>
+                    <div data-testid={`asset-${a.index}-token`}>
+                      <AddressText address={a.token} explorer={explorer} />
+                    </div>
+                    {a.kind !== 'erc20' ? <div class="muted">{t('nftId', { id: a.id })}</div> : null}
+                    {a.recipient ? (
+                      <div data-testid={`asset-${a.index}-heir`}>
+                        {t('goesTo')} <AddressText address={a.recipient} />
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    {a.kind === 'erc20' ? (
+                      <TokenAmount raw={a.held} token={a.info} />
+                    ) : (
+                      <span class="mono">{a.held.toString()}</span>
+                    )}
+                  </td>
+                  <td>
+                    {a.percent === null ? (
+                      <span class="badge">{t('notHeld')}</span>
+                    ) : (
+                      <span class={a.percent === 100 ? 'badge badge-ok' : 'badge badge-warn'}>{a.percent}%</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <p class="muted">{c('untrustedNote')}</p>
     </section>

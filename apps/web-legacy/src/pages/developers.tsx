@@ -9,14 +9,17 @@ type Key = keyof typeof messages.en;
 
 export const REPO_URL = 'https://github.com/duongnq2798/atropyle';
 const NPM = 'https://www.npmjs.com/package/';
-const PACKAGES = ['@atropyle/sdk', 'atropyle', '@atropyle/mcp'] as const;
+const PACKAGES = ['@atropyle/sdk', 'atropyle', '@atropyle/mcp', '@atropyle/circuits'] as const;
 
-/** The commands of spec sections 6-8 as Plan 3 (CLI, MCP, plugin) ships them. */
+/**
+ * The commands of spec sections 6-8 as Plan 3 (CLI, MCP, plugin) ships them. The CLI and the MCP server are pinned to
+ * the SDK's VERSION, the version the `published` line names: the four packages share one version (a unit test checks).
+ */
 export const COMMANDS = [
   { id: 'sdk', title: 'sdkTitle', help: 'sdkHelp', cmd: 'npm install @atropyle/sdk viem' },
-  { id: 'verify', title: 'verifyTitle', help: 'verifyHelp', cmd: 'npx -y atropyle verify' },
-  { id: 'mcp', title: 'mcpTitle', help: 'mcpHelp', cmd: 'claude mcp add atropyle -- npx -y atropyle mcp' },
-  { id: 'mcpAny', title: 'mcpAnyTitle', help: 'mcpAnyHelp', cmd: 'npx -y @atropyle/mcp' },
+  { id: 'verify', title: 'verifyTitle', help: 'verifyHelp', cmd: `npx -y atropyle@${VERSION} verify` },
+  { id: 'mcp', title: 'mcpTitle', help: 'mcpHelp', cmd: `claude mcp add atropyle -- npx -y @atropyle/mcp@${VERSION}` },
+  { id: 'mcpAny', title: 'mcpAnyTitle', help: 'mcpAnyHelp', cmd: `npx -y @atropyle/mcp@${VERSION}` },
   {
     id: 'plugin',
     title: 'pluginTitle',
@@ -51,7 +54,7 @@ export function DevelopersPage({ sdk }: { sdk: Sdk }) {
         </a>
       </p>
       <p class="muted" data-testid="developers-published">
-        {t('published')}
+        {t('published', { version: VERSION })}
       </p>
       {COMMANDS.map((c) => (
         <section class="card stack" key={c.id}>

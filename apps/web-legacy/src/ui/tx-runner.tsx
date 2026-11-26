@@ -122,39 +122,41 @@ export function TxRunner(props: {
           <WarningText warning={w} />
         </Banner>
       ))}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>{t('what')}</th>
-            <th>{t('check')}</th>
-            <th>{t('status')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {view.rows.map((r) => (
-            <tr key={r.index} data-testid={`${id}-step-${r.index}`} data-phase={r.phase}>
-              <td>{r.index + 1}</td>
-              <td>{r.summary}</td>
-              <td>
-                {r.simulation === 'ok' ? t('simOk') : r.simulation === 'failed' ? t('simFailed') : t('simSkipped')}
-              </td>
-              <td>
-                {t(PHASE[r.phase])}
-                {r.hash && explorer ? (
-                  <>
-                    {' '}
-                    <a href={explorerTx(explorer, r.hash)} target="_blank" rel="noopener noreferrer">
-                      {t('viewTx')}
-                    </a>
-                  </>
-                ) : null}
-                {r.hash && !explorer ? <span class="mono"> {r.hash}</span> : null}
-              </td>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{t('what')}</th>
+              <th>{t('check')}</th>
+              <th>{t('status')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {view.rows.map((r) => (
+              <tr key={r.index} data-testid={`${id}-step-${r.index}`} data-phase={r.phase}>
+                <td>{r.index + 1}</td>
+                <td class="wrap-anywhere">{r.summary}</td>
+                <td>
+                  {r.simulation === 'ok' ? t('simOk') : r.simulation === 'failed' ? t('simFailed') : t('simSkipped')}
+                </td>
+                <td>
+                  {t(PHASE[r.phase])}
+                  {r.hash && explorer ? (
+                    <>
+                      {' '}
+                      <a href={explorerTx(explorer, r.hash)} target="_blank" rel="noopener noreferrer">
+                        {t('viewTx')}
+                      </a>
+                    </>
+                  ) : null}
+                  {r.hash && !explorer ? <span class="mono wrap-anywhere"> {r.hash}</span> : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {view.blockedError ? <ErrorBox error={view.blockedError} /> : null}
       {error ? <ErrorBox error={error} /> : null}
       {result ? (

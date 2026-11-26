@@ -4,7 +4,7 @@
 
 Use GitHub's private vulnerability reporting: open the **Security** tab of this repository and press **Report a vulnerability**. Only the maintainer sees the report. Please do not open a public issue, pull request or discussion for a vulnerability.
 
-A good report names the component and the commit or the deployed address, the steps or the transaction that show the problem, and what an attacker gains. Never send a private key or a seed phrase, yours or anyone's: nobody working on Atropyle will ever ask for one.
+A good report names the component and where the problem is: a commit, an npm package and version, or a deployed address. It gives the steps or the transaction that show the problem, and what an attacker gains. Never send a private key or a seed phrase, yours or anyone's: nobody working on Atropyle will ever ask for one.
 
 ## Scope
 
@@ -13,6 +13,7 @@ A good report names the component and the commit or the deployed address, the st
 - **SDK**: [`packages/sdk`](packages/sdk), the verify code included.
 - **CLI**: [`packages/cli`](packages/cli).
 - **MCP server**: [`packages/mcp`](packages/mcp).
+- **npm packages**: `@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and `atropyle` (version 0.1.0), built from this repository.
 - **Web apps**: [`apps/web-legacy`](apps/web-legacy), which serves https://atropyle.xyz/, and [`apps/web`](apps/web).
 - **Keeper**: [`apps/backend`](apps/backend), the keeper and the rest of the backend.
 
@@ -22,7 +23,7 @@ The TapeOut processor's own contracts, X Layer itself, the RPC operators, wallet
 
 The deployed contracts cannot be patched. The vault implementation and the factory have no admin, no pause, no upgrade, no `delegatecall` and no `selfdestruct`; every vault is a minimal proxy (EIP-1167) of that one implementation. The fee levels, the treasury and the policy circuit id are fixed in the factory. The netlists live on the `ATRO` processor, whose circuits beacon has no owner, so nobody can change the code that runs them.
 
-So a fix cannot reach a deployed vault. Mitigations land in the SDK, the CLI, the MCP server, the web apps and the docs: they can refuse a dangerous plan, warn before a transaction, or stop offering a feature. A fix in the contracts themselves needs a new deployment, and existing vaults would not move to it on their own.
+So a fix cannot reach a deployed vault. Mitigations land in the SDK, the CLI, the MCP server, the web apps and the docs: they can refuse a dangerous plan, warn before a transaction, or stop offering a feature. A mitigation in any of the four packages reaches npm users only with a new version. Each package pins the packages it depends on to an exact version: the SDK pins `@atropyle/circuits`, the MCP server pins the SDK, and the CLI pins the SDK and the MCP server. So a fix in one also needs new versions of the packages that depend on it. The skills, the plugin and the docs get it only once their version pins move to that version. A fix in the contracts themselves needs a new deployment, and existing vaults would not move to it on their own.
 
 ## Known limits
 

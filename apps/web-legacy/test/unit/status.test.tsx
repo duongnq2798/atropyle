@@ -6,12 +6,14 @@ import { readEnv } from '../../src/env';
 import type { FetchFn } from '../../src/lib/health';
 import { rpcPlan } from '../../src/lib/rpc';
 import type { Sdk } from '../../src/lib/sdk';
+import { saveStats } from '../../src/lib/stats-view';
 import { KEYS, type KV, memoryKV } from '../../src/lib/store';
 import type { WalletWindow } from '../../src/lib/wallet';
 import { StatusPage } from '../../src/pages/status';
 import { AppProvider } from '../../src/ui/app-context';
+import type { CountersLoad } from '../../src/ui/chain-counters';
 import { fixtureCounters } from './counters-fixture';
-import { DRPC, fixtureDeployment, OKX } from './fixtures';
+import { DRPC, fixtureDeployment, fixtureStats, OKX } from './fixtures';
 
 afterEach(cleanup);
 
@@ -53,11 +55,17 @@ const probe = async (url: string): Promise<bigint> => {
   return 123n;
 };
 
-function renderStatus(vars: Record<string, string>, sdk: Sdk, fetchFn: FetchFn, kv: KV = memoryKV()) {
+function renderStatus(
+  vars: Record<string, string>,
+  sdk: Sdk,
+  fetchFn: FetchFn,
+  kv: KV = memoryKV(),
+  counters: CountersLoad = async () => fixtureCounters(),
+) {
   const env = readEnv({ VITE_DEPLOYMENT: JSON.stringify(deploymentToJson(d)), ...vars });
   render(
     <AppProvider env={env} kv={kv} win={new EventTarget() as WalletWindow} languages={['en']}>
-      <StatusPage sdk={sdk} probe={probe} fetchFn={fetchFn} counters={async () => fixtureCounters()} />
+      <StatusPage sdk={sdk} probe={probe} fetchFn={fetchFn} counters={counters} />
     </AppProvider>,
   );
   return kv;
@@ -149,11 +157,73 @@ test('a failed Worker answer shows the error and the Pages build without a Worke
   expect(await screen.findByTestId('status-worker-none')).toBeTruthy();
 });
 
-test('the status page shows the chain counters with how each one is counted', async () => {
+test('the status page reads the chain counters on load, with how each one is counted', async () => {
   renderStatus({ VITE_TARGET: 'deweb' }, fakeSdk('deweb'), async () => new Response('{}', { status: 200 }));
   expect((await screen.findByTestId('counter-vaults')).getAttribute('data-value')).toBe('1234');
+  expect(screen.getByTestId('counter-paid').getAttribute('data-outside')).toBe('38');
   expect(screen.getByTestId('counters-as-of').textContent).toContain('block 76825469, 2026-11-25 08:15 UTC');
   const defs = screen.getByTestId('counters-definitions');
   expect(defs.textContent).toContain('nonce minus one');
   expect(defs.textContent).toContain('deployments/team.json');
+});
+
+test('a full count cached on this device shows on the status page without a network call', async () => {
+  // fakeSdk has no stats(): the panel reads the chain only when its button is pressed.
+  const kv = memoryKV();
+  saveStats(kv, d.chainId, d.factory, fixtureStats(), 1_000);
+  renderStatus({ VITE_TARGET: 'deweb' }, fakeSdk('deweb'), async () => new Response('{}', { status: 200 }), kv);
+  expect(screen.getByTestId('stat-vaults').getAttribute('data-value')).toBe('3');
+  expect(screen.getByTestId('stat-drill').getAttribute('data-value')).toBe('2');
+  expect(screen.getByText('As of block 2000.')).toBeTruthy();
+  expect(screen.getByTestId('stats-load').textContent).toBe('Update from the chain');
+  await screen.findByTestId('status-integrity');
+});
+
+test('the rest of the status page works when the counters cannot be read', async () => {
+  const down: CountersLoad = async () => {
+    throw new Error('rpc down');
+  };
+  renderStatus(
+    { VITE_TARGET: 'deweb' },
+    fakeSdk('deweb'),
+    async () => new Response('{}', { status: 200 }),
+    memoryKV(),
+    down,
+  );
+  expect(await screen.findByTestId('counters-error')).toBeTruthy();
+  expect((await screen.findByTestId('status-integrity')).getAttribute('data-ok')).toBe('true');
+  expect(screen.queryByTestId('error')).toBeNull();
+  expect(screen.getByTestId('stats-load').textContent).toBe('Count from the chain');
+});
+
+test('the integrity table gives Expected and Found equal columns and labels them for the stacked phone layout', async () => {
+  const report: IntegrityReport = {
+    ...REPORT,
+    checks: [
+      { name: 'factory.cpu', ok: true, expected: d.cpu, actual: d.cpu },
+      { name: `factory.feeToken ${d.feeTokens[0]}`, ok: true, actual: '1000' },
+    ],
+  };
+  renderStatus({ VITE_TARGET: 'deweb' }, fakeSdk('deweb', report), async () => new Response('{}', { status: 200 }));
+  await screen.findByTestId('status-integrity');
+  const table = screen.getByTestId('status-checks');
+  expect(table.classList.contains('table-fixed')).toBe(true);
+  expect(table.classList.contains('table-stack')).toBe(true);
+  expect([...table.querySelectorAll('col')].map((c) => c.className)).toEqual([
+    'col-check',
+    'col-result',
+    'col-value',
+    'col-value',
+  ]);
+  const [cpu, fee] = [...table.querySelectorAll('tbody tr')];
+  expect([...cpu.querySelectorAll('td[data-label]')].map((c) => c.getAttribute('data-label'))).toEqual([
+    'Expected',
+    'Found',
+  ]);
+  // Only the values break anywhere: the check name keeps its words whole.
+  expect(cpu.querySelector('td')?.classList.contains('wrap-anywhere')).toBe(false);
+  // A check without an expected value leaves an empty cell, which the phone layout hides.
+  const [expected, found] = [...fee.querySelectorAll('td[data-label]')];
+  expect(expected.childNodes.length).toBe(0);
+  expect(found.textContent).toBe('1000');
 });
