@@ -23,7 +23,7 @@ import { Amount } from '@/ui/amount';
 import { buttonClass } from '@/ui/button';
 import { ExternalLink } from '@/ui/external-link';
 import { UntrustedText } from '@/ui/untrusted-text';
-import { POKE_KEY, publicOffers } from './guest';
+import { POKE_HELP_KEY, POKE_KEY, publicOffers } from './guest';
 import { LazyActionFlow } from './lazy-action-flow';
 import { letterOpening } from './letter-opening';
 import { letterThread } from './letter-thread';
@@ -148,7 +148,7 @@ export function HeirLetter(p: PanelProps) {
                       <span
                         aria-hidden
                         className={cn(
-                          'size-2.5 translate-y-px self-center rounded-full',
+                          'mt-[0.3125rem] size-2.5 self-start rounded-full',
                           you ? 'bg-thread' : 'bg-ink-muted/35',
                         )}
                       />
@@ -326,19 +326,22 @@ function MoveStep({ flows, sdk, loaded, view, account, onChanged, recover }: Pan
       </p>
     );
   return (
-    <LazyActionFlow
-      flows={flows}
-      sdk={sdk}
-      vault={view.vault}
-      drill={view.drill}
-      action={POKE}
-      as={account}
-      label={v(POKE_KEY[s.pending])}
-      testId="heir-poke"
-      variant="secondary"
-      onPlan={setHeld}
-      onDone={onChanged}
-    />
+    <div className="flex flex-col gap-3">
+      <p className="text-small text-ink-muted">{v(POKE_HELP_KEY[s.pending])}</p>
+      <LazyActionFlow
+        flows={flows}
+        sdk={sdk}
+        vault={view.vault}
+        drill={view.drill}
+        action={POKE}
+        as={account}
+        label={v(POKE_KEY[s.pending])}
+        testId="heir-poke"
+        variant="secondary"
+        onPlan={setHeld}
+        onDone={onChanged}
+      />
+    </div>
   );
 }
 

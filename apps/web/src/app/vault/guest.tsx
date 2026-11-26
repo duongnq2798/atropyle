@@ -35,7 +35,7 @@ export const POKE_KEY = {
  * Its help says the same, from the same status.pending (fix round 2): once the time to cancel is over, a line that
  * still says "the owner can cancel" would contradict the header above it.
  */
-const POKE_HELP_KEY = {
+export const POKE_HELP_KEY = {
   active: 'pokeHelpEnd',
   grace: 'pokeHelp',
   recovery: 'pokeHelpRecovery',
