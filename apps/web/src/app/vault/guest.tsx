@@ -1,9 +1,10 @@
 'use client';
 
-import type { StateName, VaultAction } from '@atropyle/sdk';
+import type { StateName, VaultAction, VaultStatus } from '@atropyle/sdk';
 import { useRef, useState } from 'react';
 import type { Address as Addr } from 'viem';
 import type { TransferRow } from '@/flows/impl/heir';
+import type { VaultView } from '@/flows/impl/vault-view';
 import { useT } from '@/i18n/provider';
 import { messages as labels, ROLE_KEY } from '@/messages/labels.messages';
 import { messages } from '@/messages/vault.messages';
@@ -29,13 +30,8 @@ const POKE_KEY = {
   releasedRecover: 'pokeReleaseRecover',
 } as const satisfies Record<StateName, VaultKey>;
 
-/** Spec §16.4 of the ecosystem spec: anyone can poke or distribute; the assets never go to the caller. */
-export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: PanelProps) {
-  const t = useT(messages);
-  const [pokeHeld, setPokeHeld] = useState(false);
-  const [results, setResults] = useState<TransferRow[] | null>(null);
-  const s = loaded.snap.status;
-  const explorer = sdk.deployment.explorerUrl;
+/** What the public actions offer this wallet now: GuestView titles its card by it, PublicActions renders it. */
+export function publicOffers(view: VaultView, s: VaultStatus, pokeHeld: boolean) {
   // Signed by the owner of a vault not yet released, poke is a check-in (AtropyleVault.poke: _ownerAlive, then
   // _advance(true)): it cancels the alarm that its label would promise. The owner's check-in belongs to Task 10.
   const ownerChecksIn = view.roles.includes('owner') && !view.released;
@@ -46,15 +42,36 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
   // holds something the vault can move (rule 18): a second delivery would send nothing.
   const canDeliver = view.released && !view.expired && view.assets.some((x) => x.held > 0n);
   const recover = s.state === 'recovery' || s.state === 'releasedRecover';
+  return { ownerChecksIn, canPoke, canDeliver, recover };
+}
+
+export interface PublicActionsProps extends PanelProps {
+  /** Whether a poke plan is held: the caller owns it when it titles its card by the offers (GuestView). */
+  held?: [boolean, (held: boolean) => void];
+  /** The caller already said that anyone may act and where the assets go (GuestView's no-role line). */
+  said?: boolean;
+}
+
+/** Spec §16.4 of the ecosystem spec: anyone can poke or distribute; the assets never go to the caller. */
+export function PublicActions({ flows, sdk, loaded, view, account, onChanged, held, said }: PublicActionsProps) {
+  const t = useT(messages);
+  const own = useState(false);
+  const [pokeHeld, setPokeHeld] = held ?? own;
+  const [results, setResults] = useState<TransferRow[] | null>(null);
+  const s = loaded.snap.status;
+  const explorer = sdk.deployment.explorerUrl;
+  const { ownerChecksIn, canPoke, canDeliver, recover } = publicOffers(view, s, pokeHeld);
+  const idle = !ownerChecksIn && !canPoke && !canDeliver && !results;
   return (
     <div data-testid="vault-public" className="flex flex-col gap-6">
       {ownerChecksIn ? (
         <p data-testid="vault-public-owner" className="text-body text-ink-muted">
           {t('ownerPublic')}
         </p>
-      ) : (
+      ) : idle && !said ? (
+        // Above an action its own help says it (pokeHelp, deliverHelp): said once (review fix 3).
         <p className="text-body text-ink-muted">{t(recover ? 'anyoneRecover' : 'anyone')}</p>
-      )}
+      ) : null}
       {s.state === 'releasedRecover' && s.recoveryTarget ? (
         <p className="flex flex-wrap items-center gap-2 text-small text-ink">
           {t('recoveryTo')} <Address address={s.recoveryTarget} explorer={explorer} size="sm" />
@@ -107,9 +124,10 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
           <TransferTable rows={results} view={view} explorer={explorer} testId="vault-transfers" />
         </div>
       ) : null}
-      {!ownerChecksIn && !canPoke && !canDeliver && !results ? (
+      {idle ? (
         // Never to a late owner: "nothing needs doing" would be untrue for them (their line is vault-public-owner).
-        <p data-testid="vault-public-idle" className="text-small text-ink-muted">
+        // It answers "what can I do here", so it reads at body size.
+        <p data-testid="vault-public-idle" className="text-body text-ink">
           {t('nothingToDo')}
         </p>
       ) : null}
@@ -133,7 +151,17 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
   const l = useT(labels);
   const { openSheet } = useWallet();
   const title = useRef<HTMLHeadingElement>(null);
+  const held = useState(false);
   const { account, view } = p;
+  const offers = publicOffers(view, p.loaded.snap.status, held[0]);
+  const heading = !account
+    ? t('guestTitle')
+    : view.roles.includes('owner')
+      ? t('ownerTitle')
+      : offers.canPoke || offers.canDeliver
+        ? t('guestTitleConnected')
+        : t('guestTitleIdle');
+  const noRole = view.roles.length === 0;
   return (
     <section
       aria-labelledby="vault-guest-title"
@@ -147,20 +175,20 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
         tabIndex={-1}
         className="text-title text-ink focus-visible:outline-2 focus-visible:outline-thread"
       >
-        {!account ? t('guestTitle') : view.roles.includes('owner') ? t('ownerTitle') : t('guestTitleConnected')}
+        {heading}
       </h2>
       {account ? (
         <>
-          {view.roles.length === 0 ? (
+          {noRole ? (
             <p data-testid="vault-no-role" className="text-body text-ink-muted">
-              {t('noRole')}
+              {t(offers.recover ? 'noRoleRecover' : 'noRole')}
             </p>
           ) : (
             <p data-testid="vault-your-roles" className="text-body text-ink">
               {t('roles', { roles: view.roles.map((r) => l(ROLE_KEY[r])).join(', ') })}
             </p>
           )}
-          <PublicActions {...p} account={account} />
+          <PublicActions {...p} account={account} held={held} said={noRole} />
         </>
       ) : (
         <>

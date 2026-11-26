@@ -66,6 +66,32 @@ describe('the guest view', () => {
     guest(PEOPLE.stranger, emptied);
     expect(screen.queryByTestId('vault-distribute')).toBeNull();
     expect(screen.getByTestId('vault-public-idle')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('You are watching this vault');
+  });
+
+  it('titles a stranger by what they can do, and says who may act once (review fix 3)', () => {
+    const title = () => screen.getByRole('heading', { level: 2 }).textContent;
+    const idle = guest(PEOPLE.stranger, loadedAt('active', 'active'));
+    expect(title()).toBe('You are watching this vault');
+    expect(screen.getByTestId('vault-no-role').textContent).toContain('the assets only ever go to the heirs');
+    expect(screen.getByTestId('vault-public-idle').className).toContain('text-body');
+    expect(screen.getByTestId('vault-public-idle').className).not.toContain('text-ink-muted');
+    expect(screen.queryByText(/^Anyone can raise the alarm or deliver/)).toBeNull();
+    idle.unmount();
+
+    const late = guest(PEOPLE.stranger, loadedAt('active', 'grace'));
+    expect(title()).toBe('Help this vault move on');
+    expect(screen.getByText(/^If the owner has missed their check-ins/)).toBeTruthy();
+    expect(screen.queryByText(/^Anyone can raise the alarm or deliver/)).toBeNull();
+    late.unmount();
+
+    guest(PEOPLE.stranger, loadedAt('releasedInherit', 'releasedInherit'));
+    expect(title()).toBe('Help this vault move on');
+  });
+
+  it('tells a stranger the assets of a recovery go to the recovery wallet', () => {
+    guest(PEOPLE.stranger, loadedAt('recovery', 'recovery'));
+    expect(screen.getByTestId('vault-no-role').textContent).toContain('recovery wallet');
   });
 
   it('sends focus to its heading when the sheet closes on a connection', () => {

@@ -29,7 +29,7 @@ import { AssetsList } from './assets-list';
 import { vaultRefetchMs } from './boundary';
 import { GuestView } from './guest';
 import { HistoryThread } from './history-thread';
-import { type Moved, movedOf } from './moment';
+import { betweenReads, forgetBefore, type Moved, movedOf } from './moment';
 import { StandingLine } from './standing-line';
 import { VaultHeader, VaultPlan } from './vault-header';
 
@@ -172,8 +172,17 @@ function VaultScreen({ vault }: { vault: Addr }) {
   const refresh = useVaultRefresh(vault);
   const [tab, setTab] = useState<string | null>(null);
   const [moved, setMoved] = useState<Moved | null>(null);
+  // Changes at or before this block came before a span the page could not see into: never trusted again.
+  const blindTo = useRef(-1n);
   // The newest change wins, whichever way it was found (a receipt, or a lookup that resolved late).
-  const keepMoved = useCallback((m: Moved) => setMoved((cur) => (cur && cur.block > m.block ? cur : m)), []);
+  const keepMoved = useCallback((m: Moved) => {
+    if (m.block <= blindTo.current) return;
+    setMoved((cur) => (cur && cur.block > m.block ? cur : m));
+  }, []);
+  const forget = useCallback((after: bigint) => {
+    if (after > blindTo.current) blindTo.current = after;
+    setMoved((cur) => forgetBefore(cur, after));
+  }, []);
   const data = loaded.data;
   const view = useMemo(
     () => (flows && data?.registered ? flows.vaultView(data.snap, data.timeline, account) : null),
@@ -190,8 +199,9 @@ function VaultScreen({ vault }: { vault: Addr }) {
   );
   // Spec §18.4.2 T9: a poke by anyone (a keeper, another visitor) is told with its block. Between two consecutive
   // reads (30 s apart at most, 1.5 s after a boundary) a change of state spans a few dozen blocks: one eth_getLogs
-  // within deployment.logsBlockRange (100 on X Layer). A larger gap (a tab asleep) falls back to the standing
-  // sentence and its date (R4). No cleanup: a newer read must not cancel the lookup of an older change.
+  // within deployment.logsBlockRange (100 on X Layer). A larger gap (a tab asleep), a failed lookup or one that finds
+  // nothing leaves the page blind to that span: it forgets the changes it saw before it, and the standing sentence and
+  // its date tell instead (R4, review fix 1). No cleanup: a newer read must not cancel the lookup of an older change.
   const prevRead = useRef<RegisteredVault | null>(null);
   useEffect(() => {
     if (!data?.registered || !flows || !sdk) return;
@@ -200,16 +210,17 @@ function VaultScreen({ vault }: { vault: Addr }) {
     if (!prev) return;
     const from = prev.snap.status;
     const to = data.snap.status;
-    if (from.state === to.state || to.blockNumber <= from.blockNumber) return;
-    if (to.blockNumber - from.blockNumber > BigInt(sdk.deployment.logsBlockRange)) return;
+    const step = betweenReads(from, to, BigInt(sdk.deployment.logsBlockRange));
+    if (step === 'none') return;
+    if (step === 'blind') {
+      forget(from.blockNumber);
+      return;
+    }
     flows.movedBetween(sdk.atro, vault, from.blockNumber, to.blockNumber).then(
-      (m) => {
-        if (m) keepMoved(m);
-      },
-      // The moment line is a courtesy: a failed lookup leaves it as it was, and the standing sentence still tells.
-      () => undefined,
+      (m) => (m ? keepMoved(m) : forget(from.blockNumber)),
+      () => forget(from.blockNumber),
     );
-  }, [data, flows, sdk, vault, keepMoved]);
+  }, [data, flows, sdk, vault, keepMoved, forget]);
 
   if (!data) {
     if (!loaded.error) return <VaultLoading />;

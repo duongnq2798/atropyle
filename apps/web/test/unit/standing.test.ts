@@ -3,6 +3,7 @@ import { standingRole, standingSentence } from '../../src/app/vault/standing';
 import { translate } from '../../src/i18n/core';
 import { chainDate } from '../../src/lib/when';
 import { messages } from '../../src/messages/standing.messages';
+import { messages as vault } from '../../src/messages/vault.messages';
 import { fixtureSnapshot } from './fixtures';
 
 const base = fixtureSnapshot().status; // active, lastAlive 990, lateAt 1050, expiresAt 605_800
@@ -61,5 +62,23 @@ describe('standingSentence', () => {
     expect(s?.params.date).not.toContain('UTC');
     const near = standingSentence({ role: 'guest', status: base, chainNow: 1_000n, lang: 'en', drill: false });
     expect(near?.params.date).toContain('UTC');
+  });
+
+  it('leaves "the rules now allow" to the moment line under the thread: said once (review fix 2)', () => {
+    const due = [
+      ['Due', 'predictedReleasedInherit'],
+      ['RecoveryDue', 'predictedReleasedRecover'],
+    ] as const;
+    for (const lang of ['en', 'vi'] as const) {
+      for (const [suffix, moment] of due) {
+        const line = translate(vault, lang, moment, {});
+        const rules = line.slice(0, line.indexOf('.') + 1);
+        for (const role of ['owner', 'guest'] as const) {
+          const text = translate(messages, lang, `${role}${suffix}`, { date: 'D' });
+          expect(text).toMatch(/^[^.]*D\.$/);
+          expect(text).not.toContain(rules.slice(0, 20));
+        }
+      }
+    }
   });
 });

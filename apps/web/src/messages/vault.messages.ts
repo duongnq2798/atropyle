@@ -69,7 +69,11 @@ export const messages = defineMessages(
       'Connect the wallet the owner named in this vault. You will see what it lets you do, explained step by step.',
     guestConnect: 'Connect your wallet',
     guestTitleConnected: 'Help this vault move on',
-    noRole: 'This wallet has no role in this vault.',
+    guestTitleIdle: 'You are watching this vault',
+    noRole:
+      'This wallet has no role here. Anyone can move a vault on when its rules allow; the assets only ever go to the heirs.',
+    noRoleRecover:
+      'This wallet has no role here. Anyone can move a vault on when its rules allow; the assets only ever go to the recovery wallet the guardians chose.',
     anyone:
       'Anyone can raise the alarm or deliver the assets once the vault is released; the assets go to the heirs, not to you.',
     anyoneRecover:
@@ -167,7 +171,11 @@ export const messages = defineMessages(
       'Kết nối ví mà chủ vault đã ghi tên trong vault này. Bạn sẽ thấy ví đó cho bạn làm gì, giải thích từng bước.',
     guestConnect: 'Kết nối ví của bạn',
     guestTitleConnected: 'Giúp vault này đi tiếp',
-    noRole: 'Ví này không có vai trò nào trong vault.',
+    guestTitleIdle: 'Bạn đang theo dõi vault này',
+    noRole:
+      'Ví này không có vai trò ở đây. Ai cũng có thể đưa vault sang bước tiếp khi luật cho phép; tài sản chỉ đi tới người thừa kế.',
+    noRoleRecover:
+      'Ví này không có vai trò ở đây. Ai cũng có thể đưa vault sang bước tiếp khi luật cho phép; tài sản chỉ đi tới ví khôi phục do các người giám hộ chọn.',
     anyone:
       'Ai cũng có thể báo động, hoặc chuyển tài sản khi đã tới lúc trao cho người thừa kế; tài sản đi tới họ, không phải cho bạn.',
     anyoneRecover:

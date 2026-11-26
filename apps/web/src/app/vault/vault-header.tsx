@@ -50,6 +50,17 @@ const MOVED_KEY = {
   releasedRecover: 'movedReleasedRecover',
 } as const satisfies Record<StateName, VaultKey>;
 
+/**
+ * In Vellum the course still ahead is drawn in --line (#ddd3c2 on #f6f1e7, about 1.3:1): in this header it carries the
+ * time left, so it reads at line-strong 60% (about 2.1:1), on a light <html> and on a device that prefers light while
+ * the theme follows it. Night keeps the shared Thread's colours. Scoped here: the 7A component does not change.
+ */
+const COURSE_CLASS = [
+  'w-full',
+  '[[data-theme=light]_&_.stroke-line]:stroke-line-strong/60',
+  '[@media(prefers-color-scheme:light)]:[:root[data-theme=system]_&_.stroke-line]:stroke-line-strong/60',
+].join(' ');
+
 export interface VaultHeaderProps {
   sdk: Sdk;
   loaded: RegisteredVault;
@@ -101,15 +112,17 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
       {lead}
       {/* self-start: the copy button stays by the groups instead of at the far end of the header. */}
       <Address address={view.vault} explorer={explorer} copy avatar className="self-start" />
-      <div className="flex w-full max-w-3xl flex-col gap-2">
+      {/* One measure for the thread and what explains it (review fix 5): the last check-in under the now dot, the next
+          moment under the gate and the thread's end, the guardians' line under the posts it describes. */}
+      <div data-testid="vault-course" className="flex w-full max-w-3xl flex-col gap-3">
         <Thread
           state={thread.state}
           {...thread.input}
           label={thread.predicted ? t('threadPredicted', { state: stateLabel }) : stateLabel}
-          className="w-full"
+          className={COURSE_CLASS}
         />
         {posts ? (
-          <p data-testid="vault-posts" className="text-caption text-ink-muted">
+          <p data-testid="vault-posts" className="self-end text-right text-caption text-ink-muted">
             {t(thread.state === 'recovery' || thread.state === 'releasedRecover' ? 'postsRecover' : 'postsInherit', {
               lit: posts.lit,
               n: posts.n,
@@ -117,6 +130,26 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
             })}
           </p>
         ) : null}
+        <dl className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <dt className="text-caption text-ink-muted">{t('lastAlive')}</dt>
+            <dd data-testid="vault-last-alive" data-ts={String(view.lastAlive)}>
+              <Countdown target={view.lastAlive} {...read} />
+            </dd>
+          </div>
+          {next ? (
+            <div
+              className="flex flex-col items-end gap-1 justify-self-end text-right"
+              data-testid="vault-next"
+              data-kind={next.kind}
+            >
+              <dt className="text-caption text-ink-muted">{t(EVENT_KEY[next.kind])}</dt>
+              <dd>
+                <Countdown target={next.at} {...read} />
+              </dd>
+            </div>
+          ) : null}
+        </dl>
       </div>
       {/* Always on the page (7A rule 19): a screen reader hears the rules change, and the alarm being raised. */}
       <p
@@ -138,22 +171,6 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
             ? t(MOVED_KEY[moment.state], { block: formatAmount(moment.block, 0) })
             : null}
       </p>
-      <dl className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <dt className="text-caption text-ink-muted">{t('lastAlive')}</dt>
-          <dd data-testid="vault-last-alive" data-ts={String(view.lastAlive)}>
-            <Countdown target={view.lastAlive} {...read} />
-          </dd>
-        </div>
-        {next ? (
-          <div className="flex flex-col gap-1" data-testid="vault-next" data-kind={next.kind}>
-            <dt className="text-caption text-ink-muted">{t(EVENT_KEY[next.kind])}</dt>
-            <dd>
-              <Countdown target={next.at} {...read} />
-            </dd>
-          </div>
-        ) : null}
-      </dl>
       {view.expired ? (
         <Banner tone="info" testId="vault-expired">
           {t('expired')}
@@ -223,7 +240,9 @@ export function VaultPlan({ snap, view, explorer }: { snap: VaultSnapshot; view:
       <h2 id="vault-plan-title" className="text-title text-ink">
         {t('planTitle')}
       </h2>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Review fix 4: at lg every address keeps two rows of five groups. One with its copy button takes 17.25rem
+          (avatar, 25ch of groups, the button); the heirs' column gets the rest, enough for an address and its share. */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-[minmax(0,17.25rem)_minmax(0,1fr)_minmax(0,17.25rem)] lg:gap-x-5">
         <div className="@container flex min-w-0 flex-col gap-2">
           <h3 className="text-small text-ink-muted">{t('owner')}</h3>
           <Address address={view.owner} explorer={explorer} size="sm" />
@@ -234,10 +253,12 @@ export function VaultPlan({ snap, view, explorer }: { snap: VaultSnapshot; view:
             {c.heirs.map((h) => (
               <li
                 key={h.account}
-                className="flex flex-col gap-1 @[18rem]:flex-row @[18rem]:items-center @[18rem]:justify-between @[18rem]:gap-3"
+                className="flex flex-col gap-1 @[18rem]:flex-row @[18rem]:items-center @[18rem]:justify-between @[18rem]:gap-2"
               >
                 <Address address={h.account} size="sm" />
-                <span className="voice-ledger text-body text-ink tabular-nums">{formatBps(h.bps)}</span>
+                <span className="voice-ledger w-10 shrink-0 text-body text-ink tabular-nums @[18rem]:text-right">
+                  {formatBps(h.bps)}
+                </span>
               </li>
             ))}
           </ul>

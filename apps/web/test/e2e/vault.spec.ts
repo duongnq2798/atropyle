@@ -228,6 +228,28 @@ test('an address that is not one opens the vault form', async ({ page, state }) 
   await stateIs(page, 'active');
 });
 
+test('every address in the plan takes two rows of five groups at 1024, 1280 and 1440 px', async ({
+  page,
+  state,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop widths');
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  for (const width of [1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const rows = await page
+      .getByTestId('vault-plan')
+      .locator('[data-part="groups"]')
+      .evaluateAll((els) =>
+        els.map((el) =>
+          Math.round(el.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(el).lineHeight)),
+        ),
+      );
+    expect(rows.length, `${width}px`).toBeGreaterThanOrEqual(5);
+    expect(rows, `${width}px`).toEqual(rows.map(() => 2));
+  }
+});
+
 test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // Every screen in both themes, both languages, at 1440, 768 and 390 px: up to 108 reloads on a shared machine.
