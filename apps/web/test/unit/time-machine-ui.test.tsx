@@ -141,6 +141,21 @@ describe('TimeMachine', { timeout: 30_000 }, () => {
     expect(box).toHaveAttribute('data-state', 'releasedInherit');
     expect(screen.queryByRole('slider')).toBeNull();
     expect(screen.getByText('Nothing more can happen to this vault.')).toBeVisible();
+    // Nothing to drag, no story to tell and no moment computed: no hint, no scenario, no list, no engine line.
+    expect(screen.queryByText(/Drag/)).toBeNull();
+    expect(screen.queryByText('You stop checking in, and nobody signs anything.')).toBeNull();
+    expect(screen.queryByTestId('time-machine-moments')).toBeNull();
+    expect(screen.queryByText(/reference model/)).toBeNull();
+  });
+
+  it('the playhead over the thumb reads the time from now, and is not read aloud', async () => {
+    const { container } = renderMachine();
+    await loaded();
+    const playhead = () => container.querySelector('[data-part="playhead"]');
+    expect(playhead()).toHaveTextContent('Now');
+    expect(playhead()).toHaveAttribute('aria-hidden', 'true');
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Time from now' }), { key: 'PageUp' });
+    await waitFor(() => expect(playhead()).toHaveTextContent('In 110 seconds'));
   });
 
   it('speaks Vietnamese', async () => {

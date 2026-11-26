@@ -1,6 +1,7 @@
 'use client';
 
 import type { EvalState, PolicyEngine } from '@atropyle/sdk';
+import { Cpu } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import type { ScenarioId, ScenarioOptions, ScenarioRun } from '@/flows/impl/time-machine';
 import { useLang, useT } from '@/i18n/provider';
@@ -10,13 +11,13 @@ import { durationWords } from '@/lib/duration';
 import { chainDate, isoDate, roughDuration } from '@/lib/when';
 import { messages as labels, THREAD_STATE_KEY } from '@/messages/labels.messages';
 import { messages } from '@/messages/time-machine.messages';
-import type { ThreadState } from '@/thread/state';
+import { THREAD_COLOR, type ThreadState } from '@/thread/state';
 import { StateBadge } from '@/thread/state-badge';
 import { Thread } from '@/thread/thread';
 import { Avatar } from '@/ui/avatar';
 import { frameIndex, scrubAxis } from './frame';
 import type { TimeMachineImpl } from './load';
-import { TIME_MACHINE_BOX, TimeMachineShell } from './shell';
+import { TIME_MACHINE_BOX, TIME_MACHINE_STAGE, TimeMachineShell } from './shell';
 import { type EngineBinding, usePolicyEngine } from './use-engine';
 import { useTimeMachine } from './use-time-machine';
 
@@ -47,6 +48,14 @@ const CHIP =
   'text-small transition-colors duration-150 hover:text-ink has-checked:border-thread has-checked:bg-surface-2 ' +
   'has-checked:font-medium has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-thread ' +
   'has-focus-visible:outline-offset-2';
+/** "I check in again" is a native checkbox drawn as a switch: the track follows the input (peer), the knob slides. */
+const SWITCH =
+  'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-line-strong bg-surface-3 ' +
+  'transition-colors duration-150 peer-checked:border-thread peer-checked:bg-thread ' +
+  'peer-focus-visible:outline-2 peer-focus-visible:outline-thread peer-focus-visible:outline-offset-2 ' +
+  'group-hover:border-ink-muted peer-checked:[&>span]:translate-x-4 peer-checked:[&>span]:bg-on-thread';
+const KNOB =
+  'ml-0.5 block size-4.5 rounded-full bg-ink-muted shadow-sm motion-safe:transition-transform motion-safe:duration-150';
 
 type MomentKey =
   | 'momentNow'
@@ -200,6 +209,55 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
   });
   const Scrubber = impl.Scrubber;
 
+  const closed = axis.span === 0;
+  const scenarioPicker =
+    runs.length > 1 ? (
+      <fieldset className="min-w-0">
+        <legend className="mb-2 text-ink-muted text-small">{t('whatIf')}</legend>
+        <div className="flex flex-wrap items-center gap-2">
+          {BASES.filter((b) => has(b)).map((b) => (
+            <label key={b} className={CHIP}>
+              <input
+                type="radio"
+                name={chips}
+                value={b}
+                checked={shown === b}
+                onChange={() => setBase(b)}
+                className="sr-only"
+              />
+              {t(CHIP_KEY[b])}
+            </label>
+          ))}
+          {/*
+           * After the chips, on their row: under Silent it keeps its place, out of sight and of the accessibility
+           * tree, so nothing moves when the chips change, and no empty line stands where it was.
+           */}
+          <label
+            aria-hidden={silent || undefined}
+            inert={silent}
+            className={cn(
+              'group flex min-h-11 cursor-pointer items-center gap-2.5 pr-1 pl-2 text-ink text-small',
+              'sm:ml-1 sm:border-line sm:border-l sm:pl-4',
+              silent && 'invisible',
+              !canBack && 'cursor-not-allowed opacity-60',
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={back && canBack}
+              disabled={!canBack}
+              onChange={(e) => setBack(e.currentTarget.checked)}
+              className="peer sr-only"
+            />
+            <span aria-hidden="true" className={SWITCH}>
+              <span className={KNOB} />
+            </span>
+            {t('checkInAgain')}
+          </label>
+        </div>
+      </fieldset>
+    ) : null;
+
   return (
     <section
       data-testid={testId}
@@ -213,130 +271,143 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
         <h2 id={titleId} className="font-display text-ink text-title">
           {t('title')}
         </h2>
-        <p className="text-ink-muted text-small">{t('intro')}</p>
+        <p className="text-ink-muted text-small">{closed ? t('closed') : t('intro')}</p>
       </header>
 
-      {runs.length > 1 ? (
-        <div className="flex flex-col gap-2">
-          <fieldset className="min-w-0">
-            <legend className="mb-2 text-ink-muted text-small">{t('whatIf')}</legend>
-            <div className="flex flex-wrap gap-2">
-              {BASES.filter((b) => has(b)).map((b) => (
-                <label key={b} className={CHIP}>
-                  <input
-                    type="radio"
-                    name={chips}
-                    value={b}
-                    checked={shown === b}
-                    onChange={() => setBase(b)}
-                    className="sr-only"
-                  />
-                  {t(CHIP_KEY[b])}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {/* Kept in place under Silent, out of sight and of the accessibility tree: the chips never jump. */}
-          <label
-            aria-hidden={silent || undefined}
-            inert={silent}
-            className={cn(
-              'flex min-h-11 w-fit cursor-pointer items-center gap-3 text-ink text-small',
-              silent && 'invisible',
-              !canBack && 'cursor-not-allowed opacity-60',
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={back && canBack}
-              disabled={!canBack}
-              onChange={(e) => setBack(e.currentTarget.checked)}
-              className="size-5 accent-thread"
-            />
-            {t('checkInAgain')}
-          </label>
-        </div>
-      ) : null}
-      <p className="text-ink-muted text-small">{about}</p>
+      {scenarioPicker}
+      {closed ? null : <p className="text-ink-muted text-small">{about}</p>}
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {/* The stage: the frame's state and date, the thread to drag, and the frame's sentence as its caption. */}
+      <div data-part="stage" className={TIME_MACHINE_STAGE}>
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-x-0 top-0 -z-10 h-2/3 opacity-[0.09]',
+            'bg-[radial-gradient(60%_100%_at_50%_0%,currentColor,transparent)]',
+            THREAD_COLOR[threadState],
+          )}
+        />
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <StateBadge state={threadState} drill={drill} />
-          <p className="font-mono text-caption text-ink-muted tabular-nums">
-            {when(value)} · <time dateTime={isoDate(at)}>{chainDate(at, lang, withTime)}</time>
-          </p>
+          <time dateTime={isoDate(at)} className="font-mono text-caption text-ink-muted tabular-nums">
+            {chainDate(at, lang, withTime)}
+          </time>
         </div>
-        {/* Not live: the Scrubber's own region speaks once per moment. */}
-        <p className="text-ink text-lead">{sentence(index)}</p>
-      </div>
 
-      {axis.span > 0 ? (
-        <div className="flex flex-col gap-2">
-          <Scrubber
-            key={run.id}
-            run={run}
-            expiresAt={expiresAt}
-            offset={value}
-            onOffsetChange={setOffset}
-            label={t('slider')}
-            valueText={(a, _i, s) =>
-              t('valueText', {
-                when: when(Number(a - axis.from)),
-                date: chainDate(a, lang, withTime),
-                state: tl(THREAD_STATE_KEY[s]),
-              })
-            }
-            announce={(i) => sentence(i)}
-            describedBy={hintId}
-            testId={`${testId}-scrubber`}
-          />
-          <div aria-hidden="true" className="flex justify-between px-5.5 font-mono text-caption text-ink-muted">
-            <span>{t('now')}</span>
-            <span>{when(axis.span)}</span>
-          </div>
-          <p id={hintId} className="text-caption text-ink-muted">
-            {t('hint')}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
+        {closed ? (
           <Thread state={threadState} className="w-full" />
-          <p className="text-ink-muted text-small">{t('closed')}</p>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <Scrubber
+              key={run.id}
+              run={run}
+              expiresAt={expiresAt}
+              offset={value}
+              onOffsetChange={setOffset}
+              label={t('slider')}
+              valueText={(a, _i, s) =>
+                t('valueText', {
+                  when: when(Number(a - axis.from)),
+                  date: chainDate(a, lang, withTime),
+                  state: tl(THREAD_STATE_KEY[s]),
+                })
+              }
+              announce={(i) => sentence(i)}
+              describedBy={hintId}
+              playhead={(a) => when(Number(a - axis.from))}
+              testId={`${testId}-scrubber`}
+            />
+            {/* The scale's end; its start is where the playhead says "Now". */}
+            <p aria-hidden="true" className="px-5.5 text-right font-mono text-caption text-ink-muted">
+              {when(axis.span)}
+            </p>
+          </div>
+        )}
+
+        {/* Below the thread, so a sentence that wraps never moves the thread under a finger. Not live: the
+            Scrubber's own region speaks once per moment. */}
+        {closed ? null : <p className="text-ink text-lead">{sentence(index)}</p>}
+      </div>
+      {closed ? null : (
+        <p id={hintId} className="-mt-2 text-caption text-ink-muted">
+          {t('hint')}
+        </p>
       )}
 
-      <div className="flex flex-col gap-2">
-        <h3 id={listId} className="text-ink-muted text-small">
-          {t('moments')}
-        </h3>
-        <ol aria-labelledby={listId} data-testid={`${testId}-moments`} className="flex flex-col gap-1">
-          {run.moments.map((m, i) => (
-            <li key={`${m.kind}:${m.at}:${m.who ?? ''}`}>
-              <button
-                type="button"
-                data-testid={`${testId}-moment-${i}`}
-                aria-current={i === index ? 'step' : undefined}
-                onClick={() => setOffset(Number(m.at - axis.from))}
-                className={cn(
-                  'flex min-h-11 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-left',
-                  'transition-colors duration-150 hover:bg-surface-2',
-                  'focus-visible:outline-2 focus-visible:outline-thread',
-                  i === index && 'bg-surface-2',
-                )}
-              >
-                <span className="w-28 shrink-0 font-mono text-caption text-ink-muted tabular-nums">
-                  {when(Number(m.at - axis.from))}
-                </span>
-                <span className="flex min-w-0 items-center gap-2 text-ink text-small">
-                  {m.who !== null && m.kind !== 'checkIn' ? <Avatar address={m.who} size={18} /> : null}
-                  {sentence(i)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </div>
-      <p className="text-caption text-ink-muted">{run.engine === 'netlist' ? t('engineNetlist') : t('engineModel')}</p>
+      {closed ? null : (
+        <div className="flex flex-col gap-2">
+          <h3 id={listId} className="font-display text-ink text-small">
+            {t('moments')}
+          </h3>
+          <ol aria-labelledby={listId} data-testid={`${testId}-moments`} className="flex flex-col">
+            {run.moments.map((m, i) => {
+              const reached = i <= index;
+              const last = i === run.moments.length - 1;
+              return (
+                <li key={`${m.kind}:${m.at}:${m.who ?? ''}`} className="relative">
+                  {last ? null : (
+                    // The rail to the next moment: drawn in ink once the time machine has passed it.
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'absolute top-[1.28rem] -bottom-[1.28rem] left-[calc(1.125rem_-_0.5px)] z-[1] w-px',
+                        i < index ? 'bg-ink-muted' : 'bg-line',
+                      )}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    data-testid={`${testId}-moment-${i}`}
+                    aria-current={i === index ? 'step' : undefined}
+                    onClick={() => setOffset(Number(m.at - axis.from))}
+                    className={cn(
+                      'grid min-h-11 w-full grid-cols-[0.75rem_minmax(0,1fr)] gap-x-3 rounded-xl px-3 py-2.5 text-left',
+                      'sm:grid-cols-[0.75rem_8rem_minmax(0,1fr)]',
+                      'transition-colors duration-150 hover:bg-surface-2',
+                      'focus-visible:outline-2 focus-visible:outline-thread',
+                      i === index && 'bg-surface-2',
+                    )}
+                  >
+                    <span aria-hidden="true" className="flex h-[1.3125rem] items-center justify-center">
+                      <span
+                        className={cn(
+                          'relative z-[2] size-2.5 rounded-full border-2 border-current',
+                          THREAD_COLOR[m.state],
+                          reached ? 'bg-current' : 'bg-surface-1',
+                          i === index && 'ring-4 ring-current/20',
+                        )}
+                      />
+                    </span>
+                    <span className="font-mono text-caption text-ink-muted tabular-nums leading-[1.3125rem]">
+                      {when(Number(m.at - axis.from))}
+                    </span>
+                    <span
+                      className={cn(
+                        'col-start-2 flex min-w-0 items-start gap-2 text-small sm:col-start-3',
+                        reached ? 'text-ink' : 'text-ink-muted',
+                      )}
+                    >
+                      {m.who !== null && m.kind !== 'checkIn' ? (
+                        <span className="flex h-[1.3125rem] shrink-0 items-center">
+                          <Avatar address={m.who} size={18} />
+                        </span>
+                      ) : null}
+                      <span>{sentence(i)}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+      {/* A closed vault's one frame is its state as read, not a moment the engine computed. */}
+      {closed ? null : (
+        <p className="flex items-start gap-2 border-line border-t pt-4 text-caption text-ink-muted">
+          <Cpu aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          <span>{run.engine === 'netlist' ? t('engineNetlist') : t('engineModel')}</span>
+        </p>
+      )}
     </section>
   );
 }

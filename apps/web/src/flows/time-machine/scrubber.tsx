@@ -26,6 +26,11 @@ export interface ScrubberProps {
   announce(index: number, at: bigint): string;
   /** Id of the hint that describes the thumb (its keys). */
   describedBy?: string;
+  /**
+   * A short label that rides above the thumb ("In 3 minutes"): the reading of the playhead. Hidden from assistive
+   * technology, which hears valueText.
+   */
+  playhead?(at: bigint): string;
   testId?: string;
   className?: string;
 }
@@ -40,12 +45,26 @@ const HIDE_NOW = '[&_[data-part=now-at]]:hidden';
 const THUMB_SIZE = 'size-11';
 const TRACK_INSET = 'mx-5.5';
 /**
- * The dot rides the wave: the thumb is centred on the middle of the Thread, which is (100cqw − 2.75rem) / 5 high
- * (the root is a size container), so the wave's y at x is that height times (pctY − 50) / 100. Transform only.
+ * The Thread's height: its width (the container's, 100cqw, less the inset) over --tm-r. The ratio is 5:1 like every
+ * Thread once the Scrubber is 32rem wide, and 3:1 below, so that on a phone the wave, the rings and the gate keep a
+ * size a finger and an eye can tell apart.
  */
-const lift = (x: number): CSSProperties => ({
-  transform: `translateY(calc((100cqw - 2.75rem) * ${((pctY(waveY(x)) - 50) / 500).toFixed(5)}))`,
-});
+const RATIO = '[--tm-r:3] @min-[32rem]:[--tm-r:5]';
+const THREAD_HEIGHT = 'h-[calc((100cqw_-_2.75rem)/var(--tm-r))]';
+/**
+ * The dot rides the wave: the thumb is centred on the middle of the Thread, which is (100cqw − 2.75rem) / --tm-r
+ * high (the wrapper is a size container), so the wave's y at x is that height times (pctY − 50) / 100. Transform
+ * only.
+ */
+const rise = (x: number): string =>
+  `translateY(calc((100cqw - 2.75rem) / var(--tm-r) * ${((pctY(waveY(x)) - 50) / 100).toFixed(5)}))`;
+const lift = (x: number): CSSProperties => ({ transform: rise(x) });
+/**
+ * The playhead's label rides over the dot, inside the thumb: it starts at the thumb's centre and moves left by the
+ * thumb's share of the track, in its own width, so it is left-aligned at the start, right-aligned at the end, and
+ * never leaves the box. Transform only, like the dot.
+ */
+const ride = (x: number): CSSProperties => ({ transform: `translateX(-${pctX(x)}%) ${rise(x)}` });
 const DOT = 'pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full';
 
 /**
@@ -64,6 +83,7 @@ export function Scrubber({
   valueText,
   announce,
   describedBy,
+  playhead,
   testId = 'scrubber',
   className,
 }: ScrubberProps) {
@@ -120,7 +140,12 @@ export function Scrubber({
   const track = useMemo(
     () => (
       <>
-        <Thread state={frame.state} axis={frame.axis} revealRef={reveal} className={cn('w-full', HIDE_NOW)} />
+        <Thread
+          state={frame.state}
+          axis={frame.axis}
+          revealRef={reveal}
+          className={cn('w-full', THREAD_HEIGHT, HIDE_NOW)}
+        />
         <span aria-hidden="true" data-layer="moments" className="pointer-events-none absolute inset-0">
           {run.moments.map((m, i) => {
             if (i === 0) return null;
@@ -188,7 +213,7 @@ export function Scrubber({
 
   const x = courseX(at, axis);
   return (
-    <>
+    <div className={cn('@container flex min-w-0 flex-col', className)}>
       <Slider
         bare
         value={[value]}
@@ -208,7 +233,7 @@ export function Scrubber({
         valueText={() => valueText(at, index, state)}
         thumbDescribedBy={describedBy}
         track={track}
-        trackClassName={cn('relative block grow', TRACK_INSET)}
+        trackClassName={cn('relative block min-w-0 grow', TRACK_INSET)}
         thumbClassName={cn(
           'relative block cursor-grab rounded-full outline-none active:cursor-grabbing',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-thread',
@@ -223,14 +248,24 @@ export function Scrubber({
               style={lift(x)}
             />
             <span aria-hidden="true" data-part="scrub-now" className={cn(DOT, 'size-3 bg-current')} style={lift(x)} />
+            {playhead ? (
+              <span
+                aria-hidden="true"
+                data-part="playhead"
+                className="pointer-events-none absolute bottom-[calc(50%_+_1.75rem)] left-1/2 whitespace-nowrap rounded-full border border-current/30 bg-surface-2/90 px-2 font-mono text-caption tabular-nums leading-5"
+                style={ride(x)}
+              >
+                {playhead(at)}
+              </span>
+            ) : null}
           </>
         )}
         testId={testId}
-        className={cn('@container', className)}
+        className={RATIO}
       />
       <p data-testid={`${testId}-live`} aria-live="polite" aria-atomic="true" className="sr-only">
         {live}
       </p>
-    </>
+    </div>
   );
 }

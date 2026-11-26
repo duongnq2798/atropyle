@@ -39,6 +39,7 @@ export const messages = defineMessages(
     engineNetlist: 'Every moment here is computed by the policy circuit, read from X Layer.',
     engineModel: "Every moment here is computed by the circuit's reference model: this network has no circuit to read.",
     loading: 'Loading the rules of this vault…',
+    failed: 'The time machine could not load the rules of this vault.',
   },
   {
     title: 'Cỗ máy thời gian',
@@ -78,5 +79,6 @@ export const messages = defineMessages(
     engineNetlist: 'Mọi mốc ở đây được tính bằng circuit luật, đọc từ X Layer.',
     engineModel: 'Mọi mốc ở đây được tính bằng mô hình tham chiếu của circuit: mạng này không có circuit để đọc.',
     loading: 'Đang nạp luật của vault…',
+    failed: 'Cỗ máy thời gian chưa nạp được luật của vault này.',
   },
 );
