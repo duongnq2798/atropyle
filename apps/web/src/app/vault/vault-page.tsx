@@ -21,7 +21,7 @@ import { ErrorBox } from '@/tx/error-box';
 import { Address } from '@/ui/address';
 import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
-import { SkeletonText } from '@/ui/skeleton';
+import { Skeleton, SkeletonText } from '@/ui/skeleton';
 import { Tabs } from '@/ui/tabs';
 import { TextField } from '@/ui/text-field';
 import { useWallet } from '@/wallet/provider';
@@ -81,15 +81,23 @@ function VaultLoading() {
     <div data-testid="vault-loading" aria-busy="true" className={SHELL}>
       <h1 className="font-display text-h1 text-ink">{t('pageTitle')}</h1>
       <p className="sr-only">{t('loading')}</p>
-      <SkeletonText lines={8} />
+      {/* The shape of what comes: the header and its thread, then the cards of the actions and the plan. */}
+      <div aria-hidden="true" className="flex w-full max-w-3xl flex-col gap-5">
+        <SkeletonText lines={2} />
+        <Skeleton className="h-11 w-64 max-w-full" />
+        <Skeleton className="aspect-[5/1] w-full rounded-2xl" />
+      </div>
+      <Skeleton className="h-40 w-full rounded-2xl" />
+      <Skeleton className="h-64 w-full rounded-2xl" />
     </div>
   );
 }
 
-function OpenVault({ invalid }: { invalid: boolean }) {
+/** `initial`: what the hash held when it was not an address, kept in the field so the reader sees what was wrong. */
+function OpenVault({ initial }: { initial: string }) {
   const t = useT(messages);
-  const [text, setText] = useState('');
-  const [error, setError] = useState(invalid);
+  const [text, setText] = useState(initial);
+  const [error, setError] = useState(initial.length > 0);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const v = text.trim();
@@ -130,7 +138,7 @@ function NotRegistered({ vault, explorer }: { vault: Addr; explorer: string | nu
   return (
     <div data-testid="vault" className={SHELL}>
       <h1 className="font-display text-h1 text-ink">{t('pageTitle')}</h1>
-      <Address address={vault} explorer={explorer} copy />
+      <Address address={vault} explorer={explorer} copy className="self-start" />
       <Banner tone="error" testId="vault-not-registered" title={t('notRegistered')}>
         {t('notRegisteredHelp')}
       </Banner>
@@ -267,6 +275,6 @@ export function VaultPage() {
   const mounted = useMounted();
   if (!mounted) return <VaultLoading />;
   const text = hash.slice(1).trim();
-  if (!isAddressText(text)) return <OpenVault key={text} invalid={text.length > 0} />;
+  if (!isAddressText(text)) return <OpenVault key={text} initial={text} />;
   return <VaultScreen key={text.toLowerCase()} vault={text as Addr} />;
 }

@@ -45,9 +45,9 @@ export function AssetsList({ view, explorer }: { view: VaultView; explorer: stri
               key={a.index}
               data-testid={`asset-${a.index}`}
               data-coverage={a.percent === null ? '' : String(a.percent)}
-              className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6"
+              className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6"
             >
-              <div className="flex min-w-0 flex-col gap-1">
+              <div className="col-span-2 flex min-w-0 flex-col items-start gap-1 sm:col-span-1">
                 <p className="text-body text-ink">
                   <span data-testid={`asset-${a.index}-name`}>
                     <UntrustedText value={a.info.name} max={32} />
@@ -56,7 +56,7 @@ export function AssetsList({ view, explorer }: { view: VaultView; explorer: stri
                     <UntrustedText value={a.info.symbol} max={16} />
                   </span>
                 </p>
-                <Address address={a.token} explorer={explorer} size="sm" />
+                <Address address={a.token} explorer={explorer} size="sm" className="self-start" />
                 {a.kind !== 'erc20' ? (
                   <p className="voice-ledger text-caption text-ink-muted">{t('nftId', { id: a.id })}</p>
                 ) : null}
@@ -69,7 +69,7 @@ export function AssetsList({ view, explorer }: { view: VaultView; explorer: stri
                   </p>
                 ) : null}
               </div>
-              <div className="flex flex-col gap-1 sm:items-end">
+              <div className="flex flex-col items-start gap-1 sm:items-end">
                 <p className="text-caption text-ink-muted">{t('colHeld')}</p>
                 {a.kind === 'erc20' ? (
                   // The first Amount of a page that a phone reads: the base-unit value is a tap away (C4).
@@ -78,7 +78,7 @@ export function AssetsList({ view, explorer }: { view: VaultView; explorer: stri
                   <span className="voice-ledger text-ink tabular-nums">{a.held.toString()}</span>
                 )}
               </div>
-              <div className="flex flex-col gap-1 sm:items-end">
+              <div className="flex flex-col items-start gap-1 sm:items-end">
                 <p className="text-caption text-ink-muted">{t('colCoverage')}</p>
                 <Coverage percent={a.percent} />
               </div>

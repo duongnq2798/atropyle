@@ -1,12 +1,13 @@
 import type { AtropyleClient, SendResult } from '@atropyle/sdk';
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { type Address, erc20Abi } from 'viem';
 import { deployForeignVault } from '../../../../scripts/lib/anvil.ts';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom } from './flows.ts';
-import { connectWallet, expectAccessibleInBothThemes } from './helpers.ts';
+import { connectWallet, expectAccessibleInBothThemes, settle } from './helpers.ts';
+import { OKX_ORIGINS } from './network.ts';
 import { deployMockErc20, mint, walletFor } from './onchain.ts';
-import { captureScreens, shouldCapture, VELLUM_MATRIX } from './screens.ts';
+import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
 import { type E2EState, warp } from './state.ts';
 
 const OWNER = ANVIL[1];
@@ -229,48 +230,121 @@ test('an address that is not one opens the vault form', async ({ page, state }) 
 
 test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
+  // Every screen in both themes, both languages, at 1440, 768 and 390 px: up to 108 reloads on a shared machine.
+  test.setTimeout(30 * 60_000);
+  const shots = FULL_MATRIX;
+  // One matcher for route and unroute: Playwright finds the route to remove by this very function.
+  const okx = (url: URL) => OKX_ORIGINS.includes(url.origin);
   const go = (vault: string) => page.goto(`${state.siteUrl}vault/#${vault}`);
-
-  // A guarded vault for a visitor, its history open: night and vellum (R15). After each reload the history is
-  // closed again, so `ready` opens it.
-  const guest = async () => {
-    await stateIs(page, 'active');
+  const openHistory = async () => {
     if (await page.getByTestId('vault-history-load').isVisible()) await page.getByTestId('vault-history-load').click();
     await expect(page.getByTestId('vault-history-end')).toBeVisible();
   };
-  await go(state.seeded.guarded);
-  await guest();
-  await captureScreens(page, 'vault-guest', { vellum: true, ready: guest });
+  /** After each reload the wallet reconnects on its own, or through the guest view's button. */
+  const connected = async () => {
+    const connect = page.getByTestId('vault-guest-connect');
+    if (await connect.isVisible()) await connectFrom(page, connect);
+    await expect(page.getByTestId('vault-guest-connect')).toHaveCount(0);
+  };
 
-  // Grace: the alarm raised, the gate ahead.
-  const grace = () => stateIs(page, 'grace');
+  // The first paint: the skeleton, while the chain does not answer yet. Registered last, this route wins.
+  const hang = (route: Route) => {
+    void route;
+  };
+  await page.route(okx, hang);
+  const loading = () => expect(page.getByTestId('vault-loading')).toBeVisible();
+  await go(state.seeded.guarded);
+  await loading();
+  await captureScreens(page, 'vault-loading', { shots, ready: loading });
+  await page.unroute(okx, hang);
+  // The hung reads never settle: a reload starts the page again on the anvil route.
+  await page.reload();
+
+  // A guarded vault for a visitor, its history open.
+  const guest = async () => {
+    await stateIs(page, 'active');
+    await openHistory();
+  };
+  await guest();
+  await captureScreens(page, 'vault-guest', { shots, ready: guest });
+
+  // Its owner, before Task 10's tab: their roles named, no poke (their signature would make it a check-in).
+  const w = await wallet({ account: OWNER });
+  const owner = async () => {
+    await stateIs(page, 'active');
+    await connected();
+    await expect(page.getByTestId('vault-public-owner')).toBeVisible();
+  };
+  // The test wallet is injected into new documents only: a reload brings it to this page.
+  await page.reload();
+  await owner();
+  await captureScreens(page, 'vault-owner', { shots, ready: owner });
+
+  // Grace: the alarm raised, the gate ahead; a stranger has nothing to do yet.
+  w.setAccount(STRANGER);
+  const grace = async () => {
+    await stateIs(page, 'grace');
+    await connected();
+    await expect(page.getByTestId('vault-no-role')).toBeVisible();
+  };
   await go(state.seeded.grace);
+  await page.reload();
   await grace();
-  await captureScreens(page, 'vault-grace', { shots: VELLUM_MATRIX, ready: grace });
+  await captureScreens(page, 'vault-grace', { shots, ready: grace });
 
   // Past the window: the rules let the vault pass to the heir, nobody has asked; a stranger sees the poke.
   await warp(state, 200);
-  await wallet({ account: STRANGER });
   const due = async () => {
     await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-moment', 'predicted');
-    const connect = page.getByTestId('vault-guest-connect');
-    if (await connect.isVisible()) await connectFrom(page, connect);
+    await connected();
     await expect(page.getByTestId('vault-poke')).toBeVisible();
   };
   await go(state.seeded.grace);
+  await page.reload();
   await due();
-  await captureScreens(page, 'vault-due', { shots: VELLUM_MATRIX, ready: due });
+  await captureScreens(page, 'vault-due', { shots, ready: due });
+
+  // The stranger releases it and delivers: the transfers live in this page's memory, so they are shot without a
+  // reload (night, English); then the released vault and its history in every theme and language.
+  await page.getByTestId('vault-poke').click();
+  await page.getByTestId('vault-poke-tx-send').click();
+  await stateIs(page, 'releasedInherit');
+  await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-moment', 'moved');
+  await page.getByTestId('vault-distribute').click();
+  await page.getByTestId('vault-distribute-tx-send').click();
+  await expect(page.getByTestId('vault-transfers-0')).toHaveAttribute('data-ok', 'true');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await settle(page);
+    await page.screenshot({ path: `test-results/screens/vault-delivered/night-en-${width}.png`, fullPage: true });
+  }
+  const released = async () => {
+    await stateIs(page, 'releasedInherit');
+    await connected();
+    await openHistory();
+  };
+  await captureScreens(page, 'vault-released', { shots, ready: released });
 
   // The open form, after an address it rejects.
   const missing = () => expect(page.getByTestId('vault-missing')).toBeVisible();
   await page.goto(`${state.siteUrl}vault/#0x1234`);
   await missing();
-  await captureScreens(page, 'vault-missing', { shots: VELLUM_MATRIX, ready: missing });
+  await captureScreens(page, 'vault-missing', { shots, ready: missing });
 
   // A contract the factory did not create.
   const fake = await foreignVault(atro, state);
   const warned = () => expect(page.getByTestId('vault-not-registered')).toBeVisible();
   await go(fake);
   await warned();
-  await captureScreens(page, 'vault-not-registered', { shots: VELLUM_MATRIX, ready: warned });
+  await captureScreens(page, 'vault-not-registered', { shots, ready: warned });
+
+  // The chain refuses every read: the error and its Retry. Registered last, this route wins.
+  const refuse = (route: Route) =>
+    route.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'unavailable' });
+  await page.route(okx, refuse);
+  const failed = () => expect(page.getByTestId('vault-error')).toBeVisible({ timeout: 60_000 });
+  await go(state.seeded.simple);
+  await failed();
+  await captureScreens(page, 'vault-error', { shots, ready: failed });
+  await page.unroute(okx, refuse);
 });

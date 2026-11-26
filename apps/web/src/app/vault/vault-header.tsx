@@ -99,7 +99,8 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
         </span>
       </div>
       {lead}
-      <Address address={view.vault} explorer={explorer} copy avatar />
+      {/* self-start: the copy button stays by the groups instead of at the far end of the header. */}
+      <Address address={view.vault} explorer={explorer} copy avatar className="self-start" />
       <div className="flex w-full max-w-3xl flex-col gap-2">
         <Thread
           state={thread.state}
@@ -222,7 +223,7 @@ export function VaultPlan({ snap, view, explorer }: { snap: VaultSnapshot; view:
       <h2 id="vault-plan-title" className="text-title text-ink">
         {t('planTitle')}
       </h2>
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="@container flex min-w-0 flex-col gap-2">
           <h3 className="text-small text-ink-muted">{t('owner')}</h3>
           <Address address={view.owner} explorer={explorer} size="sm" />
