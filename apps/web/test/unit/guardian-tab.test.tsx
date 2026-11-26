@@ -13,8 +13,14 @@ vi.mock('../../src/lib/framed', () => ({ isFramed: () => frame.framed }));
 // The signing UI is not under test: a button that says what it would prepare.
 vi.mock('../../src/app/vault/lazy-action-flow', () => ({
   actionFlowChunk: { preload: () => {}, peek: () => null, load: async () => ({}) },
-  LazyActionFlow: (p: { testId: string; label: string; action: unknown }) => (
-    <button type="button" data-testid={p.testId} data-action={JSON.stringify(p.action)}>
+  LazyActionFlow: (p: { testId: string; label: string; action: unknown; variant?: string; tone?: string }) => (
+    <button
+      type="button"
+      data-testid={p.testId}
+      data-action={JSON.stringify(p.action)}
+      data-variant={p.variant ?? 'primary'}
+      data-tone={p.tone ?? 'thread'}
+    >
       {p.label}
     </button>
   ),
@@ -88,6 +94,22 @@ describe('the guardian tab', () => {
     expect(screen.queryByTestId('guardian-target-error')).toBeNull();
     expect(screen.getByTestId('guardian-target-confirmed').getAttribute('data-target')).toBe(TARGET);
     expect(JSON.parse(vote().getAttribute('data-action') ?? '{}')).toEqual({ type: 'voteRecovery', target: TARGET });
+  });
+
+  it('keeps red for the moment of signing: no filled danger button on a calm vault', () => {
+    tab(PEOPLE.g1);
+    // Attesting can be taken back: an outline button, red only on the card that signs it.
+    const attest = screen.getByTestId('guardian-attest');
+    expect([attest.getAttribute('data-variant'), attest.getAttribute('data-tone')]).toEqual(['secondary', 'danger']);
+    // The closed vote is an outline, not a faded red pill.
+    const closed = screen.getByTestId('guardian-vote');
+    expect(closed.className).toContain('border-line-strong');
+    expect(closed.className).not.toContain('bg-danger');
+    // Armed once both addresses match: now it is red.
+    type('guardian-target-1', TARGET);
+    type('guardian-target-2', TARGET);
+    const armed = screen.getByTestId('guardian-vote');
+    expect([armed.getAttribute('data-variant'), armed.getAttribute('data-tone')]).toEqual(['danger', 'danger']);
   });
 
   it('speaks once both fields are full, without waiting for a blur', () => {

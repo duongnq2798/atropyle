@@ -168,7 +168,8 @@ export function GuardianTab(p: PanelProps) {
               as={account}
               label={t(me.attested ? 'unattest' : 'attest')}
               testId={me.attested ? 'guardian-unattest' : 'guardian-attest'}
-              variant={me.attested ? 'secondary' : 'danger'}
+              // An outline: attesting can be taken back. The red waits for the card that signs it (spec §4.3).
+              variant="secondary"
               tone={me.attested ? 'thread' : 'danger'}
               onDone={onChanged}
             />
@@ -304,7 +305,8 @@ function VoteCard({ flows, sdk, loaded, view, account, onChanged, myTarget }: Pa
           onDone={onChanged}
         />
       ) : (
-        <Button variant="danger" size="lg" className="self-start" disabled data-testid="guardian-vote">
+        // Closed, an outline: it turns red only once both addresses match and it is armed.
+        <Button variant="secondary" size="lg" className="self-start" disabled data-testid="guardian-vote">
           {t('vote')}
         </Button>
       )}
