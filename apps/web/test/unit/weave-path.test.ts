@@ -1,15 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { DEPTHS, NODES, THREAD, VIEW, WIRES } from '../../src/home/netlist-geometry';
-import { dotsPath, segment, threadPath, wirePaths } from '../../src/home/weave-path';
+import { DEPTHS, NODES, THREAD, VIEW, WIRE_V, WIRES } from '../../src/home/netlist-geometry';
+import { dotsPath, lettersOf, segment, threadPath, wirePaths } from '../../src/home/weave-path';
 
 describe('weave paths', () => {
-  it('draws one path per NAND layer holding every wire, and one dot per signal', () => {
+  it('splits every NAND layer by value signature, draws each wire once, and one dot per signal', () => {
     const paths = wirePaths();
-    expect(paths).toHaveLength(DEPTHS);
-    for (const d of paths) expect(d).toMatch(/^M\d/);
-    expect(paths.join('').match(/M/g)).toHaveLength(WIRES.length / 5);
+    expect(new Set(paths.map((p) => p.depth))).toEqual(new Set(Array.from({ length: DEPTHS }, (_, i) => i + 1)));
+    const key = (p: { depth: number; v: number }) => p.depth * 8 + p.v;
+    for (let i = 1; i < paths.length; i++) expect(key(paths[i])).toBeGreaterThan(key(paths[i - 1]));
+    expect(paths).toHaveLength(new Set(WIRE_V.map((v, w) => WIRES[w * 5 + 4] * 8 + v)).size);
+    for (const p of paths) expect(p.d).toMatch(/^M\d/);
+    expect(
+      paths
+        .map((p) => p.d)
+        .join('')
+        .match(/M/g),
+    ).toHaveLength(WIRES.length / 5);
+    // Splitting adds no `d` text (spec §18.4.3 Task 5′): the same wire parts, regrouped.
+    let parts = 0;
+    for (let i = 0; i < WIRES.length; i += 5) {
+      parts += `M${WIRES[i]} ${WIRES[i + 1]}${segment(WIRES[i], WIRES[i + 1], WIRES[i + 2], WIRES[i + 3])}`.length;
+    }
+    expect(paths.reduce((n, p) => n + p.d.length, 0)).toBe(parts);
     expect(dotsPath().match(/M/g)).toHaveLength(NODES.length / 2);
     expect(dotsPath().startsWith(`M${NODES[0]} ${NODES[1]}h0M${NODES[2]} ${NODES[3]}h0`)).toBe(true);
+  });
+
+  it('names the questions a signature lights, in HERO_CASES order', () => {
+    expect([0, 1, 2, 4, 5, 7].map(lettersOf)).toEqual(['', 'a', 's', 'l', 'a l', 'a s l']);
   });
 
   it('draws a wire as a schematic does: level out, one turn halfway, level in', () => {

@@ -1,4 +1,5 @@
-import { DEPTHS, NODES, THREAD, WIRES } from './netlist-geometry';
+import { HERO_CASES, LETTER } from './hero-cases';
+import { NODES, THREAD, WIRE_V, WIRES } from './netlist-geometry';
 
 /**
  * From (x1, y1) to (x2, y2) as a schematic draws a wire: leave level, turn once halfway, arrive level. A level wire
@@ -10,14 +11,34 @@ export function segment(x1: number, y1: number, x2: number, y2: number): string 
   return `C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`;
 }
 
-/** One path per NAND layer: the wires entering layer d (1 … DEPTHS), in op order. */
-export function wirePaths(): string[] {
-  const parts: string[] = Array.from({ length: DEPTHS }, () => '');
-  for (let i = 0; i < WIRES.length; i += 5) {
-    const [x1, y1, x2, y2, d] = [WIRES[i], WIRES[i + 1], WIRES[i + 2], WIRES[i + 3], WIRES[i + 4]];
-    parts[d - 1] += `M${x1} ${y1}${segment(x1, y1, x2, y2)}`;
+export interface WirePath {
+  /** The NAND layer the wires enter, 1 … DEPTHS. */
+  depth: number;
+  /** Their value signature: bit j set when they carry 1 in question j of HERO_CASES (WIRE_V). */
+  v: number;
+  d: string;
+}
+
+/**
+ * The wires entering each NAND layer, one path per value signature, in op order inside each path; sorted by depth,
+ * then signature. Each wire is drawn once, so splitting adds no `d` text, only one element per signature
+ * (spec §18.4.3 Task 5′: a chip lights wires by their `data-v`).
+ */
+export function wirePaths(): WirePath[] {
+  const by = new Map<number, string>();
+  for (let i = 0, w = 0; i < WIRES.length; i += 5, w++) {
+    const [x1, y1, x2, y2, depth] = [WIRES[i], WIRES[i + 1], WIRES[i + 2], WIRES[i + 3], WIRES[i + 4]];
+    const key = depth * 8 + WIRE_V[w];
+    by.set(key, `${by.get(key) ?? ''}M${x1} ${y1}${segment(x1, y1, x2, y2)}`);
   }
-  return parts;
+  return [...by.entries()].sort(([a], [b]) => a - b).map(([key, d]) => ({ depth: key >> 3, v: key & 7, d }));
+}
+
+/** The letters of the questions a signature lights, as `data-v` writes them ('a s l'); '' for none. */
+export function lettersOf(v: number): string {
+  return HERO_CASES.filter((_, j) => (v >> j) & 1)
+    .map((c) => LETTER[c])
+    .join(' ');
 }
 
 /** Every signal as a dot: a zero-length segment drawn with a round cap. */

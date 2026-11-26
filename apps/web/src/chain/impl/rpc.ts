@@ -1,8 +1,16 @@
-import type { Deployment } from '@atropyle/sdk';
 import type { Target } from '@/config/env';
 
 /** Nodes the TapeKit gateway counts as the site's own chain (sw.js `siteNodes` for X Layer, read 18/11/2026). */
 export const ONCHAIN_RPCS: readonly string[] = ['https://rpc.xlayer.tech', 'https://xlayerrpc.okx.com'];
+
+/**
+ * What rpcPlan reads of a deployment. The SDK's Deployment fits, and so do the generated operators of
+ * src/home/impl/ask-calls.ts, which must not import the SDK.
+ */
+export interface RpcSource {
+  readonly rpcUrls: readonly string[];
+  readonly quorumRpcUrls: readonly (readonly string[])[];
+}
 
 export interface RpcPlan {
   read: string[];
@@ -21,7 +29,7 @@ function isOnchainRpc(url: string): boolean {
   }
 }
 
-export function rpcPlan(d: Deployment, target: Target, crossCheck: boolean): RpcPlan {
+export function rpcPlan(d: RpcSource, target: Target, crossCheck: boolean): RpcPlan {
   if (target === 'vercel') {
     const verify = d.quorumRpcUrls.map((g) => [...g]);
     return { read: [...d.rpcUrls], verify, crossCheck: verify.length > 1, offchain: [] };

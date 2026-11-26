@@ -2,16 +2,20 @@
 import { readFileSync } from 'node:fs';
 import { buildAll, stepBytes } from '@atropyle/circuits';
 import { describe, expect, it } from 'vitest';
+import { heroAsk } from '../../scripts/lib/hero-ask';
 import {
   ALIVE_INPUT,
   GEOMETRY_FILE,
   netlistGeometry,
   PHONE_COLUMNS,
   renderGeometryModule,
+  signalLanes,
 } from '../../scripts/lib/netlist-layout';
-import { CROP, DEPTHS, LATCHES, NANDS, NODES, THREAD, VIEW, WIRES } from '../../src/home/netlist-geometry';
+import { CROP, DEPTHS, LATCHES, NANDS, NODES, THREAD, VIEW, WIRE_V, WIRES } from '../../src/home/netlist-geometry';
 
 const program = buildAll().program;
+/** The hero's three questions: netlistGeometry needs them for WIRE_V. */
+const lit = heroAsk(program).vectors;
 /** x, y of a signal (0 and 1 are the constants and have no node). */
 const nodeOf = (s: number) => [NODES[(s - 2) * 2], NODES[(s - 2) * 2 + 1]];
 /** Input bytes of the policy (23 inputs) with these input bits set. */
@@ -25,7 +29,7 @@ describe('hero geometry', () => {
   it('is the policy netlist of this repository (run `npm run geometry -w apps/web` after a circuit change)', () => {
     // facts.test.ts ties buildAll() to the netlist frozen on X Layer (POLICY_NETLIST_KECCAK); this ties the drawing
     // to buildAll().
-    expect(readFileSync(GEOMETRY_FILE, 'utf8')).toBe(renderGeometryModule(netlistGeometry(program)));
+    expect(readFileSync(GEOMETRY_FILE, 'utf8')).toBe(renderGeometryModule(netlistGeometry(program, lit)));
   });
 
   it('counts every gate the processor runs, and draws every signal and both inputs of every NAND', () => {
@@ -70,5 +74,23 @@ describe('hero geometry', () => {
     const inside = columns.filter((x) => x > CROP.x && x < CROP.x + CROP.w);
     expect(inside).toHaveLength(PHONE_COLUMNS);
     expect(columns.indexOf(inside[0])).toBe((DEPTHS + 1 - PHONE_COLUMNS) / 2);
+  });
+
+  it('gives every wire the value its source carries in each question of the hero (WIRE_V)', () => {
+    expect(WIRE_V).toHaveLength(WIRES.length / 5);
+    // One question at a time: a lane mix-up in the three-lane run would show here.
+    const wrong: string[] = [];
+    lit.forEach((vector, j) => {
+      const alone = signalLanes(program, [vector]);
+      let w = 0;
+      for (let k = 0; k < program.ops.length; k += 4) {
+        if (program.ops[k] !== 0) continue;
+        for (const src of [program.ops[k + 2], program.ops[k + 3]]) {
+          if (((WIRE_V[w] >> j) & 1) !== (alone[src] & 1)) wrong.push(`wire ${w}, question ${j}`);
+          w++;
+        }
+      }
+    });
+    expect(wrong).toEqual([]);
   });
 });

@@ -3,6 +3,12 @@ import { rpcPlan } from '../../src/chain/impl/rpc';
 import { DRPC, fixtureDeployment, OKX } from './fixtures';
 
 describe('rpcPlan', () => {
+  it('reads any readonly source, as the generated operators of ask-calls.ts are', () => {
+    const source = { rpcUrls: [OKX[0]], quorumRpcUrls: [[...OKX], [DRPC]] } as const;
+    expect(rpcPlan(source, 'deweb', false).verify).toEqual([OKX]);
+    expect(rpcPlan(source, 'vercel', false).verify).toEqual([OKX, [DRPC]]);
+  });
+
   it('keeps every operator on Vercel', () => {
     expect(rpcPlan(fixtureDeployment(), 'vercel', false)).toEqual({
       read: OKX,

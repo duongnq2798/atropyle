@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { Program } from '@atropyle/circuits';
+import { lanes, type Program, runLanes } from '@atropyle/circuits';
 
 /** The hero's drawing box. 520 high keeps the 26 inputs and latches of column 0 apart on a phone strip. */
 export const WEAVE_VIEW = { w: 1200, h: 520 } as const;
@@ -17,6 +17,32 @@ export const THREAD_ROOM = 24;
 /** The phone strip shows this many columns, from the middle of the circuit (spec §18.4.3 Task 4). */
 export const PHONE_COLUMNS = 12;
 
+/** One question to the policy: the 3 state bits, and the 23 input bits as the vault packs them (bit i = input i). */
+export interface LaneVector {
+  state: number;
+  inputs: number;
+}
+
+/**
+ * The value of every signal in each vector, by the circuits package's bit-parallel simulator: bit j of entry s is
+ * signal s in vectors[j]. One to eight vectors, so a signature stays in 0 … 255; the hero asks three.
+ */
+export function signalLanes(p: Program, vectors: readonly LaneVector[]): Int32Array {
+  if (vectors.length < 1 || vectors.length > 8) {
+    throw new Error(`signalLanes takes 1 to 8 vectors, got ${vectors.length}`);
+  }
+  const state = new Int32Array(p.nState);
+  const inputs = new Int32Array(p.nIn);
+  vectors.forEach((v, lane) => {
+    for (let i = 0; i < p.nState; i++) if ((v.state >> i) & 1) state[i] |= 1 << lane;
+    for (let i = 0; i < p.nIn; i++) if ((v.inputs >>> i) & 1) inputs[i] |= 1 << lane;
+  });
+  const b = lanes(p);
+  runLanes(p, state, inputs, b);
+  const mask = (1 << vectors.length) - 1;
+  return b.v.map((x) => x & mask);
+}
+
 const PAD_X = 24;
 const PAD_Y = 28;
 const round = (v: number) => Math.round(v);
@@ -32,6 +58,8 @@ export interface NetlistGeometry {
   nodes: number[];
   /** x1, y1, x2, y2 and the depth of the target, for both inputs of every NAND, in op order. */
   wires: number[];
+  /** For each wire of `wires`, in the same order: bit j set when it carries 1 in vector j of `lit`. */
+  wireV: number[];
   /** The left edge, then the real path from `alive` to the release output, then the right edge. */
   thread: number[];
   /** The phone strip: the view x where the middle PHONE_COLUMNS columns start, and their width. */
@@ -150,8 +178,12 @@ function calmestPath(
   return chain;
 }
 
-/** Deterministic: the same netlist gives the same file. */
-export function netlistGeometry(p: Program, view: { w: number; h: number } = WEAVE_VIEW): NetlistGeometry {
+/** Deterministic: the same netlist and the same questions give the same file. */
+export function netlistGeometry(
+  p: Program,
+  lit: readonly LaneVector[],
+  view: { w: number; h: number } = WEAVE_VIEW,
+): NetlistGeometry {
   const depth = signalDepths(p);
   let depths = 0;
   for (let s = 2; s < p.nSignals; s++) depths = Math.max(depths, depth[s]);
@@ -164,8 +196,14 @@ export function netlistGeometry(p: Program, view: { w: number; h: number } = WEA
 
   const nodes: number[] = [];
   for (let s = 2; s < p.nSignals; s++) nodes.push(x(s), y(s));
+  const value = signalLanes(p, lit);
   const wires: number[] = [];
-  for (const [src, out] of wiresOf) wires.push(x(src), y(src), x(out), y(out), depth[out]);
+  const wireV: number[] = [];
+  for (const [src, out] of wiresOf) {
+    wires.push(x(src), y(src), x(out), y(out), depth[out]);
+    // A wire carries its source's value.
+    wireV.push(value[src]);
+  }
 
   const thread = [0, y(chain[0])];
   for (const s of chain) thread.push(x(s), y(s));
@@ -181,7 +219,7 @@ export function netlistGeometry(p: Program, view: { w: number; h: number } = WEA
     if (p.ops[j] === 0) nands++;
     else latches++;
   }
-  return { depths, nands, latches, nodes, wires, thread, crop: { x: round1(left), w: round1(right - left) } };
+  return { depths, nands, latches, nodes, wires, wireV, thread, crop: { x: round1(left), w: round1(right - left) } };
 }
 
 export function renderGeometryModule(g: NetlistGeometry, view: { w: number; h: number } = WEAVE_VIEW): string {
@@ -201,6 +239,8 @@ export function renderGeometryModule(g: NetlistGeometry, view: { w: number; h: n
     `export const NODES: readonly number[] = ${list(g.nodes)};`,
     '/** x1, y1, x2, y2 and the depth of the target, for both inputs of every NAND. */',
     `export const WIRES: readonly number[] = ${list(g.wires)};`,
+    '/** For each wire of WIRES: bit j set when it carries 1 in question j of the hero (HERO_CASES: alive, silent, liar). */',
+    `export const WIRE_V: readonly number[] = ${list(g.wireV)};`,
     '/** The left edge, the calmest real path from the `alive` input to the release output, the right edge. */',
     `export const THREAD: readonly number[] = ${list(g.thread)};`,
     '',
