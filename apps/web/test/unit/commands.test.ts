@@ -1,10 +1,17 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { buildAll, stepBytes } from '@atropyle/circuits';
-import { cpuAbi } from '@atropyle/sdk';
+import { cpuAbi, VERSION } from '@atropyle/sdk';
 import { bytesToHex, hexToBytes } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { COMMANDS, MCP_PACKAGE, NODE_MIN, STEP_EXAMPLE, verifyWithSeed } from '../../src/content/commands';
+import {
+  COMMANDS,
+  MCP_PACKAGE,
+  NODE_MIN,
+  pinnedCommands,
+  STEP_EXAMPLE,
+  verifyWithSeed,
+} from '../../src/content/commands';
 
 const json = (path: string) => JSON.parse(readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8'));
 
@@ -48,5 +55,19 @@ describe('commands', () => {
   it('expects the answer the model of this repository gives for that step', () => {
     const r = stepBytes(buildAll().program, hexToBytes(STEP_EXAMPLE.state), hexToBytes(STEP_EXAMPLE.inputs));
     expect({ next: bytesToHex(r.next), out: bytesToHex(r.out) }).toEqual(STEP_EXAMPLE.answer);
+  });
+});
+
+describe('the pinned commands of /developers/', () => {
+  it('pin every package to the SDK version, the version npm has for all four packages', () => {
+    for (const pkg of ['packages/sdk', 'packages/cli', 'packages/mcp', 'circuits']) {
+      expect(json(`${pkg}/package.json`).version, pkg).toBe(VERSION);
+    }
+    expect(MCP_PACKAGE).toBe(`@atropyle/mcp@${VERSION}`);
+    expect(pinnedCommands(VERSION)).toEqual({
+      verify: `npx -y atropyle@${VERSION} verify`,
+      mcpClaude: `claude mcp add atropyle -- npx -y @atropyle/mcp@${VERSION}`,
+      mcpAny: `npx -y @atropyle/mcp@${VERSION}`,
+    });
   });
 });

@@ -37,3 +37,18 @@ export type CommandName = keyof typeof COMMANDS;
 export function verifyWithSeed(seed: bigint): string {
   return `${COMMANDS.verify} --p9-seed ${seed.toString(10)}`;
 }
+
+/**
+ * The commands /developers/ shows, each pinned to one published version (7C T10, ruling T10-R5). `version` is the
+ * SDK's VERSION, which the page's server component reads at build time: never typed here, so a release moves every
+ * pin at once. COMMANDS.verify stays unpinned for /proof/, whose certificate and tests quote it.
+ */
+export function pinnedCommands(version: string) {
+  return {
+    verify: `npx -y atropyle@${version} verify`,
+    mcpClaude: `claude mcp add atropyle -- npx -y @atropyle/mcp@${version}`,
+    mcpAny: `npx -y @atropyle/mcp@${version}`,
+  } as const;
+}
+
+export type PinnedCommands = ReturnType<typeof pinnedCommands>;
