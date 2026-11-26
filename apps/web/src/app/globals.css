@@ -698,6 +698,25 @@
     margin-top: max(0px, 2.5rem + 2px - 0.425 * (100cqw - 2.75rem) / 5);
   }
 }
+/* At rest the header's day counter says the day; the pill says it only next to the finger or the keyboard's focus
+   (Radix focuses the thumb on a press), or under a hovering pointer. opacity keeps its box, so its room above stays
+   and the e2e checks of the pill still measure it. */
+.stage-room [data-part="playhead"] {
+  opacity: 0;
+}
+.stage-room [role="slider"]:is(:focus, :active) [data-part="playhead"] {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .stage-room [role="slider"]:hover [data-part="playhead"] {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stage-room [data-part="playhead"] {
+    transition: opacity 150ms;
+  }
+}
 .hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
 .hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
 .hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {

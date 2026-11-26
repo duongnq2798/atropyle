@@ -761,6 +761,38 @@ test('the stage passes axe in both themes, before and after it loads', async ({ 
   await expectAccessible(page);
 });
 
+test('at rest the day counter alone says the day: the pill shows only while the thumb is held or focused', async ({
+  page,
+  state,
+}) => {
+  // Fix round 4: the header's counter and the pill said "Day 0" twice in one panel. The pill keeps its box (opacity),
+  // so the room above the thread and the checks of panelFaults still measure it.
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    await stage(page).evaluate((el) => el.scrollIntoView());
+    await loadStage(page);
+    const thumb = stage(page).getByTestId('home-stage-scrubber-thumb-0');
+    const pill = thumb.locator('[data-part="playhead"]');
+    await expect(stage(page).getByTestId('home-stage-day'), `${width} px`).toHaveText('Day 0');
+    await expect(pill, `${width} px: at rest`).toHaveCSS('opacity', '0');
+    expect(await pill.boundingBox(), `${width} px: the pill's box at rest`).not.toBeNull();
+    await thumb.focus();
+    await expect(pill, `${width} px: focused`).toHaveCSS('opacity', '1');
+    await expect(pill).toHaveText('Day 0');
+    await stage(page).locator('input[value="inherit"]').focus();
+    await expect(pill, `${width} px: blurred`).toHaveCSS('opacity', '0');
+    // A press on the track mid-way, held: Radix focuses the thumb and moves it under the finger.
+    const b = await stage(page).getByTestId('home-stage-scrubber').boundingBox();
+    if (!b) throw new Error('no Scrubber');
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await expect(pill, `${width} px: held`).toHaveCSS('opacity', '1');
+    await expect(pill).toHaveText(/^Day\s1[01]\d$/);
+    await page.mouse.up();
+  }
+});
+
 test('screens of the stage, for the design review', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
   test.setTimeout(300_000);
