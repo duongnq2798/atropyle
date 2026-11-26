@@ -831,3 +831,17 @@
   opacity: var(--weave-over, 1);
   mask-image: linear-gradient(to bottom, #000 0.12em, transparent 0.12em);
 }
+
+/* The story after the hero (7C-T7a, src/home/bands.tsx). A server component writes its text in both languages
+   (src/i18n/say.tsx), and the one <html lang> names shows: the other is display: none, so no screen reader, no
+   find-in-page and no font subset ever meets it. LangProvider sets <html lang> after mount, as it does for every other
+   text, so the static HTML reads English (Quyết định 15). */
+.say-vi {
+  display: none;
+}
+:root:lang(vi) .say-en {
+  display: none;
+}
+:root:lang(vi) .say-vi {
+  display: inline;
+}
