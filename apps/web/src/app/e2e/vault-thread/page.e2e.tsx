@@ -10,7 +10,8 @@ import { Thread } from '@/thread/thread';
 /**
  * Vault threads (spec §18.4.2 T6) on one page, for axe, the alignment checks and the review screenshots
  * (test/e2e/vault-thread.spec.ts): the default wave next to two vaults' own, and the guardians' posts at the gate.
- * A fixed "now", so the shots never change. The axes start two periods early, so three check-ins show as knots.
+ * A fixed "now", so the shots never change. The axes start two and a half periods early, so three check-ins show as
+ * knots, the first one whole: a knot at the very start of an axis would be cut in half by the box.
  */
 const T0 = 1_795_336_070n; // 2026-11-22 08:27:50 UTC
 const { period, threshold, window } = PRESETS.sixMonths;
@@ -20,7 +21,7 @@ const RELEASE = ALARM + BigInt(window);
 const VAULT_A: Address = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const VAULT_B: Address = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 const ACTIVE: ThreadAxis = {
-  from: T0 - 2n * P,
+  from: T0 - 2n * P - P / 2n,
   to: RELEASE,
   now: T0 + P,
   alarmAt: ALARM,

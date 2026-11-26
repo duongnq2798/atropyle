@@ -1,7 +1,7 @@
 'use client';
 
 import type { PlanIssue } from '@atropyle/sdk';
-import { Plus, X } from 'lucide-react';
+import { KeyRound, Plus, X } from 'lucide-react';
 import type { FlowsImpl } from '@/flows/load';
 import { useLang, useT } from '@/i18n/provider';
 import { durationWords } from '@/lib/duration';
@@ -121,6 +121,8 @@ export function GuardiansEditor({
       {n > 0 ? (
         <div className="space-y-4">
           <TextField
+            // A number of one digit: the field need not run the width of the form.
+            className="sm:max-w-xs"
             label={t('kLabel')}
             value={v.k}
             inputMode="numeric"
@@ -151,9 +153,18 @@ export function GuardiansEditor({
       <p
         aria-live="polite"
         data-testid={`${testId}-recovery-power`}
-        className={power ? 'rounded-xl border border-line-strong bg-surface-2 p-4 text-small text-ink' : undefined}
+        className={
+          power
+            ? 'flex items-start gap-3 rounded-xl border border-line-strong bg-surface-2 p-4 text-small text-ink'
+            : undefined
+        }
       >
-        {power}
+        {power ? (
+          <>
+            <KeyRound aria-hidden="true" size={18} strokeWidth={1.5} className="mt-px shrink-0 text-recovery" />
+            <span>{power}</span>
+          </>
+        ) : null}
       </p>
     </fieldset>
   );

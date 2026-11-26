@@ -111,12 +111,20 @@ function PercentField(p: {
     if (draft.trim() !== '' && Number.isFinite(n)) p.onCommit(Math.round(n * 100));
   };
   return (
-    <label className="flex flex-col gap-1 text-caption text-ink-muted">
-      <span className="flex items-center gap-2">
-        <span aria-hidden="true" className={cn('size-2.5 rounded-full', p.tone)} />
+    <label className="flex min-w-0 flex-col gap-1.5">
+      <span className="flex items-center gap-2 text-caption text-ink-muted">
+        <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', p.tone)} />
         {p.name}
       </span>
-      <span className="flex items-center gap-1">
+      {/* The field and its % sign are one box, like a TextField; the focus ring goes round both. */}
+      <span
+        className={cn(
+          'flex h-11 items-center rounded-xl border border-line-strong bg-surface-1 pr-3.5',
+          'transition-colors duration-150 hover:border-ink-muted has-[input:focus-visible]:border-thread',
+          'has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2',
+          'has-[input:focus-visible]:outline-thread has-[input:disabled]:opacity-50',
+        )}
+      >
         <input
           aria-label={p.label}
           data-testid={p.testId}
@@ -132,9 +140,11 @@ function PercentField(p: {
               commit();
             }
           }}
-          className="h-11 w-full rounded-lg border border-line bg-surface-1 px-3 font-mono text-body text-ink focus-visible:outline-2 focus-visible:outline-thread"
+          className="h-full w-full min-w-0 rounded-xl bg-transparent pl-3.5 font-mono text-body text-ink tabular-nums focus-visible:outline-none"
         />
-        <span aria-hidden="true">%</span>
+        <span aria-hidden="true" className="font-mono text-body text-ink-muted">
+          %
+        </span>
       </span>
     </label>
   );

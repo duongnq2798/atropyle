@@ -1,6 +1,8 @@
 'use client';
 
 import type { PlanIssue } from '@atropyle/sdk';
+import { CircleExclamationPoint } from 'lucide-react';
+import { Fragment } from 'react';
 import type { FlowsImpl } from '@/flows/load';
 import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -59,22 +61,38 @@ export function IssueList({ flows, drill, issues, testId, className }: IssueList
   const text = useIssueText(flows, drill);
   const field = useFieldText();
   const some = issues.length > 0;
+  // issueLine with its placeholders left in, split around them: each language orders the field and the issue, and
+  // the field is set in medium weight.
+  const shape = t('issueLine').split(/(\{field\}|\{issue\})/);
   return (
     <div
       role="alert"
       data-testid={testId}
       data-count={issues.length}
-      className={
-        some ? cn('space-y-2 rounded-xl border border-danger bg-surface-1 p-4 text-small', className) : undefined
-      }
+      className={some ? cn('rounded-xl border border-danger bg-surface-1 p-4 text-small', className) : undefined}
     >
       {some ? (
         <>
-          <p className="font-medium text-ink">{t('issuesTitle')}</p>
-          <ul className="space-y-1.5 text-ink">
+          <p className="flex items-start gap-2 font-medium text-ink">
+            <CircleExclamationPoint aria-hidden="true" size={18} strokeWidth={1.5} className="shrink-0 text-danger" />
+            <span>{t('issuesTitle')}</span>
+          </p>
+          {/* The bullets hang in the padding, under the icon: every line starts where the title does. */}
+          <ul className="mt-2 list-disc space-y-1.5 pl-[1.625rem] text-ink marker:text-danger">
             {issues.map((i) => (
               <li key={`${i.path}|${i.code}`} data-path={i.path} data-code={i.code}>
-                {t('issueLine', { field: field(i.path), issue: text(i) })}
+                {shape.map((s, j) =>
+                  s === '{field}' ? (
+                    <span key="field" className="font-medium">
+                      {field(i.path)}
+                    </span>
+                  ) : s === '{issue}' ? (
+                    <Fragment key="issue">{text(i)}</Fragment>
+                  ) : (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: the template's own text, fixed for the language
+                    <Fragment key={j}>{s}</Fragment>
+                  ),
+                )}
               </li>
             ))}
           </ul>
