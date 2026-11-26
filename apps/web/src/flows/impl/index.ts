@@ -17,9 +17,12 @@ export {
   ZERO_ADDRESS,
 } from '@atropyle/sdk';
 export * from './address-check';
+export * from './balances';
 export * from './create-form';
 export * from './guardian';
 export * from './heir';
+export * from './loom';
+export * from './session';
 export * from './sign';
 export * from './sign-gate';
 export * from './vault-view';
