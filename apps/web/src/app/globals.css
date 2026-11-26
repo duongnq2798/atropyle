@@ -536,6 +536,46 @@
 .weave-col path {
   stroke: color-mix(in oklab, currentColor 55%, transparent);
 }
+/* A chip's face is the span after its radio; `:checked + span` needs no :has(), so it marks the choice in every
+   browser. Every face has a ring, so the choice reads by shape as well as by hue (§4.1): only the checked chip fills
+   it and wears the thread, border and tint, like the answer's ring and the release pin. Hover lightens an unchecked
+   chip and never borrows the thread, so the mouse never seems to give a second answer (fix round 2 of 7C-T5′). */
+.ask-chip > span::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.375rem;
+  border: 1.5px solid currentColor;
+  border-radius: 9999px;
+}
+.ask-chip > :checked + span {
+  border-color: var(--atro-thread);
+  background-color: color-mix(in oklab, var(--atro-thread) 12%, transparent);
+  color: var(--atro-ink);
+}
+.ask-chip > :checked + span::before {
+  border-color: var(--atro-thread);
+  background-color: var(--atro-thread);
+}
+@media (hover: hover) {
+  .ask-chip > :not(:checked) + span:hover {
+    border-color: var(--atro-ink-muted);
+    color: var(--atro-ink);
+  }
+}
+.ask-chip > :focus-visible + span {
+  outline: 2px solid var(--atro-thread);
+  outline-offset: 2px;
+}
+/* High contrast drops the tint and the fill, so the filled ring is drawn in the system's ink. */
+@media (forced-colors: active) {
+  .ask-chip > :checked + span::before {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background-color: CanvasText;
+  }
+}
 .hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
 .hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
 .hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {

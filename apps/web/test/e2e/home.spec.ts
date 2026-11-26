@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { shouldCapture } from './screens.ts';
+import { setStoredTheme, settle } from './helpers.ts';
+import { captureScreens, shouldCapture } from './screens.ts';
 
 /** The layout shift of the page so far, as CLS counts it (rounded as scripts/lib/lighthouse-score.ts rounds it). */
 function layoutShift(page: Page): Promise<number> {
@@ -159,6 +160,76 @@ test('each chip lights the wires that carry 1 for its question, answers it and r
   expect(await layoutShift(page)).toBe(0);
 });
 
+/** How a chip looks: its border and fill, and the ring before its label (its ::before). */
+function chipLook(page: Page, letter: 'a' | 's' | 'l') {
+  return chip(page, letter)
+    .locator('span')
+    .evaluate((face) => {
+      const s = getComputedStyle(face);
+      const ring = getComputedStyle(face, '::before');
+      return {
+        border: s.borderColor,
+        fill: s.backgroundColor,
+        ink: s.color,
+        ring:
+          ring.content === 'none' ? null : { size: ring.width, edge: ring.borderTopColor, dot: ring.backgroundColor },
+      };
+    });
+}
+
+test('only the checked chip wears the thread, as a filled ring and a tint; a hovered chip never looks checked', async ({
+  page,
+  state,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const clear = 'rgba(0, 0, 0, 0)';
+  // Touch screens have no hover (globals.css keeps it in @media (hover: hover)): there the hovered chip is a plain one.
+  const hovers = info.project.name === 'desktop';
+  for (const theme of ['dark', 'light'] as const) {
+    if (theme === 'light') await setStoredTheme(page, 'light');
+    const gold = await computed(page, 'var(--atro-thread)');
+    const tint = await computed(page, 'color-mix(in oklab, var(--atro-thread) 12%, transparent)');
+    const muted = await computed(page, 'var(--atro-ink-muted)');
+    // The ring costs width: in English the three chips must still share one row of the 644 px text column.
+    const tops = await page
+      .locator('label.ask-chip > span')
+      .evaluateAll((s) => s.map((e) => e.getBoundingClientRect().top));
+    expect(new Set(tops).size, theme).toBe(1);
+    // "If I keep checking in" is checked at load; the mouse rests on "If I go silent".
+    await chip(page, 's').hover();
+    await settle(page);
+    const checked = await chipLook(page, 'a');
+    const hovered = await chipLook(page, 's');
+    const plain = await chipLook(page, 'l');
+    // A shape on every chip, so the choice reads without its hue: an empty ring in the chip's own ink.
+    for (const [name, look] of [
+      ['hovered', hovered],
+      ['plain', plain],
+    ] as const) {
+      expect(look.border, `${theme} ${name}`).not.toBe(gold);
+      expect(look.fill, `${theme} ${name}`).toBe(clear);
+      expect(look.ring, `${theme} ${name}`).toEqual({ size: '8px', edge: look.ink, dot: clear });
+    }
+    if (hovers) expect(hovered.border, theme).toBe(muted);
+    expect(checked.border, theme).toBe(gold);
+    expect(checked.fill, theme).toBe(tint);
+    expect(checked.ring, theme).toEqual({ size: '8px', edge: gold, dot: gold });
+    // The mouse on the checked chip leaves it checked-looking: hover never takes the choice's thread away.
+    await chip(page, 'a').hover();
+    await settle(page);
+    expect(await chipLook(page, 'a'), theme).toEqual(checked);
+  }
+  await setStoredTheme(page, 'dark');
+  // High contrast drops every author colour and fill: the filled ring, in the system's own ink, is what is left.
+  await page.emulateMedia({ forcedColors: 'active' });
+  const canvasText = await computed(page, 'CanvasText');
+  expect((await chipLook(page, 'a')).ring?.dot).toBe(canvasText);
+  // Forced colours keep a fill's alpha and swap its hue for Canvas: the empty ring stays clear.
+  expect((await chipLook(page, 'l')).ring?.dot).toMatch(/^rgba\(\d+, \d+, \d+, 0\)$/);
+});
+
 /**
  * The first screen of a laptop and of a phone holds the question, its answer and the Drill offer (fix round 1 of
  * 7C-T5′: with the chips above the lead, the offer started at 843 px on a 1440 × 800 screen). On a 1440 × 800 laptop
@@ -243,4 +314,28 @@ test('screens of the weave mid-sweep on a phone, for the design review', async (
       .first()
       .screenshot({ path: `test-results/screens/home-sweep/night-en-390-${ms}ms.png` });
   }
+});
+
+/**
+ * Review screens of the chips at 1440 px in night and vellum (SCREENS=1 only): "If I keep checking in" checked, the
+ * mouse on "If I go silent", so the hovered chip can be told from the checked one. The full page, then its chips.
+ */
+test('screens of a hovered chip beside the checked one, for the design review', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await captureScreens(page, 'home-hover', {
+    shots: [
+      { theme: 'dark', lang: 'en', width: 1440 },
+      { theme: 'light', lang: 'en', width: 1440 },
+    ],
+    ready: async (p) => {
+      await chip(p, 's').hover();
+      const scheme = (await p.locator('html').getAttribute('data-theme')) === 'light' ? 'vellum' : 'night';
+      await settle(p);
+      await p
+        .getByRole('group', { name: 'Ask the circuit' })
+        .screenshot({ path: `test-results/screens/home-hover/${scheme}-en-1440-chips.png` });
+    },
+  });
 });

@@ -15,12 +15,15 @@ import { ARROW, DOOR } from './look';
 
 const CHIP_KEY = { alive: 'askAlive', silent: 'askSilent', liar: 'askLiar' } as const;
 const ANSWER_KEY = { alive: 'answerAlive', silent: 'answerSilent', liar: 'answerLiar' } as const;
-/** The chip is the span after its radio: peer-checked needs no :has(), so it marks the choice in every browser. */
+/**
+ * The chip is the span after its radio. Its states (the ring, checked, hover, focus) are in globals.css, beside the
+ * rules that light the wires for the same radio: written once there, not three times in the HTML and again in its
+ * payload. The ring's width comes out of the padding (pl-3 pr-3.5): the three English chips still share one row of
+ * the 644 px text column (634.8 px).
+ */
 const CHIP =
   'inline-flex min-h-10 cursor-pointer select-none items-center text-balance rounded-full border border-line-strong ' +
-  'px-4 py-2 text-ink-muted text-small transition-colors duration-150 hover:border-thread hover:text-ink ' +
-  'peer-checked:border-thread peer-checked:bg-surface-2 peer-checked:text-ink peer-focus-visible:outline-2 ' +
-  'peer-focus-visible:outline-thread peer-focus-visible:outline-offset-2';
+  'py-2 pr-3.5 pl-3 text-ink-muted text-small transition-colors duration-150';
 
 /**
  * Ask the circuit (spec §18.4.3 Task 5′): three native radios. CSS (globals.css) lights the wires that carry 1 for
@@ -61,7 +64,7 @@ export function AskCircuit({
                 defaultChecked={c === 'alive'}
                 aria-describedby={`${id}-${LETTER[c]}`}
                 onChange={() => onChoice(c)}
-                className="peer sr-only"
+                className="sr-only"
               />
               <span className={CHIP}>{t(CHIP_KEY[c])}</span>
             </label>
