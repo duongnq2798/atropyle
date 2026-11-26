@@ -8,9 +8,8 @@ import { type KV, memoryKV } from '../../src/lib/store';
 import type { WalletWindow } from '../../src/lib/wallet';
 import { HomePage } from '../../src/pages/home';
 import { AppProvider } from '../../src/ui/app-context';
-import type { CountersLoad } from '../../src/ui/chain-counters';
 import { RequireSdk } from '../../src/ui/components';
-import { fixtureCounters } from './counters-fixture';
+import { messages as shell } from '../../src/ui/shell.messages';
 import { fixtureDeployment, fixtureStats } from './fixtures';
 
 afterEach(cleanup);
@@ -18,18 +17,11 @@ afterEach(cleanup);
 const d = fixtureDeployment({ name: 'local', chainId: 31337 });
 const env = readEnv({ VITE_DEPLOYMENT: JSON.stringify(deploymentToJson(d)) });
 
-/**
- * No router: changing location.hash here does not render another page (and so never touches the network). The
- * counters come from `counters`, never from the RPC.
- */
-function renderHome(
-  kv: KV = memoryKV(),
-  languages: string[] = ['en'],
-  counters: CountersLoad = async () => fixtureCounters(),
-) {
+/** No router: changing location.hash here does not render another page (and so never touches the network). */
+function renderHome(kv: KV = memoryKV(), languages: string[] = ['en']) {
   render(
     <AppProvider env={env} kv={kv} win={new EventTarget() as WalletWindow} languages={languages}>
-      <RequireSdk>{(sdk) => <HomePage sdk={sdk} counters={counters} />}</RequireSdk>
+      <RequireSdk>{(sdk) => <HomePage sdk={sdk} />}</RequireSdk>
     </AppProvider>,
   );
 }
@@ -48,15 +40,26 @@ test('the home page leads with the Drill and validates the vault address', async
   expect(location.hash).toBe('#/v/0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
 });
 
-test('cached stats show without a network call', () => {
+test('the home page leaves the counts to the Status page and names it as the navigation does', () => {
+  // A full count cached on this device does not bring the statistics back to the home page.
   const kv = memoryKV();
   saveStats(kv, d.chainId, d.factory, fixtureStats(), 1_000);
   renderHome(kv);
-  expect(screen.getByTestId('stat-vaults').getAttribute('data-value')).toBe('3');
-  expect(screen.getByTestId('stat-drill').getAttribute('data-value')).toBe('2');
-  expect(screen.getByText('As of block 2000.')).toBeTruthy();
-  expect(screen.getByTestId('stats-load').textContent).toBe('Update from the chain');
+  expect(screen.queryByTestId('counters')).toBeNull();
+  expect(screen.queryByTestId('stats')).toBeNull();
+  expect(screen.getByTestId('home-status-note').textContent).toBe(
+    'Vault counts and contract checks, read live from the chain, are under Status.',
+  );
+  const link = screen.getByTestId('home-status-link');
+  expect(link.getAttribute('href')).toBe('#/status');
+  expect(link.textContent).toBe(shell.en.navStatus);
   expect(screen.getByText('Connect a wallet to see the vaults you own, inherit or guard.')).toBeTruthy();
+  cleanup();
+  renderHome(memoryKV(), ['vi']);
+  expect(screen.getByTestId('home-status-note').textContent).toBe(
+    'Số vault và kết quả kiểm contract, đọc trực tiếp từ chain, nằm ở mục Trạng thái.',
+  );
+  expect(screen.getByTestId('home-status-link').textContent).toBe(shell.vi.navStatus);
 });
 
 test('the tagline says what k is and how the owner stops a recovery, in both languages', () => {
@@ -69,23 +72,4 @@ test('the tagline says what k is and how the owner stops a recovery, in both lan
   const vi = screen.getByTestId('home-tagline').textContent;
   expect(vi).toContain('k trong số người giám hộ của bạn, một con số do bạn chọn,');
   expect(vi).toContain('Bạn chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.');
-});
-
-test('the home page reads the counters on load and shows the block and date of the read', async () => {
-  renderHome();
-  expect((await screen.findByTestId('counter-vaults')).getAttribute('data-value')).toBe('1234');
-  expect(screen.getByTestId('counter-paid').getAttribute('data-outside')).toBe('38');
-  expect(screen.getByTestId('counters-as-of').textContent).toContain('block 76825469, 2026-11-25 08:15 UTC');
-  // The short version: the definitions stay on the status page.
-  expect(screen.queryByTestId('counters-definitions')).toBeNull();
-});
-
-test('the rest of the home page works when the counters cannot be read', async () => {
-  renderHome(memoryKV(), ['en'], async () => {
-    throw new Error('rpc down');
-  });
-  expect(await screen.findByTestId('counters-error')).toBeTruthy();
-  expect(screen.queryByTestId('error')).toBeNull();
-  expect(screen.getByTestId('home-drill').getAttribute('href')).toBe('#/create?drill=1');
-  expect(screen.getByTestId('stats-load')).toBeTruthy();
 });

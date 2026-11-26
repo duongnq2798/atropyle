@@ -18,6 +18,10 @@ test('create a Drill from the wizard', async ({ page, state, atro, wallet }) => 
 
   await page.getByTestId('create-check').click();
   await expect(page.getByTestId('create-token-0')).toBeVisible();
+  // The token address and its name sit on their own lines, never run together.
+  const address = await page.getByTestId('create-token-0-address').boundingBox();
+  const tokenName = await page.getByTestId('create-token-0-name').boundingBox();
+  expect(tokenName?.y ?? 0).toBeGreaterThanOrEqual((address?.y ?? 0) + (address?.height ?? 0) - 0.5);
   await expect(page.getByTestId('create-warning-DRILL_NOT_FOR_REAL_ASSETS')).toBeVisible();
   await page.getByTestId('create-prepare').click();
   await expect(page.getByTestId('create-tx-step-0')).toHaveAttribute('data-phase', 'ready');
