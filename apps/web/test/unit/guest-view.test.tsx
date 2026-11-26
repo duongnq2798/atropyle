@@ -47,6 +47,23 @@ describe('the guest view', () => {
     expect(screen.queryByTestId('vault-public-owner')).toBeNull();
   });
 
+  it('helps with the poke by what it does: once the time to cancel is over, it never says the owner can cancel', () => {
+    const help = () => screen.getByTestId('vault-poke-help').textContent ?? '';
+    const cases: [StateName, StateName, RegExp, boolean][] = [
+      ['active', 'grace', /raise the alarm/, true],
+      ['grace', 'recovery', /starts the recovery/, true],
+      ['recovery', 'active', /ends the alarm/, false],
+      ['grace', 'releasedInherit', /passes the vault to the heirs/, false],
+      ['recovery', 'releasedRecover', /passes the vault to the recovery wallet/, false],
+    ];
+    for (const [state, pending, says, cancel] of cases) {
+      const r = guest(PEOPLE.stranger, loadedAt(state, pending));
+      expect(help(), `${state} → ${pending}`).toMatch(says);
+      expect(help().includes('can still cancel'), `${state} → ${pending}`).toBe(cancel);
+      r.unmount();
+    }
+  });
+
   it('tells a stranger when nothing needs doing', () => {
     guest(PEOPLE.stranger, loadedAt('active', 'active'));
     expect(screen.queryByTestId('vault-poke')).toBeNull();

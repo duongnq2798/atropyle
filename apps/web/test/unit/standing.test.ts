@@ -8,6 +8,9 @@ import { fixtureSnapshot } from './fixtures';
 
 const base = fixtureSnapshot().status; // active, lastAlive 990, lateAt 1050, expiresAt 605_800
 const W = { alarmAt: 1_100n, windowEndsAt: 1_220n };
+const NBSP = String.fromCharCode(0xa0);
+/** The one breakable space of a date with its time: after the comma before "20:41 UTC". */
+const BETWEEN = new RegExp(`, (?=[0-9]{2}:[0-9]{2}${NBSP}UTC$)`);
 
 /** [case, status over the base, key suffix, the moment `date` names] */
 const CASES = [
@@ -40,7 +43,14 @@ describe('standingSentence', () => {
           const s = standingSentence({ role, status: { ...base, ...over }, chainNow: 1_000n, lang, drill: true });
           if (!s) throw new Error('no sentence');
           expect(s.key).toBe(`${role}${suffix}`);
-          expect(s.params.date).toBe(chainDate(at, lang, true));
+          expect(String(s.params.date).replaceAll(NBSP, ' ')).toBe(chainDate(at, lang, true));
+          // At 390 px a date never breaks inside "26 tháng 11, 2026" or "20:41 UTC": only after the comma between them.
+          for (const v of Object.values(s.params).map(String)) {
+            const [day, time = ''] = v.split(BETWEEN);
+            expect(day, v).not.toContain(' ');
+            expect(time, v).not.toContain(' ');
+            expect(time, v).toMatch(/UTC$/);
+          }
           const text = translate(messages, lang, s.key, s.params);
           expect(text, 'every placeholder filled').not.toMatch(/\{\w+\}/);
         });

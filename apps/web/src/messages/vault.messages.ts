@@ -81,6 +81,14 @@ export const messages = defineMessages(
     recoveryTo: 'The vault was released to the recovery wallet chosen by the guardians:',
     pokeHelp:
       'If the owner has missed their check-ins, anyone can raise the alarm or move the vault to its next state. The owner can still cancel an alarm by checking in.',
+    pokeHelpRecovery:
+      'The guardians agree on a recovery wallet. This starts the recovery; the owner can still cancel it by checking in before its window ends. Nothing comes to your wallet.',
+    pokeHelpEnd:
+      'The guardians no longer agree on a recovery wallet, and the owner is not late. This ends the alarm; nothing comes to your wallet.',
+    pokeHelpRelease:
+      'The time to cancel the alarm is over. This passes the vault to the heirs named in the plan; nothing comes to your wallet.',
+    pokeHelpReleaseRecover:
+      'The time to cancel the recovery is over. This passes the vault to the recovery wallet the guardians chose; nothing comes to your wallet.',
     poke: 'Raise the alarm',
     pokeEnd: 'End the alarm',
     pokeRecovery: 'Start the recovery',
@@ -183,6 +191,14 @@ export const messages = defineMessages(
     recoveryTo: 'Đã tới lúc vault trao tài sản cho ví khôi phục do các người giám hộ chọn:',
     pokeHelp:
       'Nếu chủ vault đã bỏ lỡ các lần điểm danh, ai cũng có thể báo động hoặc chuyển vault sang trạng thái kế tiếp. Chủ vault vẫn huỷ được báo động bằng cách điểm danh.',
+    pokeHelpRecovery:
+      'Các người giám hộ đã thống nhất một ví khôi phục. Giao dịch này bắt đầu khôi phục; chủ vault vẫn huỷ được bằng cách điểm danh trước khi hết thời hạn. Ví của bạn không nhận gì.',
+    pokeHelpEnd:
+      'Các người giám hộ không còn thống nhất một ví khôi phục, và chủ vault chưa trễ hạn. Giao dịch này kết thúc báo động; ví của bạn không nhận gì.',
+    pokeHelpRelease:
+      'Thời gian huỷ báo động đã hết. Giao dịch này trao vault cho những người thừa kế trong kế hoạch; ví của bạn không nhận gì.',
+    pokeHelpReleaseRecover:
+      'Thời gian huỷ khôi phục đã hết. Giao dịch này trao vault cho ví khôi phục do các người giám hộ chọn; ví của bạn không nhận gì.',
     poke: 'Báo động',
     pokeEnd: 'Kết thúc báo động',
     pokeRecovery: 'Bắt đầu khôi phục',

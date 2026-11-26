@@ -30,6 +30,18 @@ const POKE_KEY = {
   releasedRecover: 'pokeReleaseRecover',
 } as const satisfies Record<StateName, VaultKey>;
 
+/**
+ * Its help says the same, from the same status.pending (fix round 2): once the time to cancel is over, a line that
+ * still says "the owner can cancel" would contradict the header above it.
+ */
+const POKE_HELP_KEY = {
+  active: 'pokeHelpEnd',
+  grace: 'pokeHelp',
+  recovery: 'pokeHelpRecovery',
+  releasedInherit: 'pokeHelpRelease',
+  releasedRecover: 'pokeHelpReleaseRecover',
+} as const satisfies Record<StateName, VaultKey>;
+
 /** What the public actions offer this wallet now: GuestView titles its card by it, PublicActions renders it. */
 export function publicOffers(view: VaultView, s: VaultStatus, pokeHeld: boolean) {
   // Signed by the owner of a vault not yet released, poke is a check-in (AtropyleVault.poke: _ownerAlive, then
@@ -79,7 +91,9 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged, he
       ) : null}
       {canPoke ? (
         <div className="flex flex-col gap-3">
-          <p className="text-small text-ink-muted">{t('pokeHelp')}</p>
+          <p data-testid="vault-poke-help" className="text-small text-ink-muted">
+            {t(POKE_HELP_KEY[s.pending])}
+          </p>
           <LazyActionFlow
             flows={flows}
             sdk={sdk}

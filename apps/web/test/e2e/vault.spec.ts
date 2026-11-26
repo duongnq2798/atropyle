@@ -250,6 +250,27 @@ test('every address in the plan takes two rows of five groups at 1024, 1280 and 
   }
 });
 
+test('the thread and its countdowns end on the right edge of the cards at 1024, 1280 and 1440 px', async ({
+  page,
+  state,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop widths');
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  const right = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => Math.round(el.getBoundingClientRect().right));
+  for (const width of [1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const card = await right('[data-testid="vault-plan"]');
+    // The thread itself, then the countdown under its end.
+    expect(await right('[data-testid="vault-course"] > :first-child'), `${width}px thread`).toBe(card);
+    expect(await right('[data-testid="vault-next"]'), `${width}px countdown`).toBe(card);
+  }
+});
+
 test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // Every screen in both themes, both languages, at 1440, 768 and 390 px: up to 108 reloads on a shared machine.

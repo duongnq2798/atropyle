@@ -37,6 +37,21 @@ export interface Standing {
 /** Two days, in seconds. */
 const NEAR = 172_800n;
 
+const NBSP = String.fromCharCode(0xa0);
+/** The comma before the time of day: the one place a date may break. */
+const BEFORE_TIME = /, (?=\d{2}:\d{2} UTC$)/;
+
+/**
+ * The date ("26 tháng 11, 2026") and the time ("20:41 UTC") each stay whole on a phone: at lead size a bare
+ * "26 tháng" at a line end reads as "26 months" (fix round 2). The line breaks only after the comma between them.
+ */
+export function keepDate(d: string): string {
+  return d
+    .split(BEFORE_TIME)
+    .map((part) => part.replaceAll(' ', NBSP))
+    .join(', ');
+}
+
 /** Heirs read their letter and guardians their tab (spec §18.4.2 T9): the sentence is the owner's and a visitor's. */
 export function standingRole(roles: readonly Role[]): StandingRole | null {
   if (roles.includes('owner')) return 'owner';
@@ -52,7 +67,7 @@ export function standingSentence({ role, status: s, chainNow, lang, drill }: Sta
   const date = (ts: bigint | null): string => {
     const t = ts ?? chainNow;
     const d = t > chainNow ? t - chainNow : chainNow - t;
-    return chainDate(t, lang, drill || d < NEAR);
+    return keepDate(chainDate(t, lang, drill || d < NEAR));
   };
   const say = (kind: Kind, params: Params): Standing => {
     const key: `${StandingRole}${Kind}` = `${role}${kind}`;

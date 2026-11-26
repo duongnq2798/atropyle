@@ -113,8 +113,10 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
       {/* self-start: the copy button stays by the groups instead of at the far end of the header. */}
       <Address address={view.vault} explorer={explorer} copy avatar className="self-start" />
       {/* One measure for the thread and what explains it (review fix 5): the last check-in under the now dot, the next
-          moment under the gate and the thread's end, the guardians' line under the posts it describes. */}
-      <div data-testid="vault-course" className="flex w-full max-w-3xl flex-col gap-3">
+          moment under the gate and the thread's end, the guardians' line under the posts it describes. That measure is
+          the page column (fix round 2): the thread and its countdowns end on the cards' right edge; only the sentences
+          above and below keep the text measure. */}
+      <div data-testid="vault-course" className="flex w-full flex-col gap-3">
         <Thread
           state={thread.state}
           {...thread.input}

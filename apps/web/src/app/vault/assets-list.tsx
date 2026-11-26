@@ -48,7 +48,8 @@ export function AssetsList({ view, explorer }: { view: VaultView; explorer: stri
               className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6"
             >
               <div className="col-span-2 flex min-w-0 flex-col items-start gap-1 sm:col-span-1">
-                <p className="text-body text-ink">
+                {/* Chain text in the Ledger voice (§18.2 rule 7): the name is not the product speaking. */}
+                <p className="voice-ledger text-body text-ink break-words">
                   <span data-testid={`asset-${a.index}-name`}>
                     <UntrustedText value={a.info.name} max={32} />
                   </span>{' '}
