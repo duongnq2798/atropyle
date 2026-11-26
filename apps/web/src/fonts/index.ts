@@ -3,12 +3,14 @@ import localFont from 'next/font/local';
 // Decision 8: three subsets per family share one family name, each with its own unicode-range, so a page loads
 // only the files it needs. next/font reads options statically, so every value is a literal; test/unit/fonts.test.ts
 // compares the ranges with src/fonts/ranges.ts. Only the Latin subsets of Fraunces and Inter preload.
+// Fraunces ships its standard files (wght and opsz): the full ones add the SOFT and WONK axes, which Atropyle does
+// not animate (spec §18.5), at almost twice the bytes of the LCP preload.
 // Turbopack names next/font families after the JS identifier, not after `declarations`, so its generated family and
 // fallback stacks would name no face that exists. globals.css therefore names the families ('Atropyle Fraunces', ...)
 // and owns the metric-adjusted fallback faces, and every call sets adjustFontFallback: false and no fallback array.
 
 const frauncesVi = localFont({
-  src: './files/fraunces-vietnamese-full-normal.woff2',
+  src: './files/fraunces-vietnamese-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',
@@ -26,7 +28,7 @@ const frauncesVi = localFont({
 });
 
 const frauncesExt = localFont({
-  src: './files/fraunces-latin-ext-full-normal.woff2',
+  src: './files/fraunces-latin-ext-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',
@@ -44,7 +46,7 @@ const frauncesExt = localFont({
 });
 
 const fraunces = localFont({
-  src: './files/fraunces-latin-full-normal.woff2',
+  src: './files/fraunces-latin-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',

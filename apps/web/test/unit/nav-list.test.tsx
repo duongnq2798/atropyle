@@ -53,6 +53,15 @@ describe('NavList', () => {
     expect(container.querySelector('[aria-current]')).toBeNull();
   });
 
+  it('keeps each bar link on one line, with tighter padding from md to lg and the thread under the text', async () => {
+    nav.segment = 'create';
+    const { container } = await hydrateBar('/create/', '/create/');
+    const links = [...container.querySelectorAll('a')];
+    expect(links).toHaveLength(4);
+    for (const a of links) expect(a).toHaveClass('whitespace-nowrap', 'px-2', 'lg:px-3');
+    expect(container.querySelector('a[aria-current="page"] > span')).toHaveClass('inset-x-2', 'lg:inset-x-3');
+  });
+
   it('marks the current page on a real route, from the first paint', async () => {
     nav.segment = 'create';
     const { container, errors } = await hydrateBar('/create/', '/create/');

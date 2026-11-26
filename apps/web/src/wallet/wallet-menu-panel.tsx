@@ -16,6 +16,19 @@ import { useWallet } from './provider';
 
 const EXPLORER = explorerUrlOf(ENV);
 
+/**
+ * Below sm the menu spans the screen less the collision padding (12 px) on both sides, so it stands centred under the
+ * header: at 22rem it hung from the account button and the collision padding pushed it off the button, 12 px from the
+ * left edge and 48 px from the right on a 412 px phone. Radix gives that width as
+ * --radix-popover-content-available-width, which leaves out a classic scrollbar, unlike 100vw. From sm up it hangs
+ * from the button at 22rem. Either way the address keeps its block of two rows of five beside the copy and OKLink
+ * buttons (X Layer): "0x" and five groups take 23.8ch, 200 px at text-small, and the row leaves the groups 220 px at
+ * 22rem, 204 px on a 360 px phone. At w-80 they got 188 px and the address broke into three ragged lines. Test 1 of
+ * e2e/wallet.spec.ts measures the menu's edges, and keeps the 40 px of the OKLink button free on anvil, where the
+ * explorer is null.
+ */
+const WIDTH = 'w-(--radix-popover-content-available-width) sm:w-[22rem]';
+
 /** The content of WalletMenu, in its own chunk: the full address, the network and Disconnect. */
 export function WalletMenuPanel({
   id,
@@ -38,7 +51,7 @@ export function WalletMenuPanel({
       open={open}
       onOpenChange={onOpenChange}
       label={t('walletMenu')}
-      className="w-80 max-w-[calc(100vw-1.5rem)]"
+      className={WIDTH}
       onCloseAutoFocus={(event) => {
         // Disconnect, or a wallet that went away, removes this menu together with its button; focus goes to the
         // Connect button that takes its place, not to the page. While connected, focus goes back to the button.
@@ -62,7 +75,7 @@ export function WalletMenuPanel({
           <span className={cn('inline-flex items-center gap-1.5', wrongChain ? 'text-grace' : 'text-ink')}>
             <span aria-hidden="true" className={cn('size-2 rounded-full', wrongChain ? 'bg-grace' : 'bg-alive')} />
             {networkName(wallet.chainId)}
-            <span className="font-mono text-ink-muted">· {wallet.chainId}</span>
+            <span className="voice-ledger text-ink-muted">· {wallet.chainId}</span>
           </span>
         </div>
         {wrongChain ? <SwitchNetworkButton /> : null}
@@ -77,7 +90,7 @@ export function WalletMenuPanel({
               {t('disconnect')}
             </Button>
           </PopoverClose>
-          <p className="px-1 text-caption text-ink-muted">{t('disconnectHint')}</p>
+          <p className="px-3 text-caption text-ink-muted">{t('disconnectHint')}</p>
         </div>
       </div>
     </AnchoredPopover>

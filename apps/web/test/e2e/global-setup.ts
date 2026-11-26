@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,15 @@ import { type E2EState, rpcCall, writeState } from './state.ts';
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The e2e build, copied out of out/ so that a later `npm run build` cannot change it under a running suite. */
 const SITE = fileURLToPath(new URL('./.site', import.meta.url));
+
+/**
+ * Empties a folder and keeps it. Windows cannot remove a folder that a process holds open (a file server started in
+ * it, a shell left in it), but it can remove what is inside, which is all a fresh copy needs.
+ */
+function emptyDir(dir: string): void {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) rmSync(join(dir, name), { recursive: true, force: true });
+}
 
 /** Deploys the contracts and seeds the demo vaults; its own process, because it imports repo sources directly. */
 function prepareDevnet(rpcUrl: string): Pick<E2EState, 'deployment' | 'seeded'> {
@@ -47,7 +56,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     };
     const built = await buildApp({ env, quiet: true });
     if (built.code !== 0) throw new Error(`next build (e2e) failed:\n${built.output}`);
-    rmSync(SITE, { recursive: true, force: true });
+    emptyDir(SITE);
     cpSync(OUT_DIR, SITE, { recursive: true });
     // Served with the headers of vercel.json, so the header policy and each page's meta policy apply together.
     server = await startStaticServer(SITE, 0, siteHeaders());

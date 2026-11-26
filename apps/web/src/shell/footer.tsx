@@ -34,8 +34,10 @@ export function Footer() {
               {t('knownLimits')}
             </NavLink>
           </div>
-          <nav aria-label={t('footerNav')}>
-            <ul className="grid grid-cols-2 gap-x-10 gap-y-3 text-small">
+          {/* From md the links stand beside the text, each on one line (a label that wrapped left its arrow between
+              two lines at 768 px), in columns as wide as their own links, and the text column gives way instead. */}
+          <nav aria-label={t('footerNav')} className="md:shrink-0">
+            <ul className="grid grid-cols-2 gap-x-10 gap-y-3 text-small md:grid-cols-[auto_auto] md:whitespace-nowrap">
               <li>
                 <NavLink href={ROUTES.verify} prefetch={false} className={LINK}>
                   {t('forHeirs')}

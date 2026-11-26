@@ -28,6 +28,8 @@ So a fix cannot reach a deployed vault. Mitigations land in the SDK, the CLI, th
 
 The [Limits section of the README](README.md#limits) lists them, and [`contracts/README.md`](contracts/README.md#known-limits) gives the details of the distribution code: the gas caps on each transfer, tokens and heirs whose transfer fails, and the worst-case gas of a sweep.
 
+The contracts are not audited. Slither and `forge lint` run on every push, and [`docs/security/static-analysis.md`](docs/security/static-analysis.md) triages every finding they report; CI fails on a new finding or on a triaged one that disappears.
+
 ## If Atropyle disappears
 
 A vault keeps working without the site, the keeper or the CLI. Everything it needs is on X Layer: the vault, the factory and the `ATRO` processor. The assets never leave the owner's wallet before release, and the owner can always revoke the vault's approvals with any wallet or token tool.

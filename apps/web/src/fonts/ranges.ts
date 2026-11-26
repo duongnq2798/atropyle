@@ -12,7 +12,7 @@ export const RANGES: Record<Subset, string> = {
 };
 
 export const FONT_FILES: readonly { file: string; pkg: string }[] = [
-  ...SUBSETS.map((s) => ({ file: `fraunces-${s}-full-normal.woff2`, pkg: 'fraunces' })),
+  ...SUBSETS.map((s) => ({ file: `fraunces-${s}-standard-normal.woff2`, pkg: 'fraunces' })),
   ...SUBSETS.map((s) => ({ file: `inter-${s}-wght-normal.woff2`, pkg: 'inter' })),
   ...SUBSETS.map((s) => ({ file: `jetbrains-mono-${s}-wght-normal.woff2`, pkg: 'jetbrains-mono' })),
 ];

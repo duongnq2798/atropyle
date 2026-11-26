@@ -60,6 +60,31 @@ interface CallsStatusReply {
   receipts?: { transactionHash?: unknown; status?: unknown }[];
 }
 
+const HASH = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * One wallet_getCallsStatus poll. The wallet already accepted the bundle: a poll that throws says nothing about it,
+ * so it reads as pending. Only 32-byte hex strings count as transaction hashes (the reply is the wallet's text).
+ */
+export async function readCallsStatus(p: Eip1193, id: string): Promise<CallsResult> {
+  let r: CallsStatusReply | null;
+  try {
+    r = await call<CallsStatusReply | null>(p, 'wallet_getCallsStatus', [id]);
+  } catch {
+    return { id, status: 'pending', hashes: [], ok: false };
+  }
+  const status = normalizeStatus(r?.status);
+  if (status === 'pending') return { id, status, hashes: [], ok: false };
+  // The wallet's reply: an entry that is not an object counts as a receipt with nothing in it.
+  const list: unknown = r?.receipts;
+  const receipts = (Array.isArray(list) ? list : []).map((x): { transactionHash?: unknown; status?: unknown } =>
+    x && typeof x === 'object' ? x : {},
+  );
+  const hashes = receipts.map((x) => x.transactionHash).filter((h): h is Hex => typeof h === 'string' && HASH.test(h));
+  const allOk = receipts.every((x) => x.status === undefined || x.status === '0x1' || x.status === 'success');
+  return { id, status, hashes, ok: status === 'confirmed' && allOk };
+}
+
 export async function sendCalls(p: Eip1193, params: SendCallsParams, o: SendCallsOptions = {}): Promise<CallsResult> {
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let sent: unknown;
@@ -73,23 +98,9 @@ export async function sendCalls(p: Eip1193, params: SendCallsParams, o: SendCall
   if (typeof id !== 'string') throw new AtropyleError('UNKNOWN', { message: 'The wallet returned no call bundle id.' });
   const deadline = Date.now() + (o.timeoutMs ?? 600_000);
   for (;;) {
-    // The wallet already accepted the bundle: a failing poll says nothing about it, so it counts as still pending.
-    let r: CallsStatusReply | null = null;
-    let polled = true;
-    try {
-      r = await call<CallsStatusReply | null>(p, 'wallet_getCallsStatus', [id]);
-    } catch {
-      polled = false;
-    }
-    const status = polled ? normalizeStatus(r?.status) : 'pending';
-    o.onStatus?.(status);
-    if (status !== 'pending') {
-      const receipts = r?.receipts ?? [];
-      const hashes = receipts.map((x) => x.transactionHash).filter((h): h is Hex => typeof h === 'string');
-      const allOk = receipts.every((x) => x.status === undefined || x.status === '0x1' || x.status === 'success');
-      return { id, status, hashes, ok: status === 'confirmed' && allOk };
-    }
-    if (Date.now() >= deadline) return { id, status, hashes: [], ok: false };
+    const r = await readCallsStatus(p, id);
+    o.onStatus?.(r.status);
+    if (r.status !== 'pending' || Date.now() >= deadline) return r;
     await sleep(o.intervalMs ?? 1500);
   }
 }

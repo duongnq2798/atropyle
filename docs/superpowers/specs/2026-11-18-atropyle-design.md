@@ -4,7 +4,6 @@
 - **Trạng thái:** đã duyệt từng phần trong buổi brainstorming; chờ duyệt bản viết
 - **Cuộc thi:** X Layer TapeOut Accelerate. Hạn nộp 7/12/2026 23:59 UTC; mục tiêu nội bộ là nộp ngày 6/12.
 - **Đội:** một người điều phối và kiểm tra, Claude viết phần lớn code.
-- **Bối cảnh và lý do chọn ý tưởng:** `reports/Chốt ý tưởng cuối cùng.md`, `research_notes/`
 
 ## 1. Mục tiêu
 

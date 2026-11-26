@@ -1,6 +1,6 @@
-import { AtropyleError, type PreparedTx, type TxPlan, type Warning } from '@atropyle/sdk';
+import { AtropyleError, type PreparedTx, recoveryPowerWarning, type TxPlan, type Warning } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { applyStep, failStep, txView } from '../../src/tx/tx-view';
+import { applyStep, failStep, markRows, recoveryPowerParams, rewind, txView } from '../../src/tx/tx-view';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 const V = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
@@ -68,5 +68,57 @@ describe('txView', () => {
     v = failStep(v, 1, err);
     expect(v.rows[1]).toMatchObject({ phase: 'failed', error: err });
     expect(v.rows[0].phase).toBe('confirmed');
+  });
+});
+
+describe('RECOVERY_POWER', () => {
+  const DAYS_14 = 14 * 86_400;
+
+  it('shows once when the plan and its createVault step both carry it (PR #18)', () => {
+    const w = recoveryPowerWarning(2, 3, DAYS_14);
+    const v = txView(plan([step({ action: 'createVault', warnings: [w] })], [w]));
+    expect(v.warnings).toEqual([w]);
+  });
+
+  it('gives k, n and the window from the typed numbers, never from the message', () => {
+    const w = recoveryPowerWarning(2, 3, DAYS_14);
+    expect(recoveryPowerParams(w)).toEqual({ k: 2, n: 3, window: DAYS_14 });
+    expect(recoveryPowerParams({ ...w, message: 'something else' })).toEqual({ k: 2, n: 3, window: DAYS_14 });
+  });
+
+  it('gives null for another code, or for numbers that are missing or not safe integers', () => {
+    const other: Warning = { code: 'NO_GUARDIANS', message: 'x', params: { k: 2, guardians: 3, window: 60 } };
+    expect(recoveryPowerParams(other)).toBeNull();
+    const w = recoveryPowerWarning(2, 3, 60);
+    const bad: (Record<string, number> | undefined)[] = [
+      undefined,
+      {},
+      { k: 2, guardians: 3 },
+      { k: 1.5, guardians: 3, window: 60 },
+      { k: 2, guardians: Number.NaN, window: 60 },
+      { k: 2, guardians: 3, window: 2 ** 53 },
+    ];
+    for (const params of bad) expect(recoveryPowerParams({ ...w, params }), JSON.stringify(params)).toBeNull();
+  });
+});
+
+describe('bundle rows', () => {
+  it('markRows moves every row from `from` that is not confirmed; rewind takes back rows the wallet never took', () => {
+    let v = applyStep(txView(plan([step(), step(), step()])), { index: 0, phase: 'confirmed', hash: H });
+    v = markRows(v, 1, 'pending');
+    expect(v.rows.map((r) => r.phase)).toEqual(['confirmed', 'pending', 'pending']);
+    v = applyStep(v, { index: 1, phase: 'pending', hash: H });
+    v = rewind(v, 1);
+    // A row with a hash stays where it is; one without goes back to its phase before the send.
+    expect(v.rows.map((r) => r.phase)).toEqual(['confirmed', 'pending', 'ready']);
+    expect(v.rows[1]).toMatchObject({ phase: 'pending', hash: H });
+    expect(v.rows[2]).toMatchObject({ phase: 'ready', hash: null });
+  });
+
+  it('failStep keeps the hash a reverted step was sent in', () => {
+    const reverted = `0x${'34'.repeat(32)}` as const;
+    const v = failStep(txView(plan([step(), step(), step()])), 0, new AtropyleError('UNKNOWN').toJSON(), reverted);
+    expect(v.rows[0]).toMatchObject({ phase: 'failed', hash: reverted });
+    expect(v.rows.slice(1).map((r) => r.phase)).toEqual(['ready', 'ready']);
   });
 });

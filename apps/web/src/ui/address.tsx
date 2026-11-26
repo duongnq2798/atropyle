@@ -8,14 +8,23 @@ import { explorerAddress, explorerName } from '@/lib/links';
 import { messages as ui } from '@/messages/ui.messages';
 import { Avatar } from './avatar';
 import { CopyButton } from './copy-button';
+import { Digits } from './digits';
 import { ExternalLink } from './external-link';
+import { VisuallyHidden } from './visually-hidden';
 
-// The face moved to avatar.tsx, so the account button can show it without loading the rest of this file (R23).
+// The face moved to avatar.tsx and the digits to digits.tsx, so the account button can show both without loading the
+// rest of this file (R23).
 export { Avatar };
 
 /**
- * An address in full, in groups of four (spec §4.2), so two addresses can be compared group by group. Never
- * shortened: a shortened address is what address-poisoning attacks rely on.
+ * An address in full, in the Ledger voice and in groups of four (spec §4.2, §18.4.2 Task 1), so two addresses can be
+ * compared group by group. Never shortened: a shortened address is what address-poisoning attacks rely on.
+ *
+ * The checksum capitals are drawn at weight 650 and every other character at 400. JetBrains Mono gives every glyph
+ * the same advance at every weight, so the weights move nothing (test/unit/fonts.test.ts reads it in the file, test 1
+ * of e2e/wallet.spec.ts measures it in Chromium). The drawn groups are aria-hidden: a screen reader reads the
+ * address once, whole, from the hidden copy beside them, the same string this component always read. No aria-label
+ * on a span (axe's aria-prohibited-attr).
  */
 export function Address({
   address,
@@ -34,6 +43,8 @@ export function Address({
 }) {
   const t = useT(ui);
   const parts = addressGroups(address).map((text, at) => ({ text, at }));
+  const grouped = parts.length > 1;
+  const link = explorer && isAddressText(address) ? explorer : null;
   return (
     <span
       data-address={address}
@@ -41,25 +52,47 @@ export function Address({
     >
       {avatar ? <Avatar address={address} size={size === 'sm' ? 18 : 22} /> : null}
       <span
+        aria-hidden="true"
         translate="no"
-        className={cn('min-w-0 wrap-anywhere font-mono tabular-nums', size === 'sm' ? 'text-small' : 'text-body')}
+        data-part="groups"
+        className={cn(
+          'voice-ledger min-w-0 wrap-anywhere font-normal',
+          // A hanging indent: "0x" hangs at the start of the first line and the groups stand in columns, so a group
+          // that wraps starts under the first group, not 0.45ch off it. 1.55ch = "0x" (2ch) less one gap (0.45ch).
+          // The 25ch cap makes one block of two rows of five at every width that holds them, so two addresses compare
+          // row by row: the first line has 25ch for "0x" and five groups (23.8ch, six take 28.25ch), the next 23.45ch
+          // for five (22.25ch, six take 26.7ch). me-auto keeps the copy and explorer buttons at the row end.
+          grouped && 'pl-[1.55ch] -indent-[1.55ch] max-w-[25ch] me-auto',
+          size === 'sm' ? 'text-small' : 'text-body',
+        )}
       >
         {/* Lines break between groups (<wbr>), never inside one. wrap-anywhere splits only a text that is not an
             address, which comes as one group. */}
         {parts.map((p) => (
           <Fragment key={p.at}>
             {p.at > 1 ? <wbr /> : null}
-            <span className={p.at === 0 && parts.length > 1 ? 'text-ink-muted' : p.at > 1 ? 'ml-[0.45ch]' : undefined}>
-              {p.text}
+            <span className={p.at === 0 && grouped ? 'text-ink-muted' : p.at > 1 ? 'ml-[0.45ch]' : undefined}>
+              {grouped && p.at > 0 ? <Digits group={p.text} /> : p.text}
             </span>
           </Fragment>
         ))}
       </span>
-      {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}
-      {explorer && isAddressText(address) ? (
-        <ExternalLink href={explorerAddress(explorer, address)} variant="icon">
-          {t('viewOn', { name: explorerName(explorer) })}
-        </ExternalLink>
+      <VisuallyHidden>
+        {/* select-none: a selection across the drawn groups does not copy the address a second time. */}
+        <span translate="no" className="select-none">
+          {address}
+        </span>
+      </VisuallyHidden>
+      {copy || link ? (
+        // One unit: where a caller lets the row wrap (flex-wrap), the two buttons drop below the groups together.
+        <span className="inline-flex shrink-0 items-center gap-2">
+          {copy ? <CopyButton text={address} label={t('copyAddress')} /> : null}
+          {link ? (
+            <ExternalLink href={explorerAddress(link, address)} variant="icon">
+              {t('viewOn', { name: explorerName(link) })}
+            </ExternalLink>
+          ) : null}
+        </span>
       ) : null}
     </span>
   );

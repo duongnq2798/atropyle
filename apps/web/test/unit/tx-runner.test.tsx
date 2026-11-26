@@ -150,7 +150,7 @@ describe('useTxRunner with TxCard', () => {
     await waitFor(() => expect(phase(1)).toBe('failed'));
     expect(phase(0)).toBe('confirmed');
     expect(sendButton().textContent).toBe('Resume from step 2');
-    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('USER_REJECTED'));
+    await waitFor(() => expect(screen.getByTestId('tx-error').getAttribute('data-code')).toBe('USER_REJECTED'));
 
     fireEvent.click(sendButton());
     await screen.findByTestId('tx-done');
@@ -159,7 +159,7 @@ describe('useTxRunner with TxCard', () => {
       ['two', 'three'],
     ]);
     expect([phase(0), phase(1), phase(2)]).toEqual(['confirmed', 'confirmed', 'confirmed']);
-    expect(screen.queryByTestId('error')).toBeNull();
+    expect(screen.queryByTestId('tx-error')).toBeNull();
   });
 
   it('asks before the page unloads only while a sent plan is unfinished', async () => {
@@ -267,7 +267,7 @@ describe('useTxRunner with TxCard', () => {
     };
     const { queryClient } = setup({ plan: blocked });
     await waitFor(() => expect(queryClient.getQueryState(chainKeys.sdk(CHAIN_ID, false))?.status).toBe('success'));
-    await waitFor(() => expect(screen.getByTestId('error').getAttribute('data-code')).toBe('NOT_OWNER'));
+    await waitFor(() => expect(screen.getByTestId('tx-blocked-error').getAttribute('data-code')).toBe('NOT_OWNER'));
     expect(sendButton().disabled).toBe(true);
     expect(screen.queryByTestId('tx-copy-link')).toBeNull();
   });
@@ -284,7 +284,9 @@ describe('useTxRunner with TxCard', () => {
     expect(reported.at(-1)).toEqual({ confirmed: 1, committed: true });
     fireEvent.click(sendButton());
     await screen.findByTestId('tx-done');
-    expect(bar().getAttribute('value')).toBe('3');
+    // Done, the bar gives way to the Receipt, which lists every confirmed step once.
+    expect(screen.queryByTestId('tx-progress')).toBeNull();
+    expect([phase(0), phase(1), phase(2)]).toEqual(['confirmed', 'confirmed', 'confirmed']);
     expect(reported.at(-1)).toEqual({ confirmed: 3, committed: true });
     expect(reported.map((r) => r.confirmed)).toEqual(expect.arrayContaining([0, 1, 3]));
   });
@@ -308,7 +310,7 @@ describe('useTxRunner with TxCard', () => {
     await waitFor(() => expect(reported.at(-1)).toEqual({ confirmed: 0, committed: false }));
   });
 
-  it('stays committed after a failure that follows a pending step with a hash', async () => {
+  it('a failure after a pending step with a hash is "sent, not known": it stays committed and sends nothing', async () => {
     fake.send.mockImplementation(async (_p: TxPlan, _w: unknown, o: Options) => {
       o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'signing' });
       o.onStep?.({ index: 0, total: 3, step: plan.steps[0], phase: 'pending', hash: H });
@@ -317,7 +319,10 @@ describe('useTxRunner with TxCard', () => {
     const { reported } = setup();
     await ready();
     fireEvent.click(sendButton());
-    await waitFor(() => expect(phase(0)).toBe('failed'));
+    // The mocked SDK has no publicClient: the receipt cannot be read, so the step stays sent and unknown.
+    expect((await screen.findByTestId('tx-unsettled')).getAttribute('data-kind')).toBe('step');
+    expect(phase(0)).toBe('pending');
+    expect(screen.queryByTestId('tx-send')).toBeNull();
     expect(reported.at(-1)).toEqual({ confirmed: 0, committed: true });
   });
 
@@ -378,12 +383,12 @@ describe('useTxRunner with TxCard', () => {
     await ready();
     fireEvent.click(sendButton());
     await waitFor(() => expect(phase(0)).toBe('failed'));
-    await screen.findByTestId('error');
+    await screen.findByTestId('tx-error');
     show({ ...plan, steps: [step('only')] });
     expect(phase(0)).toBe('ready');
     expect(screen.queryByTestId('tx-step-1')).toBeNull();
     expect(screen.queryByTestId('tx-progress')).toBeNull();
-    expect(screen.queryByTestId('error')).toBeNull();
+    expect(screen.queryByTestId('tx-error')).toBeNull();
     expect(sendButton().textContent).toBe('Send');
   });
 });
