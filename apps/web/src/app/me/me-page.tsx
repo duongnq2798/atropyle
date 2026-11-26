@@ -211,14 +211,20 @@ function Overview({ sections }: { sections: Record<Section, MyVault[]> }) {
   return (
     <nav aria-label={t('jumpLabel')} data-testid="me-overview">
       <ul className="grid grid-cols-3 overflow-hidden rounded-2xl border border-line bg-surface-1">
-        {SECTIONS.map((s) => {
+        {SECTIONS.map((s, at) => {
           const n = sections[s].length;
           return (
             <li key={s} className="min-w-0 border-line not-first:border-l">
+              {/* The ring is drawn inside the cell: outside it, the strip's overflow-hidden would cut it down to a
+                  line on a divider. The end cells take the strip's curve, so the ring and the tint follow it. */}
               <a
                 href={`#me-${s}`}
                 data-count={n}
-                className="flex h-full min-w-0 flex-col gap-1.5 px-3 py-3 transition-colors duration-150 hover:bg-surface-2 sm:px-5 sm:py-4"
+                className={cn(
+                  'flex h-full min-w-0 flex-col gap-1.5 px-3 py-3 transition-colors duration-150 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:-outline-offset-4 sm:px-5 sm:py-4',
+                  at === 0 && 'rounded-s-2xl',
+                  at === SECTIONS.length - 1 && 'rounded-e-2xl',
+                )}
               >
                 <span className={cn('font-display text-h2 leading-none', n === 0 ? 'text-ink-muted' : 'text-ink')}>
                   {formatCount(n, lang)}
@@ -318,14 +324,16 @@ function VaultRow({ vault: v, section }: { vault: MyVault; section: Section }) {
             </span>
           ))}
         </div>
-        <dl className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-small">
-          <dt className="text-ink-muted">{t('vaultLabel')}</dt>
+        {/* Below sm each label stands above its address, so the address keeps the width for its block of two rows
+            of five; beside it, the label column took the few pixels that broke it into three ragged lines. */}
+        <dl className="grid min-w-0 grid-cols-1 gap-y-0.5 text-small sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-x-3 sm:gap-y-1.5">
+          <dt className="text-caption text-ink-muted sm:text-small">{t('vaultLabel')}</dt>
           <dd className="min-w-0">
             <Address address={v.vault} size="sm" />
           </dd>
           {section === 'own' ? null : (
             <>
-              <dt className="text-ink-muted">{l('roleOwner')}</dt>
+              <dt className="mt-2 text-caption text-ink-muted sm:mt-0 sm:text-small">{l('roleOwner')}</dt>
               <dd className="min-w-0">
                 <Address address={v.owner} size="sm" />
               </dd>

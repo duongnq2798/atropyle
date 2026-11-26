@@ -75,6 +75,78 @@ test('a guardian who is also an heir sees the vault in both lists, and nothing s
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width} px`).toBe(width);
   }
+  // The address draws as one block of two rows of five (src/ui/address.tsx), so two addresses compare row by row: a
+  // phone-wide row must leave it the width for that, in every list.
+  for (const width of [390, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await addressLines(page), `${width} px`).toEqual([2, 2, 2, 2]);
+  }
+});
+
+/** How many lines each address in the lists draws on, in page order. */
+const addressLines = (page: Page) =>
+  page
+    .getByTestId('me-row')
+    .locator('[data-part="groups"]')
+    .evaluateAll((els) =>
+      els.map(
+        (el) => new Set([...el.querySelectorAll(':scope > span')].map((g) => g.getBoundingClientRect().top)).size,
+      ),
+    );
+
+/**
+ * Where the focus ring of the focused element falls outside the box of an ancestor that clips it, or 'whole'. The
+ * ring is the border box grown by outline-offset + outline-width (Chromium draws it there).
+ */
+const ringClip = (page: Page) =>
+  page.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    if (!a?.matches(':focus-visible')) return 'not focus-visible';
+    const s = getComputedStyle(a);
+    if (s.outlineStyle === 'none' || Number.parseFloat(s.outlineWidth) === 0) return 'no ring';
+    const grow = Number.parseFloat(s.outlineOffset) + Number.parseFloat(s.outlineWidth);
+    const r = a.getBoundingClientRect();
+    for (let p = a.parentElement; p; p = p.parentElement) {
+      const ps = getComputedStyle(p);
+      if (ps.overflowX === 'visible' && ps.overflowY === 'visible') continue;
+      const b = p.getBoundingClientRect();
+      const left = b.left + p.clientLeft;
+      const top = b.top + p.clientTop;
+      const out =
+        r.left - grow < left - 0.5 ||
+        r.top - grow < top - 0.5 ||
+        r.right + grow > left + p.clientWidth + 0.5 ||
+        r.bottom + grow > top + p.clientHeight + 0.5;
+      if (out) return `clipped by <${p.tagName.toLowerCase()} class="${p.className}">`;
+    }
+    return 'whole';
+  });
+
+test('the jump links of the overview show their whole focus ring, in both themes', async ({
+  page,
+  state,
+  wallet,
+}, info) => {
+  await wallet({ account: ANVIL[5] });
+  await openAs(page, state.siteUrl);
+  await expect(rows(page, 'guard')).toHaveCount(1);
+  const strip = page.getByTestId('me-overview');
+  const links = strip.getByRole('link');
+  await expect(links).toHaveCount(3);
+  for (const theme of ['light', 'dark'] as const) {
+    await setStoredTheme(page, theme);
+    await expect(rows(page, 'guard')).toHaveCount(1);
+    // From the keyboard, as a reader would: Tab until the first jump link has focus.
+    for (let i = 0; i < 40 && !(await links.first().evaluate((a) => a === document.activeElement)); i++) {
+      await page.keyboard.press('Tab');
+    }
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) await page.keyboard.press('Tab');
+      await expect(links.nth(i)).toBeFocused();
+      expect(await ringClip(page), `link ${i + 1}, ${theme}`).toBe('whole');
+      await strip.screenshot({ path: info.outputPath(`focus-${theme === 'dark' ? 'night' : 'vellum'}-${i + 1}.png`) });
+    }
+  }
 });
 
 test('a wallet that no vault names gets the empty state and the rehearsal', async ({ page, state, wallet }) => {
