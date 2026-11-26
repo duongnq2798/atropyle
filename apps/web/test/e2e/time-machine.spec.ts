@@ -157,6 +157,57 @@ test('the thumb stands on each moment it stops at, within a pixel', async ({ pag
   }
 });
 
+test('Tab reaches the thumb, and a ring rides its dot (WCAG 2.4.7)', async ({ page, state }) => {
+  await open(page, state.siteUrl);
+  const drill = box(page, 'drill');
+  const thumb = drill.getByTestId('time-machine-scrubber-thumb-0');
+  // The chips are one tab stop; under Silent the switch is disabled, so the next stop is the thumb.
+  await drill.locator('input[type="radio"]:checked').focus();
+  await page.keyboard.press('Tab');
+  await expect(thumb).toBeFocused();
+  expect(await thumb.evaluate((el) => el.matches(':focus-visible'))).toBe(true);
+  const ring = async () =>
+    thumb.locator('[data-part="scrub-now"]').evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { style: s.outlineStyle, width: Number.parseFloat(s.outlineWidth) };
+    });
+  expect((await ring()).style).not.toBe('none');
+  expect((await ring()).width).toBeGreaterThanOrEqual(2);
+  // It stays on the dot as the keys move it.
+  await page.keyboard.press('PageUp');
+  await expect(thumb).toHaveAttribute('aria-valuenow', '110');
+  expect((await ring()).style).not.toBe('none');
+});
+
+test('the gate says when it opens, under its arch and inside the thread', async ({ page, state }) => {
+  await open(page, state.siteUrl);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const drill = box(page, 'drill');
+    const label = drill.locator('[data-part="gate-at"]');
+    await expect(label).toHaveText('Heirs receive · In 15 minutes');
+    const l = await label.boundingBox();
+    const arch = await drill.locator('[data-part="arch"]').boundingBox();
+    const thread = await drill.getByTestId('time-machine-scrubber').boundingBox();
+    if (!l || !arch || !thread) throw new Error('not laid out');
+    expect(l.y).toBeGreaterThanOrEqual(arch.y + arch.height);
+    expect(l.y + l.height).toBeLessThanOrEqual(thread.y + thread.height);
+    expect(l.x).toBeGreaterThanOrEqual(thread.x);
+    expect(l.x + l.width).toBeLessThanOrEqual(thread.x + thread.width);
+  }
+});
+
+test('the skeleton has the height of what replaces it, on a desktop and on a phone', async ({ page, state }) => {
+  await open(page, state.siteUrl);
+  const height = async (id: string) => (await box(page, id).boundingBox())?.height ?? 0;
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    // The open shape against the Drill (chips, three moments); the closed one against the released vault.
+    expect(Math.abs((await height('loading')) - (await height('drill')))).toBeLessThanOrEqual(24);
+    expect(Math.abs((await height('loading-closed')) - (await height('released')))).toBeLessThanOrEqual(24);
+  }
+});
+
 test('a drag inside one moment moves the lit window and leaves the thread alone (R18.4)', async ({ page, state }) => {
   await open(page, state.siteUrl);
   const drill = box(page, 'drill');

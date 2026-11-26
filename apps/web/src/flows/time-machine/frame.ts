@@ -1,4 +1,4 @@
-import { drawnAxis, type ThreadAxis } from '@/thread/geometry';
+import { courseX, drawnAxis, pctX, type ThreadAxis } from '@/thread/geometry';
 import type { ThreadState } from '@/thread/state';
 import type { Moment, ScenarioRun } from '../impl/time-machine';
 
@@ -73,6 +73,72 @@ export function threadFrame(
     state: expiresAt !== null && at >= expiresAt ? 'expired' : m.state,
     axis: { from: axis.from, to: axis.to, now: at, alarmAt: m.alarmAt, releaseAt, marks },
   };
+}
+
+/** The states whose Thread draws a gate (a recovery bends away, an expired Drill curls up). */
+const GATED: ReadonlySet<ThreadState> = new Set(['active', 'grace', 'releasedInherit', 'releasedRecover']);
+
+/**
+ * The time of the gate the Thread draws in the frame of moment `index`, at chain time `at`: that moment's own
+ * release, in the state the frame is drawn in. Null when the frame draws no gate, and when the gate stands at the
+ * story's release only because the outlook's release lies past it (threadFrame's cap): that gate has no time to say.
+ */
+export function gateOf(
+  run: ScenarioRun,
+  axis: ScrubAxis,
+  index: number,
+  at: bigint,
+  expiresAt: bigint | null,
+): { at: bigint; state: ThreadState } | null {
+  const release = run.moments[index].releaseAt;
+  const f = threadFrame(run, axis, index, at, expiresAt);
+  if (!GATED.has(f.state) || release === null || f.axis.releaseAt !== release) return null;
+  return { at: release, state: f.state };
+}
+
+/**
+ * Rings closer than this, in percent of the track, merge: 3.5 % of a phone's track (about 282 px) is 10 px, the
+ * width of a ring.
+ */
+export const RING_MERGE = 3.5;
+
+/** A ring on the Scrubber's thread: one moment, or several that would touch. */
+export interface MomentRing {
+  /** The moments it stands for, in time order. */
+  members: number[];
+  /** The latest of them: its state colours the ring, and the slider's value is in its frame from there on. */
+  index: number;
+  state: ThreadState;
+  /** X on the Thread's 600-wide box: the latest moment's, or a knot's check-in's, where the Thread ties it. */
+  x: number;
+  /** It stands for a check-in: drawn as the knot the Thread ties there. */
+  knot: boolean;
+}
+
+/**
+ * The moments after the first as rings: one per moment, except that a moment within RING_MERGE of the first moment
+ * of the ring before joins it (the votes a second apart, the confirmations right after an alarm). A check-in never
+ * joins a ring of other moments: the owner's knot is the product's mark (spec §4.1), so it starts its own.
+ */
+export function momentRings(run: ScenarioRun, axis: ScrubAxis): MomentRing[] {
+  const rings: MomentRing[] = [];
+  let anchor = 0;
+  for (let i = 1; i < run.moments.length; i++) {
+    const m = run.moments[i];
+    const x = courseX(m.at, axis);
+    const knot = m.kind === 'checkIn';
+    const last = rings.at(-1);
+    if (last && (last.knot || !knot) && pctX(x) - anchor < RING_MERGE) {
+      last.members.push(i);
+      last.index = i;
+      last.state = m.state;
+      if (knot || !last.knot) last.x = x;
+      continue;
+    }
+    anchor = pctX(x);
+    rings.push({ members: [i], index: i, state: m.state, x, knot });
+  }
+  return rings;
 }
 
 /** Each moment as seconds after the first, the slider's unit. */

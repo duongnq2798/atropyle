@@ -4,7 +4,9 @@ import { type ScenarioRun, scenarios } from '../../src/flows/impl/time-machine';
 import {
   clampOffset,
   frameIndex,
+  gateOf,
   momentOffsets,
+  momentRings,
   nextOffset,
   prevOffset,
   scrubAxis,
@@ -78,5 +80,55 @@ describe('frames', () => {
     expect(clampOffset(-5, 100)).toBe(0);
     expect(clampOffset(150, 100)).toBe(100);
     expect(clampOffset(12.6, 100)).toBe(13);
+  });
+});
+
+describe('rings on the thread', () => {
+  it('one ring per moment after the first, merged when they touch; a check-in starts its own, as a knot', () => {
+    const rings = (id: ScenarioRun['id']) =>
+      momentRings(run(id), scrubAxis(run(id))).map((r) => [r.members.join(' '), r.index, r.state, r.knot]);
+    expect(rings('silent')).toEqual([
+      ['1', 1, 'grace', false],
+      ['2', 2, 'releasedInherit', false],
+    ]);
+    // The alarm at 110 s and the confirmations at 111 and 112 s, on 1 284 s: one ring, in the latest one's state.
+    expect(rings('returns')).toEqual([
+      ['1 2 3', 3, 'grace', false],
+      ['4', 4, 'active', true],
+      ['5', 5, 'grace', false],
+      ['6', 6, 'releasedInherit', false],
+    ]);
+    // The check-in one second after the votes is never merged into them.
+    expect(rings('recoverBlocked')).toEqual([
+      ['1 2', 2, 'recovery', false],
+      ['3', 3, 'active', true],
+      ['4', 4, 'grace', false],
+      ['5', 5, 'releasedInherit', false],
+    ]);
+  });
+
+  it('a ring stands on its latest moment, a knot on its check-in, where the Thread ties it', () => {
+    const r = run('returns');
+    const axis = scrubAxis(r);
+    const [cluster, knot] = momentRings(r, axis);
+    expect(cluster.x).toBe(courseX(r.moments[3].at, axis));
+    expect(knot.x).toBe(courseX(r.moments[4].at, axis));
+  });
+});
+
+describe('the gate of a frame', () => {
+  it("is the frame's own release where the Thread draws a gate, or null", () => {
+    const at = (id: ScenarioRun['id'], i: number) => {
+      const r = run(id);
+      return gateOf(r, scrubAxis(r), i, r.moments[i].at, END);
+    };
+    expect(at('silent', 0)).toEqual({ at: 1_890n, state: 'active' });
+    expect(at('silent', 2)).toEqual({ at: 1_890n, state: 'releasedInherit' });
+    expect(at('returns', 4)).toEqual({ at: 2_070n, state: 'active' });
+    // The outlook releases to the heirs at 1 890, past this story: the gate drawn at its end is not that time.
+    expect(at('recover', 0)).toBeNull();
+    // A recovery draws no gate.
+    expect(at('recover', 2)).toBeNull();
+    expect(at('recover', 3)).toEqual({ at: 1_122n, state: 'releasedRecover' });
   });
 });

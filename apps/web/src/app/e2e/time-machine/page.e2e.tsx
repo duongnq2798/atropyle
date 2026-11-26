@@ -84,6 +84,9 @@ export default function TimeMachinePreview() {
       <Item id="loading" title="loading · the chunk or the engine is on its way">
         <TimeMachineShell testId="time-machine" error={null} onRetry={noop} />
       </Item>
+      <Item id="loading-closed" title="loading · a vault that ended: the closed shape">
+        <TimeMachineShell testId="time-machine" error={null} onRetry={noop} shape={{ picker: false, closed: true }} />
+      </Item>
       <Item id="error" title="error · the chunk failed to load, with a Retry">
         <TimeMachineShell testId="time-machine" error={CHUNK_FAILED} onRetry={noop} />
       </Item>

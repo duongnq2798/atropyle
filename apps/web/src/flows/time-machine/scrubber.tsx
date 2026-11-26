@@ -9,7 +9,17 @@ import { Thread } from '@/thread/thread';
 import { Slider } from '@/ui/slider';
 import type { ScenarioRun } from '../impl/time-machine';
 import { pointerOffset, snapToMoment } from './detent';
-import { clampOffset, frameIndex, momentOffsets, nextOffset, prevOffset, scrubAxis, threadFrame } from './frame';
+import {
+  clampOffset,
+  frameIndex,
+  gateOf,
+  momentOffsets,
+  momentRings,
+  nextOffset,
+  prevOffset,
+  scrubAxis,
+  threadFrame,
+} from './frame';
 
 export interface ScrubberProps {
   run: ScenarioRun;
@@ -31,6 +41,12 @@ export interface ScrubberProps {
    * technology, which hears valueText.
    */
   playhead?(at: bigint): string;
+  /**
+   * The label under the gate, at chain time `at` when it opens, in `state` (the heirs', or the new wallet's once
+   * released to it). Shown only where the gate is the frame's own release (gateOf), and not while the playhead
+   * stands near it, where its pill says the same. Hidden from assistive technology: the moments list says it.
+   */
+  gateLabel?(at: bigint, state: ThreadState): string;
   testId?: string;
   /**
    * For the wrapper, an inline-size container (the Thread's height and the dot's rise are in cqw): its width comes
@@ -70,6 +86,18 @@ const lift = (x: number): CSSProperties => ({ transform: rise(x) });
  */
 const ride = (x: number): CSSProperties => ({ transform: `translateX(-${pctX(x)}%) ${rise(x)}` });
 const DOT = 'pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full';
+/**
+ * The focus ring rides the dot, not the thumb's 44 px box, which stays on the thread's centre line while the dot
+ * moves with the wave. An outline, not a shadow, so forced-colors mode draws it too. The thumb itself is
+ * `outline-none`, so the global :focus-visible ring never draws around its box; Radix focuses the thumb on a
+ * pointer press, which does not match :focus-visible, so a drag shows no ring.
+ */
+const DOT_FOCUS =
+  'group-focus-visible:outline-2 group-focus-visible:outline-offset-[3px] group-focus-visible:outline-thread';
+/** The gate's label steps aside while the playhead stands this close to the gate, in percent of the track. */
+const GATE_LABEL_NEAR = 12;
+/** The gate's arch is 42 % of the Thread's height, centred on the wave: its legs end 21 % below the wave. */
+const GATE_FOOT = 21;
 
 /**
  * The time machine's slider is the thread itself (spec §18.4.2, R18.5): a Radix Slider over [now, drawnAxis.to]
@@ -88,6 +116,7 @@ export function Scrubber({
   announce,
   describedBy,
   playhead,
+  gateLabel,
   testId = 'scrubber',
   className,
 }: ScrubberProps) {
@@ -140,6 +169,7 @@ export function Scrubber({
     () => threadFrame(run, axis, drawnIndex, drawnAt, expiresAt),
     [run, axis, drawnIndex, drawnAt, expiresAt],
   );
+  const rings = useMemo(() => momentRings(run, axis), [run, axis]);
   // One element per frame: inside a frame React skips the whole Thread on every value change.
   const track = useMemo(
     () => (
@@ -150,26 +180,34 @@ export function Scrubber({
           revealRef={reveal}
           className={cn('w-full', THREAD_HEIGHT, HIDE_NOW)}
         />
+        {/*
+         * Each ring in the colour of the state its moment leads into, like the moments list's dots; a check-in is
+         * the knot the Thread ties there, a little larger, so the Thread's own knot never peeks out from under it.
+         */}
         <span aria-hidden="true" data-layer="moments" className="pointer-events-none absolute inset-0">
-          {run.moments.map((m, i) => {
-            if (i === 0) return null;
-            const x = courseX(m.at, axis);
+          {rings.map((r) => {
+            const current = r.members.includes(index);
             return (
               <span
-                key={`${m.kind}:${m.at}:${m.who ?? ''}`}
-                data-moment={i}
+                key={r.members.join('-')}
+                data-moment={r.index}
+                data-moments={r.members.join(' ')}
+                data-kind={r.knot ? 'checkIn' : undefined}
+                data-current={current ? 'true' : undefined}
                 className={cn(
-                  'absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-bg',
-                  i === index ? 'border-ink' : 'border-ink-muted',
+                  'absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-current bg-bg',
+                  THREAD_COLOR[r.state],
+                  r.knot ? 'size-3 border-[2.5px]' : 'size-2.5 border-2',
+                  current && 'ring-2 ring-current/30',
                 )}
-                style={{ left: `${pctX(x)}%`, top: `${pctY(waveY(x))}%` }}
+                style={{ left: `${pctX(r.x)}%`, top: `${pctY(waveY(r.x))}%` }}
               />
             );
           })}
         </span>
       </>
     ),
-    [frame, run, axis, index],
+    [frame, rings, index],
   );
 
   const change = (next: number) => {
@@ -216,6 +254,24 @@ export function Scrubber({
   };
 
   const x = courseX(at, axis);
+  const gate = gateLabel ? gateOf(run, axis, drawnIndex, drawnAt, expiresAt) : null;
+  const gx = gate ? courseX(gate.at, axis) : null;
+  // In the track's box, under the arch; left-aligned at the start, right-aligned at the end, like the playhead.
+  const gateAt =
+    gate && gateLabel && gx !== null && Math.abs(pctX(gx) - pctX(x)) >= GATE_LABEL_NEAR ? (
+      <span
+        aria-hidden="true"
+        data-part="gate-at"
+        className="pointer-events-none absolute whitespace-nowrap font-mono text-caption text-ink-muted tabular-nums"
+        style={{
+          left: `${pctX(gx)}%`,
+          top: `calc(${pctY(waveY(gx))}% + ${GATE_FOOT}% + 0.125rem)`,
+          transform: `translateX(-${pctX(gx)}%)`,
+        }}
+      >
+        {gateLabel(gate.at, gate.state)}
+      </span>
+    ) : null;
   return (
     <div className={cn('@container flex min-w-0 flex-col', className)}>
       <Slider
@@ -236,11 +292,15 @@ export function Scrubber({
         thumbLabels={[label]}
         valueText={() => valueText(at, index, state)}
         thumbDescribedBy={describedBy}
-        track={track}
+        track={
+          <>
+            {track}
+            {gateAt}
+          </>
+        }
         trackClassName={cn('relative block min-w-0 grow', TRACK_INSET)}
         thumbClassName={cn(
-          'relative block cursor-grab rounded-full outline-none active:cursor-grabbing',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-thread',
+          'group relative block cursor-grab rounded-full outline-none active:cursor-grabbing',
           THUMB_SIZE,
           THREAD_COLOR[state],
         )}
@@ -251,7 +311,12 @@ export function Scrubber({
               className={cn(DOT, 'size-8 bg-[radial-gradient(closest-side,currentColor,transparent)] opacity-40')}
               style={lift(x)}
             />
-            <span aria-hidden="true" data-part="scrub-now" className={cn(DOT, 'size-3 bg-current')} style={lift(x)} />
+            <span
+              aria-hidden="true"
+              data-part="scrub-now"
+              className={cn(DOT, 'size-3 bg-current', DOT_FOCUS)}
+              style={lift(x)}
+            />
             {playhead ? (
               <span
                 aria-hidden="true"

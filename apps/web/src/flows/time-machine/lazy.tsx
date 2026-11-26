@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { type LazyChunk, lazyChunk } from '@/lib/lazy-chunk';
-import { TimeMachineShell } from './shell';
+import { shellShape, TimeMachineShell } from './shell';
 import type * as View from './time-machine';
 import type { TimeMachineProps } from './time-machine';
 
@@ -32,6 +32,7 @@ export function LazyTimeMachine(props: TimeMachineProps) {
     <TimeMachineShell
       testId={props.testId ?? 'time-machine'}
       className={props.className}
+      shape={shellShape(props.state, props.now, props.expiresAt)}
       error={q.error}
       onRetry={() => void q.refetch()}
     />
