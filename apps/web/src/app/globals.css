@@ -648,6 +648,56 @@
       color 150ms;
   }
 }
+/* The stage's panel is a size container (src/home/stage.tsx), and its width alone lays out what follows, never the
+   frame's state: the header's height and the thread's place never change while the thumb moves (fix round 2 of
+   7C-T6; e2e "every frame of every story fits its panel"). Here, not in classes, so / carries no JS for them.
+   The header: the badge, then the day counter. One row from a 26rem panel (from 482 px, and every md and lg panel),
+   where the widest pair ("Released to the recovery wallet", "Day 26": about 22rem) fits; in a phone's panel the
+   counter stands on its own line above the badge. */
+.stage-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 0.5rem;
+}
+.stage-head > :last-child {
+  order: -1;
+}
+@container (min-width: 26rem) {
+  .stage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .stage-head > :last-child {
+    order: 0;
+  }
+}
+/* In a panel under 17rem (a 320 px phone: 15.9rem) the badge takes the caption's size and inset at its own height:
+   "Released to the recovery wallet" is 16.1rem wide at the small size, and would cross the panel's padding. */
+@container not (min-width: 17rem) {
+  .stage-head > :first-child {
+    padding-inline: 0.5rem;
+    font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
+  }
+}
+/* Room above the thread for the Scrubber's pill ("Day 116"), which rides above the thumb: its top stands 3rem + 2px
+   above the thumb's centre (scrubber.tsx: its bottom 1.75rem above it, 1.25rem + 2px high), and the thumb rides the
+   wave, highest mid-track, 0.075 of the Thread's height H above the centre line. So the pill's top can stand
+   3rem + 2px − 0.425 H above the thread, where the panel's 1rem gap is all there is under the header. On a phone H is
+   small (70 px at 320 px) and the pill met the badge: the thread keeps 0.5rem more than the pill needs, and no margin
+   where H is tall enough (from about 400 px). H = (100cqw − 2.75rem) / --tm-r, in cqw of the panel, whose content box
+   is the Scrubber's width, with the Scrubber's ratio (3, then 5 from 32rem). */
+.stage-room {
+  margin-top: max(0px, 2.5rem + 2px - 0.425 * (100cqw - 2.75rem) / 3);
+}
+@container (min-width: 32rem) {
+  .stage-room {
+    margin-top: max(0px, 2.5rem + 2px - 0.425 * (100cqw - 2.75rem) / 5);
+  }
+}
 .hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
 .hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
 .hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {

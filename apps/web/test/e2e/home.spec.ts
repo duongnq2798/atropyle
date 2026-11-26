@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { expectAccessible, expectAccessibleInBothThemes, setStoredTheme, settle } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme, settle } from './helpers.ts';
 import { captureScreens, shouldCapture } from './screens.ts';
 
 /** The layout shift of the page so far, as CLS counts it (rounded as scripts/lib/lighthouse-score.ts rounds it). */
@@ -546,28 +546,133 @@ test('without its simulator the stage still tells every story, says so, and trie
   await expect(s).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
 });
 
-test('the story’s gate is named where the Scrubber names a gate of its own', async ({ page, state }) => {
-  // Recovery: on day 10 the frame's outlook lies past the story's release, so the stage names the story's gate; on
-  // day 12 the frame's own release is that gate, and 7B's Scrubber names it. Same words, same place (fix round 1).
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto(state.siteUrl);
-    const s = stage(page);
-    await s.evaluate((el) => el.scrollIntoView());
-    await loadStage(page);
-    await storyChip(page, 'recover').click();
-    await expect(s).toHaveAttribute('data-story', 'recover');
-    const gate = s.locator('[data-part="gate-at"]');
-    const boxAt = async (row: number) => {
-      await s.getByTestId(`home-stage-beat-${row}`).click();
-      await expect(gate, `${width} px, row ${row}`).toHaveText(/^Their wallet · day\s26$/);
-      await settle(page);
-      return pageBox(gate);
-    };
-    const story = await boxAt(1);
-    const own = await boxAt(2);
-    expectSameBox(story, own, `${width} px: the story's gate label beside the Scrubber's`);
+/**
+ * Every frame of the six stories, as a reader reaches them: each row of the default story, then one control a step
+ * through the five others (§18.2 rule 6), each row of each. `visit` runs once the pressed row is the current one.
+ */
+async function eachFrame(page: Page, visit: (story: string, row: number, rows: number) => Promise<void>) {
+  const s = stage(page);
+  const label = (testId: string) => s.locator('label', { has: page.getByTestId(testId) });
+  const STEPS = [
+    ['confirm switch', () => label('home-stage-confirm'), 'silent'],
+    ['back switch', () => label('home-stage-back'), 'back'],
+    ['confirm switch', () => label('home-stage-confirm'), 'confirmBack'],
+    ['Recovery chip', () => storyChip(page, 'recover'), 'recoverBack'],
+    ['back switch', () => label('home-stage-back'), 'recover'],
+  ] as const;
+  const walk = async (story: string) => {
+    const n = await s.getByTestId('home-stage-beats').getByRole('button').count();
+    for (let i = 0; i < n; i++) {
+      await s.getByTestId(`home-stage-beat-${i}`).click();
+      await expect(s.getByTestId(`home-stage-beat-${i}`)).toHaveAttribute('aria-current', 'step');
+      await visit(story, i, n);
+    }
+  };
+  await expect(s).toHaveAttribute('data-story', 'confirm');
+  await walk('confirm');
+  for (const [what, control, story] of STEPS) {
+    await control().click();
+    await expect(s, what).toHaveAttribute('data-story', story);
+    await walk(story);
   }
+}
+
+/**
+ * What a frame of the panel gets wrong, as laid out: a page wider than the viewport, a badge or a day counter out of
+ * the panel's content box, a playhead's pill that rises into the header, a gate's label that leaves the panel, does
+ * not hang under the arch the thread draws (its centre within the label), or meets the playhead's pill or dot. Also
+ * the header's height, which must not change from frame to frame: the thread under it must never move under a
+ * finger. And the gate's labels, as counted.
+ */
+function panelFaults(page: Page): Promise<{ faults: string[]; head: number; gates: number }> {
+  return stage(page).evaluate((s) => {
+    const faults: string[] = [];
+    const panel = s.querySelector('[data-part="stage"]') as HTMLElement;
+    const css = getComputedStyle(panel);
+    const p = panel.getBoundingClientRect();
+    // The content box: inside the border and the padding.
+    const left = p.left + Number.parseFloat(css.borderLeftWidth) + Number.parseFloat(css.paddingLeft);
+    const right = p.right - Number.parseFloat(css.borderRightWidth) - Number.parseFloat(css.paddingRight);
+    const box = (el: Element | null) => el?.getBoundingClientRect() ?? null;
+    const day = s.querySelector('[data-testid="home-stage-day"]') as HTMLElement;
+    const head = day.parentElement as HTMLElement;
+    const width = document.documentElement.scrollWidth;
+    if (width !== window.innerWidth) faults.push(`the page is ${width} px wide in ${window.innerWidth}`);
+    for (const [what, el] of [
+      ['the day', day],
+      ['the badge', head.firstElementChild],
+    ] as const) {
+      const r = box(el);
+      if (r && (r.left < left - 0.5 || r.right > right + 0.5))
+        faults.push(
+          `${what} spans ${r.left.toFixed(1)}–${r.right.toFixed(1)} in ${left.toFixed(1)}–${right.toFixed(1)}`,
+        );
+    }
+    const pill = box(s.querySelector('[data-part="playhead"]'));
+    const under = head.getBoundingClientRect().bottom;
+    if (pill && pill.top < under - 0.5)
+      faults.push(`the pill rises ${(under - pill.top).toFixed(1)} px into the header`);
+    const label = box(s.querySelector('[data-part="gate-at"]'));
+    const arch = box(s.querySelector('[data-part="stage"] [data-thread] [data-part="gate"]'));
+    if (label) {
+      if (label.left < left - 0.5 || label.right > right + 0.5) faults.push('the gate’s label leaves the panel');
+      if (!arch) faults.push('a gate’s label with no gate');
+      else {
+        const x = arch.left + arch.width / 2;
+        if (x < label.left || x > label.right) faults.push('the gate’s label is not under its arch');
+        if (label.top < arch.bottom - 0.5 || label.top > arch.bottom + 4)
+          faults.push(`the gate’s label stands ${(label.top - arch.bottom).toFixed(1)} px under its arch`);
+      }
+      for (const part of ['playhead', 'scrub-now']) {
+        const r = box(s.querySelector(`[data-part="${part}"]`));
+        if (r && r.left < label.right && label.left < r.right && r.top < label.bottom && label.top < r.bottom)
+          faults.push(`the gate’s label meets the ${part}`);
+      }
+    }
+    const gates = s.querySelectorAll('[data-part="gate-at"]').length;
+    return { faults, head: Math.round(head.getBoundingClientRect().height * 10) / 10, gates };
+  });
+}
+
+test('every frame of every story fits its panel and names its gate under the arch, from 320 px', async ({
+  page,
+  state,
+}) => {
+  test.setTimeout(300_000);
+  const found: string[] = [];
+  // 320 and 390: a phone's panel, the header on two lines; 482: the narrowest panel that puts it on one (26rem, its
+  // padding, border and gutter); 1440.
+  for (const lang of ['en', 'vi'] as const) {
+    await page.goto(state.siteUrl);
+    await setStoredLang(page, lang);
+    for (const width of [320, 390, 482, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('lang', lang);
+      await loadStage(page);
+      // The default story's thumb mid-track (day 116 of 233), where the wave and the pill ride highest, far from any
+      // moment: a press there moves it.
+      const slider = stage(page).getByTestId('home-stage-scrubber');
+      await slider.scrollIntoViewIfNeeded();
+      const b = await slider.boundingBox();
+      if (!b) throw new Error('no Scrubber');
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+      await expect(stage(page)).toHaveAttribute('data-day', /^1[01]\d$/);
+      for (const f of (await panelFaults(page)).faults) found.push(`${lang}, ${width} px, mid-track: ${f}`);
+      const heads = new Set<number>();
+      await eachFrame(page, async (story, row, rows) => {
+        const { faults, head, gates } = await panelFaults(page);
+        heads.add(head);
+        for (const f of faults) found.push(`${lang}, ${width} px, ${story}, row ${row}: ${f}`);
+        // One label a frame, the alarm's too; none on the last, where the playhead stands on the gate.
+        if (gates !== (row === rows - 1 ? 0 : 1))
+          found.push(`${lang}, ${width} px, ${story}, row ${row}: ${gates} gate labels`);
+      });
+      if (heads.size !== 1) found.push(`${lang}, ${width} px: the header is ${[...heads].join(', ')} px high`);
+    }
+  }
+  await setStoredLang(page, 'en');
+  expect([...new Set(found)]).toEqual([]);
 });
 
 /**
@@ -608,34 +713,14 @@ function hyphenEnds(page: Page): Promise<string[]> {
 
 test('no line of the stage ends at the hyphen of "check-in", in any story, at any width', async ({ page, state }) => {
   test.setTimeout(240_000);
-  const s = stage(page);
-  const label = (testId: string) => s.locator('label', { has: page.getByTestId(testId) });
-  const STEPS = [
-    ['confirm switch', () => label('home-stage-confirm'), 'silent'],
-    ['back switch', () => label('home-stage-back'), 'back'],
-    ['confirm switch', () => label('home-stage-confirm'), 'confirmBack'],
-    ['Recovery chip', () => storyChip(page, 'recover'), 'recoverBack'],
-    ['back switch', () => label('home-stage-back'), 'recover'],
-  ] as const;
   const found: string[] = [];
   for (const width of [390, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(state.siteUrl);
     await loadStage(page);
-    const walk = async (story: string) => {
-      const n = await s.getByTestId('home-stage-beats').getByRole('button').count();
-      for (let i = 0; i < n; i++) {
-        await s.getByTestId(`home-stage-beat-${i}`).click();
-        await expect(s.getByTestId(`home-stage-beat-${i}`)).toHaveAttribute('aria-current', 'step');
-        for (const line of await hyphenEnds(page)) found.push(`${width} px, ${story}, row ${i}: ${line}`);
-      }
-    };
-    await walk('confirm');
-    for (const [what, control, story] of STEPS) {
-      await control().click();
-      await expect(s, `${width} px, ${what}`).toHaveAttribute('data-story', story);
-      await walk(story);
-    }
+    await eachFrame(page, async (story, row) => {
+      for (const line of await hyphenEnds(page)) found.push(`${width} px, ${story}, row ${row}: ${line}`);
+    });
   }
   expect([...new Set(found)]).toEqual([]);
 });

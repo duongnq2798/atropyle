@@ -235,53 +235,64 @@ describe('the stage before its simulator loads', () => {
 
   // Fix round 1: 7B's gateOf names no gate while the frame's outlook lies past the story's release, so the default
   // story's arch had no name before day 183. A home story is scripted: its gate is its release, which its rows date.
-  it('names the story’s own gate on the still thread from day 0, in the release’s words, and never twice', () => {
+  // Fix round 2: the label no longer steps aside near the playhead, whose pill says "Day 180", not the gate: the
+  // frames about the gate (the alarm, the confirmation) are the ones that must name it (brief §7, home-stage-alarm).
+  it('names the story’s gate on the still thread in every frame, the alarm’s too, and never twice', () => {
     vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
     renderWithProviders(<HomeStage />);
-    expect(gates()).toEqual(['Heirs · day 194']);
-    // Near the playhead the label steps aside, as 7B's does: its pill says the day.
-    fireEvent.click(row(2));
-    expect(gates()).toEqual([]);
-    fireEvent.click(row(0));
-    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
-    expect(stage().dataset.story).toBe('recover');
-    // Days 0 and 10: the story's gate, the chosen wallet's; day 12: 7B's own (gateOf), the same words.
-    for (const i of [0, 1, 2]) {
+    expectOneGateEach();
+  });
+
+  it('names the gate at the alarm in Vietnamese too', async () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />, { lang: 'vi' });
+    await waitFor(() => expect(rows()[2]).toBe('Ngày 180 · Im lặng. Báo động'));
+    for (const i of [0, 2, 3]) {
       fireEvent.click(row(i));
-      expect(gates(), `recover, row ${i}`).toEqual(['Their wallet · day 26']);
+      expect(gates(), `row ${i}`).toEqual(['Người thừa kế · ngày 194']);
     }
-    eachStory((story) => {
-      const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
-      for (let i = 0; i < n; i++) {
-        fireEvent.click(row(i));
-        expect(gates().length, `${story}, row ${i}`).toBeLessThanOrEqual(1);
-      }
-    });
+    fireEvent.click(row(4));
+    expect(gates()).toEqual([]);
   });
 });
 
+/**
+ * The default story's gate is named on days 0, 180 and 183, the chosen wallet's on days 0, 10 and 12 of Recovery,
+ * and every frame of the six stories names exactly one gate, except its last: there the playhead stands on the gate,
+ * where the badge and the pill say it ("Released to heirs", "Day 194"). The label is the stage's own, never 7B's.
+ */
+function expectOneGateEach(): void {
+  for (const i of [0, 2, 3]) {
+    fireEvent.click(row(i));
+    expect(gates(), `confirm, row ${i}`).toEqual(['Heirs · day 194']);
+  }
+  fireEvent.click(row(4));
+  expect(gates(), 'confirm, on the gate').toEqual([]);
+  fireEvent.click(row(0));
+  fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
+  expect(stage().dataset.story).toBe('recover');
+  for (const i of [0, 1, 2]) {
+    fireEvent.click(row(i));
+    expect(gates(), `recover, row ${i}`).toEqual(['Their wallet · day 26']);
+  }
+  eachStory((story) => {
+    const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
+    for (let i = 0; i < n; i++) {
+      fireEvent.click(row(i));
+      expect(gates().length, `${story}, row ${i}`).toBe(i === n - 1 ? 0 : 1);
+      // 7B's Scrubber hides its label near the playhead: on / it is given none to draw.
+      expect(stage().querySelector('[data-testid="home-stage-scrubber"] [data-part="gate-at"]')).toBeNull();
+    }
+  });
+}
+
 describe('the stage once its simulator has loaded', () => {
-  it('names the story’s gate over the Scrubber as on the still thread, and never twice', () => {
+  it('names the story’s gate over the Scrubber as on the still thread, in every frame, and never twice', () => {
     // The first test loaded the chunk, and lazyChunk keeps it: the stage is live from its first render.
     renderWithProviders(<HomeStage />);
     expect(stage().dataset.ready).toBe('true');
     expect(screen.getByTestId('home-stage-scrubber-thumb-0')).toBeTruthy();
-    expect(gates()).toEqual(['Heirs · day 194']);
-    fireEvent.click(row(2));
-    expect(gates()).toEqual([]);
-    fireEvent.click(row(0));
-    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
-    for (const i of [0, 1, 2]) {
-      fireEvent.click(row(i));
-      expect(gates(), `recover, row ${i}`).toEqual(['Their wallet · day 26']);
-    }
-    eachStory((story) => {
-      const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
-      for (let i = 0; i < n; i++) {
-        fireEvent.click(row(i));
-        expect(gates().length, `${story}, row ${i}`).toBeLessThanOrEqual(1);
-      }
-    });
+    expectOneGateEach();
   });
 });
 

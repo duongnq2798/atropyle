@@ -83,7 +83,7 @@ const SWITCH =
 const KNOB =
   'ml-0.5 block size-4.5 rounded-full bg-ink-muted shadow-sm motion-safe:transition-transform motion-safe:duration-150';
 const PANEL =
-  'relative isolate flex min-w-0 flex-col gap-4 rounded-3xl border border-line bg-surface-1 p-4 sm:p-6 ' +
+  '@container relative isolate flex min-w-0 flex-col gap-4 rounded-3xl border border-line bg-surface-1 p-4 sm:p-6 ' +
   'lg:sticky lg:top-24 lg:col-span-7 lg:col-start-6 lg:row-span-2 lg:row-start-1 lg:self-start';
 const GLOW =
   'pointer-events-none absolute inset-x-0 top-0 -z-10 h-2/3 rounded-t-3xl opacity-[0.09] ' +
@@ -97,9 +97,15 @@ const GLOW =
 const STILL_ROOT = 'relative flex w-full items-center [--tm-r:3] @min-[32rem]:[--tm-r:5]';
 const STILL_TRACK = 'relative block min-w-0 grow mx-5.5';
 const STILL_THREAD = 'w-full h-[calc((100cqw_-_2.75rem)/var(--tm-r))]';
-/** As in scrubber.tsx: the gate's label steps aside near the playhead, and stands under the arch's legs. */
-const GATE_LABEL_NEAR = 12;
+/** As in scrubber.tsx: the gate's label stands under the arch's legs. */
 const GATE_FOOT = 21;
+/**
+ * The label steps aside only while the playhead stands on the gate, within this share of the track (percent), where
+ * the badge and the pill say it ("Released to heirs", "Day 194"). Not near it, as on 7B's Scrubber: there the pill
+ * says the same as the label, here it says "Day 180", and the frames about the gate are the ones that must name it.
+ * The label hangs under the arch and the pill rides above the thumb, so the two never meet (e2e).
+ */
+const GATE_ON = 1;
 
 type Gate = { at: bigint; state: ThreadState };
 type GateWords = (at: bigint, state: ThreadState) => string;
@@ -127,19 +133,27 @@ function keep(s: string): ReactNode {
  * The story's own gate, where 7B's gateOf names none: the frame's outlook lies past the story's release, so the
  * Thread draws its gate at that release (threadFrame's cap). A home story is scripted, so that gate is the story's
  * release, which its rows date ("Day 194 · Through the gate"): it is named in the release's own state, the heirs' or
- * the chosen wallet's. Null wherever gateOf names the gate itself.
+ * the chosen wallet's.
  */
 function storyGate(run: StageRun, axis: ScrubAxis, index: number, at: bigint): Gate | null {
   const end = run.moments.find((m) => m.kind === 'release');
-  return end && !gateOf(run, axis, index, at, null) && threadFrame(run, axis, index, at, null).axis.releaseAt === end.at
+  return end && threadFrame(run, axis, index, at, null).axis.releaseAt === end.at
     ? { at: end.at, state: end.state }
     : null;
 }
 
-/** The gate's label as scrubber.tsx draws it, in the track's box: under the arch, aside near the playhead. */
+/**
+ * The gate the frame draws, named by the stage alone, before the load and after it: the frame's own release where
+ * gateOf names one (a pending recovery's, the heirs' once the alarm rang), else the story's.
+ */
+function stageGate(run: StageRun, axis: ScrubAxis, index: number, at: bigint): Gate | null {
+  return gateOf(run, axis, index, at, null) ?? storyGate(run, axis, index, at);
+}
+
+/** The gate's label as scrubber.tsx draws it, in the track's box: under the arch, aside only on the gate. */
 function GateAt({ gate, axis, at, words }: { gate: Gate | null; axis: ScrubAxis; at: bigint; words: GateWords }) {
   const gx = gate ? courseX(gate.at, axis) : 0;
-  return gate && Math.abs(pctX(gx) - pctX(courseX(at, axis))) >= GATE_LABEL_NEAR ? (
+  return gate && Math.abs(pctX(gx) - pctX(courseX(at, axis))) >= GATE_ON ? (
     <span
       aria-hidden="true"
       data-part="gate-at"
@@ -155,19 +169,8 @@ function GateAt({ gate, axis, at, words }: { gate: Gate | null; axis: ScrubAxis;
   ) : null;
 }
 
-function StillThread({
-  run,
-  axis,
-  index,
-  at,
-  gateLabel,
-}: {
-  run: StageRun;
-  axis: ScrubAxis;
-  index: number;
-  at: bigint;
-  gateLabel: GateWords;
-}) {
+/** The Scrubber's thread before it loads: its rings, no label (the stage's overlay names the gate on both). */
+function StillThread({ run, axis, index, at }: { run: StageRun; axis: ScrubAxis; index: number; at: bigint }) {
   const frame = threadFrame(run, axis, index, at, null);
   const rings = momentRings(run, axis);
   return (
@@ -189,7 +192,6 @@ function StillThread({
               />
             ))}
           </span>
-          <GateAt gate={gateOf(run, axis, index, at, null)} axis={axis} at={at} words={gateLabel} />
         </div>
       </div>
     </div>
@@ -348,13 +350,15 @@ export function HomeStage() {
             sentence that wraps never moves the thread under a finger. Sticky beside the rows from 64rem. */}
         <div ref={panel} data-part="stage" className={PANEL}>
           <span aria-hidden="true" className={cn(GLOW, THREAD_COLOR[state])} />
-          <div className="flex items-center justify-between gap-3">
+          {/* The panel's width lays out the header and the thread's room for the pill, never the state (globals.css:
+              .stage-head, .stage-room), so the thread never moves while the thumb does. */}
+          <div className="stage-head">
             <StateBadge state={state} />
             <p data-testid="home-stage-day" className="voice-ledger text-ink text-title">
               {t('day', { day: dayOf(value) })}
             </p>
           </div>
-          <div className="relative">
+          <div className="stage-room relative">
             {Scrubber ? (
               <Scrubber
                 key={story}
@@ -370,19 +374,19 @@ export function HomeStage() {
                 }}
                 describedBy={hintId}
                 playhead={(a) => t('day', { day: dayAt(a) })}
-                gateLabel={gateLabel}
                 testId="home-stage-scrubber"
               />
             ) : (
-              <StillThread run={run} axis={axis} index={index} at={at} gateLabel={gateLabel} />
+              <StillThread run={run} axis={axis} index={index} at={at} />
             )}
-            {/* The story's gate, over whichever thread is drawn, in a copy of its track's box (STILL_*): it stands
-                where the Scrubber's own label stands, before the load and after it (e2e). */}
+            {/* The gate's one label, over whichever thread is drawn, in a copy of its track's box (STILL_*): the
+                Scrubber is given none, so 7B's rule (aside near the playhead) does not apply here. It stands under
+                the arch, and in the same place before the load and after it (e2e). */}
             <div className="@container pointer-events-none absolute inset-x-0 top-0">
               <div className={STILL_ROOT}>
                 <div className={STILL_TRACK}>
                   <div className={STILL_THREAD} />
-                  <GateAt gate={storyGate(run, axis, index, at)} axis={axis} at={at} words={gateLabel} />
+                  <GateAt gate={stageGate(run, axis, index, at)} axis={axis} at={at} words={gateLabel} />
                 </div>
               </div>
             </div>
