@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { LIMITS } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import {
+  BAR_OVERHANG,
   BEAT_SECONDS,
   BEND_X,
   beatOf,
@@ -17,6 +18,8 @@ import {
   GATE_X,
   HARMONIC_BANDS,
   MAX_POSTS,
+  POST_GAP,
+  POST_STUB,
   POST_WIDTH,
   type Point,
   PREDICTED_DASH,
@@ -684,10 +687,38 @@ describe("the guardians' posts (spec §18.4.2 T6)", () => {
           expect(p.left[0]).toBeCloseTo(100 - (p.left[n - 1] + POST_WIDTH), 1);
           if (k === 0) expect(p.bar).toBeNull();
           else {
-            expect(p.bar?.left).toBeCloseTo(p.left[0], 2);
-            expect((p.bar?.left ?? 0) + (p.bar?.width ?? 0)).toBeCloseTo(p.left[k - 1] + POST_WIDTH, 1);
+            // Over the first k, half a post beyond each end: over one post it is a bar too, not a dot.
+            const end = (p.bar?.left ?? 0) + (p.bar?.width ?? 0);
+            expect(p.bar?.left).toBeCloseTo(p.left[0] - BAR_OVERHANG, 2);
+            expect(end).toBeCloseTo(p.left[k - 1] + POST_WIDTH + BAR_OVERHANG, 1);
+            expect(p.bar?.left).toBeGreaterThanOrEqual(0);
+            // It ends nearer post k than post k + 1, so it never seems to cover one more.
+            if (k < n) expect(p.left[k] - end).toBeGreaterThan(BAR_OVERHANG);
           }
         }
+  });
+
+  it('keeps every gap wider than a post, and five posts one gap from each wall, so they never merge into slats', () => {
+    // In percent of the arch's inside: five posts and six gaps fill it exactly, the walls count as neighbours.
+    expect(MAX_POSTS * POST_WIDTH + (MAX_POSTS + 1) * POST_GAP).toBe(100);
+    expect(POST_GAP).toBeGreaterThan(POST_WIDTH);
+    // A guardian who has not confirmed is not standing yet: a stub at most half a standing post.
+    expect(POST_STUB).toBeGreaterThan(0);
+    expect(POST_STUB).toBeLessThanOrEqual(50);
+    expect(BAR_OVERHANG).toBe(POST_WIDTH / 2);
+    expect(postsOf({ n: 5, k: 3, lit: 4 })).toMatchObject({
+      left: [10, 28, 46, 64, 82],
+      bar: { left: 6, width: 52 },
+    });
+    expect(postsOf({ n: 3, k: 2, lit: 0 })).toMatchObject({ left: [28, 46, 64], bar: { left: 24, width: 34 } });
+    expect(postsOf({ n: 2, k: 1, lit: 0 })).toMatchObject({ left: [37, 55], bar: { left: 33, width: 16 } });
+    expect(postsOf({ n: 1, k: 1, lit: 1 })).toMatchObject({ left: [46], bar: { left: 42, width: 16 } });
+    for (let n = 1; n <= MAX_POSTS; n++) {
+      const p = postsOf({ n, k: n, lit: 0 });
+      if (!p) throw new Error(String(n));
+      expect(p.left[0], `n = ${n}`).toBeGreaterThanOrEqual(POST_GAP);
+      for (let i = 1; i < n; i++) expect(p.left[i] - (p.left[i - 1] + POST_WIDTH)).toBeCloseTo(POST_GAP, 6);
+    }
   });
 
   it('clamps what it cannot draw: never more than MAX_POSTS, k and lit never above n, nothing for NaN', () => {

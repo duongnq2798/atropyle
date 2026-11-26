@@ -231,7 +231,7 @@ function Guardians(p: { window?: number | null }) {
 }
 
 describe('GuardiansEditor', () => {
-  it('says what guardians can do once recovery is ticked, in a polite region that was there before', () => {
+  it('says what guardians can do once recovery is turned on, in a polite region that was there before', () => {
     renderWithProviders(<Guardians />);
     const power = screen.getByTestId('g-recovery-power');
     expect(power).toHaveAttribute('aria-live', 'polite');
@@ -275,6 +275,21 @@ describe('GuardiansEditor', () => {
     expect(drawn).toHaveAttribute('data-part', 'switch');
     fireEvent.click(box.closest('label') as HTMLElement);
     expect(box).toBeChecked();
+  });
+
+  it('says the switch is turned on, never ticked, in both languages', () => {
+    const en = renderWithProviders(<Guardians />);
+    const help = (box: HTMLElement) => (box.closest('label') as HTMLElement).textContent ?? '';
+    expect(help(screen.getByTestId('g-recovery'))).toContain(
+      'Off unless you turn it on. For the day you lose this wallet: enough guardians vote for your new one',
+    );
+    expect(help(screen.getByTestId('g-recovery'))).not.toMatch(/tick/i);
+    en.unmount();
+    renderWithProviders(<Guardians />, { lang: 'vi' });
+    expect(help(screen.getByTestId('g-recovery'))).toContain(
+      'Tắt, trừ khi bạn bật lên. Dành cho ngày bạn mất ví này: đủ số người giám hộ bầu ví mới của bạn',
+    );
+    expect(help(screen.getByTestId('g-recovery'))).not.toMatch(/đánh dấu/);
   });
 
   it('reads k as the plan will: a majority when empty, a whole number from 1 to n, else nothing', () => {

@@ -33,7 +33,7 @@ export const messages = defineMessages(
     kHelp: 'Empty means a majority: {majority} of {n}.',
     recovery: 'Let guardians move this vault to a new wallet',
     recoveryHelp:
-      'Off unless you tick it. For the day you lose this wallet: enough guardians vote for your new one, and the assets move there when the alarm window ends.',
+      'Off unless you turn it on. For the day you lose this wallet: enough guardians vote for your new one, and the assets move there when the alarm window ends.',
     recoveryPowerSome:
       'Wallet recovery is on: the number of guardians you set above, acting together, can move 100% of the covered assets to any wallet they choose. The owner can stop it only by checking in before the alarm window ends.',
     timingTitle: 'When your heirs receive',
@@ -90,7 +90,7 @@ export const messages = defineMessages(
     kHelp: 'Để trống nghĩa là đa số: {majority} trên {n}.',
     recovery: 'Cho phép người giám hộ chuyển vault này sang ví mới',
     recoveryHelp:
-      'Tắt trừ khi bạn đánh dấu. Dành cho ngày bạn mất ví này: đủ số người giám hộ bầu ví mới của bạn, và tài sản chuyển sang ví đó khi hết thời gian báo động.',
+      'Tắt, trừ khi bạn bật lên. Dành cho ngày bạn mất ví này: đủ số người giám hộ bầu ví mới của bạn, và tài sản chuyển sang ví đó khi hết thời gian báo động.',
     recoveryPowerSome:
       'Đã bật khôi phục ví: đủ số người giám hộ bạn đặt ở trên cùng hành động thì có thể chuyển 100% tài sản vault đang phủ sang bất kỳ ví nào họ chọn. Chủ vault chỉ có thể ngăn lại bằng cách điểm danh trước khi hết thời gian báo động.',
     timingTitle: 'Khi nào người thừa kế nhận',

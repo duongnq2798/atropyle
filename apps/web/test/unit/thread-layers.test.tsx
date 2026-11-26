@@ -4,7 +4,7 @@ import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RevealWindow, type RevealWindowHandle, revealTransforms } from '../../src/motion/reveal-window';
 import { SPRING_EASING, SPRING_MS } from '../../src/motion/tokens';
-import { pctY, type ThreadAxis, threadSignature, waveY } from '../../src/thread/geometry';
+import { POST_STUB, pctY, type ThreadAxis, threadSignature, waveY } from '../../src/thread/geometry';
 import { THREAD_STATES } from '../../src/thread/state';
 import { Thread, type ThreadProps } from '../../src/thread/thread';
 
@@ -270,6 +270,11 @@ describe('Thread layers (R18.4)', () => {
       const each = [...(posts?.querySelectorAll<HTMLElement>('[data-part="post"]') ?? [])];
       expect(each).toHaveLength(n);
       expect(each.filter((p) => p.dataset.lit === 'true')).toHaveLength(lit);
+      // Lit or not differs in shape, not only in colour (§4.1): a confirmed guardian stands, the others are stubs.
+      for (const [i, post] of each.entries()) {
+        expect(post.style.height, `${n} ${k} ${lit} post ${i}`).toBe(i < lit ? '100%' : `${POST_STUB}%`);
+        expect(post).toHaveClass('rounded-full', i < lit ? 'bg-current' : 'bg-line-strong');
+      }
       expect(posts?.querySelectorAll('[data-part="quorum"]')).toHaveLength(1);
       unmount();
     }

@@ -245,19 +245,33 @@ export function beatOf(left: number): ThreadBeat {
 
 /** At most one post per guardian a vault can have (LIMITS.maxGuardians; thread-geometry.test.ts keeps them equal). */
 export const MAX_POSTS = 5;
-/** A post's width, the gap between two and their height, in percent of the gate's box: five posts span 74 % of it. */
-export const POST_WIDTH = 10;
-export const POST_GAP = 6;
+/**
+ * A post's width and the gap between two, in percent of the arch's inside (the gate less its walls): five posts and
+ * six gaps fill it, 5 × 8 + 6 × 10 = 100, so the walls count as neighbours and every gap is wider than a post.
+ */
+export const POST_WIDTH = 8;
+export const POST_GAP = 10;
+/** A standing post's height, in percent of the gate's box. */
 export const POST_HEIGHT = 34;
+/** An unlit post's height, in percent of a standing one: a guardian who has not confirmed is not standing yet. */
+export const POST_STUB = 40;
+/**
+ * How far the bar reaches past the first and the k-th post, in the same percent: half a post. Over one post it is then
+ * a bar (a T once that guardian stands), not a dot; and it ends nearer post k than post k + 1.
+ */
+export const BAR_OVERHANG = POST_WIDTH / 2;
 
 export interface ThreadPosts {
   /** One post per guardian, 1 to MAX_POSTS. */
   n: number;
-  /** How many must confirm: the bar covers the first k posts; 0 draws no bar. */
+  /** How many must confirm: the bar covers the first k posts (BAR_OVERHANG past each end); 0 draws no bar. */
   k: number;
-  /** How many have confirmed: the first `lit` posts are filled. A count: which guardian it was, the list says. */
+  /**
+   * How many have confirmed: the first `lit` posts stand, filled; the others are stubs (POST_STUB). A count: which
+   * guardian it was, the list says.
+   */
   lit: number;
-  /** The left edge of each post, in percent of the gate's box; the group is centred. */
+  /** The left edge of each post, in percent of the arch's inside; the group is centred. */
   left: number[];
   bar: { left: number; width: number } | null;
 }
@@ -278,7 +292,8 @@ export function postsOf(p: ThreadInput['posts']): ThreadPosts | null {
     k,
     lit,
     left: Array.from({ length: n }, (_, i) => r(x0 + i * (POST_WIDTH + POST_GAP))),
-    bar: k > 0 ? { left: r(x0), width: r(k * POST_WIDTH + (k - 1) * POST_GAP) } : null,
+    bar:
+      k > 0 ? { left: r(x0 - BAR_OVERHANG), width: r(k * POST_WIDTH + (k - 1) * POST_GAP + 2 * BAR_OVERHANG) } : null,
   };
 }
 

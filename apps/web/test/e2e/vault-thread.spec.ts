@@ -96,41 +96,66 @@ test("the guardians' posts stand inside the gate: n posts, a bar over k, the con
   await expect(thread(page, 'none').locator('[data-part="posts"]')).toHaveCount(0);
 });
 
-test('on a phone the posts can be told apart, the bar stands clear of them, and a gate without posts keeps its size', async ({
+test('the posts read as guardians at the gate on a phone and a desktop: standing or not yet, apart, under a lintel', async ({
   page,
   state,
 }) => {
   await open(page, state.siteUrl);
   const measure = (id: string) =>
     thread(page, id).evaluate((root) => {
-      const box = (root.querySelector('[data-layer="marks"]') as HTMLElement).getBoundingClientRect();
-      const gate = (root.querySelector('[data-part="gate"]') as HTMLElement).getBoundingClientRect();
-      const posts = [...root.querySelectorAll('[data-part="post"]')].map((p) => p.getBoundingClientRect());
-      const bar = root.querySelector('[data-part="quorum"]')?.getBoundingClientRect() ?? null;
+      const rect = (el: Element) => {
+        const b = el.getBoundingClientRect();
+        return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width, height: b.height };
+      };
+      const stand = root.querySelector('[data-part="posts"]');
+      const bar = root.querySelector('[data-part="quorum"]');
       return {
-        box: { top: box.top, bottom: box.bottom, height: box.height },
-        gate: { top: gate.top, bottom: gate.bottom, height: gate.height },
-        posts: posts.map((b) => ({ left: b.left, right: b.right, top: b.top, width: b.width, height: b.height })),
-        barBottom: bar?.bottom ?? null,
+        box: rect(root.querySelector('[data-layer="marks"]') as Element),
+        gate: rect(root.querySelector('[data-part="gate"]') as Element),
+        wall: Number.parseFloat(getComputedStyle(root.querySelector('[data-part="arch"]') as Element).borderLeftWidth),
+        stand: stand ? rect(stand) : null,
+        k: Number((stand as HTMLElement | null)?.dataset.k),
+        posts: [...root.querySelectorAll<HTMLElement>('[data-part="post"]')].map((p) => ({
+          ...rect(p),
+          lit: p.dataset.lit === 'true',
+        })),
+        bar: bar ? rect(bar) : null,
       };
     });
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const id of ['vault-a', 'grace', 'released', 'five']) {
+    for (const id of ['vault-a', 'vault-b', 'grace', 'released', 'five']) {
       const m = await measure(id);
       const at = `${id} at ${width}`;
-      // A floor of 44 px on a gate with posts: five posts 2 px wide and 15 px tall, more than 1 px apart.
-      expect(m.gate.height, at).toBeGreaterThanOrEqual(43.5);
+      if (!m.stand || !m.bar) throw new Error(`${at}: no posts or no bar`);
+      // A floor of 48 px on a gate with posts: on a phone five posts are 1.5 px wide with 1.9 px between them.
+      expect(m.gate.height, at).toBeGreaterThanOrEqual(47.5);
+      const standing = m.stand.height;
+      expect(standing, at).toBeGreaterThanOrEqual(14);
       for (const p of m.posts) {
-        expect(p.width, at).toBeGreaterThanOrEqual(2);
-        expect(p.height, at).toBeGreaterThanOrEqual(14);
+        expect(p.width, at).toBeGreaterThanOrEqual(1.5);
+        if (p.lit) expect(p.height, `${at}: a lit post stands`).toBeCloseTo(standing, 0);
+        else {
+          // Not only grey but short: a guardian who has not confirmed is not standing yet (§4.1, never colour alone).
+          expect(p.height, `${at}: an unlit post is a stub`).toBeLessThanOrEqual(0.5 * standing);
+          expect(p.height, `${at}: a stub is still a post, not a dot`).toBeGreaterThanOrEqual(2 * p.width);
+        }
       }
-      for (let i = 1; i < m.posts.length; i++) {
-        expect(m.posts[i].left - m.posts[i - 1].right, at).toBeGreaterThanOrEqual(1);
-      }
-      // The quorum bar is a lintel over the posts, not a cap on them.
-      expect(m.barBottom, at).not.toBeNull();
-      expect(Math.min(...m.posts.map((p) => p.top)) - (m.barBottom ?? 0), at).toBeGreaterThanOrEqual(1);
+      // Every gap wider than a post, the walls of the arch included: never slats, never a post fused to a wall.
+      const gaps = [
+        m.posts[0].left - (m.gate.left + m.wall),
+        ...m.posts.slice(1).map((p, i) => p.left - m.posts[i].right),
+        m.gate.right - m.wall - m.posts[m.posts.length - 1].right,
+      ];
+      for (const gap of gaps) expect(gap, `${at}: gaps ${gaps.join(', ')}`).toBeGreaterThanOrEqual(m.posts[0].width);
+      // The quorum bar is a lintel at standing height, 3 px clear: over stubs it floats, on standing posts it is a Π.
+      expect(m.stand.top - m.bar.bottom, at).toBeGreaterThanOrEqual(2.5);
+      for (const p of m.posts.filter((q) => q.lit)) expect(p.top - m.bar.bottom, at).toBeGreaterThanOrEqual(2.5);
+      // Over one post too it is a bar, not a dot: past the first and the k-th post, and short of post k + 1.
+      const kth = m.posts[m.k - 1];
+      expect(m.posts[0].left - m.bar.left, at).toBeGreaterThan(0.25);
+      expect(m.bar.right - kth.right, at).toBeGreaterThan(0.25);
+      if (m.k < m.posts.length) expect(m.posts[m.k].left - m.bar.right, at).toBeGreaterThan(m.bar.right - kth.right);
     }
     const none = await measure('none');
     expect(none.gate.height / none.box.height, `none at ${width}`).toBeCloseTo(0.42, 2);
@@ -155,5 +180,6 @@ test('screens of the vault threads, for the design review', async ({ page, state
   test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
   test.setTimeout(120_000);
   await open(page, state.siteUrl);
-  await captureScreens(page, 'vault-thread', { ready: () => ready(page) });
+  // Vellum too: there the lit post (thread) and an unlit one (line-strong) are nearly one brown, so only shape tells.
+  await captureScreens(page, 'vault-thread', { vellum: true, ready: () => ready(page) });
 });

@@ -7,6 +7,7 @@ import { THREAD_VT_NAME } from '@/motion/view-transition';
 import {
   MAIN_WIDTH,
   POST_HEIGHT,
+  POST_STUB,
   POST_WIDTH,
   type Point,
   pctX,
@@ -86,9 +87,12 @@ function NowAt({ at: [x, y], pending }: { at: Point; pending: boolean }) {
 }
 
 /**
- * The guardians' posts at the gate (spec §18.4.2 T6): one per guardian, a bar over the k who must confirm, the ones
- * who confirmed filled. HTML in percent of the gate's box (POST_WIDTH, POST_HEIGHT), so nothing stretches (R18.4);
- * nothing here ever moves.
+ * The guardians' posts at the gate (spec §18.4.2 T6): one per guardian, and a bar over the k who must confirm. A
+ * guardian who confirmed stands, filled, at full height; one who has not is a grey stub (POST_STUB), so lit and unlit
+ * differ in shape, not only in colour (§4.1: in vellum the two are nearly one brown). The posts stand inside the
+ * arch's 2 px walls, every gap wider than a post. The bar is a lintel at standing height, 3 px clear, half a post past
+ * each end (BAR_OVERHANG): over stubs it floats, and once k stand it rests on them as a Π. HTML in percent
+ * (POST_WIDTH, POST_HEIGHT), so nothing stretches (R18.4); nothing here ever moves.
  */
 function Posts({ posts: p }: { posts: ThreadPosts }) {
   const met = p.k > 0 && p.lit >= p.k;
@@ -99,27 +103,26 @@ function Posts({ posts: p }: { posts: ThreadPosts }) {
       data-k={p.k}
       data-lit={p.lit}
       data-met={met ? 'true' : 'false'}
-      className="absolute inset-x-0 bottom-0"
+      className="absolute inset-x-[2px] bottom-0"
       style={{ height: `${POST_HEIGHT}%` }}
     >
-      {p.left.map((left, i) => (
-        <span
-          key={left}
-          data-part="post"
-          data-lit={i < p.lit ? 'true' : 'false'}
-          className={cn(
-            'absolute bottom-0 h-full min-w-px rounded-t-[1px]',
-            i < p.lit ? 'bg-current' : 'bg-line-strong',
-          )}
-          style={{ left: `${left}%`, width: `${POST_WIDTH}%` }}
-        />
-      ))}
+      {p.left.map((left, i) => {
+        const lit = i < p.lit;
+        return (
+          <span
+            key={left}
+            data-part="post"
+            data-lit={lit ? 'true' : 'false'}
+            className={cn('absolute bottom-0 min-w-px rounded-full', lit ? 'bg-current' : 'bg-line-strong')}
+            style={{ left: `${left}%`, width: `${POST_WIDTH}%`, height: lit ? '100%' : `${POST_STUB}%` }}
+          />
+        );
+      })}
       {p.bar ? (
         <span
           data-part="quorum"
-          // A lintel over the posts, 1.5 px clear of their tops: flush on them, it read as one more post's cap.
           className={cn(
-            'absolute top-0 h-0.5 -translate-y-[calc(100%+1.5px)] rounded-full',
+            'absolute top-0 h-0.5 -translate-y-[calc(100%+3px)] rounded-full',
             met ? 'bg-current' : 'bg-ink-muted',
           )}
           style={{ left: `${p.bar.left}%`, width: `${p.bar.width}%` }}
@@ -300,15 +303,15 @@ export function Thread({
 
       <div data-layer="marks" data-highlight={highlighted} className="absolute inset-0">
         {g.gate ? (
-          // The guardians' posts stand inside this box, under the arch. With posts the gate is at least 44 px tall
-          // (21 px wide), so five posts on a phone are 2 px wide and 15 px tall with 1.3 px between them, not one
-          // block; never more than 80 % of the box, so in a low box the arch stays inside it (the wave keeps the
-          // gate's centre between 42.5 % and 57.5 %). Without posts the gate keeps its 42 %.
+          // The guardians' posts stand inside this box, under the arch. With posts the gate is at least 48 px tall
+          // (23 px wide), so five posts on a phone are 1.5 px wide with 1.9 px between them and between the outer
+          // ones and the walls; never more than 80 % of the box, so in a low box the arch stays inside it (the wave
+          // keeps the gate's centre between 42.5 % and 57.5 %). Without posts the gate keeps its 42 %.
           <span
             data-part="gate"
             className={cn(
               'absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2',
-              g.posts && 'min-h-[min(2.75rem,80%)]',
+              g.posts && 'min-h-[min(3rem,80%)]',
             )}
             style={at(g.gate)}
           >

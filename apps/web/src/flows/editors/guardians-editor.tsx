@@ -155,7 +155,7 @@ export function GuardiansEditor({
           </label>
         </div>
       ) : null}
-      {/* In the page from the first paint, so ticking recovery reads the sentence out (7A rule 19). */}
+      {/* In the page from the first paint, so turning recovery on reads the sentence out (7A rule 19). */}
       <p
         aria-live="polite"
         data-testid={`${testId}-recovery-power`}
