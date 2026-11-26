@@ -30,7 +30,7 @@ This skill drives the `atropyle` CLI. With `--json`, every command prints exactl
 
 The default chain is X Layer mainnet, where Atropyle is deployed. Add `--deployment <file>` to every command only to work against another deployment, such as a local devnet.
 
-`npx -y atropyle@0.1.0` needs the package on npm. Until the maintainer publishes it, run the CLI from a checkout of this repository (`node packages/cli/dist/bin.js`) with the same arguments. On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
+`npx -y atropyle@0.1.0` runs the CLI from npm. To run it from a checkout of this repository instead, use `node packages/cli/dist/bin.js` with the same arguments. On a local devnet, `verify` exits 3 by design, because the devnet uses a stand-in processor. Prepare nothing for a real vault until `verify` passes on X Layer.
 
 ```bash
 npx -y atropyle@0.1.0 doctor --json
