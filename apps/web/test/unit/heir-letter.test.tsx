@@ -119,12 +119,42 @@ describe('the heir letter', () => {
     // The words themselves carry the last check-in, not the block's time nor the release.
     letter(PEOPLE.heirA, loadedWith({ state: 'releasedInherit', pending: 'releasedInherit', ...T }));
     const signed = screen.getByTestId('heir-signed').textContent ?? '';
-    expect(signed).toContain(date(T.lastAlive));
-    expect(signed).not.toContain(date(T.blockTimestamp));
-    expect(signed).not.toContain(date(T.releasedAt));
+    const plain = (ts: bigint) => chainDate(ts, 'en', true);
+    expect(signed).toContain(plain(T.lastAlive));
+    expect(signed).not.toContain(plain(T.blockTimestamp));
+    expect(signed).not.toContain(plain(T.releasedAt));
     expect(screen.getByRole('heading', { level: 2, name: 'What this vault leaves you' }).className).toContain(
       'voice-letter',
     );
+  });
+
+  it.each(['en', 'vi'] as const)(
+    'signs on two lines in %s: the words, then the date and time as one unit that never breaks',
+    (lang) => {
+      letter(PEOPLE.heirA, loadedWith({ ...T }), lang);
+      const signed = screen.getByTestId('heir-signed');
+      const words = signed.querySelector('[data-testid="heir-signed-words"]');
+      expect(words?.className).toContain('voice-letter');
+      // The Letter line holds no date: a date at lead size breaks before its time and leaves "23:35 UTC" alone.
+      expect(words?.textContent).toBe(heir[lang].signed);
+      expect(words?.textContent).not.toMatch(/\d/);
+      const time = signed.querySelector('time');
+      expect(time?.getAttribute('dateTime')).toBe(new Date(Number(T.lastAlive) * 1000).toISOString());
+      expect(time?.textContent).toBe(chainDate(T.lastAlive, lang, true));
+      expect(time?.className).toContain('whitespace-nowrap');
+      expect(time?.className).toContain('voice-ledger');
+    },
+  );
+
+  it('balances the opening, so no line of it holds a lone word or a split verb', () => {
+    letter(PEOPLE.heirA);
+    expect(screen.getByTestId('heir-opening').className).toContain('[text-wrap:balance]');
+    // Balance alone split "ngăn / lại" across two lines at 390 px: the VI openings keep the verb whole.
+    const NBSP = String.fromCharCode(0xa0);
+    for (const key of ['openRecovery', 'openRecoverPending'] as const) {
+      expect(heir.vi[key]).toContain(`ngăn${NBSP}lại`);
+      expect(heir.vi[key]).not.toContain('ngăn lại');
+    }
   });
 
   it('highlights the connected reader branch on the thread (spec §18.3 row 11)', () => {

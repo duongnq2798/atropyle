@@ -16,7 +16,7 @@ import { LetterSheet } from '@/letter/letter-sheet';
 import { cn } from '@/lib/cn';
 import { formatBps } from '@/lib/format';
 import { explorerAddress, explorerName, explorerTx } from '@/lib/links';
-import { chainDate } from '@/lib/when';
+import { chainDate, isoDate } from '@/lib/when';
 import { messages } from '@/messages/heir.messages';
 import { messages as labels, THREAD_STATE_KEY } from '@/messages/labels.messages';
 import { messages as vaultMessages } from '@/messages/vault.messages';
@@ -32,7 +32,6 @@ import { POKE_KEY, publicOffers } from './guest';
 import { LazyActionFlow } from './lazy-action-flow';
 import { letterOpening } from './letter-opening';
 import { letterThread } from './letter-thread';
-import { keepDate } from './standing';
 import { TransferTable } from './transfers';
 import type { PanelProps } from './vault-page';
 
@@ -147,9 +146,18 @@ export function HeirLetter(p: PanelProps) {
         labelledBy="heir-letter-title"
         signature={
           <>
-            <p data-testid="heir-signed" data-ts={String(s.lastAlive)} className="voice-letter text-lead text-ink">
-              {t('signed', { date: keepDate(chainDate(s.lastAlive, lang, true)) })}
-            </p>
+            {/* Two lines: the words in the Letter voice, then the moment in the Ledger voice as one unit. A date
+                at lead size broke before its time at 1440 px and left "23:35 UTC" alone on a line. */}
+            <div data-testid="heir-signed" data-ts={String(s.lastAlive)} className="flex flex-col gap-1">
+              <p data-testid="heir-signed-words" className="voice-letter text-lead text-ink">
+                {t('signed')}
+              </p>
+              <p className="text-small text-ink-muted">
+                <time dateTime={isoDate(s.lastAlive)} className="voice-ledger whitespace-nowrap">
+                  {chainDate(s.lastAlive, lang, true)}
+                </time>
+              </p>
+            </div>
             <p className="flex flex-wrap items-center gap-2 text-small text-ink-muted">
               <span className="voice-ledger">{t('from')}</span>
               <Address address={view.owner} explorer={explorer} size="sm" />
@@ -169,7 +177,7 @@ export function HeirLetter(p: PanelProps) {
         <h2 id="heir-letter-title" className="voice-letter text-h2 text-ink">
           {t(recover ? 'titleRecover' : 'title')}
         </h2>
-        <p data-testid="heir-opening" className="voice-letter text-lead text-ink">
+        <p data-testid="heir-opening" className="voice-letter text-lead text-ink [text-wrap:balance]">
           {t(opening.key, opening.params)}
         </p>
         <p data-testid="heir-body" className="voice-letter text-body text-ink">

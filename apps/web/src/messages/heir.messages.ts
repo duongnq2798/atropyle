@@ -48,7 +48,7 @@ export const messages = defineMessages(
     sharesEmptyReleased: "Nothing the vault covers is left in the owner's wallet to deliver.",
     receivedTitle: 'What you received',
     shareUncovered: "Part of this token is not covered: it stays in the owner's wallet.",
-    signed: 'Signed by their last check-in · {date}',
+    signed: 'Signed by their last check-in',
     vaultOn: 'This vault on {name}',
     stepsTitle: 'What you can do',
     stepVerify: 'Check the circuit yourself',
@@ -89,7 +89,7 @@ export const messages = defineMessages(
     openDue:
       'Chủ vault đã im lặng từ {date} và không trả lời báo động. Giờ vault có thể trao cho những người thừa kế: bất kỳ ai cũng làm được việc này, kể cả bạn.',
     openRecovery:
-      'Những người giám hộ đã bắt đầu khôi phục ví. Nếu chủ vault không ngăn lại, tài sản sẽ chuyển sang ví khôi phục, không đến những người thừa kế.',
+      'Những người giám hộ đã bắt đầu khôi phục ví. Nếu chủ vault không ngăn\u00a0lại, tài sản sẽ chuyển sang ví khôi phục, không đến những người thừa kế.',
     openReleased:
       'Từ {date}, đã tới lúc vault trao tài sản cho những người thừa kế. Tài sản vẫn nằm trong ví chủ vault cho tới khi có người chuyển đi; bất kỳ ai cũng làm được, kể cả bạn.',
     openDelivered: 'Ngày {date}, vault đã trao cho những người thừa kế, và phần của bạn đã về ví của bạn.',
@@ -97,7 +97,7 @@ export const messages = defineMessages(
       'Đã tới lúc vault trao tài sản cho ví khôi phục mà những người giám hộ chọn. Những người thừa kế sẽ không nhận gì.',
     openExpired: 'Drill (bản diễn tập) này đã hết hạn: đó chỉ là buổi diễn tập, và sẽ không có gì xảy ra với nó nữa.',
     openRecoverPending:
-      'Những người giám hộ đã chọn ví này để nhận tài sản của chủ vault. Nếu chủ vault không ngăn lại, việc này có thể diễn ra từ {date}.',
+      'Những người giám hộ đã chọn ví này để nhận tài sản của chủ vault. Nếu chủ vault không ngăn\u00a0lại, việc này có thể diễn ra từ {date}.',
     openRecoverDue:
       'Chủ vault đã không ngăn lần khôi phục. Giờ vault có thể trao cho ví này: bất kỳ ai cũng làm được, kể cả bạn.',
     openRecoverReleased:
@@ -119,7 +119,7 @@ export const messages = defineMessages(
     sharesEmptyReleased: 'Trong ví chủ vault không còn gì vault phủ để chuyển đi.',
     receivedTitle: 'Những gì bạn đã nhận',
     shareUncovered: 'Một phần token này chưa được phủ: phần đó ở lại ví chủ vault.',
-    signed: 'Ký bằng lần điểm danh cuối · {date}',
+    signed: 'Ký bằng lần điểm danh cuối',
     vaultOn: 'Vault này trên {name}',
     stepsTitle: 'Những việc bạn có thể làm',
     stepVerify: 'Tự kiểm tra mạch',
