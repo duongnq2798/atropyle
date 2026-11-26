@@ -13,6 +13,7 @@ import type { MirrorToken } from '@/tx/mirror';
 import { TxCard } from '@/tx/tx-card';
 import { useTxRunner } from '@/tx/use-tx-runner';
 import { Button, type ButtonVariant } from '@/ui/button';
+import type { HoldWords } from '@/ui/hold-button';
 import { SkeletonText } from '@/ui/skeleton';
 import { type RunProgress, usePreparedAction } from './use-prepared-action';
 
@@ -31,6 +32,7 @@ export interface ActionFlowProps {
   title?: ReactNode;
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
+  hold?: HoldWords;
   variant?: ButtonVariant;
   auto?: boolean;
   /** Its button was pressed before this chunk loaded (LazyActionFlow): prepare once, as the press asked. */
@@ -52,6 +54,7 @@ function ActionTx(p: {
   testId: string;
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
+  hold?: HoldWords;
   tokens?: readonly MirrorToken[];
   receiptFooter?: ReactNode;
   onDone(r: SendResult): void;
@@ -71,6 +74,7 @@ function ActionTx(p: {
       title={p.title}
       confirm={p.confirm}
       tone={p.tone}
+      hold={p.hold}
       receiptFooter={p.receiptFooter}
       testId={p.testId}
     />
@@ -112,6 +116,7 @@ export function ActionFlow(p: ActionFlowProps) {
             testId={`${p.testId}-tx`}
             confirm={p.confirm}
             tone={p.tone}
+            hold={p.hold}
             tokens={p.tokens}
             receiptFooter={p.receiptFooter}
             onDone={(r) => p.onDone?.(r)}
