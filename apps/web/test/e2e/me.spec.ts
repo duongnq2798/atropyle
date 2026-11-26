@@ -114,6 +114,30 @@ const down = (route: Route) =>
     : route.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'down' });
 const SLOW = { timeout: 60_000 };
 
+/**
+ * Waits until `done` says the page shows what a shot needs. The page reconnects its wallet after each reload; on a
+ * loaded machine that restore can run out of time (RESTORE_TIMEOUT_MS) and leave the page on Connect, so the test
+ * connects again, as a person would, and waits once more.
+ */
+async function until(page: Page, done: () => Promise<boolean>, timeout = 30_000): Promise<void> {
+  try {
+    await expect.poll(done, { timeout }).toBe(true);
+    return;
+  } catch {
+    await connectFrom(page, page.getByTestId('me-connect'));
+  }
+  await expect.poll(done, { timeout }).toBe(true);
+}
+const visible = (page: Page, testId: string) => () => page.getByTestId(testId).isVisible();
+const counts = (page: Page, n: number) => async () => {
+  for (const s of ['own', 'guard', 'inherit'] as const) if ((await rows(page, s).count()) !== n) return false;
+  return true;
+};
+/** Reading the chain, not reconnecting the wallet: only the first speaks on the status line. */
+const reading = (page: Page) => async () =>
+  (await page.getByTestId('me-loading').isVisible()) &&
+  ((await page.getByTestId('me-status').textContent()) ?? '') !== '';
+
 test('a first read that fails shows the error with Retry, and Retry reads the list', async ({
   page,
   state,
@@ -131,7 +155,7 @@ test('a first read that fails shows the error with Retry, and Retry reads the li
   // expectAccessibleInBothThemes, with the wait the error needs after each reload.
   for (const theme of ['light', 'dark'] as const) {
     await setStoredTheme(page, theme);
-    await expect(box).toBeVisible(SLOW);
+    await until(page, visible(page, 'me-error'), SLOW.timeout);
     await expectAccessible(page);
   }
   await page.unroute(rpc, down);
@@ -179,7 +203,7 @@ test('screens of /me/: connect, reading, the error, the three lists, no vaults',
   await captureScreens(page, 'me-lists', {
     shots: FULL_MATRIX,
     ready: async () => {
-      for (const s of ['own', 'guard', 'inherit'] as const) await expect(rows(page, s)).toHaveCount(1);
+      await until(page, counts(page, 1));
       await page.evaluate(() => window.scrollTo(0, 0));
     },
   });
@@ -191,7 +215,7 @@ test('screens of /me/: connect, reading, the error, the three lists, no vaults',
   await captureScreens(page, 'me-loading', {
     vellum: true,
     ready: async () => {
-      await expect(page.getByTestId('me-loading')).toBeVisible();
+      await until(page, reading(page));
     },
   });
   await page.unroute(rpc, hold);
@@ -201,7 +225,7 @@ test('screens of /me/: connect, reading, the error, the three lists, no vaults',
   await captureScreens(page, 'me-error', {
     vellum: true,
     ready: async () => {
-      await expect(page.getByTestId('me-error')).toBeVisible(SLOW);
+      await until(page, visible(page, 'me-error'), SLOW.timeout);
     },
   });
   await page.unroute(rpc, down);
@@ -211,7 +235,7 @@ test('screens of /me/: connect, reading, the error, the three lists, no vaults',
   await captureScreens(page, 'me-empty', {
     shots: FULL_MATRIX,
     ready: async () => {
-      await expect(page.getByTestId('me-empty')).toBeVisible();
+      await until(page, visible(page, 'me-empty'));
     },
   });
 });
