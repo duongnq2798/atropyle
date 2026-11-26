@@ -240,11 +240,20 @@ test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
     if (await page.getByTestId('vault-history-load').isVisible()) await page.getByTestId('vault-history-load').click();
     await expect(page.getByTestId('vault-history-end')).toBeVisible();
   };
-  /** After each reload the wallet reconnects on its own, or through the guest view's button. */
+  /**
+   * After each reload the wallet reconnects on its own, or through the guest view's button. In either language (the
+   * sheet's name is translated, the wallet's is not), and retried: a press on Connect while the reconnection lands
+   * opens no sheet.
+   */
   const connected = async () => {
     const connect = page.getByTestId('vault-guest-connect');
-    if (await connect.isVisible()) await connectFrom(page, connect);
-    await expect(page.getByTestId('vault-guest-connect')).toHaveCount(0);
+    await expect(async () => {
+      if ((await connect.count()) === 0) return;
+      const sheet = page.getByRole('dialog');
+      if (!(await sheet.isVisible())) await connect.click({ timeout: 2_000 });
+      await sheet.getByRole('button', { name: 'Test Wallet' }).click({ timeout: 3_000 });
+      await expect(connect).toHaveCount(0, { timeout: 3_000 });
+    }).toPass({ timeout: 60_000 });
   };
 
   // The first paint: the skeleton, while the chain does not answer yet. Registered last, this route wins.
