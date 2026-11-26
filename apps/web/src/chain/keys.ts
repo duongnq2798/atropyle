@@ -11,4 +11,6 @@ export const chainKeys = {
   /** A signing link, by its fragment: what inspect said about it, and the tokens its mirror names. */
   sign: (chainId: number, hash: string) => ['atropyle', chainId, 'sign', hash] as const,
   signTokens: (chainId: number, hash: string) => ['atropyle', chainId, 'sign', hash, 'tokens'] as const,
+  /** A policy engine: "<cpu lowercased>:<policyId>", or "deployment" (engineKey in flows/time-machine/use-engine.ts). */
+  engine: (chainId: number, binding: string) => ['atropyle', chainId, 'engine', binding] as const,
 };
