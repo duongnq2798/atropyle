@@ -35,6 +35,8 @@ export interface GuardiansEditorProps {
   recoveryWindow: number | null;
   /** Rows that cannot be removed: 1 in the wizard, 0 when an owner edits a vault to drop every guardian. */
   min?: number;
+  /** The page's own heading names the step (the wizard): the legend stays for screen readers only. */
+  hideLegend?: boolean;
   onChange(v: GuardianFields): void;
 }
 
@@ -60,6 +62,7 @@ export function GuardiansEditor({
   testId,
   recoveryWindow,
   min = 1,
+  hideLegend,
   onChange,
 }: GuardiansEditorProps) {
   const t = useT(messages);
@@ -84,7 +87,7 @@ export function GuardiansEditor({
       : '';
   return (
     <fieldset className="space-y-4">
-      <legend className="font-display text-h2 text-ink">{t('guardiansTitle')}</legend>
+      <legend className={hideLegend ? 'sr-only' : 'font-display text-h2 text-ink'}>{t('guardiansTitle')}</legend>
       <p className="text-body text-ink-muted">{t('guardiansHelp')}</p>
       {v.guardians.map((g, i) => (
         <AddressInput

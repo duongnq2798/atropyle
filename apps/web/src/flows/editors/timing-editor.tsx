@@ -7,7 +7,7 @@ import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { durationWords } from '@/lib/duration';
 import { messages } from '@/messages/editors.messages';
-import { RADIO, RADIO_DOT } from '@/ui/switch';
+import { CHOICE_CARD, RADIO, RADIO_DOT } from '@/ui/switch';
 import { TextField } from '@/ui/text-field';
 import { useIssueText } from './issue-list';
 
@@ -16,15 +16,6 @@ const PRESET_KEY = {
   sixMonths: 'presetSixMonths',
   twelveMonths: 'presetTwelveMonths',
 } as const satisfies Record<PresetName, keyof typeof messages.en>;
-
-/**
- * A preset is a card around a native radio drawn as the product's (ui/switch.ts). The card follows its input: picked
- * (has-checked) and focused from the keyboard (has-focus-visible), since the ring itself is small.
- */
-const CARD =
-  'flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-1 p-4 ' +
-  'transition-colors duration-150 hover:not-has-checked:border-line-strong has-checked:border-thread has-checked:bg-surface-2 ' +
-  'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-thread';
 
 /** The drawn radio, lined up with the first line of the card's text. */
 function Mark() {
@@ -42,10 +33,21 @@ export interface TimingEditorProps {
   issues: readonly PlanIssue[];
   showIssues: boolean;
   testId: string;
+  /** The page's own heading names the step (the wizard): the legend stays for screen readers only. */
+  hideLegend?: boolean;
   onChange(v: TimingForm): void;
 }
 
-export function TimingEditor({ flows, value: v, drill, issues, showIssues, testId, onChange }: TimingEditorProps) {
+export function TimingEditor({
+  flows,
+  value: v,
+  drill,
+  issues,
+  showIssues,
+  testId,
+  hideLegend,
+  onChange,
+}: TimingEditorProps) {
   const t = useT(messages);
   const { lang } = useLang();
   const issueText = useIssueText(flows, drill);
@@ -64,9 +66,9 @@ export function TimingEditor({ flows, value: v, drill, issues, showIssues, testI
   const name = `${testId}-timing`;
   return (
     <fieldset className="space-y-3">
-      <legend className="font-display text-h2 text-ink">{t('timingTitle')}</legend>
+      <legend className={hideLegend ? 'sr-only' : 'font-display text-h2 text-ink'}>{t('timingTitle')}</legend>
       {flows.presetsFor(drill).map((p) => (
-        <label key={p} className={CARD}>
+        <label key={p} className={CHOICE_CARD}>
           <input
             type="radio"
             name={name}
@@ -82,7 +84,7 @@ export function TimingEditor({ flows, value: v, drill, issues, showIssues, testI
           </span>
         </label>
       ))}
-      <label className={CARD}>
+      <label className={CHOICE_CARD}>
         <input
           type="radio"
           name={name}

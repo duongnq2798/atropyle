@@ -31,3 +31,12 @@ export const RADIO =
   'peer-checked:border-thread peer-checked:[&>span]:scale-100';
 export const RADIO_DOT =
   'size-2.5 scale-0 rounded-full bg-thread motion-safe:transition-transform motion-safe:duration-150';
+
+/**
+ * A choice card around a native radio drawn as the product's (RADIO): it follows its input, picked (has-checked)
+ * and focused from the keyboard (has-focus-visible), since the ring itself is small.
+ */
+export const CHOICE_CARD =
+  'flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-1 p-4 ' +
+  'transition-colors duration-150 hover:not-has-checked:border-line-strong has-checked:border-thread has-checked:bg-surface-2 ' +
+  'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-thread';

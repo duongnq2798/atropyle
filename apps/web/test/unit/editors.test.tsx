@@ -364,3 +364,48 @@ describe('TimingEditor', () => {
     expect(screen.getByText('At least 3 days.')).toBeInTheDocument();
   });
 });
+
+describe('the legend under a page heading', () => {
+  it('stays for screen readers only, with its name, when the page heading names the step', () => {
+    const none = () => {};
+    renderWithProviders(
+      <>
+        <HeirsEditor
+          flows={flows}
+          rows={[{ account: '', percent: '' }]}
+          issues={[]}
+          showIssues={false}
+          testId="h"
+          hideLegend
+          onChange={none}
+          onRemove={none}
+        />
+        <GuardiansEditor
+          flows={flows}
+          value={{ guardians: [''], k: '', recoveryEnabled: false }}
+          issues={[]}
+          showIssues={false}
+          testId="g"
+          recoveryWindow={null}
+          hideLegend
+          onChange={none}
+        />
+        <TimingEditor
+          flows={flows}
+          value={{ preset: 'drill', period: '', threshold: '', window: '' }}
+          drill
+          issues={[]}
+          showIssues={false}
+          testId="t"
+          hideLegend
+          onChange={none}
+        />
+      </>,
+    );
+    for (const name of ['Who receives your assets', 'Guardians', 'When your heirs receive']) {
+      const legend = screen.getByText(name, { selector: 'legend' });
+      expect(legend).toHaveClass('sr-only');
+      expect(screen.getByRole('group', { name })).toBeInTheDocument();
+    }
+  });
+});

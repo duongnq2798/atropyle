@@ -26,12 +26,23 @@ export interface HeirsEditorProps {
   onChange(rows: HeirRow[]): void;
   /** The page removes the row and moves that heir's NFTs (removeHeir), then splits the shares evenly again. */
   onRemove(index: number): void;
+  /** The page's own heading names the step (the wizard): the legend stays for screen readers only. */
+  hideLegend?: boolean;
 }
 
 /** An issue of the shares: the list itself, or one heir's bps or percent. */
 const SHARE_PATH = /^heirs(?:\[\d+\]\.(?:bps|percent))?$/;
 
-export function HeirsEditor({ flows, rows, issues, showIssues, testId, onChange, onRemove }: HeirsEditorProps) {
+export function HeirsEditor({
+  flows,
+  rows,
+  issues,
+  showIssues,
+  testId,
+  onChange,
+  onRemove,
+  hideLegend,
+}: HeirsEditorProps) {
   const t = useT(messages);
   const issueText = useIssueText(flows);
   const first = (match: (path: string) => boolean): string | undefined => {
@@ -45,7 +56,7 @@ export function HeirsEditor({ flows, rows, issues, showIssues, testId, onChange,
   const setAccount = (i: number, account: string) => onChange(rows.map((r, j) => (j === i ? { ...r, account } : r)));
   return (
     <fieldset className="space-y-4">
-      <legend className="font-display text-h2 text-ink">{t('heirsTitle')}</legend>
+      <legend className={hideLegend ? 'sr-only' : 'font-display text-h2 text-ink'}>{t('heirsTitle')}</legend>
       <p className="text-body text-ink-muted">{t('heirsHelp', { max: flows.LIMITS.maxHeirs })}</p>
       {rows.map((r, i) => (
         <AddressInput
