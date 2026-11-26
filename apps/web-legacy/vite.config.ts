@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { buildCsp, rpcOrigins, targetOf, workerOrigin } from './build/csp';
+import { sharePlugin } from './build/share';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
@@ -41,6 +42,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
       modulePreload: { polyfill: false },
     },
-    plugins: [cspPlugin(csp)],
+    // The raw target: the share card needs to tell vercel, the only build with a known origin, from pages.
+    plugins: [cspPlugin(csp), sharePlugin(env.VITE_TARGET)],
   };
 });
