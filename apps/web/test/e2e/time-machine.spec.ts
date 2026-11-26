@@ -5,15 +5,15 @@ import { captureScreens, shouldCapture } from './screens.ts';
 
 const PREVIEWS = ['drill', 'six', 'grace', 'alone', 'released', 'expired', 'live'] as const;
 const box = (page: Page, id: string): Locator => page.locator(`[data-preview="${id}"]`).getByTestId('time-machine');
-type Said = Window & { said?: string[]; threadChanges?: number };
+type Said = Window & { said?: string[]; threadChanges?: number; threadMoves?: number };
 
 /**
  * Every preview has computed its frames (`live` read its engine from anvil), and the error preview's ErrorBox has
- * loaded its decoder.
+ * loaded its decoder (until then it is a skeleton with no testid).
  */
 async function ready(page: Page): Promise<void> {
   for (const id of PREVIEWS) await expect(box(page, id)).toHaveAttribute('data-engine', 'model');
-  await expect(page.locator('[data-preview="error"]').getByTestId('time-machine-error')).toBeVisible();
+  await expect(page.locator('[data-preview="error"]').getByTestId('time-machine-error-code')).toBeVisible();
 }
 
 async function open(page: Page, siteUrl: string): Promise<void> {
@@ -215,9 +215,16 @@ test('a drag inside one moment moves the lit window and leaves the thread alone 
   await thread.evaluate((el) => {
     const w = window as Said;
     w.threadChanges = 0;
+    w.threadMoves = 0;
     new MutationObserver((records) => {
       w.threadChanges = (w.threadChanges ?? 0) + records.length;
     }).observe(el, { childList: true, subtree: true, attributeFilter: ['data-state', 'd'] });
+    // A render of the Thread with a new "now" changes no path and no child: it moves its "now" (a style written by
+    // moveTogether) and may change its beat. The reveal boxes are the drag's own, written by setRange.
+    new MutationObserver((records) => {
+      const own = records.filter((r) => !(r.target instanceof Element && r.target.hasAttribute('data-reveal')));
+      w.threadMoves = (w.threadMoves ?? 0) + own.length;
+    }).observe(el, { subtree: true, attributeFilter: ['style', 'data-beat'] });
   });
   const outer = thread.locator('[data-reveal="outer"]');
   const before = await outer.evaluate((el) => getComputedStyle(el).transform);
@@ -229,9 +236,112 @@ test('a drag inside one moment moves the lit window and leaves the thread alone 
   // 60 of the 1 068 s: before the alarm at 110 and outside its detent.
   await page.mouse.move(t.x + t.width / 2 + ((root.width - t.width) * 60) / 1_068, t.y + t.height / 2, { steps: 6 });
   await expect.poll(() => outer.evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
-  expect(await page.evaluate(() => (window as Said).threadChanges)).toBe(0);
+  const quiet = () => page.evaluate(() => [(window as Said).threadChanges, (window as Said).threadMoves]);
+  expect(await quiet()).toEqual([0, 0]);
+  // A longer move, still in the first moment (80 s: the alarm's detent starts at 110 − 21 s): nothing else moves.
+  const mid = await outer.evaluate((el) => getComputedStyle(el).transform);
+  await page.mouse.move(t.x + t.width / 2 + ((root.width - t.width) * 80) / 1_068, t.y + t.height / 2, { steps: 10 });
+  await expect.poll(() => outer.evaluate((el) => getComputedStyle(el).transform)).not.toBe(mid);
+  expect(await quiet()).toEqual([0, 0]);
   await page.mouse.up();
   await expect(drill).toHaveAttribute('data-state', 'active');
+});
+
+test('a recovery bends to the new wallet where it releases, and the thumb rides the lit thread up to it', async ({
+  page,
+  state,
+}) => {
+  await open(page, state.siteUrl);
+  const drill = await pick(page, 'recover', false);
+  const thumb = drill.getByTestId('time-machine-scrubber-thumb-0');
+  await thumb.focus();
+  // The votes at 1 and 2 s, the release at 122 s, in 1 s steps on 182 s: five seconds before the release.
+  await page.keyboard.press('End');
+  await page.keyboard.press('PageDown');
+  await expect(thumb).toHaveAttribute('aria-valuenow', '122');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
+  await expect(thumb).toHaveAttribute('aria-valuenow', '117');
+  await expect(drill).toHaveAttribute('data-state', 'recovery');
+  // The recovery draws its gate (its label steps aside for the playhead this close to it).
+  await expect(drill.locator('[data-thread] [data-part="gate"]')).toBeVisible();
+  const m = await drill.evaluate((el) => {
+    const thread = el.querySelector('[data-thread]') as HTMLElement;
+    const lit = thread.querySelector('[data-part="lit"]') as SVGPathElement;
+    const t = thread.getBoundingClientRect();
+    const centre = (sel: string) => {
+      const b = (el.querySelector(sel) as HTMLElement).getBoundingClientRect();
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    };
+    const dot = centre('[data-part="scrub-now"]');
+    // The lit path's y under the dot, in the view's units (600 by 120, stretched to the box).
+    const vx = ((dot.x - t.left) / t.width) * 600;
+    let y = Number.NaN;
+    for (let s = 0, n = lit.getTotalLength(); s <= n; s += 0.25) {
+      const p = lit.getPointAtLength(s);
+      if (p.x >= vx) {
+        y = p.y;
+        break;
+      }
+    }
+    return {
+      dotY: dot.y,
+      litY: t.top + (y / 120) * t.height,
+      gateX: centre('[data-part="gate"]').x,
+      ringX: centre('[data-layer="moments"] [data-moment="3"]').x,
+    };
+  });
+  expect(Math.abs(m.dotY - m.litY), JSON.stringify(m)).toBeLessThanOrEqual(1);
+  // The gate stands on the release ring.
+  expect(Math.abs(m.gateX - m.ringX), JSON.stringify(m)).toBeLessThanOrEqual(1);
+});
+
+test('a new scenario never moves the stage: the thread being compared stays put', async ({ page, state }) => {
+  await open(page, state.siteUrl);
+  const drill = box(page, 'drill');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const tops: Record<string, number> = {};
+    for (const [chip, back] of [
+      ['silent', false],
+      ['confirm', false],
+      ['confirm', true],
+      ['recover', false],
+      ['recover', true],
+    ] as const) {
+      if (chip === 'silent') await drill.locator('label', { has: page.locator('input[value="silent"]') }).click();
+      else await pick(page, chip, back);
+      const id = (await drill.getAttribute('data-scenario')) ?? chip;
+      const stage = await drill.locator('[data-part="stage"]').boundingBox();
+      const outer = await drill.boundingBox();
+      if (!stage || !outer) throw new Error('not laid out');
+      tops[id] = Math.round((stage.y - outer.y) * 10) / 10;
+    }
+    expect(Object.keys(tops)).toEqual(['silent', 'confirm', 'returns', 'recover', 'recoverBlocked']);
+    expect(new Set(Object.values(tops)).size, `${width}: ${JSON.stringify(tops)}`).toBe(1);
+  }
+});
+
+test('on a phone every left edge of the box lines up, the stage included', async ({ page, state }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await open(page, state.siteUrl);
+  const lefts = await box(page, 'drill').evaluate((el) => {
+    const text = (node: Element | null) => {
+      if (!node) return Number.NaN;
+      const r = document.createRange();
+      r.selectNodeContents(node);
+      return Math.round(r.getBoundingClientRect().left);
+    };
+    const stage = el.querySelector('[data-part="stage"]') as HTMLElement;
+    return {
+      title: text(el.querySelector('h2')),
+      chips: Math.round((el.querySelector('fieldset label') as HTMLElement).getBoundingClientRect().left),
+      badge: Math.round((stage.children[1] as HTMLElement).getBoundingClientRect().left),
+      caption: text(stage.querySelector(':scope > p')),
+      about: text(stage.nextElementSibling),
+      moments: text(el.querySelector('h3')),
+    };
+  });
+  expect(new Set(Object.values(lefts)).size, JSON.stringify(lefts)).toBe(1);
 });
 
 test('the live preview computes with the deployment engine it read', async ({ page, state }) => {

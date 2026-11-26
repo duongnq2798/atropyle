@@ -287,13 +287,52 @@ describe('threadGeometry on a time axis', () => {
       expect(g.pending, String(now)).toBeNull();
     }
     expect(threadGeometry('grace', { axis: { ...axis, now: 1_700n } }).now).toBeNull();
-    const marks = [1_100n, 1_352n, 1_500n];
-    for (const s of ['recovery', 'expired'] as const) {
-      expect(
-        threadGeometry(s, { axis: { ...axis, marks } }).knots.map(([x]) => x),
-        s,
-      ).toEqual([100, BEND_X]);
+    // An expired Drill curls up at BEND_X; a recovery bends at its gate, the release at 1 500 (x = 500).
+    expect(
+      threadGeometry('expired', { axis: { ...axis, marks: [1_100n, 1_352n, 1_500n] } }).knots.map(([x]) => x),
+    ).toEqual([100, BEND_X]);
+    expect(
+      threadGeometry('recovery', { axis: { ...axis, marks: [1_100n, 1_500n, 1_550n] } }).knots.map(([x]) => x),
+    ).toEqual([100, 500]);
+  });
+
+  it('recovery: bends to the new wallet at its gate, when the recovery releases, and the course runs on as a ghost', () => {
+    for (const releaseAt of [1_050n, 1_300n, 1_450n, 1_500n]) {
+      const g = threadGeometry('recovery', { axis: { ...axis, now: 1_010n, alarmAt: 1_010n, releaseAt } });
+      const bx = courseX(releaseAt, axis);
+      const at = String(releaseAt);
+      expect(g.gateX, at).toBe(bx);
+      expect(g.gate, at).toEqual([bx, y2(bx)]);
+      // The lit thread is the wave up to the gate, then a curve to the new wallet; the ghost starts at the gate.
+      expect(g.lit.startsWith(waveSegment(0, bx)), at).toBe(true);
+      expect(g.lit.endsWith(` ${RECOVERY_END[0]} ${RECOVERY_END[1]}`), at).toBe(true);
+      expect(g.ghost, at).toBe(waveSegment(bx, VIEW.w));
+      expect(g.dots, at).toEqual([{ at: RECOVERY_END, tone: 'plain' }]);
+      // The curve runs right and never turns back: both control points lie between the gate and the wallet.
+      const [c1x, , c2x] =
+        g.lit
+          .slice(waveSegment(0, bx).length)
+          .match(/-?[\d.]+/g)
+          ?.map(Number) ?? [];
+      for (const c of [c1x, c2x]) {
+        expect(c, at).toBeGreaterThan(bx);
+        expect(c, at).toBeLessThanOrEqual(RECOVERY_END[0]);
+      }
     }
+    // Without a release time it bends where it always did, and draws no gate.
+    const plain = threadGeometry('recovery', { axis: { from: 0n, to: 600n, now: 100n } });
+    expect(plain.gate).toBeNull();
+    expect(plain.ghost?.startsWith(`M${BEND_X} `)).toBe(true);
+    expect(threadGeometry('recovery').lit).toBe(
+      `${waveSegment(0, BEND_X)} C${BEND_X + 90} ${y2(BEND_X)} ${RECOVERY_END[0] - 70} ${RECOVERY_END[1]} ${RECOVERY_END[0]} ${RECOVERY_END[1]}`,
+    );
+  });
+
+  it('active: the lit part never runs past the gate, even where the alarm lies beyond it', () => {
+    // A gate drawn earlier than the outlook's alarm (the time machine caps it at its story's release).
+    const g = threadGeometry('active', { axis: { from: 0n, to: 600n, now: 0n, alarmAt: 900n, releaseAt: 190n } });
+    expect(g.gateX).toBe(190);
+    expect([g.litFrom, g.litTo]).toEqual([0, 190]);
   });
 
   it('falls back to GATE_X without releaseAt, and ends the lit part of active at the gate without alarmAt', () => {

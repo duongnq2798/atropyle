@@ -42,9 +42,10 @@ export interface ScrubberProps {
    */
   playhead?(at: bigint): string;
   /**
-   * The label under the gate, at chain time `at` when it opens, in `state` (the heirs', or the new wallet's once
-   * released to it). Shown only where the gate is the frame's own release (gateOf), and not while the playhead
-   * stands near it, where its pill says the same. Hidden from assistive technology: the moments list says it.
+   * The label under the gate, at chain time `at` when it opens, in `state` (the heirs', or the new wallet's in a
+   * recovery and once released to it). Shown only where the gate is the frame's own release (gateOf), and not while
+   * the playhead stands near it, where its pill says the same. Hidden from assistive technology: the moments list
+   * says it.
    */
   gateLabel?(at: bigint, state: ThreadState): string;
   testId?: string;

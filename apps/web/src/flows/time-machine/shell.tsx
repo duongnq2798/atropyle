@@ -15,10 +15,11 @@ import { Skeleton } from '@/ui/skeleton';
 export const TIME_MACHINE_BOX = 'flex min-w-0 flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6';
 /**
  * The stage inside the box: edge to edge of the box on a phone (the box's p-5), so the thread gets every pixel; a
- * framed screen from sm up.
+ * framed screen from sm up. On a phone its content keeps the box's 20 px inset (px-5), so every left edge of the box
+ * lines up.
  */
 export const TIME_MACHINE_STAGE =
-  'relative isolate -mx-5 flex flex-col gap-4 overflow-hidden border-line border-y bg-bg/50 p-4 ' +
+  'relative isolate -mx-5 flex flex-col gap-4 overflow-hidden border-line border-y bg-bg/50 px-5 py-4 ' +
   'sm:mx-0 sm:rounded-2xl sm:border-x sm:p-5';
 /**
  * A vault that ended has nothing under its stage: on a phone the stage closes the box, over its bottom padding and
@@ -66,6 +67,12 @@ export function shellShape(
 }
 
 const OPEN: ShellShape = { picker: true, closed: false };
+/**
+ * The lines of the hint's keys, on their own line, which a touch screen hides: one with a mouse, two with a mouse on
+ * a phone.
+ */
+const HINT_KEYS_LINE = 'hidden pointer-fine:flex';
+const HINT_KEYS_PHONE_LINE = 'hidden pointer-fine:max-sm:flex';
 const PILL = 'block rounded-full border border-line';
 
 /**
@@ -90,6 +97,8 @@ const MOMENT_LINES = [
 /**
  * The time machine's box while its code or its engine loads, with the shape of what comes, so nothing jumps when
  * it arrives (`shape`, from shellShape: the chips or none, open or closed); or the error of that load with a Retry.
+ * The error is a chunk or an RPC read that failed, not a transaction: the box says so in the reader's language, and
+ * the ErrorBox adds only its code, its docs and the Retry (`bare="code"`), never the browser's own words.
  */
 export function TimeMachineShell({
   testId,
@@ -124,7 +133,18 @@ export function TimeMachineShell({
           {failed || shape.closed ? null : <Line size="text-small" width="w-1/2" line="sm:hidden" />}
         </p>
       </header>
-      {failed ? <ErrorBox error={error} onRetry={onRetry} testId={`${testId}-error`} /> : <Skeletons shape={shape} />}
+      {failed ? (
+        <div
+          role="alert"
+          data-testid={`${testId}-error`}
+          className="flex flex-col gap-3 rounded-2xl border border-danger/45 bg-danger/8 p-4"
+        >
+          <p className="text-pretty text-ink text-small">{t('failedWhy')}</p>
+          <ErrorBox bare="code" error={error} onRetry={onRetry} testId={`${testId}-error-code`} />
+        </div>
+      ) : (
+        <Skeletons shape={shape} />
+      )}
     </section>
   );
 }
@@ -148,13 +168,6 @@ function Skeletons({ shape }: { shape: ShellShape }) {
           </div>
         </div>
       ) : null}
-      {shape.closed ? null : (
-        <p aria-hidden="true" className="flex flex-col">
-          <Line size="text-small" width="w-full sm:w-3/4" />
-          <Line size="text-small" width="w-1/3" line="sm:hidden" />
-        </p>
-      )}
-
       <div
         aria-hidden="true"
         data-part="skeleton-stage"
@@ -190,10 +203,16 @@ function Skeletons({ shape }: { shape: ShellShape }) {
 
       {shape.closed ? null : (
         <>
+          {/* The story of the scenario, under the stage: one line from sm, two on a phone. */}
           <p aria-hidden="true" className="-mt-2 flex flex-col">
-            <Line size="text-caption" width="w-full sm:w-4/5" />
-            <Line size="text-caption" width="w-full" line="sm:hidden" />
-            <Line size="text-caption" width="w-1/4" line="sm:hidden" />
+            <Line size="text-small" width="w-full sm:w-3/4" />
+            <Line size="text-small" width="w-1/3" line="sm:hidden" />
+          </p>
+          {/* The hint: one line on a touch screen, which hides its keys; with a mouse, two, and three on a phone. */}
+          <p aria-hidden="true" className="-mt-2 flex flex-col">
+            <Line size="text-caption" width="w-5/6 sm:w-2/5" />
+            <Line size="text-caption" width="w-full sm:w-3/4" line={HINT_KEYS_LINE} />
+            <Line size="text-caption" width="w-1/3" line={HINT_KEYS_PHONE_LINE} />
           </p>
           <div aria-hidden="true" className="flex flex-col gap-2">
             <Line size="text-small" width="w-20" />

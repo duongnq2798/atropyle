@@ -15,7 +15,10 @@ export const GATE_X = 400;
 export const GATE_MAX_X = 500;
 /** Where a thread in grace starts to fray, without a time axis. */
 export const FRAY_X = 556;
-/** Where a recovery bends away, and where an expired Drill curls up. */
+/**
+ * Where an expired Drill curls up, and where a recovery bends away when nothing says when it releases (on a time
+ * axis with releaseAt, it bends at its gate).
+ */
 export const BEND_X = 352;
 export const RECOVERY_END: Point = [588, 22];
 /** Stroke widths are screen pixels: every path keeps them however the box stretches (non-scaling-stroke). */
@@ -266,12 +269,14 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     const now: Point | null = axis.now >= axis.from && axis.now <= axis.to ? [nowX, r(waveY(nowX))] : null;
     const alarmX = axis.alarmAt != null ? courseX(axis.alarmAt, axis) : gateX;
     if (state === 'active') {
+      // Nothing past the gate is lit, also where the alarm would come later (a gate cut short to a story's release).
+      const litTo = Math.min(alarmX, gateX);
       return withPending({
         ...base,
         track: waveSegment(0, VIEW.w),
         lit: waveSegment(0, VIEW.w),
-        litFrom: Math.min(nowX, alarmX),
-        litTo: alarmX,
+        litFrom: Math.min(nowX, litTo),
+        litTo,
         now,
         knots: knotsAt(VIEW.w),
         gate: [gateX, gateY],
@@ -323,14 +328,21 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
   }
 
   if (state === 'recovery') {
-    const by = r(waveY(BEND_X));
+    // On a time axis that says when the recovery releases, the thread bends to the new wallet there, at its gate:
+    // the release ring and "now" stay on the thread up to the bend. Elsewhere it bends at BEND_X, with no gate.
+    const timed = axis?.releaseAt != null;
+    const bx = timed ? Math.min(gateX, GATE_MAX_X) : BEND_X;
+    const by = r(waveY(bx));
     const [ex, ey] = RECOVERY_END;
+    // The curve keeps its shape wherever the bend stands, like a branch from the gate.
+    const k = (ex - bx) / (ex - BEND_X);
     return {
       ...base,
-      lit: `${waveSegment(0, BEND_X)} C${BEND_X + 90} ${by} ${ex - 70} ${ey} ${ex} ${ey}`,
+      lit: `${waveSegment(0, bx)} C${r(bx + 90 * k)} ${by} ${r(ex - 70 * k)} ${ey} ${ex} ${ey}`,
       // Past the bend the course is a ghost: a mark there is left out.
-      knots: knotsAt(BEND_X).filter(([x]) => x <= BEND_X),
-      ghost: waveSegment(BEND_X, VIEW.w),
+      knots: knotsAt(bx).filter(([x]) => x <= bx),
+      gate: timed ? [bx, by] : null,
+      ghost: waveSegment(bx, VIEW.w),
       dots: [{ at: RECOVERY_END, tone: 'plain' }],
     };
   }

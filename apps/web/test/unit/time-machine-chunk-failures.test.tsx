@@ -52,8 +52,14 @@ function renderLazy(queryClient: QueryClient) {
   });
 }
 
-/** The ErrorBox shows a skeleton with no testid until the error decoder has loaded. */
-const errorBox = () => screen.findByTestId('time-machine-error', {}, { timeout: 15_000 });
+/**
+ * The error's box, once its ErrorBox has its Retry: the ErrorBox inside shows a skeleton with no testid until the
+ * error decoder has loaded.
+ */
+const errorBox = async () => {
+  await screen.findByTestId('time-machine-error-code', {}, { timeout: 15_000 });
+  return screen.getByTestId('time-machine-error');
+};
 const retry = (box: HTMLElement) => fireEvent.click(within(box).getByRole('button', { name: 'Retry' }));
 /** Queried again on every try: the shells and the stage are different elements with the same testid. */
 const loaded = () =>

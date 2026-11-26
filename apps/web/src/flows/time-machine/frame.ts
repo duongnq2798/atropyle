@@ -75,8 +75,11 @@ export function threadFrame(
   };
 }
 
-/** The states whose Thread draws a gate (a recovery bends away, an expired Drill curls up). */
-const GATED: ReadonlySet<ThreadState> = new Set(['active', 'grace', 'releasedInherit', 'releasedRecover']);
+/**
+ * The states whose Thread draws a gate on the time axis: a recovery bends to the new wallet at its gate, and only an
+ * expired Drill, which curls up, draws none.
+ */
+const GATED: ReadonlySet<ThreadState> = new Set(['active', 'grace', 'recovery', 'releasedInherit', 'releasedRecover']);
 
 /**
  * The time of the gate the Thread draws in the frame of moment `index`, at chain time `at`: that moment's own

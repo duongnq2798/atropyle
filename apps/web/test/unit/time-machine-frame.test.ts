@@ -1,4 +1,4 @@
-import { DRILL_LIFETIME_SECONDS, evalStateOf, modelEngine } from '@atropyle/sdk';
+import { DRILL_LIFETIME_SECONDS, type EvalState, evalStateOf, modelEngine, PRESETS } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { type ScenarioRun, scenarios } from '../../src/flows/impl/time-machine';
 import {
@@ -12,7 +12,7 @@ import {
   scrubAxis,
   threadFrame,
 } from '../../src/flows/time-machine/frame';
-import { courseX, drawnAxis, GATE_MAX_X } from '../../src/thread/geometry';
+import { courseX, drawnAxis, GATE_MAX_X, threadGeometry, VIEW, waveSegment } from '../../src/thread/geometry';
 import { fixtureSnapshot } from './fixtures';
 
 const s = evalStateOf(fixtureSnapshot());
@@ -127,8 +127,55 @@ describe('the gate of a frame', () => {
     expect(at('returns', 4)).toEqual({ at: 2_070n, state: 'active' });
     // The outlook releases to the heirs at 1 890, past this story: the gate drawn at its end is not that time.
     expect(at('recover', 0)).toBeNull();
-    // A recovery draws no gate.
-    expect(at('recover', 2)).toBeNull();
+    // A recovery's gate is where it releases to the new wallet.
+    expect(at('recover', 2)).toEqual({ at: 1_122n, state: 'recovery' });
     expect(at('recover', 3)).toEqual({ at: 1_122n, state: 'releasedRecover' });
+    // The owner's check-in comes a second after the votes: until then the recovery would release at 1 122.
+    expect(at('recoverBlocked', 2)).toEqual({ at: 1_122n, state: 'recovery' });
+  });
+});
+
+describe('a recovery on the time axis (spec §18.2.2: marks at linear time)', () => {
+  // The e2e preview's six-month vault: k = 1 of 2, checked in now.
+  const six: EvalState = {
+    ...s,
+    lastAlive: 1_000n,
+    timing: PRESETS.sixMonths,
+    k: 1,
+    guardians: s.guardians.slice(0, 2),
+    recVotes: [null, null],
+  };
+  const presets = [
+    { name: 'Drill', runs, expiresAt: END as bigint | null },
+    { name: 'six months', runs: scenarios(modelEngine(), six, 1_000n, null, false), expiresAt: null },
+  ];
+
+  it('bends at the gate of every frame, on the release ring of recover, and lights nothing past it', () => {
+    for (const { name, runs: rs, expiresAt } of presets) {
+      const recoveries = rs.filter((r) => r.id === 'recover' || r.id === 'recoverBlocked');
+      expect(
+        recoveries.map((r) => r.id),
+        name,
+      ).toEqual(['recover', 'recoverBlocked']);
+      for (const r of recoveries) {
+        const axis = scrubAxis(r);
+        const ring = courseX(axis.release ?? axis.to, axis);
+        r.moments.forEach((m, i) => {
+          const f = threadFrame(r, axis, i, m.at, expiresAt);
+          const g = threadGeometry(f.state, { axis: f.axis });
+          const at = `${name} ${r.id} ${i} ${f.state}`;
+          // Every frame draws its gate at its own release, on the scrubber's axis.
+          expect(g.gate?.[0], at).toBe(courseX(f.axis.releaseAt ?? axis.to, axis));
+          if (r.id === 'recover') expect(g.gateX, at).toBe(ring);
+          if (f.state === 'active') expect(g.litTo, at).toBeLessThanOrEqual(g.gateX);
+          if (f.state === 'recovery') {
+            // Through the whole frame the thumb rides the lit wave: the next moment is at the bend or before it.
+            expect(courseX(r.moments[i + 1].at, axis), at).toBeLessThanOrEqual(g.gateX);
+            expect(g.lit.startsWith(waveSegment(0, g.gateX)), at).toBe(true);
+            expect(g.ghost, at).toBe(waveSegment(g.gateX, VIEW.w));
+          }
+        });
+      }
+    }
   });
 });

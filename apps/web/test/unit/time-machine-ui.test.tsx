@@ -120,7 +120,16 @@ describe('TimeMachine', { timeout: 30_000 }, () => {
     // Now, the outlook releases to the heirs at 1 890, past this story's end: the gate drawn at 1 122 is not that.
     await waitFor(() => expect(container.querySelector('[data-part="gate"]')).not.toBeNull());
     expect(gateAt()).toBeNull();
-    fireEvent.keyDown(screen.getByRole('slider', { name: 'Time from now' }), { key: 'End' });
+    // Once the recovery starts (the second vote, 2 s), the thread bends to the new wallet at its gate: 1 122 on
+    // [1 000, 1 182], x = 402.2 of 600, where the release ring stands.
+    const thumb = screen.getByRole('slider', { name: 'Time from now' });
+    fireEvent.keyDown(thumb, { key: 'PageUp' });
+    fireEvent.keyDown(thumb, { key: 'PageUp' });
+    await waitFor(() => expect(container.querySelector('[data-thread]')).toHaveAttribute('data-state', 'recovery'));
+    expect(gateAt()).toHaveTextContent('New wallet · In 2 minutes');
+    expect(container.querySelector<HTMLElement>('[data-part="gate"]')?.style.left).toBe('67.033%');
+    expect(container.querySelector<HTMLElement>('[data-moment="3"]')?.style.left).toBe('67.033%');
+    fireEvent.keyDown(thumb, { key: 'End' });
     await waitFor(() => expect(gateAt()).toHaveTextContent('New wallet · In 2 minutes'));
   });
 
@@ -251,11 +260,35 @@ describe('TimeMachine', { timeout: 30_000 }, () => {
     await waitFor(() => expect(playhead()).toHaveTextContent('In 110 seconds'));
   });
 
+  it('keeps the stage right under the chips: the story and the hint come after it, and the keys only for a mouse', async () => {
+    const { container } = renderMachine();
+    await loaded();
+    const stage = container.querySelector<HTMLElement>('[data-part="stage"]');
+    // Whatever the scenario says, the stage does not move: nothing between the chips and it changes length.
+    expect(stage?.previousElementSibling?.tagName).toBe('FIELDSET');
+    expect(stage?.nextElementSibling).toHaveTextContent('You stop checking in, and nobody signs anything.');
+    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
+    expect(stage?.previousElementSibling?.tagName).toBe('FIELDSET');
+    expect(stage?.nextElementSibling).toHaveTextContent(
+      '2 of 3 guardians vote for a new wallet. Acting together, they can move everything the vault covers to any wallet they choose. You can stop it only by checking in within 2 minutes of the vote that starts it.',
+    );
+    // The hint says what a finger can do; the keys are there for a mouse and a screen reader, never for a finger.
+    const thumb = screen.getByRole('slider', { name: 'Time from now' });
+    const hint = document.getElementById(thumb.getAttribute('aria-describedby') ?? '');
+    expect(hint).toHaveTextContent(
+      'Drag the point, or pick a moment below. Arrow keys step through time; Page Up and Page Down jump from moment to moment.',
+    );
+    const keys = within(hint as HTMLElement).getByText(/Arrow keys step through time/);
+    expect(keys.className).toContain('pointer-coarse:sr-only');
+    expect(hint?.textContent?.startsWith('Drag the point, or pick a moment below.')).toBe(true);
+  });
+
   it('speaks Vietnamese', async () => {
     renderMachine({ lang: 'vi' });
     await loaded();
     expect(screen.getByRole('slider', { name: 'Thời gian tính từ bây giờ' })).toBeVisible();
-    expect(screen.getByRole('radio', { name: 'Giám hộ xác nhận' })).toBeInTheDocument();
+    // "xác nhận" is one word: it never breaks across lines in its chip.
+    expect(screen.getByRole('radio', { name: 'Giám hộ xác\u00a0nhận' })).toBeInTheDocument();
   });
 
   it('an engine that fails to load is an error with a Retry, and the Retry works', async () => {
@@ -275,9 +308,41 @@ describe('TimeMachine', { timeout: 30_000 }, () => {
       lang: 'en',
       queryClient,
     });
-    const error = await screen.findByTestId('time-machine-error', {}, { timeout: 15_000 });
-    fireEvent.click(within(error).getByRole('button', { name: 'Retry' }));
+    // The Retry is the ErrorBox's, there once the error decoder has loaded.
+    await screen.findByTestId('time-machine-error-code', {}, { timeout: 15_000 });
+    fireEvent.click(within(screen.getByTestId('time-machine-error')).getByRole('button', { name: 'Retry' }));
     await loaded();
+  });
+});
+
+describe('a time machine that cannot load', () => {
+  const chunkFailed = new TypeError('Failed to fetch dynamically imported module');
+
+  it("says the vault is untouched, in the reader's language, with the code and a Retry, never the browser's words", async () => {
+    for (const [lang, why, retry] of [
+      ['en', 'Your vault is untouched: nothing was signed or sent. Check your connection, then try again.', 'Retry'],
+      [
+        'vi',
+        'Vault của bạn không bị ảnh hưởng: không có gì được ký hay gửi đi. Kiểm tra kết nối rồi thử lại.',
+        'Thử lại',
+      ],
+    ] as const) {
+      let retried = 0;
+      const { unmount } = renderWithProviders(
+        <TimeMachineShell testId="time-machine" error={chunkFailed} onRetry={() => (retried += 1)} />,
+        { lang },
+      );
+      const box = screen.getByTestId('time-machine-error');
+      expect(box).toHaveAttribute('role', 'alert');
+      expect(box).toHaveTextContent(why);
+      // The ErrorBox gives the code and its docs once the decoder is in, and the Retry.
+      const code = await screen.findByTestId('time-machine-error-code', {}, { timeout: 15_000 });
+      expect(box).toContainElement(code);
+      fireEvent.click(within(box).getByRole('button', { name: retry }));
+      expect(retried).toBe(1);
+      expect(box.textContent).not.toMatch(/Failed to fetch|OKLink|transaction/);
+      unmount();
+    }
   });
 });
 

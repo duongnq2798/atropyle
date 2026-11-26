@@ -298,9 +298,12 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
       </header>
 
       {scenarioPicker}
-      {closed ? null : <p className="text-ink-muted text-small">{about}</p>}
 
-      {/* The stage: the frame's state and date, the thread to drag, and the frame's sentence as its caption. */}
+      {/*
+       * The stage: the frame's state and date, the thread to drag, and the frame's sentence as its caption. Right
+       * under the chips, with nothing between that changes length, so a new scenario never moves the thread that is
+       * being compared (the story it tells comes after it).
+       */}
       <div data-part="stage" className={cn(TIME_MACHINE_STAGE, closed && TIME_MACHINE_STAGE_CLOSED)}>
         <span
           aria-hidden="true"
@@ -338,7 +341,9 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
             describedBy={hintId}
             playhead={(a) => when(Number(a - axis.from))}
             gateLabel={(a, s) =>
-              t(s === 'releasedRecover' ? 'gateWallet' : 'gateHeirs', { when: when(Number(a - axis.from)) })
+              t(s === 'recovery' || s === 'releasedRecover' ? 'gateWallet' : 'gateHeirs', {
+                when: when(Number(a - axis.from)),
+              })
             }
             testId={`${testId}-scrubber`}
           />
@@ -348,15 +353,21 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
             Scrubber's own region speaks once per moment. A vault that ended says what its rules decided. */}
         {closed ? (
           closedKey ? (
-            <p className="text-ink text-lead">{t(closedKey)}</p>
+            <p className="text-balance text-ink text-lead">{t(closedKey)}</p>
           ) : null
         ) : (
-          <p className="text-ink text-lead">{sentence(index)}</p>
+          <p className="text-balance text-ink text-lead">{sentence(index)}</p>
         )}
       </div>
+      {closed ? null : <p className="-mt-2 text-pretty text-ink-muted text-small">{about}</p>}
+      {/*
+       * The keys, on a line of their own: no use to a finger, so hidden on a touch screen, and still read with the
+       * thumb (aria-describedby). The space keeps the two sentences apart when they are read as one description.
+       */}
       {closed ? null : (
-        <p id={hintId} className="-mt-2 text-caption text-ink-muted">
+        <p id={hintId} className="-mt-2 text-pretty text-caption text-ink-muted">
           {t('hint')}
+          <span className="block text-balance pointer-coarse:sr-only"> {t('hintKeys')}</span>
         </p>
       )}
 
@@ -417,7 +428,7 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
                           <Avatar address={m.who} size={18} />
                         </span>
                       ) : null}
-                      <span>{sentence(i)}</span>
+                      <span className="text-pretty">{sentence(i)}</span>
                     </span>
                   </button>
                 </li>
@@ -430,7 +441,7 @@ function Stage({ impl, runs, state, expiresAt, drill, testId, className }: Stage
       {closed ? null : (
         <p className={TIME_MACHINE_FOOTER}>
           <Cpu aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-          <span>{run.engine === 'netlist' ? t('engineNetlist') : t('engineModel')}</span>
+          <span className="text-pretty">{run.engine === 'netlist' ? t('engineNetlist') : t('engineModel')}</span>
         </p>
       )}
     </section>
