@@ -1,15 +1,17 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { chromium } from '@playwright/test';
 import { launch } from 'chrome-launcher';
 import lighthouse from 'lighthouse';
 import puppeteer from 'puppeteer-core';
 import {
   CATEGORIES,
+  chunksWith,
   FORBIDDEN_REQUESTS,
   failures,
   forbiddenRequests,
   hostNote,
+  INTENT_MARKERS,
   LIGHTHOUSE_ROUTES,
   lcpElementPath,
   lcpFailures,
@@ -28,6 +30,31 @@ const REPORTS = join(APP_DIR, 'lighthouse-report');
 if (!existsSync(join(OUT_DIR, 'index.html')) || existsSync(join(OUT_DIR, 'e2e'))) {
   console.error('lighthouse: out/ must hold a production build. Run `npm run build -w apps/web` first.');
   process.exit(2);
+}
+
+/** Every script of the build, at the URL path a page requests it from. */
+const SCRIPTS = readdirSync(join(OUT_DIR, '_next', 'static'), { recursive: true, encoding: 'utf8' })
+  .filter((f) => f.endsWith('.js'))
+  .map((f) => {
+    const file = join(OUT_DIR, '_next', 'static', f);
+    return { path: `/${relative(OUT_DIR, file).split(sep).join('/')}`, code: readFileSync(file, 'utf8') };
+  });
+/** What each route must not request (R18.18): FORBIDDEN_REQUESTS, and the chunks that wait for the reader's intent. */
+let FORBIDDEN: Record<string, (string | RegExp)[]>;
+try {
+  FORBIDDEN = Object.fromEntries(
+    LIGHTHOUSE_ROUTES.map((r) => [
+      r,
+      [...(FORBIDDEN_REQUESTS[r] ?? []), ...chunksWith(SCRIPTS, INTENT_MARKERS[r] ?? [])],
+    ]),
+  );
+} catch (e) {
+  console.error(`lighthouse: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(2);
+}
+for (const r of LIGHTHOUSE_ROUTES) {
+  const n = FORBIDDEN[r].length;
+  if (n > 0) console.log(`${r}: ${n} chunks wait for intent and must not load`);
 }
 
 rmSync(REPORTS, { recursive: true, force: true });
@@ -87,7 +114,7 @@ try {
       const lcp = result.lhr.runtimeError ? null : lcpElementPath(result.lhr);
       if (lcp !== null) lcpSeen.push(lcp);
       // R18.18: a chunk that must wait for intent fails the route when any of the runs loaded it.
-      for (const url of forbiddenRequests(result.lhr, FORBIDDEN_REQUESTS[route] ?? [])) forbidden.add(url);
+      for (const url of forbiddenRequests(result.lhr, FORBIDDEN[route])) forbidden.add(url);
     }
     const median = medianRun(runs);
     const missed = [

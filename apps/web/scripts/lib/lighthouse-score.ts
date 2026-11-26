@@ -16,9 +16,46 @@ export const THRESHOLDS = {
 
 /**
  * Requests that must not happen while Lighthouse loads a route (spec §18, R18.18), as a substring of the URL or a
- * RegExp. Empty in Plan 7A; Plan 7C Task 6 adds the SDK, circuits and time-machine chunks of `/`.
+ * RegExp, beside the chunks of INTENT_MARKERS, which lighthouse.ts finds in the build.
  */
 export const FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>> = {};
+
+/** A chunk known by a string only its code carries, as test/build/first-load.test.ts knows them. */
+export interface ChunkMarker {
+  what: string;
+  marker: RegExp;
+}
+
+/**
+ * Chunks a route may load only after the reader's intent (R18.18). The bundler names chunks by hash, so lighthouse.ts
+ * finds them in out/_next/static by these markers (chunksWith) and forbids them all. Spec §18.4.3 Task 6: on `/`, the
+ * SDK, the circuits and the time machine (its scenario logic and the Scrubber). The same markers as first-load.test.ts.
+ */
+export const INTENT_MARKERS: Readonly<Record<string, readonly ChunkMarker[]>> = {
+  '/': [
+    { what: 'the SDK', marker: /["'`]Run again with --verbose and report the output\.["'`]/ },
+    { what: 'the circuits', marker: /unknown cpu \$\{/ },
+    { what: 'the time machine logic', marker: /["'`]7e["'`]\.repeat\(20\)|0x(?:7e){20}/i },
+    { what: 'the Scrubber', marker: /["'`]SliderThumb["'`]/ },
+  ],
+};
+
+/**
+ * The URL path of every script in `files` that holds one of `markers`, sorted. A marker in no script throws: the build
+ * changed under it, and a gate that forbade nothing would pass.
+ */
+export function chunksWith(
+  files: readonly { path: string; code: string }[],
+  markers: readonly ChunkMarker[],
+): string[] {
+  const out = new Set<string>();
+  for (const { what, marker } of markers) {
+    const hits = files.filter((f) => marker.test(f.code));
+    if (hits.length === 0) throw new Error(`no chunk of the build holds ${what} (${marker}): update its marker`);
+    for (const f of hits) out.add(f.path);
+  }
+  return [...out].sort();
+}
 
 /** The element that must be each route's LCP, by the DOM path Lighthouse prints. `/`: its H1 (spec §18.4.3 Task 5′). */
 export const LCP_ELEMENT: Readonly<Record<string, RegExp>> = { '/': /(?:^|,)H1$/ };

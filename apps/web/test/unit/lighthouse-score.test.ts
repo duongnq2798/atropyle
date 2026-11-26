@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
+  chunksWith,
   failures,
   forbiddenRequests,
   hostNote,
+  INTENT_MARKERS,
   LCP_ELEMENT,
   type LhrLike,
   lcpElementPath,
@@ -165,5 +167,48 @@ describe('lighthouse score', () => {
     expect(lcpFailures('/', [h1, lead, lead])).toEqual([`LCP element ${lead}, expected one matching /(?:^|,)H1$/`]);
     expect(lcpFailures('/', [])).toEqual(['no measured run reported an LCP element']);
     expect(lcpFailures('/proof/', [])).toEqual([]);
+  });
+});
+
+describe('the chunks / loads only on intent (R18.18)', () => {
+  const files = [
+    { path: '/_next/static/chunks/sdk.js', code: 'x={hint:"Run again with --verbose and report the output."}' },
+    { path: '/_next/static/chunks/circuits.js', code: 'throw Error(`unknown cpu ${e}`)' },
+    { path: '/_next/static/chunks/logic.js', code: 'let N=g(`0x${"7e".repeat(20)}`)' },
+    { path: '/_next/static/chunks/slider.js', code: 'S.displayName="SliderThumb"' },
+    { path: '/_next/static/chunks/page.js', code: 'nothing to see' },
+  ];
+
+  it('names every chunk that holds a marker of /: the SDK, the circuits and the time machine', () => {
+    expect(INTENT_MARKERS['/'].map((m) => m.what)).toEqual([
+      'the SDK',
+      'the circuits',
+      'the time machine logic',
+      'the Scrubber',
+    ]);
+    expect(chunksWith(files, INTENT_MARKERS['/'])).toEqual([
+      '/_next/static/chunks/circuits.js',
+      '/_next/static/chunks/logic.js',
+      '/_next/static/chunks/sdk.js',
+      '/_next/static/chunks/slider.js',
+    ]);
+  });
+
+  it('finds the logic in the form a minifier that folds the template leaves', () => {
+    const folded = [{ path: '/a.js', code: `g("0x${'7e'.repeat(20)}")` }];
+    expect(
+      chunksWith(
+        folded,
+        INTENT_MARKERS['/'].filter((m) => m.what === 'the time machine logic'),
+      ),
+    ).toEqual(['/a.js']);
+  });
+
+  it('throws when a marker is in no chunk, so the gate never passes by matching nothing', () => {
+    expect(() => chunksWith(files.slice(1), INTENT_MARKERS['/'])).toThrow(/no chunk of the build holds the SDK/);
+  });
+
+  it('holds nothing back on a route without markers', () => {
+    expect(chunksWith(files, INTENT_MARKERS['/proof/'] ?? [])).toEqual([]);
   });
 });
