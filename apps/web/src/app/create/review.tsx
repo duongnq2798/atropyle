@@ -341,6 +341,7 @@ export function ReviewStep(p: ReviewStepProps) {
           tone="info"
           action={
             <Button
+              variant="primary"
               data-testid="create-connect"
               onPointerEnter={connectSheet.preload}
               onFocus={connectSheet.preload}
@@ -392,7 +393,13 @@ export function ReviewStep(p: ReviewStepProps) {
         />
       ) : null}
       {checked && !p.prepared && s.payload === null ? (
-        <Button size="lg" data-testid="create-prepare" loading={prepare.isPending} onClick={() => prepare.mutate()}>
+        <Button
+          variant="primary"
+          size="lg"
+          data-testid="create-prepare"
+          loading={prepare.isPending}
+          onClick={() => prepare.mutate()}
+        >
           {t('prepare')}
         </Button>
       ) : null}

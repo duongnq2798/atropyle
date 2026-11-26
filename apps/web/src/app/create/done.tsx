@@ -106,7 +106,11 @@ export function DoneStep({
           <Address address={vault} explorer={explorer} copy />
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <NavLink href={vaultHref(vault)} data-testid="create-open-vault" className={buttonClass({ size: 'lg' })}>
+          <NavLink
+            href={vaultHref(vault)}
+            data-testid="create-open-vault"
+            className={buttonClass({ variant: 'primary', size: 'lg' })}
+          >
             {t('doneOpen')}
           </NavLink>
           {explorer ? (

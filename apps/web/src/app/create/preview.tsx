@@ -1,9 +1,9 @@
 'use client';
 
 import { ChevronUp } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Address as Addr } from 'viem';
-import { effectiveK } from '@/flows/editors/guardians-editor';
+import { effectiveK } from '@/flows/editors/k';
 import type { CreateForm } from '@/flows/impl/create-form';
 import type { Loom } from '@/flows/impl/loom';
 import type { WizardStep } from '@/flows/impl/wizard';
@@ -14,6 +14,7 @@ import { isAddressText } from '@/lib/address';
 import { cn } from '@/lib/cn';
 import { durationWords } from '@/lib/duration';
 import { formatBps } from '@/lib/format';
+import { lazyChunk, whenIdle } from '@/lib/lazy-chunk';
 import { jsonStringify } from '@/lib/store';
 import { messages } from '@/messages/create.messages';
 import { messages as sign } from '@/messages/sign.messages';
@@ -21,7 +22,7 @@ import { BRANCH_BG } from '@/thread/branches';
 import { courseX, drawnAxis, pctX } from '@/thread/geometry';
 import { Thread } from '@/thread/thread';
 import { Address } from '@/ui/address';
-import { Dialog } from '@/ui/dialog';
+import { useLazyOverlay } from '@/ui/lazy-overlay';
 import { DRILL_LIFETIME_SECONDS } from './kind';
 import { CREATE_STEPS } from './progress';
 
@@ -172,7 +173,7 @@ function PreviewList({ model, step }: { model: PreviewModel; step: WizardStep })
   );
 }
 
-function PreviewBody(p: { model: PreviewModel; step: WizardStep; vault: Addr | null; testId: string }) {
+export function PreviewBody(p: { model: PreviewModel; step: WizardStep; vault: Addr | null; testId: string }) {
   return (
     <div className="space-y-6">
       <PlanThread model={p.model} vault={p.vault} testId={`${p.testId}-thread`} />
@@ -198,6 +199,12 @@ export function Preview(p: { model: PreviewModel; step: WizardStep; vault: Addr 
   );
 }
 
+/** The strip's sheet loads when the page is idle on a narrow screen, or on the first hover, focus or tap (Ruling 19). */
+export const previewSheet = lazyChunk(() => import('./preview-sheet'));
+
+/** The strip shows below lg (64rem): only there is its sheet worth warming. */
+const NARROW = '(max-width: 63.99rem)';
+
 /**
  * Below lg: a 72 px strip in the dock, the Thread small and a line of words; a tap opens the sheet. It hides while a
  * text field or a slider has focus (the dock's group, wizard.tsx), so it never covers what is being typed; a radio
@@ -206,7 +213,14 @@ export function Preview(p: { model: PreviewModel; step: WizardStep; vault: Addr 
 export function PreviewStrip(p: { model: PreviewModel; step: WizardStep; vault: Addr | null }) {
   const t = useT(messages);
   const { lang } = useLang();
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, id, anchor, trigger, content } = useLazyOverlay(previewSheet);
+  useEffect(
+    () =>
+      whenIdle(() => {
+        if (window.matchMedia(NARROW).matches) previewSheet.preload();
+      }),
+    [],
+  );
   const { loom } = p.model;
   return (
     <div
@@ -221,9 +235,8 @@ export function PreviewStrip(p: { model: PreviewModel; step: WizardStep; vault: 
       <button
         type="button"
         data-testid="create-preview-open"
-        aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
-        className="flex size-full items-center gap-3 px-4 text-left"
+        {...trigger}
+        className="flex size-full items-center gap-3 px-4 text-left aria-busy:cursor-progress"
       >
         <span aria-hidden="true" className="w-28 shrink-0">
           <Thread {...threadProps(p.model, p.vault)} className="w-full" />
@@ -238,11 +251,17 @@ export function PreviewStrip(p: { model: PreviewModel; step: WizardStep; vault: 
         </span>
         <ChevronUp aria-hidden="true" className="size-5 shrink-0 text-ink-muted" />
       </button>
-      <Dialog sheet open={open} onOpenChange={setOpen} title={t('previewTitle')}>
-        <div data-testid="create-preview-sheet">
-          <PreviewBody model={p.model} step={p.step} vault={p.vault} testId="create-sheet" />
-        </div>
-      </Dialog>
+      {content ? (
+        <content.PreviewSheet
+          id={id}
+          anchor={anchor}
+          open={open}
+          onOpenChange={setOpen}
+          model={p.model}
+          step={p.step}
+          vault={p.vault}
+        />
+      ) : null}
     </div>
   );
 }

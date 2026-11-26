@@ -14,11 +14,13 @@ import { useLeaveGuard } from '@/tx/use-leave-guard';
 import { Button } from '@/ui/button';
 import { SkeletonText } from '@/ui/skeleton';
 import { useWallet } from '@/wallet/provider';
+import type { StepsModule } from './edit-chunk';
+import { useStepsChunk } from './edit-chunk';
 import { useFinishChunk } from './finish-chunk';
+import { KindCards } from './kind-cards';
 import { Preview, PreviewStrip, usePreviewModel } from './preview';
 import { ASK_KEY, Progress } from './progress';
 import type { Prepared } from './review';
-import { AssetsStep, GuardiansStep, HeirsStep, KindCards, TimingStep } from './steps';
 import { useWizard, type Wizard as WizardApi } from './use-wizard';
 
 /** The steps from which the review and done chunk loads: it is in before the user reaches review. */
@@ -37,7 +39,9 @@ export function Wizard() {
   const heading = useRef<HTMLHeadingElement>(null);
   const shown = useRef<string | null>(null);
   const seenHash = useRef<string | null>(null);
-  const ready = flows !== null && w !== null;
+  const edit = useStepsChunk();
+  const E = edit.data ?? null;
+  const ready = flows !== null && w !== null && E !== null;
   const step = w?.state.step ?? 'kind';
   const finish = useFinishChunk(ready && FINISH_FROM.has(step));
 
@@ -69,10 +73,17 @@ export function Wizard() {
     } else replaceHash(want);
   }, [hash, drill, step, frozen, rawSetKind]);
 
-  if (flowsQuery.error && !flows) {
+  const loadError = (!flows && flowsQuery.error) || (!E && edit.error) || null;
+  if (loadError) {
     return (
       <div className="mx-auto min-h-svh max-w-6xl px-4 py-10">
-        <ErrorBox error={flowsQuery.error} onRetry={() => flowsQuery.refetch()} />
+        <ErrorBox
+          error={loadError}
+          onRetry={() => {
+            if (!flows) flowsQuery.refetch();
+            if (!E) edit.refetch();
+          }}
+        />
       </div>
     );
   }
@@ -130,11 +141,11 @@ export function Wizard() {
         </h1>
         {/* In the page once the flow chunk is in, empty until Next finds something (7A rule 19): the first list is read. */}
         {flows && s ? <IssueList flows={flows} drill={s.form.drill} issues={blocking} testId="create-issues" /> : null}
-        {!wizard || !flows ? (
-          // The prerendered frame: the real first step, the hash holds the pick until the flow chunk loads.
+        {!wizard || !flows || !E ? (
+          // The prerendered frame: the real first step, the hash holds the pick until the flow chunks load.
           <KindCards drill={hash !== '#real'} onPick={(d) => replaceHash(d ? '#drill' : '#real')} />
         ) : (
-          <Steps flows={flows} wizard={wizard} owner={owner} />
+          <Steps steps={E} flows={flows} wizard={wizard} owner={owner} />
         )}
         {wizard && flows && (step === 'review' || step === 'done') ? (
           F ? (
@@ -178,7 +189,13 @@ export function Wizard() {
                 <span />
               )}
               {editing ? (
-                <Button size="lg" data-testid="create-next" disabled={!ready} onClick={() => w?.next()}>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  data-testid="create-next"
+                  disabled={!ready}
+                  onClick={() => w?.next()}
+                >
                   {step === 'assets' ? t('toReview') : t('next')}
                 </Button>
               ) : null}
@@ -191,15 +208,23 @@ export function Wizard() {
   );
 }
 
-function Steps(props: { flows: FlowsImpl; wizard: WizardApi; owner: Address | null }) {
+function Steps({
+  steps: S,
+  ...props
+}: {
+  steps: StepsModule;
+  flows: FlowsImpl;
+  wizard: WizardApi;
+  owner: Address | null;
+}) {
   const step = props.wizard.state.step;
   return (
     <>
       {step === 'kind' ? <KindCards drill={props.wizard.state.form.drill} onPick={props.wizard.setKind} /> : null}
-      {step === 'heirs' ? <HeirsStep {...props} /> : null}
-      {step === 'guardians' ? <GuardiansStep {...props} /> : null}
-      {step === 'timing' ? <TimingStep {...props} /> : null}
-      {step === 'assets' ? <AssetsStep {...props} /> : null}
+      {step === 'heirs' ? <S.HeirsStep {...props} /> : null}
+      {step === 'guardians' ? <S.GuardiansStep {...props} /> : null}
+      {step === 'timing' ? <S.TimingStep {...props} /> : null}
+      {step === 'assets' ? <S.AssetsStep {...props} /> : null}
     </>
   );
 }
