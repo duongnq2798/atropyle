@@ -214,23 +214,23 @@ export function CloseScene() {
         </p>
       </div>
       <Thread state="releasedInherit" branches={HEIR_SHARES} className="w-full max-w-3xl" />
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <NavLink
-            href={createHref('drill')}
-            prefetch={false}
-            aria-describedby="rehearse-note"
-            className={buttonClass({ variant: 'primary', size: 'lg' })}
-          >
-            <Say m={home} k="heroDrill" />
-          </NavLink>
-          <NavLink href={ROUTES.verify} prefetch={false} className={DOOR}>
-            <Say m={home} k="heroHeirDoor" />
-          </NavLink>
-        </div>
+      {/* The offer with its cost right under it, then the heirs' door on a line of its own: on a phone the door
+          between the button and its note read as the note's subject. */}
+      <div className="flex flex-col items-start gap-3">
+        <NavLink
+          href={createHref('drill')}
+          prefetch={false}
+          aria-describedby="rehearse-note"
+          className={buttonClass({ variant: 'primary', size: 'lg' })}
+        >
+          <Say m={home} k="heroDrill" />
+        </NavLink>
         <p id="rehearse-note" className="text-balance text-ink-muted text-small">
           <Say m={home} k="heroDrillNote" />
         </p>
+        <NavLink href={ROUTES.verify} prefetch={false} className={cn(DOOR, 'mt-3')}>
+          <Say m={home} k="heroHeirDoor" />
+        </NavLink>
       </div>
     </section>
   );
