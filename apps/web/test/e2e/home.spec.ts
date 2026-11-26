@@ -1116,12 +1116,7 @@ test('the spine fills as the reader scrolls, by transform alone, and stands full
   expect([...new Set(props)]).toEqual(['transform']);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.reload();
-  for (const selector of [
-    '#trust .spine-fill',
-    '#trust .spine-node > span',
-    '#rehearse .spine-fill',
-    '#trust .trust-cases',
-  ]) {
+  for (const selector of ['#trust .spine-fill', '#trust .spine-node > span', '#rehearse .spine-fill', '#trust-title']) {
     await expect
       .poll(
         () =>

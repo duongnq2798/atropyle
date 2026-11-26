@@ -60,8 +60,9 @@ export function TrustBand() {
       className={cn(BOX, 'flex flex-col gap-8 py-20 md:py-28')}
     >
       <SpineSeg />
-      <h2 id="trust-title" className="flex flex-col gap-2">
-        <span className="trust-cases story-rise voice-proclaim relative whitespace-nowrap text-thread tabular-nums">
+      {/* The number and its word rise together: the number alone, 1.5rem low as it enters, lay over the word. */}
+      <h2 id="trust-title" className="story-rise flex flex-col gap-3">
+        <span className="trust-cases voice-proclaim relative whitespace-nowrap text-thread tabular-nums">
           <SpineNode />
           <ByLang text={cases} />
         </span>
