@@ -171,9 +171,12 @@ describe('lighthouse score', () => {
 });
 
 describe('the chunks / loads only on intent (R18.18)', () => {
+  // Each `code` is a chunk's source as the minifier writes it, template literals included.
   const files = [
     { path: '/_next/static/chunks/sdk.js', code: 'x={hint:"Run again with --verbose and report the output."}' },
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a chunk's source, not a template of this test
     { path: '/_next/static/chunks/circuits.js', code: 'throw Error(`unknown cpu ${e}`)' },
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a chunk's source, not a template of this test
     { path: '/_next/static/chunks/logic.js', code: 'let N=g(`0x${"7e".repeat(20)}`)' },
     { path: '/_next/static/chunks/slider.js', code: 'S.displayName="SliderThumb"' },
     { path: '/_next/static/chunks/page.js', code: 'nothing to see' },
