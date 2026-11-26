@@ -28,7 +28,15 @@ const CHIP =
  * HomeHero mirrors the choice in `data-ask` for browsers without :has() and for "Ask X Layer". All three answers share
  * one grid cell, so a chip never moves the page.
  */
-export function AskCircuit({ choice, onChoice }: { choice: HeroCase; onChoice(c: HeroCase): void }) {
+export function AskCircuit({
+  choice,
+  onChoice,
+  className,
+}: {
+  choice: HeroCase;
+  onChoice(c: HeroCase): void;
+  className?: string;
+}) {
   const t = useT(home);
   const { lang } = useLang();
   const id = useId();
@@ -40,7 +48,7 @@ export function AskCircuit({ choice, onChoice }: { choice: HeroCase; onChoice(c:
     if (c !== undefined && c !== choice) onChoice(c);
   }, [choice, onChoice]);
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn('flex flex-col gap-4', className)}>
       <fieldset ref={group} className="flex flex-col">
         <legend className="mb-3 text-caption text-ink-muted">{t('askLegend')}</legend>
         <div className="flex flex-wrap gap-2">

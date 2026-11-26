@@ -51,7 +51,26 @@ function computed(page: Page, value: string): Promise<string> {
   }, value);
 }
 
-test('on a phone the weave is a strip under the question, and the facts take three lines without a shift', async ({
+/** Where the parts of the hero are, top to bottom, as a reader sees them. */
+async function heroParts(page: Page) {
+  const box = async (name: string, at: ReturnType<Page['locator']>) => {
+    const b = await at.boundingBox();
+    if (b === null) throw new Error(`${name} is not laid out`);
+    return b;
+  };
+  return {
+    question: await box('the H1', page.getByRole('heading', { level: 1 })),
+    answer: await box('the lead', page.getByText(/^Nothing, unless you plan for it\./)),
+    drill: await box('the Drill offer', page.getByRole('link', { name: 'Rehearse it in about 6 minutes' })),
+    note: await box('its note', page.getByText(/^No Atropyle fee\./)),
+    strip: await box('the weave', page.locator('.weave')),
+    chips: await box('the chips', page.getByRole('group', { name: 'Ask the circuit' })),
+    said: await box('the checked answer', page.locator('.ask-answer [data-for="a"]')),
+    facts: await box('the facts', page.getByTestId('hero-facts')),
+  };
+}
+
+test('on a phone the weave is a strip over the chips, and the facts take three lines without a shift', async ({
   page,
   state,
 }) => {
@@ -60,12 +79,16 @@ test('on a phone the weave is a strip under the question, and the facts take thr
   const facts = page.getByTestId('hero-facts');
   // Hydrated: the DeWEB build prints the live fact as text and links it on mount.
   await expect(facts.locator('a[target="_blank"]')).toHaveCount(1);
-  const h1 = await page.getByRole('heading', { level: 1 }).boundingBox();
-  const strip = await page.locator('.weave').boundingBox();
-  const lead = await page.getByText(/^Nothing, unless you plan for it\./).boundingBox();
-  if (h1 === null || strip === null || lead === null) throw new Error('the hero is not laid out');
-  expect(strip.y).toBeGreaterThanOrEqual(h1.y + h1.height);
-  expect(lead.y).toBeGreaterThanOrEqual(strip.y + strip.height);
+  // The question, its answer, the two ways in, then the strip right over the chips, so a chip and the wires it
+  // lights share the screen; the facts last (ruling R-T5p-7).
+  const { question, answer, drill, note, strip, chips, facts: factsBox } = await heroParts(page);
+  const bottom = (b: { y: number; height: number }) => b.y + b.height;
+  expect(answer.y).toBeGreaterThanOrEqual(bottom(question));
+  expect(drill.y).toBeGreaterThanOrEqual(bottom(answer));
+  expect(strip.y).toBeGreaterThanOrEqual(bottom(note));
+  expect(chips.y).toBeGreaterThanOrEqual(bottom(strip));
+  expect(chips.y - bottom(strip)).toBeLessThanOrEqual(32);
+  expect(factsBox.y).toBeGreaterThan(bottom(chips));
   expect(strip.x).toBeCloseTo(0, 0);
   expect(strip.width).toBeCloseTo(390, 0);
   // The sweep boxes are the size of the strip, not of the plate (494.6 % of it here): a box as wide as the plate
@@ -95,12 +118,18 @@ test('each chip lights the wires that carry 1 for its question, answers it and r
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   // The e2e build reads the devnet (chain 31337): it never offers to ask X Layer (R18.19).
   await expect(page.getByTestId('ask-x-layer')).toHaveCount(0);
-  const lead = page.getByText(/^Nothing, unless you plan for it\./);
-  const before = await lead.boundingBox();
+  // The facts come after the chips: a chip that changed the height of its answer would move them.
+  const facts = page.getByTestId('hero-facts');
+  const before = await facts.boundingBox();
   const gold = await computed(page, 'var(--atro-thread)');
   const violet = await computed(page, 'var(--atro-release)');
   const QUESTIONS = [
-    { letter: 'a', name: 'If I keep checking in', answer: 'Nothing moves. The gate stays closed.', open: false },
+    {
+      letter: 'a',
+      name: 'If I keep checking in',
+      answer: 'The gate stays closed. Your wallet stays yours.',
+      open: false,
+    },
     { letter: 's', name: 'If I go silent', answer: 'The gate opens. Your heirs can claim.', open: true },
     {
       letter: 'l',
@@ -125,10 +154,38 @@ test('each chip lights the wires that carry 1 for its question, answers it and r
       }
     }
     await expect(page.locator('.weave-pin')).toHaveCSS('border-color', q.open ? violet : gold);
-    expect(await lead.boundingBox(), q.letter).toEqual(before);
+    expect(await facts.boundingBox(), q.letter).toEqual(before);
   }
   expect(await layoutShift(page)).toBe(0);
 });
+
+/**
+ * The first screen of a laptop and of a phone holds the question, its answer and the Drill offer (fix round 1 of
+ * 7C-T5′: with the chips above the lead, the offer started at 843 px on a 1440 × 800 screen). On a 1440 × 800 laptop
+ * the chips and the checked answer fit as well, over the weave they light.
+ */
+for (const [width, height, chipsToo] of [
+  [1440, 800, true],
+  [1366, 680, false],
+  [1280, 720, false],
+  [390, 750, false],
+] as const) {
+  test(`the first screen holds the question, its answer and the Drill offer (${width} × ${height})`, async ({
+    page,
+    state,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto(state.siteUrl);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    const { question, answer, drill, chips, said } = await heroParts(page);
+    expect(answer.y).toBeGreaterThanOrEqual(question.y + question.height);
+    expect(drill.y + drill.height).toBeLessThanOrEqual(height);
+    if (chipsToo) {
+      expect(chips.y).toBeGreaterThan(drill.y + drill.height);
+      expect(said.y + said.height).toBeLessThanOrEqual(height);
+    }
+  });
+}
 
 for (const width of [1440, 1024]) {
   test(`from 64rem the weave fills the hero, behind its text, and fades under the text column (${width} px)`, async ({

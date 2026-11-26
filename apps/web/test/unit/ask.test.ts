@@ -100,7 +100,14 @@ describe('askXLayer', () => {
       [DRPC]: answered({ result: RIGHT }),
     });
     const outcome = await askXLayer('silent', { target: 'vercel', crossCheck: false, fetch: fetcher });
-    expect(outcome).toMatchObject({ verdict: 'match', block: 123n, release: true, want: '0x05/0x04', got: null });
+    expect(outcome).toMatchObject({
+      verdict: 'match',
+      block: 123n,
+      by: 'OKX',
+      release: true,
+      want: { next: '0x05', out: '0x04' },
+      got: null,
+    });
     expect(outcome.operators.map((o) => [o.name, o.verdict])).toEqual([
       ['OKX', 'same'],
       ['dRPC', 'same'],
@@ -119,7 +126,14 @@ describe('askXLayer', () => {
   it('says mismatch when an operator answers differently, with the raw bytes', async () => {
     const { fetcher } = rpcFetch({ [OKX]: answered({ result: RIGHT }), [DRPC]: answered({ result: WRONG }) });
     const outcome = await askXLayer('silent', { target: 'vercel', crossCheck: false, fetch: fetcher });
-    expect(outcome).toMatchObject({ verdict: 'mismatch', block: 123n, got: '0x00/0x00', want: '0x05/0x04' });
+    // The sentence names the operator that differs, and its bytes.
+    expect(outcome).toMatchObject({
+      verdict: 'mismatch',
+      block: 123n,
+      by: 'dRPC',
+      got: { next: '0x00', out: '0x00' },
+      want: { next: '0x05', out: '0x04' },
+    });
     expect(outcome.operators.map((o) => o.verdict)).toEqual(['same', 'different']);
   });
 
@@ -127,7 +141,7 @@ describe('askXLayer', () => {
     const revert = { error: { code: 3, message: 'execution reverted' } };
     const { fetcher } = rpcFetch({ [OKX]: answered(revert) });
     const outcome = await askXLayer('alive', { target: 'deweb', crossCheck: false, fetch: fetcher });
-    expect(outcome).toMatchObject({ verdict: 'mismatch', got: null, block: 123n });
+    expect(outcome).toMatchObject({ verdict: 'mismatch', got: null, block: 123n, by: 'OKX' });
     expect(outcome.operators[0].verdict).toBe('reverted');
   });
 

@@ -1,6 +1,7 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { encodeAbiParameters, type Hex } from 'viem';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { XLAYER_EXPLORER } from '../../src/config/env';
 import { AskXLayer, askChunk } from '../../src/home/ask-x-layer';
 import { ANSWER, ASK_RPC } from '../../src/home/impl/ask-calls';
 import { KEYS, memoryKV } from '../../src/lib/store';
@@ -19,6 +20,13 @@ const DRPC = ASK_RPC.quorumRpcUrls[1][0];
 const spoken = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
 const named = (text: string) => (name: string) => spoken(name) === text;
 const step = (next: Hex, out: Hex) => encodeAbiParameters([{ type: 'bytes' }, { type: 'bytes' }], [next, out]);
+/** The two rows of an answer: what X Layer said, then the Ledger row. */
+function rows(status: HTMLElement): [HTMLElement, HTMLElement] {
+  const said = status.querySelector<HTMLElement>('[data-row="said"]');
+  const ledger = status.querySelector<HTMLElement>('[data-row="ledger"]');
+  if (said === null || ledger === null) throw new Error('the answer is not in two rows');
+  return [said, ledger];
+}
 
 /** JSON-RPC by URL: block 123 everywhere, and this eth_call result; a URL left out is unreachable. */
 function stubRpc(results: Record<string, Hex>) {
@@ -100,20 +108,32 @@ describe('Ask X Layer', () => {
     renderWithProviders(<AskXLayer choice="silent" />);
     expect(screen.getByTestId('ask-x-layer').className).not.toContain('invisible');
     expect(spoken(screen.getByRole('status').textContent)).toBe(
-      'Your browser asks the processor on X Layer the same question. Nothing to sign.',
+      'Your browser asks the processor on X Layer the same question. No signature needed.',
     );
     expect(fetch).not.toHaveBeenCalled();
     const box = await ask();
     expect(box.getAttribute('data-verdict')).toBe('match');
-    expect(spoken(screen.getByRole('status').textContent)).toBe(
-      'X Layer answered at block 123: the gate opens. Same as this page. OKXsame answer',
+    // Two rows: what X Layer said, in the product's voice; then the block and the operators, in the Ledger voice,
+    // since the block number is read from the chain (spec §18.2 principle 7).
+    const status = screen.getByRole('status');
+    const [said, ledger] = rows(status);
+    expect(spoken(said.textContent)).toBe('X Layer agrees: the gate opens.');
+    expect(said.className).toMatch(/\btext-body\b/);
+    expect(said.className).toMatch(/\btext-ink\b/);
+    expect(ledger.className).toMatch(/\bfont-mono\b/);
+    expect(ledger.className).toMatch(/\btabular-nums\b/);
+    expect(spoken(ledger.textContent)).toBe('block 123 (opens in a new tab) · OKX same answer');
+    expect(within(ledger).getByRole('link').getAttribute('href')).toBe(`${XLAYER_EXPLORER}/block/123`);
+    expect(spoken(status.textContent)).toBe(
+      'X Layer agrees: the gate opens. block 123 (opens in a new tab) · OKX same answer',
     );
     expect(new Set(fetch.mock.calls.map(([url]) => String(url)))).toEqual(new Set([OKX]));
-    // ✓ is an icon, never a character (glyphs.test.ts).
-    expect(screen.getByRole('status').querySelectorAll('svg')).toHaveLength(1);
+    // ✓ is an icon, never a character (glyphs.test.ts); the link's arrow is the other one.
+    expect(ledger.querySelectorAll('svg')).toHaveLength(2);
+    expect(within(ledger).getByText('OKX').querySelector('svg.text-alive')).not.toBeNull();
   });
 
-  it('with the cross-check on, a differing operator turns the line red and shows its raw bytes as chain text', async () => {
+  it('with the cross-check on, a differing operator turns the answer red and shows its raw bytes as chain text', async () => {
     stubRpc({ [OKX]: step(ANSWER.alive.next, ANSWER.alive.out), [DRPC]: step('0x05', '0x04') });
     const kv = memoryKV();
     kv.set(KEYS.crossCheck, '1');
@@ -122,11 +142,40 @@ describe('Ask X Layer', () => {
     await waitFor(() => expect(screen.getByTestId('ask-x-layer')).toBeTruthy());
     const box = await ask();
     expect(box.getAttribute('data-verdict')).toBe('mismatch');
-    const status = screen.getByRole('status');
-    expect(status.querySelector('.text-danger')).not.toBeNull();
-    expect(status.querySelector('bdi[data-untrusted]')?.textContent).toBe('0x05/0x04');
-    expect(spoken(status.textContent)).toContain('X Layer answered differently at block 123:');
-    expect(spoken(status.textContent)).toContain('this page says 0x00/0x00.');
+    const [said, ledger] = rows(screen.getByRole('status'));
+    expect(said.className).toMatch(/\btext-danger\b/);
+    expect(said.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(spoken(said.textContent)).toBe('X Layer disagrees at block 123 (opens in a new tab)');
+    expect(within(said).getByRole('link').getAttribute('href')).toBe(`${XLAYER_EXPLORER}/block/123`);
+    expect(within(said).getByRole('link').className).toMatch(/\bfont-mono\b/);
+    expect(ledger.className).toMatch(/\bfont-mono\b/);
+    expect(spoken(ledger.textContent)).toBe('dRPC: state 0x05 · out 0x04 / this page: state 0x00 · out 0x00');
+    // The processor's bytes only as chain text; this page's own are its own.
+    expect([...ledger.querySelectorAll('bdi[data-untrusted]')].map((b) => b.textContent)).toEqual(['0x05', '0x04']);
+  });
+
+  it('says in red that X Layer refused the question, and which operator refused', async () => {
+    const refuse = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { method } = JSON.parse(String(init?.body)) as { method: string };
+      if (String(input) !== OKX) throw new TypeError('Failed to fetch');
+      const reply =
+        method === 'eth_blockNumber' ? { result: '0x7b' } : { error: { code: 3, message: 'execution reverted' } };
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, ...reply }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', refuse);
+    renderWithProviders(<AskXLayer choice="liar" />);
+    const box = await ask();
+    expect(box.getAttribute('data-verdict')).toBe('mismatch');
+    const [said, ledger] = rows(screen.getByRole('status'));
+    expect(said.className).toMatch(/\btext-danger\b/);
+    expect(spoken(said.textContent)).toBe('X Layer refused the question at block 123 (opens in a new tab)');
+    expect(spoken(ledger.textContent)).toBe('OKX refused');
+  });
+
+  it('reads as an action, not as a fourth chip: the button leads with an icon', () => {
+    renderWithProviders(<AskXLayer choice="alive" />);
+    const button = screen.getByRole('button', { name: named('Ask X Layer') });
+    expect(button.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('says X Layer is not reachable when no operator answers', async () => {

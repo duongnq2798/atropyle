@@ -176,12 +176,35 @@ describe('pages', () => {
       level: 1,
       name: 'What happens to your crypto when you can no longer sign?',
     });
-    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4). The weave shows under it, as decoration, but
-    // comes last in the column's markup, so gzip finds its copy in Next's payload (ruling R-T5p-1; home.spec.ts
-    // checks the order a reader sees).
+    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4), its answer follows, then the two ways in, the
+    // circuit asked and the facts: the Drill offer stays on a laptop's first screen (ruling R-T5p-7). The weave, a
+    // decoration, comes last in the column's markup, so gzip finds its copy in Next's payload (ruling R-T5p-1);
+    // home.spec.ts checks the order a reader sees. Focus follows the markup: no tabindex reorders it.
     expect(h1.previousElementSibling).toBeNull();
     const weave = container.querySelector('.weave');
-    expect(h1.parentElement?.lastElementChild).toBe(weave);
+    const part = (el: Element): string =>
+      el === h1
+        ? 'question'
+        : el === weave
+          ? 'weave'
+          : el.matches('[data-testid="hero-facts"]')
+            ? 'facts'
+            : el.querySelector('fieldset')
+              ? 'ask'
+              : el.querySelector('a[href="/create/#drill"]')
+                ? 'ways in'
+                : /^Nothing, unless you plan for it\./.test(el.textContent ?? '')
+                  ? 'answer'
+                  : el.tagName;
+    expect([...(h1.parentElement?.children ?? [])].map(part)).toEqual([
+      'question',
+      'answer',
+      'ways in',
+      'ask',
+      'facts',
+      'weave',
+    ]);
+    expect(h1.parentElement?.querySelector('[tabindex]')).toBeNull();
     expect(weave?.getAttribute('aria-hidden')).toBe('true');
     expect(weave?.querySelectorAll('.weave-col')).toHaveLength(DEPTHS);
     // R18.4, the markup side (weave-css.test.ts holds the CSS side): in the weave only the thread's glow svg carries

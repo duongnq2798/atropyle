@@ -434,14 +434,15 @@
 }
 
 /* The hero's weave (7C-T4, src/home/weave-svg.tsx): the real policy circuit behind the question. On a phone it is a
-   strip under the H1 that shows the middle columns: the plate is wider than the strip and starts left of it, by the
+   strip above the chips that shows the middle columns: the plate is wider than the strip and starts left of it, by the
    numbers of src/home/netlist-geometry.ts (CROP). From 64rem it fills the hero and fades to 12 % behind the text
    column. Only the two boxes of each sweep move, by transform, and only without a reduced-motion preference (R18.4):
    no path animates. Paths keep a 1 px stroke and round dots however far the view stretches. */
 .weave {
   position: relative;
-  /* Second in the hero column, under the H1 (order-first), though last in its markup (src/home/hero.tsx, R-T5p-1). */
-  order: -1;
+  /* Last in the hero column's markup (src/home/hero.tsx, R-T5p-1). On a phone it shows after the ways in and before the
+     chips (order-2) and the facts (order-3); from 64rem it is out of the flow and `order` changes nothing. */
+  order: 1;
   height: 9rem;
   margin-inline: -1rem;
   overflow: clip;
@@ -529,7 +530,12 @@
 /* Ask the circuit (7C-T5′, src/home/ask-circuit.tsx). A chip is a native radio: the hero lights the wires that carry
    1 for its question (data-v, from WIRE_V), shows its answer, and turns the release pin violet where the gate opens.
    :has() does it without JavaScript. [data-ask], which HomeHero keeps in step, does it only where :has() is missing,
-   so a chip pressed before hydration never lights two questions (ruling R12). */
+   so a chip pressed before hydration never lights two questions (ruling R12). An unlit wire is its colour at 55 %; a
+   lit one is the thread's colour at full strength, so the answer shows in the wires and not only in the text (the
+   group carries no opacity: fix round 1 of 7C-T5′). */
+.weave-col path {
+  stroke: color-mix(in oklab, currentColor 55%, transparent);
+}
 .hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
 .hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
 .hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {
@@ -596,6 +602,11 @@
       border-color 160ms linear calc(var(--d) * 28ms),
       background-color 160ms linear calc(var(--d) * 28ms);
   }
+}
+/* A theme change recolours every wire and the pin as well: <html> carries data-theme-swap while the new theme is
+   styled (src/theme/theme.ts), so they change at once and the sweep stays the chip's alone (R18.20). */
+:root[data-theme-swap] .weave :is(.weave-col path, .weave-pin) {
+  transition: none;
 }
 
 /* The woven title (7C-T5′, src/home/title-weave.tsx), inside an H1 that isolates: a frame from the bottom of line 1

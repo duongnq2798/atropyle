@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KVProvider } from '../../src/lib/kv';
 import { KEYS, type KV, memoryKV } from '../../src/lib/store';
 import { ThemeProvider, useTheme } from '../../src/theme/provider';
-import { applyTheme, DEFAULT_THEME, parseTheme, readThemeAttr, THEME_CHOICES } from '../../src/theme/theme';
+import {
+  applyTheme,
+  DEFAULT_THEME,
+  parseTheme,
+  readThemeAttr,
+  THEME_CHOICES,
+  THEME_SWAP_ATTR,
+} from '../../src/theme/theme';
 
 const root = document.documentElement;
 
@@ -132,5 +139,79 @@ describe('theme', () => {
     expect(result.current.choice).toBe('system');
     act(() => scheme.set(false));
     expect(result.current.resolved).toBe('dark');
+  });
+});
+
+/**
+ * R18.20: the hero's sweep runs only after a reader changes a chip. A theme change restyles every wire too, so for
+ * two frames <html> carries data-theme-swap, under which globals.css holds the weave's transitions back.
+ */
+describe('a theme change holds back the transitions of the weave', () => {
+  let frames: FrameRequestCallback[] = [];
+  const nextFrame = () => {
+    const due = frames;
+    frames = [];
+    for (const f of due) f(performance.now());
+  };
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal('requestAnimationFrame', (f: FrameRequestCallback) => frames.push(f));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    root.removeAttribute(THEME_SWAP_ATTR);
+  });
+
+  it('marks <html> while the new theme is styled, and for two frames only', () => {
+    applyTheme('light');
+    expect(root.getAttribute('data-theme')).toBe('light');
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(true);
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(true);
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+    applyTheme('dark');
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(true);
+    nextFrame();
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+  });
+
+  it('keeps the mark for two frames after the last of quick changes', () => {
+    applyTheme('light');
+    nextFrame();
+    applyTheme('system');
+    nextFrame();
+    // Two frames after the first change, one after the second: the second is still being styled.
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(true);
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+  });
+
+  it('marks nothing when the theme stays, nor for a scoped element', () => {
+    applyTheme('dark');
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+    const letter = document.createElement('article');
+    applyTheme('light', letter);
+    expect(letter.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('marks <html> when match device follows the device to another colour scheme', async () => {
+    const scheme = stubScheme(false);
+    const kv = memoryKV();
+    kv.set(KEYS.theme, 'system');
+    const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
+    await waitFor(() => expect(result.current.choice).toBe('system'));
+    nextFrame();
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
+    act(() => scheme.set(true));
+    expect(result.current.resolved).toBe('light');
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(true);
+    nextFrame();
+    nextFrame();
+    expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
   });
 });

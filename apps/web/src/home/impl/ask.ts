@@ -10,6 +10,12 @@ export const ASK_TIMEOUT_MS = 8_000;
 
 export type OperatorVerdict = 'same' | 'different' | 'reverted' | 'unreachable';
 
+/** What step() returned: the new state and the outputs, each as `0x` bytes. */
+export interface StepAnswer {
+  next: string;
+  out: string;
+}
+
 export interface OperatorAnswer {
   /** OKX, dRPC, or the host name. */
   name: string;
@@ -17,20 +23,22 @@ export interface OperatorAnswer {
   verdict: OperatorVerdict;
   /** The block it was asked at; null when it never gave one. */
   block: bigint | null;
-  /** Its answer as `newState/outputs`, when it gave one. Read from the chain: shown only through UntrustedText. */
-  answer: string | null;
+  /** Its answer, when it gave one. Read from the chain: shown only through UntrustedText. */
+  answer: StepAnswer | null;
 }
 
 export interface AskOutcome {
   /** match: every operator that answered agrees with this page; mismatch: one differs or refused; else unreachable. */
   verdict: 'match' | 'mismatch' | 'unreachable';
-  /** The block of the operator the sentence names: the first that differs, else the first that agrees. */
+  /** The operator the sentence names: the first that differs, else the first that agrees; null when none answered. */
+  by: string | null;
+  /** The block that operator was asked at. */
   block: bigint | null;
-  /** This page's answer: whether the gate opens, and `newState/outputs`. */
+  /** This page's answer: whether the gate opens, and what step() returns. */
   release: boolean;
-  want: string;
-  /** The differing answer as `newState/outputs`; null on a match and for a refusal. */
-  got: string | null;
+  want: StepAnswer;
+  /** The differing answer; null on a match and for a refusal. */
+  got: StepAnswer | null;
   operators: OperatorAnswer[];
 }
 
@@ -141,7 +149,7 @@ async function askOne(fetcher: typeof fetch, url: string, c: HeroCase): Promise<
     if (step === null) throw new Unreachable();
     const want = ANSWER[c];
     const same = step.next === want.next && step.out === want.out;
-    return { ...who, verdict: same ? 'same' : 'different', block, answer: `${step.next}/${step.out}` };
+    return { ...who, verdict: same ? 'same' : 'different', block, answer: step };
   } catch (e) {
     return { ...who, verdict: e instanceof Reverted ? 'reverted' : 'unreachable', block, answer: null };
   }
@@ -153,9 +161,10 @@ export function outcomeOf(c: HeroCase, operators: OperatorAnswer[]): AskOutcome 
   const named = odd ?? operators.find((op) => op.verdict === 'same');
   return {
     verdict: odd ? 'mismatch' : named ? 'match' : 'unreachable',
+    by: named?.name ?? null,
     block: named?.block ?? null,
     release: want.release,
-    want: `${want.next}/${want.out}`,
+    want: { next: want.next, out: want.out },
     got: odd?.answer ?? null,
     operators,
   };

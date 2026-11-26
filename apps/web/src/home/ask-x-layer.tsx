@@ -1,5 +1,6 @@
 'use client';
 
+import { RadioTower } from 'lucide-react';
 import { useState } from 'react';
 import { useChainSettings } from '@/chain/provider';
 import { chainIdOf, ENV } from '@/config/env';
@@ -54,10 +55,12 @@ export function AskXLayer({ choice }: { choice: HeroCase }) {
       data-testid="ask-x-layer"
       data-phase={phase.kind}
       data-verdict={phase.kind === 'done' ? phase.outcome.verdict : undefined}
-      className={cn('flex flex-col items-start gap-2', !mounted && 'invisible')}
+      className={cn('flex flex-col items-start gap-3', !mounted && 'invisible')}
     >
+      {/* The icon tells the action from the three chips above it, which share its pill shape. */}
       <Button
         variant="secondary"
+        icon={<RadioTower aria-hidden="true" strokeWidth={1.5} />}
         loading={phase.kind === 'asking'}
         loadingLabel={t('askBusy')}
         onClick={ask}
@@ -66,8 +69,12 @@ export function AskXLayer({ choice }: { choice: HeroCase }) {
       >
         {t('askButton')}
       </Button>
-      {/* Three lines held on a phone, two from 40rem: the answer replaces the hint without moving the page. */}
-      <p role="status" className="min-h-[3lh] text-pretty text-small sm:min-h-[2lh]">
+      {/* Held for the answer: a body line and two small ones on a phone, a body line and a small one from 40rem. The
+          answer (two rows, impl/ask-view.tsx) replaces the hint without moving the page. */}
+      <p
+        role="status"
+        className="min-h-[calc(2lh_+_var(--text-body)*var(--text-body--line-height))] text-pretty text-small sm:min-h-[calc(1lh_+_var(--text-body)*var(--text-body--line-height))]"
+      >
         {unreachable ? (
           <span className="text-ink-muted">{t('askUnreachable')}</span>
         ) : phase.kind === 'done' && view ? (

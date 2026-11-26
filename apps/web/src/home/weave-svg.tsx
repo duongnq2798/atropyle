@@ -75,7 +75,7 @@ export function WeaveArt() {
     <div className="weave" aria-hidden="true">
       <Layer name="warp">
         <Drawing className="text-line-strong">
-          <g fill="none" stroke="currentColor" strokeWidth={1} opacity={0.55}>
+          <g fill="none" stroke="currentColor" strokeWidth={1}>
             {LAYERS.map((layer) => (
               <g key={layer.depth} className="weave-col" style={{ '--d': layer.depth } as CSSProperties}>
                 {layer.paths.map((p) => (

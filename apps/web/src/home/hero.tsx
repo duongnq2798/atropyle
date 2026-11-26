@@ -20,14 +20,16 @@ import { TitleWeave } from './title-weave';
 const FACTORY_URL = explorerAddress(XLAYER_EXPLORER, MAINNET_FACTORY);
 
 /**
- * Scene 1 of the home page (spec §5.1, §18.4.3 Task 4): the question, the weave of the real circuit, the two ways in
- * and three facts. `art` is the weave, rendered on the server by app/page.tsx, so its numbers are in the HTML and in
- * no script. On a phone it is a strip under the question; from 64rem globals.css lays it behind the whole section,
- * faded under this text column (the left 7/12). It comes last in the column's markup and CSS `order` shows it second:
- * its paths are in the HTML twice (the DOM and Next's payload), and gzip finds the second copy only within 32 KB of the
- * first (ruling R-T5p-1). Under the weave, three chips ask the circuit what happens (ask-circuit.tsx); the H1 carries a
- * woven thread (title-weave.tsx). The Drill offer carries its cost in a note right under it, linked with
- * aria-describedby (R18.11). The facts are static: nothing here fetches; only Ask X Layer does, when pressed.
+ * Scene 1 of the home page (spec §5.1, §18.4.3 Task 4): the question and its answer, the two ways in, the circuit
+ * asked, three facts, and the weave of the real circuit. `art` is the weave, rendered on the server by app/page.tsx, so
+ * its numbers are in the HTML and in no script. From 64rem globals.css lays it behind the whole section, faded under
+ * this text column (the left 7/12); on a phone it is a strip, and CSS `order` shows it between the ways in and the
+ * chips, so the chips and the wires they light share the screen. It comes last in the column's markup: its paths are
+ * in the HTML twice (the DOM and Next's payload), and gzip finds the second copy only within 32 KB of the first (ruling
+ * R-T5p-1). The chips ask the circuit what happens (ask-circuit.tsx) after the Drill offer, so the offer stays on the
+ * first screen of a laptop (ruling R-T5p-7); the H1 carries a woven thread (title-weave.tsx). The Drill offer carries
+ * its cost in a note right under it, linked with aria-describedby (R18.11). The facts are static: nothing here
+ * fetches; only Ask X Layer does, when pressed.
  */
 export function HomeHero({ art }: { art: ReactNode }) {
   const t = useT(home);
@@ -40,11 +42,10 @@ export function HomeHero({ art }: { art: ReactNode }) {
     <section className="hero relative isolate overflow-hidden" data-ask={LETTER[choice]}>
       <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-16 sm:px-6 lg:pt-28 lg:pb-28">
         <div className="flex flex-col gap-6 lg:w-7/12">
-          <h1 className="relative isolate order-first text-balance font-display text-display lg:text-h1">
+          <h1 className="relative isolate text-balance font-display text-display lg:text-h1">
             {t('heroTitle')}
             <TitleWeave />
           </h1>
-          <AskCircuit choice={choice} onChoice={setChoice} />
           <p className="max-w-2xl text-pretty text-ink-muted text-lead">{t('heroLead')}</p>
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-3">
@@ -64,9 +65,12 @@ export function HomeHero({ art }: { art: ReactNode }) {
               {t('heroDrillNote')}
             </p>
           </div>
+          {/* order-2 and order-3: on a phone the weave's strip (order 1, globals.css) comes before the chips. From 64rem a
+              wider gap sets the chips apart from the Drill offer's note. */}
+          <AskCircuit choice={choice} onChoice={setChoice} className="order-2 lg:mt-4" />
           <ul
             data-testid="hero-facts"
-            className="flex flex-col gap-2 text-balance border-line border-t pt-5 text-ink-muted text-small lg:flex-row lg:flex-wrap lg:gap-x-6"
+            className="order-3 flex flex-col gap-2 text-balance border-line border-t pt-5 text-ink-muted text-small lg:flex-row lg:flex-wrap lg:gap-x-6"
           >
             <li>{t('heroFactCustody')}</li>
             <li>

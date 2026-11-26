@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEPTHS } from '../../src/home/netlist-geometry';
+import { THEME_SWAP_ATTR } from '../../src/theme/theme';
 
 const CSS = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
+const SVG = readFileSync(fileURLToPath(new URL('../../src/home/weave-svg.tsx', import.meta.url)), 'utf8');
 
 describe('the weave of the home hero (R18.4, R18.20)', () => {
   it('moves only its sweep boxes, by transform, and only without a reduced-motion preference', () => {
@@ -54,5 +56,20 @@ describe('the weave of the home hero (R18.4, R18.20)', () => {
       expect(block, m[0]).toBeGreaterThan(0);
       expect(CSS.slice(block, m.index), m[0]).not.toContain('\n}\n');
     }
+  });
+
+  it('holds the sweep back while a theme change is styled: only a chip starts it', () => {
+    const at = CSS.indexOf(`:root[${THEME_SWAP_ATTR}] .weave :is(.weave-col path, .weave-pin) {`);
+    expect(at).toBeGreaterThan(0);
+    expect(CSS.slice(at, CSS.indexOf('}', at))).toMatch(/\{\s*transition: none;\s*$/);
+  });
+
+  it('draws an unlit wire at 55 % and a lit one in the full thread colour: no opacity on the group', () => {
+    expect(CSS).toMatch(/\n\.weave-col path \{\n {2}stroke: color-mix\(in oklab, currentColor 55%, transparent\);\n\}/);
+    const lit = [...CSS.matchAll(/\.weave-col \[data-v~="[asl]"\][,\s]*(?:\{\s*stroke: ([^;]+);)?/g)]
+      .map((m) => m[1])
+      .filter(Boolean);
+    expect(lit).toEqual(['var(--atro-thread)', 'var(--atro-thread)']);
+    expect(SVG).not.toMatch(/opacity=\{0\.55\}/);
   });
 });

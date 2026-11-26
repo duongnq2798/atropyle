@@ -40,7 +40,23 @@ describe('the words of the home page', () => {
       expect(spoken(home.vi[KEY[c]]).includes('Cổng mở'), c).toBe(RELEASE[c]);
       expect(spoken(home.vi[KEY[c]]).includes('Cổng vẫn đóng'), c).toBe(!RELEASE[c]);
     }
-    expect(ask.en.matchOpen).toContain('the gate opens');
-    expect(ask.en.matchClosed).toContain('the gate stays closed');
+    expect(ask.en.agreeOpen).toContain('the gate opens');
+    expect(ask.en.agreeClosed).toContain('the gate stays closed');
+    expect(spoken(ask.vi.agreeOpen)).toContain('cổng mở');
+    expect(spoken(ask.vi.agreeClosed)).toContain('cổng vẫn đóng');
+  });
+
+  it('open one hero sentence with "Nothing": the lead answers the question; the answers and the hint never echo it', () => {
+    // The lead, the answer of the checked chip and the hint are read together (7C-T5′ fix round 1).
+    const OPENER = { en: /(?:^|[.!?]\s+)Nothing\b/g, vi: /(?:^|[.!?]\s+)Không\b/g } as const;
+    for (const lang of LANGS) {
+      const m = home[lang];
+      const read = [m.heroLead, m.answerAlive, m.answerSilent, m.answerLiar, m.askHint].map(spoken);
+      expect(
+        read.flatMap((s) => s.match(OPENER[lang]) ?? []),
+        lang,
+      ).toHaveLength(1);
+      expect(spoken(m.heroLead).match(OPENER[lang]), lang).toHaveLength(1);
+    }
   });
 });

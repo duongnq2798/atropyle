@@ -3,7 +3,15 @@
 import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useKV } from '@/lib/kv';
 import { KEYS } from '@/lib/store';
-import { applyTheme, DEFAULT_THEME, parseTheme, readThemeAttr, subscribeTheme, type ThemeChoice } from './theme';
+import {
+  applyTheme,
+  DEFAULT_THEME,
+  holdThemeTransitions,
+  parseTheme,
+  readThemeAttr,
+  subscribeTheme,
+  type ThemeChoice,
+} from './theme';
 
 interface ThemeValue {
   choice: ThemeChoice;
@@ -15,11 +23,16 @@ interface ThemeValue {
 const ThemeContext = createContext<ThemeValue | null>(null);
 const LIGHT = '(prefers-color-scheme: light)';
 
+/** Under match device, the device's new colour scheme restyles the page: hold the weave's transitions back too. */
 function subscribeScheme(cb: () => void): () => void {
   if (typeof window.matchMedia !== 'function') return () => {};
   const mql = window.matchMedia(LIGHT);
-  mql.addEventListener('change', cb);
-  return () => mql.removeEventListener('change', cb);
+  const changed = () => {
+    if (readThemeAttr() === 'system') holdThemeTransitions();
+    cb();
+  };
+  mql.addEventListener('change', changed);
+  return () => mql.removeEventListener('change', changed);
 }
 
 function prefersLight(): boolean {

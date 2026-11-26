@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { runningAnimations } from './helpers.ts';
+import { openSettings, runningAnimations } from './helpers.ts';
 
 const HERO = 'What happens to your crypto when you can no longer sign?';
 
@@ -168,4 +168,81 @@ test('a chip sweeps the circuit layer by layer in at most 1.3 s; never on load, 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await chip('a').click();
   expect(await sweep(page)).toEqual([]);
+});
+
+/**
+ * The weave's transitions from now on: `transitionrun` fires for each one that starts, delayed or not, a frame after
+ * the style change that created it, and `transitioncancel` for each one stopped before its end.
+ */
+async function recordWeaveTransitions(page: Page): Promise<() => Promise<{ run: string[]; cancel: string[] }>> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __weave: { run: string[]; cancel: string[] } };
+    w.__weave = { run: [], cancel: [] };
+    for (const type of ['run', 'cancel'] as const) {
+      document.addEventListener(
+        `transition${type}`,
+        (e) => {
+          if (e.target instanceof Element && e.target.closest('.weave')) w.__weave[type].push(e.propertyName);
+        },
+        true,
+      );
+    }
+  });
+  return () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __weave: { run: string[]; cancel: string[] } };
+      const taken = { run: w.__weave.run.splice(0), cancel: w.__weave.cancel.splice(0) };
+      return taken;
+    });
+}
+
+/** Three frames, read without touching style: what a style change started has sent its events by then. */
+const frames = (page: Page) =>
+  page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))),
+  );
+
+test('a theme change never sweeps the circuit, nor does the device under match device: only a chip does (R18.20)', async ({
+  page,
+  state,
+}) => {
+  const chip = (letter: string) => page.locator('label.ask-chip', { has: page.locator(`input[value="${letter}"]`) });
+  await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: 'dark' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  const taken = await recordWeaveTransitions(page);
+  const html = page.locator('html');
+  const settings = await openSettings(page);
+  for (const [label, theme] of [
+    ['Vellum', 'light'],
+    ['Night', null],
+    ['Match device', 'system'],
+  ] as const) {
+    await settings.getByText(label, { exact: true }).click();
+    if (theme === null) await expect(html).not.toHaveAttribute('data-theme');
+    else await expect(html).toHaveAttribute('data-theme', theme);
+    expect(await sweep(page), label).toEqual([]);
+    await expect(html).not.toHaveAttribute('data-theme-swap');
+  }
+  // Not one transition started: data-theme-swap was on <html> when the new theme was styled.
+  await frames(page);
+  expect(await taken()).toEqual({ run: [], cancel: [] });
+  // Match device follows the device: it turns light. Chromium styles the new scheme before the media query's change
+  // event, where the hold starts, so the colours that started to move are stopped a frame later: nothing sweeps.
+  const bg = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--atro-bg').trim());
+  const night = await bg();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await frames(page);
+  expect(await bg()).not.toBe(night);
+  expect(await sweep(page)).toEqual([]);
+  const flip = await taken();
+  expect(flip.cancel.length).toBe(flip.run.length);
+  // A chip still sweeps afterwards: the hold is gone, and the recorder sees a sweep when there is one.
+  await expect(html).not.toHaveAttribute('data-theme-swap');
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+  await chip('s').click();
+  expect((await sweep(page)).length).toBeGreaterThan(0);
+  await expect.poll(async () => (await taken()).run.includes('stroke')).toBe(true);
 });
