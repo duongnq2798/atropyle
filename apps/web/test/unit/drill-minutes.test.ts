@@ -3,6 +3,7 @@ import { computeTimeline, type EvalState, modelEngine, PRESETS, STATE_CODES } fr
 import { describe, expect, it } from 'vitest';
 import { KEEPER_CADENCE_S } from '../../src/config/facts';
 import { messages as home } from '../../src/messages/home.messages';
+import { messages as me } from '../../src/messages/me.messages';
 
 /** A Drill with no guardians, checked in at t = 0: the vault that "Rehearse it" on the home page starts. */
 const DRILL: EvalState = {
@@ -52,6 +53,15 @@ describe('the facts of the home hero', () => {
       for (const key of ['heroFactCustody', 'heroFactLive', 'heroHeirDoor'] as const) {
         expect(home[lang][key], `${lang}.${key}`).not.toMatch(/\d/);
       }
+    }
+  });
+});
+
+describe('the Drill on /me/', () => {
+  it('promises the same minutes as the home page, in both languages', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const numbers = [...me[lang].rehearse.matchAll(/\d+/g)].map((m) => Number(m[0]));
+      expect(numbers, lang).toEqual([drillMinutes()]);
     }
   });
 });

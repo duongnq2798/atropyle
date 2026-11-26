@@ -1,0 +1,85 @@
+import { defineMessages } from '@/i18n/core';
+
+/** `~` is a space where a line must not break (home.messages.ts): "X Layer" is one name in both languages. */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
+export const messages = defineMessages(
+  {
+    title: 'My vaults',
+    lead: glue(
+      'The vaults that name this wallet as owner, guardian or heir, read from the Atropyle factory on X~Layer.',
+    ),
+    connectTitle: 'Connect a wallet to see its vaults',
+    connectBody:
+      'Connecting shares only your address, so this page can read the vaults that name it. Nothing is signed.',
+    loading: glue('Reading your vaults from X~Layer…'),
+    foundNone: 'No vault names this wallet yet.',
+    foundOne: 'One vault names this wallet.',
+    foundMany: '{n} vaults name this wallet.',
+    emptyTitle: 'This wallet has no vaults yet, as owner, guardian or heir.',
+    emptyBody: 'If someone told you they named you in their vault, check with them that they used this address.',
+    rehearse: 'Rehearse one in about 6 minutes',
+    ownTitle: 'Vaults you own',
+    ownHint: "You check in from each vault's page.",
+    ownEmpty: 'You own no vault with this wallet.',
+    guardTitle: 'Vaults you guard',
+    guardHint: 'Open a vault to see its state and what it asks of its guardians.',
+    guardEmpty: 'No vault names this wallet as a guardian.',
+    inheritTitle: 'Vaults that name you as an heir',
+    inheritHint: 'If an owner goes quiet, open their vault to see what was set aside for you.',
+    inheritEmpty: 'No vault names this wallet as an heir.',
+    vaultLabel: 'Vault',
+    alsoOwner: 'You own it too',
+    alsoGuardian: 'You guard it too',
+    alsoHeir: 'You are an heir too',
+    open: 'Open',
+    openVault: 'vault {vault}',
+    namedNote:
+      'Anyone can name any wallet as an heir or a guardian, so a vault you do not know may appear here. Being named gives its owner no power over your wallet.',
+    truncated:
+      'The factory lists this wallet {indexed} times, old entries included. This page reads the newest {limit}, so an older vault may be missing here.',
+    noneNewest: 'No vault among the newest {limit} entries names this wallet now.',
+    cliTitle: 'From a terminal',
+    cliBody: 'The same list, read with the Atropyle CLI, with no wallet to connect.',
+    cliCopy: 'Copy the command',
+  },
+  {
+    title: 'Vault của tôi',
+    lead: glue(
+      'Các vault ghi ví này là chủ vault, người giám hộ hoặc người thừa kế, đọc từ factory của Atropyle trên X~Layer.',
+    ),
+    connectTitle: 'Kết nối ví để xem các vault của ví',
+    connectBody:
+      'Kết nối chỉ chia sẻ địa chỉ của bạn, để trang này đọc được các vault ghi địa chỉ đó. Không có gì được ký.',
+    loading: glue('Đang đọc các vault của bạn từ X~Layer…'),
+    foundNone: 'Chưa có vault nào ghi ví này.',
+    foundOne: 'Có một vault ghi ví này.',
+    foundMany: 'Có {n} vault ghi ví này.',
+    emptyTitle: 'Ví này chưa có vault nào, dù là chủ vault, người giám hộ hay người thừa kế.',
+    emptyBody: 'Nếu ai đó nói đã ghi tên bạn trong vault của họ, hãy hỏi lại họ đã dùng đúng địa chỉ này chưa.',
+    rehearse: 'Diễn tập một vault trong khoảng 6 phút',
+    ownTitle: 'Vault bạn là chủ',
+    ownHint: 'Bạn điểm danh ở trang của từng vault.',
+    ownEmpty: 'Ví này chưa là chủ vault nào.',
+    guardTitle: 'Vault bạn giám hộ',
+    guardHint: 'Mở một vault để xem trạng thái và việc vault cần ở người giám hộ.',
+    guardEmpty: 'Chưa có vault nào ghi ví này là người giám hộ.',
+    inheritTitle: 'Vault ghi bạn là người thừa kế',
+    inheritHint: 'Nếu chủ vault im lặng, hãy mở vault để xem phần đã dành cho bạn.',
+    inheritEmpty: 'Chưa có vault nào ghi ví này là người thừa kế.',
+    vaultLabel: 'Vault',
+    alsoOwner: 'Bạn cũng là chủ vault',
+    alsoGuardian: 'Bạn cũng là người giám hộ',
+    alsoHeir: 'Bạn cũng là người thừa kế',
+    open: 'Mở',
+    openVault: 'vault {vault}',
+    namedNote:
+      'Ai cũng có thể ghi bất kỳ ví nào là người thừa kế hay người giám hộ, nên ở đây có thể có vault bạn không quen. Được ghi tên không cho chủ vault đó quyền gì với ví của bạn.',
+    truncated:
+      'Factory ghi ví này {indexed} lần, tính cả các mục cũ. Trang này đọc {limit} mục mới nhất, nên một vault cũ hơn có thể không có ở đây.',
+    noneNewest: 'Trong {limit} mục mới nhất, không còn vault nào ghi ví này.',
+    cliTitle: 'Từ terminal',
+    cliBody: 'Cùng danh sách đó, đọc bằng CLI của Atropyle, không cần kết nối ví.',
+    cliCopy: 'Chép lệnh',
+  },
+);
