@@ -33,6 +33,8 @@ export interface ActionFlowProps {
   tone?: 'thread' | 'danger';
   variant?: ButtonVariant;
   auto?: boolean;
+  /** Its button was pressed before this chunk loaded (LazyActionFlow): prepare once, as the press asked. */
+  pressed?: boolean;
   disabled?: boolean;
   /** The assets the plan may approve, for the wallet mirror (useTxRunner `tokens`): Task 10's coverage fix. */
   tokens?: readonly MirrorToken[];
@@ -87,6 +89,13 @@ export function ActionFlow(p: ActionFlowProps) {
   useEffect(() => {
     onPlan.current?.(a.held);
   }, [a.held]);
+  const pressed = useRef(p.pressed);
+  const prepare = a.prepare;
+  useEffect(() => {
+    if (!pressed.current) return;
+    pressed.current = false;
+    prepare();
+  }, [prepare]);
   const onProgress = (x: FlowProgress) => {
     a.report(x);
     p.onProgress?.(x);

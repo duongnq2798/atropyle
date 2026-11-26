@@ -11,7 +11,7 @@ import { Address } from '@/ui/address';
 import { Button } from '@/ui/button';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { useWallet } from '@/wallet/provider';
-import { ActionFlow } from './action-flow';
+import { actionFlowChunk, LazyActionFlow } from './lazy-action-flow';
 import { TransferTable } from './transfers';
 import type { PanelProps } from './vault-page';
 
@@ -42,8 +42,9 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
   // status.pending is what a poke from anyone but the owner would do at this block (rule 18): offer it only when it
   // moves the vault, and keep a plan on screen while it is held.
   const canPoke = !ownerChecksIn && !view.expired && (s.pending !== s.state || pokeHeld);
-  // Only once released: then an owner's distribute is no longer a check-in either.
-  const canDeliver = view.released && !view.expired;
+  // Only once released: then an owner's distribute is no longer a check-in either. And only while the owner still
+  // holds something the vault can move (rule 18): a second delivery would send nothing.
+  const canDeliver = view.released && !view.expired && view.assets.some((x) => x.held > 0n);
   const recover = s.state === 'recovery' || s.state === 'releasedRecover';
   return (
     <div data-testid="vault-public" className="flex flex-col gap-6">
@@ -62,7 +63,7 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
       {canPoke ? (
         <div className="flex flex-col gap-3">
           <p className="text-small text-ink-muted">{t('pokeHelp')}</p>
-          <ActionFlow
+          <LazyActionFlow
             flows={flows}
             sdk={sdk}
             vault={view.vault}
@@ -82,7 +83,7 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
           <p className="text-small text-ink-muted">
             {t(s.state === 'releasedRecover' ? 'deliverHelpRecover' : 'deliverHelp')}
           </p>
-          <ActionFlow
+          <LazyActionFlow
             flows={flows}
             sdk={sdk}
             vault={view.vault}
@@ -114,6 +115,12 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged }: 
       ) : null}
     </div>
   );
+}
+
+/** The wallet sheet, and the signing UI that a connected wallet may need next. */
+function warm() {
+  connectSheet.preload();
+  actionFlowChunk.preload();
 }
 
 /**
@@ -161,8 +168,8 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
           <Button
             data-testid="vault-guest-connect"
             className="self-start"
-            onPointerEnter={connectSheet.preload}
-            onFocus={connectSheet.preload}
+            onPointerEnter={warm}
+            onFocus={warm}
             onClick={() => openSheet(() => title.current)}
           >
             {t('guestConnect')}

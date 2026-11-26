@@ -53,6 +53,21 @@ describe('the guest view', () => {
     expect(screen.getByTestId('vault-public-idle')).toBeTruthy();
   });
 
+  it('offers delivery once released, and only while the owner holds something the vault can move', () => {
+    const released = loadedAt('releasedInherit', 'releasedInherit');
+    const r = guest(PEOPLE.stranger, released);
+    expect(screen.getByTestId('vault-distribute').textContent).toContain('Deliver the assets');
+    r.unmount();
+    const status = released.snap.status;
+    const emptied: RegisteredVault = {
+      ...released,
+      snap: { ...released.snap, status: { ...status, assets: status.assets.map((a) => ({ ...a, held: 0n })) } },
+    };
+    guest(PEOPLE.stranger, emptied);
+    expect(screen.queryByTestId('vault-distribute')).toBeNull();
+    expect(screen.getByTestId('vault-public-idle')).toBeTruthy();
+  });
+
   it('sends focus to its heading when the sheet closes on a connection', () => {
     const openSheet = vi.fn();
     guest(null, loadedAt('active', 'active'), { openSheet, wallet: null });
