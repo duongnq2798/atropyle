@@ -20,6 +20,50 @@ const rows = () =>
   within(screen.getByTestId('home-stage-beats'))
     .getAllByRole('button')
     .map((b) => spoken(b.firstElementChild));
+const row = (i: number) => screen.getByTestId(`home-stage-beat-${i}`);
+/** The sentence of the row whose stamp is `stamp` (its last child). */
+function sayOf(stamp: string): string {
+  const b = within(screen.getByTestId('home-stage-beats'))
+    .getAllByRole('button')
+    .find((x) => spoken(x.firstElementChild) === stamp);
+  if (!b) throw new Error(`no row ${stamp}: ${rows().join(' | ')}`);
+  return spoken(b.lastElementChild);
+}
+/** The gate's labels on the thread, as drawn: the Scrubber's or the still thread's, and the story's. */
+const gates = () => [...stage().querySelectorAll('[data-part="gate-at"]')].map((e) => spoken(e));
+/**
+ * The stage's text nodes that hold a hyphenated word ("check-in") outside a span that keeps it on one line:
+ * Chromium may break a line after an ASCII hyphen, and a line that ends in "check-" reads as a typo.
+ */
+function hyphens(): { loose: string[]; kept: number } {
+  const loose: string[] = [];
+  let kept = 0;
+  const walk = document.createTreeWalker(stage(), NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const text = n.textContent ?? '';
+    if (!/\S-\S/.test(text)) continue;
+    if (n.parentElement?.classList.contains('whitespace-nowrap') && !/\s/.test(text)) kept += 1;
+    else loose.push(text);
+  }
+  return { loose, kept };
+}
+/**
+ * Every story in turn, one control a step, from the default one (as e2e "a chip or a switch retells the story").
+ * Under Recovery the confirmation switch is disabled, so the walk first goes back to the default story.
+ */
+function eachStory(visit: (story: string | undefined) => void): void {
+  const confirm = screen.getByTestId('home-stage-confirm') as HTMLInputElement;
+  const back = screen.getByTestId('home-stage-back') as HTMLInputElement;
+  fireEvent.click(screen.getByRole('radio', { name: 'Inheritance' }));
+  if (!confirm.checked) fireEvent.click(confirm);
+  if (back.checked) fireEvent.click(back);
+  expect(stage().dataset.story).toBe('confirm');
+  visit(stage().dataset.story);
+  for (const control of [confirm, back, confirm, screen.getByRole('radio', { name: 'Recovery' }), back]) {
+    fireEvent.click(control);
+    visit(stage().dataset.story);
+  }
+}
 function stubIdle() {
   const idle = vi.fn((cb: IdleRequestCallback, _o?: IdleRequestOptions) =>
     window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 }), 0),
@@ -141,6 +185,104 @@ describe('the stage before its simulator loads', () => {
     await waitFor(() => expect(stage().dataset.ready).toBe('true'), { timeout: 30_000 });
     expect(load).toHaveBeenCalledTimes(2);
   }, 60_000);
+
+  // Fix round 1: the alarm row said one guardian's confirmation was enough, which the recovery vault (k = 2 of 3)
+  // does not do: exitTimes' heirs route waits for k confirmations (timeline.ts: the fallback when fewer than k).
+  it('says how many guardians must confirm after the alarm: k of n of the story’s vault (Review Focus 8)', () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />);
+    expect(sayOf('Day 180 · Silence. The alarm')).toBe(
+      'Your guardians are told. With a confirmation from 1 of the 2, the gate can open 14 days after the alarm.',
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
+    fireEvent.click(screen.getByTestId('home-stage-back'));
+    expect(stage().dataset.story).toBe('recoverBack');
+    expect(sayOf('Day 200 · Silence. The alarm')).toBe(
+      'Your guardians are told. With a confirmation from 2 of the 3, the gate can open 14 days after the alarm.',
+    );
+  });
+
+  it('says k of n after the alarm in Vietnamese too', async () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />, { lang: 'vi' });
+    await waitFor(() => expect(rows()[2]).toBe('Ngày 180 · Im lặng. Báo động'));
+    expect(sayOf('Ngày 180 · Im lặng. Báo động')).toBe(
+      'Người giám hộ được báo. Khi 1 trên 2 người giám hộ xác nhận, cổng có thể mở sau báo động 14 ngày.',
+    );
+    // chipRecover is glue('Khôi~phục ví'): a role query matches the name as it is (R29).
+    fireEvent.click(screen.getByRole('radio', { name: 'Khôi phục ví' }));
+    fireEvent.click(screen.getByTestId('home-stage-back'));
+    expect(sayOf('Ngày 200 · Im lặng. Báo động')).toContain('Khi 2 trên 3 người giám hộ xác nhận');
+  });
+
+  it('keeps every hyphenated word of every story on one line', () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />);
+    const stories: (string | undefined)[] = [];
+    eachStory((story) => {
+      stories.push(story);
+      const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
+      for (let i = 0; i < n; i++) {
+        fireEvent.click(row(i));
+        const { loose, kept } = hyphens();
+        expect(loose, `${story}, row ${i}`).toEqual([]);
+        // The guard has words to guard: each story's rows say "check-in" (row 0: "Your first check-in").
+        expect(kept, `${story}, row ${i}`).toBeGreaterThan(0);
+      }
+    });
+    expect(stories).toEqual(['confirm', 'silent', 'back', 'confirmBack', 'recoverBack', 'recover']);
+  });
+
+  // Fix round 1: 7B's gateOf names no gate while the frame's outlook lies past the story's release, so the default
+  // story's arch had no name before day 183. A home story is scripted: its gate is its release, which its rows date.
+  it('names the story’s own gate on the still thread from day 0, in the release’s words, and never twice', () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />);
+    expect(gates()).toEqual(['Heirs · day 194']);
+    // Near the playhead the label steps aside, as 7B's does: its pill says the day.
+    fireEvent.click(row(2));
+    expect(gates()).toEqual([]);
+    fireEvent.click(row(0));
+    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
+    expect(stage().dataset.story).toBe('recover');
+    // Days 0 and 10: the story's gate, the chosen wallet's; day 12: 7B's own (gateOf), the same words.
+    for (const i of [0, 1, 2]) {
+      fireEvent.click(row(i));
+      expect(gates(), `recover, row ${i}`).toEqual(['Their wallet · day 26']);
+    }
+    eachStory((story) => {
+      const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
+      for (let i = 0; i < n; i++) {
+        fireEvent.click(row(i));
+        expect(gates().length, `${story}, row ${i}`).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+});
+
+describe('the stage once its simulator has loaded', () => {
+  it('names the story’s gate over the Scrubber as on the still thread, and never twice', () => {
+    // The first test loaded the chunk, and lazyChunk keeps it: the stage is live from its first render.
+    renderWithProviders(<HomeStage />);
+    expect(stage().dataset.ready).toBe('true');
+    expect(screen.getByTestId('home-stage-scrubber-thumb-0')).toBeTruthy();
+    expect(gates()).toEqual(['Heirs · day 194']);
+    fireEvent.click(row(2));
+    expect(gates()).toEqual([]);
+    fireEvent.click(row(0));
+    fireEvent.click(screen.getByRole('radio', { name: 'Recovery' }));
+    for (const i of [0, 1, 2]) {
+      fireEvent.click(row(i));
+      expect(gates(), `recover, row ${i}`).toEqual(['Their wallet · day 26']);
+    }
+    eachStory((story) => {
+      const n = within(screen.getByTestId('home-stage-beats')).getAllByRole('button').length;
+      for (let i = 0; i < n; i++) {
+        fireEvent.click(row(i));
+        expect(gates().length, `${story}, row ${i}`).toBeLessThanOrEqual(1);
+      }
+    });
+  });
 });
 
 describe('the words of the stage', () => {

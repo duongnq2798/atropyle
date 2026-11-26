@@ -101,6 +101,60 @@ const STILL_THREAD = 'w-full h-[calc((100cqw_-_2.75rem)/var(--tm-r))]';
 const GATE_LABEL_NEAR = 12;
 const GATE_FOOT = 21;
 
+type Gate = { at: bigint; state: ThreadState };
+type GateWords = (at: bigint, state: ThreadState) => string;
+
+/**
+ * A hyphenated word ("check-in") in a span that keeps it on one line: Chromium may break a line after an ASCII
+ * hyphen, and a line that ends in "check-" reads as a typo. The strings stay as written, so a search and the tests
+ * still find them. Each span is keyed by where it ends in the sentence.
+ */
+function keep(s: string): ReactNode {
+  let end = 0;
+  return s.split(/(\S+-\S+)/).map((p, i) => {
+    end += p.length;
+    return i % 2 ? (
+      <span key={end} className="whitespace-nowrap">
+        {p}
+      </span>
+    ) : (
+      p
+    );
+  });
+}
+
+/**
+ * The story's own gate, where 7B's gateOf names none: the frame's outlook lies past the story's release, so the
+ * Thread draws its gate at that release (threadFrame's cap). A home story is scripted, so that gate is the story's
+ * release, which its rows date ("Day 194 · Through the gate"): it is named in the release's own state, the heirs' or
+ * the chosen wallet's. Null wherever gateOf names the gate itself.
+ */
+function storyGate(run: StageRun, axis: ScrubAxis, index: number, at: bigint): Gate | null {
+  const end = run.moments.find((m) => m.kind === 'release');
+  return end && !gateOf(run, axis, index, at, null) && threadFrame(run, axis, index, at, null).axis.releaseAt === end.at
+    ? { at: end.at, state: end.state }
+    : null;
+}
+
+/** The gate's label as scrubber.tsx draws it, in the track's box: under the arch, aside near the playhead. */
+function GateAt({ gate, axis, at, words }: { gate: Gate | null; axis: ScrubAxis; at: bigint; words: GateWords }) {
+  const gx = gate ? courseX(gate.at, axis) : 0;
+  return gate && Math.abs(pctX(gx) - pctX(courseX(at, axis))) >= GATE_LABEL_NEAR ? (
+    <span
+      aria-hidden="true"
+      data-part="gate-at"
+      className="pointer-events-none absolute whitespace-nowrap font-mono text-caption text-ink-muted tabular-nums"
+      style={{
+        left: `${pctX(gx)}%`,
+        top: `calc(${pctY(waveY(gx))}% + ${GATE_FOOT}% + 0.125rem)`,
+        transform: `translateX(-${pctX(gx)}%)`,
+      }}
+    >
+      {words(gate.at, gate.state)}
+    </span>
+  ) : null;
+}
+
 function StillThread({
   run,
   axis,
@@ -112,13 +166,10 @@ function StillThread({
   axis: ScrubAxis;
   index: number;
   at: bigint;
-  gateLabel(at: bigint, state: ThreadState): string;
+  gateLabel: GateWords;
 }) {
   const frame = threadFrame(run, axis, index, at, null);
   const rings = momentRings(run, axis);
-  const gate = gateOf(run, axis, index, at, null);
-  const x = courseX(at, axis);
-  const gx = gate ? courseX(gate.at, axis) : null;
   return (
     <div data-testid="home-stage-still" className="@container flex min-w-0 flex-col">
       <div className={STILL_ROOT}>
@@ -138,20 +189,7 @@ function StillThread({
               />
             ))}
           </span>
-          {gate && gx !== null && Math.abs(pctX(gx) - pctX(x)) >= GATE_LABEL_NEAR ? (
-            <span
-              aria-hidden="true"
-              data-part="gate-at"
-              className="pointer-events-none absolute whitespace-nowrap font-mono text-caption text-ink-muted tabular-nums"
-              style={{
-                left: `${pctX(gx)}%`,
-                top: `calc(${pctY(waveY(gx))}% + ${GATE_FOOT}% + 0.125rem)`,
-                transform: `translateX(-${pctX(gx)}%)`,
-              }}
-            >
-              {gateLabel(gate.at, gate.state)}
-            </span>
-          ) : null}
+          <GateAt gate={gateOf(run, axis, index, at, null)} axis={axis} at={at} words={gateLabel} />
         </div>
       </div>
     </div>
@@ -316,32 +354,44 @@ export function HomeStage() {
               {t('day', { day: dayOf(value) })}
             </p>
           </div>
-          {Scrubber ? (
-            <Scrubber
-              key={story}
-              run={run}
-              expiresAt={null}
-              offset={value}
-              onOffsetChange={setOffset}
-              label={t('slider')}
-              valueText={(a, _i, s) => t('valueText', { day: dayAt(a), state: tl(THREAD_STATE_KEY[s]) })}
-              announce={(i) => {
-                const b = beatAt(beats, Number(run.moments[i].at - axis.from));
-                return `${stamp(b)}. ${say(b)}`;
-              }}
-              describedBy={hintId}
-              playhead={(a) => t('day', { day: dayAt(a) })}
-              gateLabel={gateLabel}
-              testId="home-stage-scrubber"
-            />
-          ) : (
-            <StillThread run={run} axis={axis} index={index} at={at} gateLabel={gateLabel} />
-          )}
+          <div className="relative">
+            {Scrubber ? (
+              <Scrubber
+                key={story}
+                run={run}
+                expiresAt={null}
+                offset={value}
+                onOffsetChange={setOffset}
+                label={t('slider')}
+                valueText={(a, _i, s) => t('valueText', { day: dayAt(a), state: tl(THREAD_STATE_KEY[s]) })}
+                announce={(i) => {
+                  const b = beatAt(beats, Number(run.moments[i].at - axis.from));
+                  return `${stamp(b)}. ${say(b)}`;
+                }}
+                describedBy={hintId}
+                playhead={(a) => t('day', { day: dayAt(a) })}
+                gateLabel={gateLabel}
+                testId="home-stage-scrubber"
+              />
+            ) : (
+              <StillThread run={run} axis={axis} index={index} at={at} gateLabel={gateLabel} />
+            )}
+            {/* The story's gate, over whichever thread is drawn, in a copy of its track's box (STILL_*): it stands
+                where the Scrubber's own label stands, before the load and after it (e2e). */}
+            <div className="@container pointer-events-none absolute inset-x-0 top-0">
+              <div className={STILL_ROOT}>
+                <div className={STILL_TRACK}>
+                  <div className={STILL_THREAD} />
+                  <GateAt gate={storyGate(run, axis, index, at)} axis={axis} at={at} words={gateLabel} />
+                </div>
+              </div>
+            </div>
+          </div>
           <div data-testid="home-stage-caption" className="flex flex-col gap-1.5">
             <Stamp glyph={beat.glyph} tone={THREAD_COLOR[beat.state]}>
-              {stamp(beat)}
+              {keep(stamp(beat))}
             </Stamp>
-            <p className="text-balance text-ink text-lead">{say(beat)}</p>
+            <p className="text-balance text-ink text-lead">{keep(say(beat))}</p>
           </div>
           {/* Without its simulator the thread cannot be dragged: the hint keeps its place and says nothing. */}
           <p id={hintId} className={cn('text-pretty text-caption text-ink-muted', phase === 'failed' && 'invisible')}>
@@ -368,16 +418,16 @@ export function HomeStage() {
                     className="stage-beat"
                   >
                     <Stamp glyph={b.glyph} tone={THREAD_COLOR[b.state]}>
-                      {stamp(b)}
+                      {keep(stamp(b))}
                     </Stamp>
-                    <span className="text-pretty text-small">{say(b)}</span>
+                    <span className="text-pretty text-small">{keep(say(b))}</span>
                   </button>
                 </li>
               ))}
             </ol>
           </div>
           <p data-testid="home-stage-about" className="text-pretty text-ink-muted text-small">
-            {about}
+            {keep(about)}
           </p>
           {/* The three sources share one cell, so the footer never grows when the load ends, often more than
               500 ms after the input that asked for it: that would count as a layout shift. */}

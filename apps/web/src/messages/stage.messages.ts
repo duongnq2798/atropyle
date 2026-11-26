@@ -31,7 +31,8 @@ export const messages = defineMessages(
     titleGateRecover: 'To the wallet they chose',
     sayStart: 'Making the vault counts as one. After {silence} without another, the alarm goes off.',
     sayQuiet: 'Every {period} without a check-in is counted. Nothing moves yet.',
-    sayAlarm: 'Your guardians are told. With a guardian’s confirmation, the gate can open {window} after the alarm.',
+    sayAlarm:
+      'Your guardians are told. With a confirmation from {k} of the {n}, the gate can open {window} after the alarm.',
     sayConfirm: 'They confirm you can no longer sign. The gate opens when the alarm window ends.',
     sayBack: 'One check-in ends the alarm and cancels every confirmation. The count starts over.',
     sayBackRecovery: 'One check-in from your own wallet cancels the recovery. Nothing moves.',
@@ -82,7 +83,9 @@ export const messages = defineMessages(
     titleGateRecover: glue('Sang ví họ đã chọn'),
     sayStart: glue('Lập vault cũng tính là một lần. Nếu {silence} trôi~qua mà không có lần nào nữa, báo~động sẽ bật.'),
     sayQuiet: glue('Mỗi {period} không điểm~danh đều được đếm. Chưa có gì chuyển~đi.'),
-    sayAlarm: glue('Người giám~hộ được báo. Khi có một giám~hộ xác~nhận, cổng có~thể mở sau báo~động {window}.'),
+    sayAlarm: glue(
+      'Người giám~hộ được báo. Khi {k} trên {n} người giám~hộ xác~nhận, cổng có~thể mở sau báo~động {window}.',
+    ),
     sayConfirm: glue('Họ xác~nhận bạn không~còn ký được. Cổng mở khi hết thời~gian báo~động.'),
     sayBack: glue('Một lần điểm~danh tắt báo~động và huỷ mọi xác~nhận. Việc đếm bắt~đầu lại.'),
     sayBackRecovery: glue('Một lần điểm~danh từ chính ví của bạn huỷ việc khôi~phục. Không có gì chuyển~đi.'),

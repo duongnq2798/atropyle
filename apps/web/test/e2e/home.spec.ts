@@ -419,14 +419,24 @@ test('the Scrubber takes the still thread’s place without moving the page', as
     await stage(page).evaluate((el) => el.scrollIntoView());
     await settle(page);
     const thread = stage(page).locator('[data-thread]');
+    // Day 0 of the default story: its gate is named before the load and after it, in one place (fix round 1).
+    const gate = stage(page).locator('[data-part="gate-at"]');
+    await expect(gate, `${width} px: the story's gate`).toHaveText(/^Heirs · day\s194$/);
     const before = await thread.boundingBox();
+    const named = await gate.boundingBox();
     await loadStage(page);
     await expect(stage(page).getByTestId('home-stage-scrubber-thumb-0')).toBeVisible();
     await settle(page);
     const after = await thread.boundingBox();
+    await expect(gate, `${width} px: the story's gate, loaded`).toHaveText(/^Heirs · day\s194$/);
+    const renamed = await gate.boundingBox();
     expect(before, `${width} px: no still thread`).not.toBeNull();
+    expect(named, `${width} px: no gate label`).not.toBeNull();
     for (const k of ['x', 'y', 'width', 'height'] as const) {
       expect(Math.abs((after?.[k] ?? Number.NaN) - (before?.[k] ?? 0)), `${width} px: ${k}`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs((renamed?.[k] ?? Number.NaN) - (named?.[k] ?? 0)), `${width} px: gate ${k}`).toBeLessThanOrEqual(
+        0.5,
+      );
     }
     expect(await layoutShift(page), `${width} px`).toBe(0);
   }
@@ -534,6 +544,100 @@ test('without its simulator the stage still tells every story, says so, and trie
   await page.unroute('**/_next/static/chunks/**');
   await s.getByRole('button', { name: 'Try again' }).click();
   await expect(s).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+});
+
+test('the story’s gate is named where the Scrubber names a gate of its own', async ({ page, state }) => {
+  // Recovery: on day 10 the frame's outlook lies past the story's release, so the stage names the story's gate; on
+  // day 12 the frame's own release is that gate, and 7B's Scrubber names it. Same words, same place (fix round 1).
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    const s = stage(page);
+    await s.evaluate((el) => el.scrollIntoView());
+    await loadStage(page);
+    await storyChip(page, 'recover').click();
+    await expect(s).toHaveAttribute('data-story', 'recover');
+    const gate = s.locator('[data-part="gate-at"]');
+    const boxAt = async (row: number) => {
+      await s.getByTestId(`home-stage-beat-${row}`).click();
+      await expect(gate, `${width} px, row ${row}`).toHaveText(/^Their wallet · day\s26$/);
+      await settle(page);
+      return pageBox(gate);
+    };
+    const story = await boxAt(1);
+    const own = await boxAt(2);
+    expectSameBox(story, own, `${width} px: the story's gate label beside the Scrubber's`);
+  }
+});
+
+/**
+ * The lines of the stage's words that end at an ASCII hyphen, as laid out: Chromium may break after one, and a
+ * line that ends in "check-" reads as a typo. Each caption, row and the vault's note is walked a character at a time.
+ */
+function hyphenEnds(page: Page): Promise<string[]> {
+  return stage(page)
+    .locator(
+      '[data-testid="home-stage-caption"], [data-testid="home-stage-beats"] button, [data-testid="home-stage-about"]',
+    )
+    .evaluateAll((blocks) => {
+      const out: string[] = [];
+      for (const block of blocks) {
+        const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        let top: number | null = null;
+        let last = '';
+        let said = '';
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const text = n.textContent ?? '';
+          for (let i = 0; i < text.length; i++) {
+            range.setStart(n, i);
+            range.setEnd(n, i + 1);
+            const rect = range.getClientRects()[0];
+            if (!rect) continue;
+            if (top !== null && rect.top > top + 4 && last === '-')
+              out.push(`${said.slice(-24)}⏎${text.slice(i, i + 8)}`);
+            top = rect.top;
+            last = text[i];
+            said += text[i];
+          }
+        }
+      }
+      return out;
+    });
+}
+
+test('no line of the stage ends at the hyphen of "check-in", in any story, at any width', async ({ page, state }) => {
+  test.setTimeout(240_000);
+  const s = stage(page);
+  const label = (testId: string) => s.locator('label', { has: page.getByTestId(testId) });
+  const STEPS = [
+    ['confirm switch', () => label('home-stage-confirm'), 'silent'],
+    ['back switch', () => label('home-stage-back'), 'back'],
+    ['confirm switch', () => label('home-stage-confirm'), 'confirmBack'],
+    ['Recovery chip', () => storyChip(page, 'recover'), 'recoverBack'],
+    ['back switch', () => label('home-stage-back'), 'recover'],
+  ] as const;
+  const found: string[] = [];
+  for (const width of [390, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    await loadStage(page);
+    const walk = async (story: string) => {
+      const n = await s.getByTestId('home-stage-beats').getByRole('button').count();
+      for (let i = 0; i < n; i++) {
+        await s.getByTestId(`home-stage-beat-${i}`).click();
+        await expect(s.getByTestId(`home-stage-beat-${i}`)).toHaveAttribute('aria-current', 'step');
+        for (const line of await hyphenEnds(page)) found.push(`${width} px, ${story}, row ${i}: ${line}`);
+      }
+    };
+    await walk('confirm');
+    for (const [what, control, story] of STEPS) {
+      await control().click();
+      await expect(s, `${width} px, ${what}`).toHaveAttribute('data-story', story);
+      await walk(story);
+    }
+  }
+  expect([...new Set(found)]).toEqual([]);
 });
 
 test('the stage passes axe in both themes, before and after it loads', async ({ page, state }) => {
