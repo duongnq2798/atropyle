@@ -424,9 +424,38 @@ test('the Scrubber takes the still thread’s place without moving the page', as
     await expect(gate, `${width} px: the story's gate`).toHaveText(/^Heirs · day\s194$/);
     const before = await thread.boundingBox();
     const named = await gate.boundingBox();
+    // Fix round 3: the playhead's dot and glow are whole before the load (the Thread's box clips, so its own "now"
+    // at day 0 was a half disc), and stand where the thumb draws them after it.
+    await expect(thread.locator('[data-part="now-at"]'), `${width} px: the Thread's own "now"`).toBeHidden();
+    const stillDot = await stage(page).locator('[data-part="still-dot"]').boundingBox();
+    const stillHalo = stage(page).locator('[data-part="still-halo"]');
+    const haloBefore = await stillHalo.boundingBox();
+    const clips = await stillHalo.evaluate((el) => {
+      const found: string[] = [];
+      for (let a = el.parentElement; a && a.dataset.part !== 'stage'; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        if (s.overflowX !== 'visible' || s.overflowY !== 'visible') found.push(`${a.tagName} ${s.overflow}`);
+      }
+      return found;
+    });
+    expect(clips, `${width} px: a box that clips the playhead's glow`).toEqual([]);
     await loadStage(page);
     await expect(stage(page).getByTestId('home-stage-scrubber-thumb-0')).toBeVisible();
     await settle(page);
+    const scrubNow = stage(page).locator('[data-part="scrub-now"]');
+    const dots = {
+      dot: [stillDot, await scrubNow.boundingBox()],
+      halo: [haloBefore, await scrubNow.locator('xpath=preceding-sibling::span[1]').boundingBox()],
+    };
+    for (const [part, [still, thumb]] of Object.entries(dots)) {
+      expect(still, `${width} px: no still ${part}`).not.toBeNull();
+      for (const k of ['x', 'y', 'width', 'height'] as const) {
+        expect(
+          Math.abs((thumb?.[k] ?? Number.NaN) - (still?.[k] ?? 0)),
+          `${width} px: ${part} ${k}`,
+        ).toBeLessThanOrEqual(0.5);
+      }
+    }
     const after = await thread.boundingBox();
     await expect(gate, `${width} px: the story's gate, loaded`).toHaveText(/^Heirs · day\s194$/);
     const renamed = await gate.boundingBox();

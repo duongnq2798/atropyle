@@ -1,8 +1,12 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { scrubAxis } from '../../src/flows/time-machine/frame';
+import { beatsOf, STAGE_RUNS } from '../../src/home/sim-days';
 import { HomeStage } from '../../src/home/stage';
 import { stageChunk } from '../../src/home/use-stage';
 import { messages } from '../../src/messages/stage.messages';
+import { courseX, pctX, pctY, waveY } from '../../src/thread/geometry';
+import { THREAD_COLOR, type ThreadState } from '../../src/thread/state';
 import { renderWithProviders } from '../helpers/render';
 
 // impl/stage.ts counts its imports and then loads for real, as in ask-x-layer.test.tsx: a static import of it from
@@ -241,6 +245,33 @@ describe('the stage before its simulator loads', () => {
     vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
     renderWithProviders(<HomeStage />);
     expectOneGateEach();
+  });
+
+  // Fix round 3: the Thread clips its box (overflow: clip), so its own "now" at day 0 was cut in half, glow and all,
+  // until the Scrubber drew a whole dot there. The still thread draws the Scrubber's dot instead, on its track.
+  it('draws the playhead’s dot where the Scrubber’s thumb draws it, outside the Thread’s clip, in every frame', () => {
+    vi.spyOn(stageChunk, 'peek').mockReturnValue(null);
+    renderWithProviders(<HomeStage />);
+    eachStory((story) => {
+      const run = STAGE_RUNS[story as keyof typeof STAGE_RUNS];
+      const axis = scrubAxis(run);
+      beatsOf(run).forEach((b, i) => {
+        fireEvent.click(row(i));
+        const still = screen.getByTestId('home-stage-still');
+        const thread = still.querySelector<HTMLElement>('[data-thread]');
+        expect(thread?.className, `${story}, row ${i}: the Thread's own "now"`).toContain(
+          '[&_[data-part=now-at]]:hidden',
+        );
+        const dots = still.querySelectorAll<HTMLElement>('[data-part="still-now"]');
+        expect(dots.length, `${story}, row ${i}`).toBe(1);
+        const dot = dots[0] as HTMLElement;
+        expect(dot.closest('[data-thread]'), `${story}, row ${i}: inside the clip`).toBeNull();
+        const x = courseX(axis.from + BigInt(b.offset), axis);
+        expect(dot.style.left, `${story}, row ${i}`).toBe(`${pctX(x)}%`);
+        expect(dot.style.top, `${story}, row ${i}`).toBe(`${pctY(waveY(x))}%`);
+        expect(dot.className, `${story}, row ${i}`).toContain(THREAD_COLOR[stage().dataset.state as ThreadState]);
+      });
+    });
   });
 
   it('names the gate at the alarm in Vietnamese too', async () => {

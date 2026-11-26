@@ -97,6 +97,13 @@ const GLOW =
 const STILL_ROOT = 'relative flex w-full items-center [--tm-r:3] @min-[32rem]:[--tm-r:5]';
 const STILL_TRACK = 'relative block min-w-0 grow mx-5.5';
 const STILL_THREAD = 'w-full h-[calc((100cqw_-_2.75rem)/var(--tm-r))]';
+/**
+ * The thumb's dot and glow as scrubber.tsx draws them (size-3 and size-8), on the track rather than in the Thread:
+ * the Thread's box clips (overflow: clip), so its own "now" at day 0 was half a disc until the load (fix round 3).
+ * The Thread's "now" is hidden as in the Scrubber (HIDE_NOW), and the dot stands where the thumb's centre does.
+ */
+const STILL_HIDE_NOW = '[&_[data-part=now-at]]:hidden';
+const STILL_DOT = 'absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 rounded-full';
 /** As in scrubber.tsx: the gate's label stands under the arch's legs. */
 const GATE_FOOT = 21;
 /**
@@ -173,11 +180,12 @@ function GateAt({ gate, axis, at, words }: { gate: Gate | null; axis: ScrubAxis;
 function StillThread({ run, axis, index, at }: { run: StageRun; axis: ScrubAxis; index: number; at: bigint }) {
   const frame = threadFrame(run, axis, index, at, null);
   const rings = momentRings(run, axis);
+  const x = courseX(at, axis);
   return (
     <div data-testid="home-stage-still" className="@container flex min-w-0 flex-col">
       <div className={STILL_ROOT}>
         <div className={STILL_TRACK}>
-          <Thread state={frame.state} axis={frame.axis} className={STILL_THREAD} />
+          <Thread state={frame.state} axis={frame.axis} className={cn(STILL_THREAD, STILL_HIDE_NOW)} />
           <span aria-hidden="true" data-layer="moments" className="pointer-events-none absolute inset-0">
             {rings.map((r) => (
               <span
@@ -191,6 +199,18 @@ function StillThread({ run, axis, index, at }: { run: StageRun; axis: ScrubAxis;
                 style={{ left: `${pctX(r.x)}%`, top: `${pctY(waveY(r.x))}%` }}
               />
             ))}
+          </span>
+          <span
+            aria-hidden="true"
+            data-part="still-now"
+            className={cn('pointer-events-none absolute', THREAD_COLOR[run.moments[index].state])}
+            style={{ left: `${pctX(x)}%`, top: `${pctY(waveY(x))}%` }}
+          >
+            <span
+              data-part="still-halo"
+              className={cn(STILL_DOT, 'size-8 bg-[radial-gradient(closest-side,currentColor,transparent)] opacity-40')}
+            />
+            <span data-part="still-dot" className={cn(STILL_DOT, 'size-3 bg-current')} />
           </span>
         </div>
       </div>
