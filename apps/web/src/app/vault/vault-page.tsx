@@ -29,6 +29,7 @@ import { AssetsList } from './assets-list';
 import { vaultRefetchMs } from './boundary';
 import { GuestView } from './guest';
 import { HistoryThread } from './history-thread';
+import { GuardianPanel, HeirPanel } from './lazy-panels';
 import { betweenReads, forgetBefore, type Moved, movedOf } from './moment';
 import { StandingLine } from './standing-line';
 import { VaultHeader, VaultPlan } from './vault-header';
@@ -53,11 +54,13 @@ const PANEL_ORDER: readonly PanelRole[] = ['owner', 'guardian', 'heir'];
 
 /**
  * One panel per role, a constant of this page (not a registry changed at run time). A role without a panel sees the
- * guest view, with its roles named, and can still poke or distribute like anyone.
+ * guest view, with its roles named, and can still poke or distribute like anyone. The guardian and heir panels load
+ * lazily (lazy-panels.tsx).
  */
 const PANELS: Partial<Record<PanelRole, ComponentType<PanelProps>>> = {
   // owner: OwnerTab — Task 10 (src/app/vault/owner-tab.tsx): the check-in ritual, coverage, edit, revoke, time machine.
-  // guardian: GuardianTab, heir: HeirLetter — Task 11.
+  guardian: GuardianPanel,
+  heir: HeirPanel,
 };
 
 function panelRoles(roles: readonly Role[]): PanelRole[] {
@@ -260,16 +263,26 @@ function VaultScreen({ vault }: { vault: Addr }) {
         refreshing={refresh.busy}
         onRefresh={refresh.run}
       />
-      {panel && active && roles.length > 1 ? (
-        <Tabs
-          testId="vault-roles"
-          label={t('rolesLabel')}
-          value={active}
-          onValueChange={setTab}
-          items={roles.map((r) => ({ value: r, label: l(ROLE_KEY[r]), content: <Panel role={r} {...panel} /> }))}
-        />
-      ) : panel && active ? (
-        <Panel role={active} {...panel} />
+      {panel && active ? (
+        // Focus lands here when the wallet sheet closes on a connection (GuestView's fallback): the guest heading is gone.
+        <section
+          aria-label={t('rolePanelLabel')}
+          data-role-focus=""
+          tabIndex={-1}
+          className="flex flex-col gap-6 focus:outline-none"
+        >
+          {roles.length > 1 ? (
+            <Tabs
+              testId="vault-roles"
+              label={t('rolesLabel')}
+              value={active}
+              onValueChange={setTab}
+              items={roles.map((r) => ({ value: r, label: l(ROLE_KEY[r]), content: <Panel role={r} {...panel} /> }))}
+            />
+          ) : (
+            <Panel role={active} {...panel} />
+          )}
+        </section>
       ) : (
         <GuestView flows={flows} sdk={sdk} loaded={data} view={view} account={account} onChanged={onChanged} />
       )}

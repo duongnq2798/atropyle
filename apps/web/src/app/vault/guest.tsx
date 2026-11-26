@@ -13,6 +13,7 @@ import { Button } from '@/ui/button';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { useWallet } from '@/wallet/provider';
 import { actionFlowChunk, LazyActionFlow } from './lazy-action-flow';
+import { preloadPanels } from './lazy-panels';
 import { TransferTable } from './transfers';
 import type { PanelProps } from './vault-page';
 
@@ -22,7 +23,7 @@ const POKE: VaultAction = { type: 'poke' };
 const DISTRIBUTE: VaultAction = { type: 'distribute' };
 
 /** The poke says what it will do: status.pending is the state it makes. */
-const POKE_KEY = {
+export const POKE_KEY = {
   active: 'pokeEnd',
   grace: 'poke',
   recovery: 'pokeRecovery',
@@ -149,10 +150,11 @@ export function PublicActions({ flows, sdk, loaded, view, account, onChanged, he
   );
 }
 
-/** The wallet sheet, and the signing UI that a connected wallet may need next. */
+/** The wallet sheet, and the signing UI and role panels that a connected wallet may need next. */
 function warm() {
   connectSheet.preload();
   actionFlowChunk.preload();
+  preloadPanels();
 }
 
 /**
@@ -212,7 +214,10 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
             className="self-start"
             onPointerEnter={warm}
             onFocus={warm}
-            onClick={() => openSheet(() => title.current)}
+            onClick={() =>
+              // A wallet with a role swaps this section for its panel: focus then lands on the panel's region.
+              openSheet(() => title.current ?? document.querySelector<HTMLElement>('[data-role-focus]'))
+            }
           >
             {t('guestConnect')}
           </Button>
