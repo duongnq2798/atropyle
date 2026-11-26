@@ -1,6 +1,6 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { setStoredTheme, settle } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes, setStoredTheme, settle } from './helpers.ts';
 import { captureScreens, shouldCapture } from './screens.ts';
 
 /** The layout shift of the page so far, as CLS counts it (rounded as scripts/lib/lighthouse-score.ts rounds it). */
@@ -336,6 +336,236 @@ test('screens of a hovered chip beside the checked one, for the design review', 
       await p
         .getByRole('group', { name: 'Ask the circuit' })
         .screenshot({ path: `test-results/screens/home-hover/${scheme}-en-1440-chips.png` });
+    },
+  });
+});
+
+// ---- 7C T6: the stage (spec §18.4.3 Task 6) ----
+
+const stage = (page: Page) => page.getByTestId('home-stage');
+/** A chip's label on the stage, by its radio's value: language-free, for the Vietnamese screens too. */
+const storyChip = (page: Page, value: 'inherit' | 'recover') =>
+  stage(page).locator('label.stage-chip', { has: page.locator(`input[value="${value}"]`) });
+/**
+ * The stage has hydrated: its controls stay disabled until then (R16), and they are enabled by the render after the
+ * one whose effect attached the intent listeners (useMounted is a useSyncExternalStore; React flushes that effect
+ * before it renders again). Before this, a focus, a click or a wheel can reach a stage that listens for nothing (R30).
+ */
+async function hydrated(page: Page): Promise<void> {
+  await expect(stage(page).locator('input[value="inherit"]')).toBeEnabled();
+}
+/** Focus is intent (R18.18): the stage loads the time machine and the circuits, and computes its six stories. */
+async function loadStage(page: Page): Promise<void> {
+  // locator.focus() has no actionability wait: on a radio still disabled it does nothing, and no focusin comes.
+  const radio = stage(page).locator('input[value="inherit"]');
+  await hydrated(page);
+  await radio.focus();
+  await expect(radio).toBeFocused();
+  await expect(stage(page)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+}
+/**
+ * A box in the page's own coordinates, so a scroll by Playwright before a click cannot pass for a move. The panel is
+ * sticky from 64rem, so the tests that use this first scroll the stage to the top of the viewport: the panel is not
+ * stuck there, and the chips and the switches are in view (R31).
+ */
+function pageBox(target: Locator) {
+  return target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height };
+  });
+}
+type Box = Awaited<ReturnType<typeof pageBox>>;
+const WHOLE = ['x', 'y', 'width', 'height'] as const;
+function expectSameBox(after: Box, before: Box, what: string, keys: readonly (keyof Box)[] = WHOLE): void {
+  for (const k of keys) expect(Math.abs(after[k] - before[k]), `${what}: ${k}`).toBeLessThanOrEqual(0.5);
+}
+
+test('the stage waits for intent: a load, an idle page and a scroll by script load nothing', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await stage(page).evaluate((el) => el.scrollIntoView());
+  // Past the idle callback's 2 s: a stage that loaded at idle, or on a scroll by script, would be ready by now.
+  await page.waitForTimeout(3_000);
+  await expect(stage(page)).toHaveAttribute('data-ready', 'false');
+  await expect(stage(page)).toHaveAttribute('data-engine', 'prerender');
+  await loadStage(page);
+  await expect(stage(page)).toHaveAttribute('data-engine', 'netlist');
+  await expect(stage(page).getByTestId('home-stage-scrubber-thumb-0')).toBeVisible();
+});
+
+test('a wheel arms the stage: once its panel is in view, it loads', async ({ page, state }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // A wheel before hydration arms nothing, and the loop below stops once the panel is in view (R30).
+  await hydrated(page);
+  const panel = stage(page).locator('[data-part="stage"]');
+  // Over the page's margin, never pressing anything.
+  await page.mouse.move(24, 450);
+  await expect(async () => {
+    await page.mouse.wheel(0, 300);
+    await expect(panel).toBeInViewport({ ratio: 0.5, timeout: 250 });
+  }).toPass({ timeout: 15_000 });
+  await expect(stage(page)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+});
+
+test('the Scrubber takes the still thread’s place without moving the page', async ({ page, state }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    await stage(page).evaluate((el) => el.scrollIntoView());
+    await settle(page);
+    const thread = stage(page).locator('[data-thread]');
+    const before = await thread.boundingBox();
+    await loadStage(page);
+    await expect(stage(page).getByTestId('home-stage-scrubber-thumb-0')).toBeVisible();
+    await settle(page);
+    const after = await thread.boundingBox();
+    expect(before, `${width} px: no still thread`).not.toBeNull();
+    for (const k of ['x', 'y', 'width', 'height'] as const) {
+      expect(Math.abs((after?.[k] ?? Number.NaN) - (before?.[k] ?? 0)), `${width} px: ${k}`).toBeLessThanOrEqual(0.5);
+    }
+    expect(await layoutShift(page), `${width} px`).toBe(0);
+  }
+});
+
+test('a chip or a switch retells the story in place: the thread, the panel and the switches never move', async ({
+  page,
+  state,
+}) => {
+  const s = stage(page);
+  const label = (testId: string) => s.locator('label', { has: page.getByTestId(testId) });
+  // From the first story through the five others and back to it, one click a step (§18.2 rule 6, Review Focus 5).
+  const STEPS = [
+    ['confirm switch', () => label('home-stage-confirm'), 'silent'],
+    ['back switch', () => label('home-stage-back'), 'back'],
+    ['confirm switch', () => label('home-stage-confirm'), 'confirmBack'],
+    ['Recovery chip', () => storyChip(page, 'recover'), 'recoverBack'],
+    ['back switch', () => label('home-stage-back'), 'recover'],
+    ['Inheritance chip', () => storyChip(page, 'inherit'), 'confirm'],
+  ] as const;
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    // The controls in view, so no click scrolls; the panel (sticky from 64rem) is not stuck here.
+    await s.evaluate((el) => el.scrollIntoView());
+    await loadStage(page);
+    await settle(page);
+    const thread = s.locator('[data-thread]');
+    const panel = s.locator('[data-part="stage"]');
+    const before = {
+      thread: await pageBox(thread),
+      panel: await pageBox(panel),
+      confirm: await pageBox(label('home-stage-confirm')),
+      back: await pageBox(label('home-stage-back')),
+    };
+    for (const [what, control, story] of STEPS) {
+      await control().click();
+      await expect(s, `${width} px, ${what}`).toHaveAttribute('data-story', story);
+      // The Scrubber is keyed by the story: this is its new mount.
+      await expect(s.getByTestId('home-stage-scrubber-thumb-0')).toBeVisible();
+      await settle(page);
+      const at = `${width} px, ${what} → ${story}`;
+      expectSameBox(await pageBox(thread), before.thread, `${at}: thread`);
+      // The frame's sentence under the thread may wrap to one more line: the panel's height is free, its place is not.
+      expectSameBox(await pageBox(panel), before.panel, `${at}: panel`, ['x', 'y', 'width']);
+      // Under Recovery the confirm switch is dimmed in its place (R25), so neither switch moves.
+      expectSameBox(await pageBox(label('home-stage-confirm')), before.confirm, `${at}: confirm switch`);
+      expectSameBox(await pageBox(label('home-stage-back')), before.back, `${at}: back switch`);
+    }
+    // A shift within 500 ms of a click is not counted here (hadRecentInput): the boxes above are the check (R31).
+    expect(await layoutShift(page), `${width} px`).toBe(0);
+  }
+});
+
+test('the thumb walks the stories on the keyboard, and the switches retell them', async ({ page, state }) => {
+  await page.goto(state.siteUrl);
+  await loadStage(page);
+  const s = stage(page);
+  const caption = s.getByTestId('home-stage-caption');
+  const thumb = s.getByTestId('home-stage-scrubber-thumb-0');
+  await thumb.focus();
+  await page.keyboard.press('PageUp');
+  await expect(s).toHaveAttribute('data-state', 'grace');
+  await expect(caption).toContainText('Day 180 · Silence. The alarm');
+  await page.keyboard.press('End');
+  await expect(s).toHaveAttribute('data-state', 'releasedInherit');
+  await expect(caption).toContainText('Day 194 · Through the gate');
+  await s.getByText('A guardian confirms on day 183').click();
+  await expect(s).toHaveAttribute('data-story', 'silent');
+  await thumb.focus();
+  await page.keyboard.press('End');
+  await expect(caption).toContainText('Day 450 · Through the gate');
+  await s.getByText('I come back on day 187').click();
+  await expect(s).toHaveAttribute('data-story', 'back');
+  await storyChip(page, 'recover').click();
+  await expect(s).toHaveAttribute('data-story', 'recoverBack');
+  await expect(s.getByTestId('home-stage-confirm')).toBeDisabled();
+  await s.getByText('I come back on day 20').click();
+  await expect(s).toHaveAttribute('data-story', 'recover');
+  await thumb.focus();
+  await page.keyboard.press('End');
+  await expect(s).toHaveAttribute('data-state', 'releasedRecover');
+  await expect(caption).toContainText('Day 26 · To the wallet they chose');
+  await expectAccessible(page);
+});
+
+test('without its simulator the stage still tells every story, says so, and tries again', async ({ page, state }) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await settle(page);
+  // From here every chunk fails, as offline: the first load has all of its own.
+  await page.route('**/_next/static/chunks/**', (r) => r.abort());
+  const s = stage(page);
+  await s.getByTestId('home-stage-beat-2').click();
+  await expect(s).toHaveAttribute('data-state', 'grace');
+  await expect(s).toHaveAttribute('data-ready', 'error', { timeout: 20_000 });
+  await expect(s.getByTestId('home-stage-footer')).toContainText('could not load the simulator');
+  // The still thread retells a story in place too (Review Focus 5). The row's click may have scrolled the page:
+  // back to the stage's top, where the chips are in view and the panel is not stuck.
+  await s.evaluate((el) => el.scrollIntoView());
+  const still = await pageBox(s.locator('[data-thread]'));
+  await storyChip(page, 'recover').click();
+  await expect(s).toHaveAttribute('data-story', 'recover');
+  expectSameBox(await pageBox(s.locator('[data-thread]')), still, 'the still thread under Recovery');
+  await page.unroute('**/_next/static/chunks/**');
+  await s.getByRole('button', { name: 'Try again' }).click();
+  await expect(s).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+});
+
+test('the stage passes axe in both themes, before and after it loads', async ({ page, state }) => {
+  await page.goto(state.siteUrl);
+  await expectAccessibleInBothThemes(page, stage(page));
+  await loadStage(page);
+  await expectAccessible(page);
+});
+
+test('screens of the stage, for the design review', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
+  test.setTimeout(300_000);
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // The first paint: the prerendered story at day 0, nothing loaded.
+  await captureScreens(page, 'home-stage');
+  // The alarm on day 180 on the Scrubber: a pressed row is intent.
+  await captureScreens(page, 'home-stage-alarm', {
+    ready: async (p) => {
+      await stage(p).getByTestId('home-stage-beat-2').click();
+      await expect(stage(p)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+    },
+  });
+  // Recovery stopped by the owner on day 20.
+  await captureScreens(page, 'home-stage-recover', {
+    ready: async (p) => {
+      await storyChip(p, 'recover').click();
+      const back = stage(p).getByTestId('home-stage-back');
+      if (!(await back.isChecked())) await stage(p).locator('label', { has: back }).click();
+      await stage(p).getByTestId('home-stage-beat-3').click();
+      await expect(stage(p)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+      await expect(stage(p)).toHaveAttribute('data-day', String(20));
     },
   });
 });

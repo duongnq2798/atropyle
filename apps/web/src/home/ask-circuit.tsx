@@ -11,19 +11,10 @@ import { NavLink } from '@/shell/nav-link';
 import { ASKABLE, AskXLayer } from './ask-x-layer';
 import { caseOf, HERO_CASES, type HeroCase, LETTER } from './hero-cases';
 import { CIRCUIT, RELEASE } from './hero-circuit';
-import { ARROW, DOOR } from './look';
+import { ARROW, CHIP_FACE, DOOR } from './look';
 
 const CHIP_KEY = { alive: 'askAlive', silent: 'askSilent', liar: 'askLiar' } as const;
 const ANSWER_KEY = { alive: 'answerAlive', silent: 'answerSilent', liar: 'answerLiar' } as const;
-/**
- * The chip is the span after its radio. Its states (the ring, checked, hover, focus) are in globals.css, beside the
- * rules that light the wires for the same radio: written once there, not three times in the HTML and again in its
- * payload. The ring's width comes out of the padding (pl-3 pr-3.5): the three English chips still share one row of
- * the 644 px text column (634.8 px).
- */
-const CHIP =
-  'inline-flex min-h-10 cursor-pointer select-none items-center text-balance rounded-full border border-line-strong ' +
-  'py-2 pr-3.5 pl-3 text-ink-muted text-small transition-colors duration-150';
 
 /**
  * Ask the circuit (spec §18.4.3 Task 5′): three native radios. CSS (globals.css) lights the wires that carry 1 for
@@ -66,7 +57,7 @@ export function AskCircuit({
                 onChange={() => onChoice(c)}
                 className="sr-only"
               />
-              <span className={CHIP}>{t(CHIP_KEY[c])}</span>
+              <span className={CHIP_FACE}>{t(CHIP_KEY[c])}</span>
             </label>
           ))}
         </div>

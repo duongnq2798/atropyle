@@ -33,8 +33,20 @@ const DATA = [
   THREAD.join(','),
   WIRE_V.slice(0, 48).join(','),
 ];
-/** gzip of index.html after 7C-T4 round 1 (7C-T4-report.md, F1): Task 5′ may add 4 000 B at most (R26). */
-const T4_GZIP = { vercel: 12_519, deweb: 12_216 } as const;
+/** gzip of index.html after the merge of 7B T5 into 7C (7C-T6-report.md, Step 0): the baseline of Task 6. */
+const MERGE_GZIP = { vercel: 15_936, deweb: 15_465 } as const;
+/**
+ * Task 6's stage: its HTML (about 3 kB gzip), and the weave's second copy (Next's payload), which the stage pushes
+ * past gzip's 32 KB window from its first copy, so it no longer compresses against it (about 3.3 kB; ruling R18 of
+ * 7C-T6).
+ */
+const T6_GZIP = 7_000;
+/** The hero's section, from its <section> to its </section>: the stage below it has radios of its own. */
+const hero = (page: string) => {
+  const at = page.indexOf('<section class="hero');
+  expect(at).toBeGreaterThanOrEqual(0);
+  return page.slice(at, page.indexOf('</section>', at));
+};
 
 for (const target of ['vercel', 'deweb'] as const) {
   describe(`${target} home`, () => {
@@ -69,13 +81,18 @@ for (const target of ['vercel', 'deweb'] as const) {
       // The weave's CSS is in globals.css: still one render-blocking stylesheet.
       expect(page.match(/<link[^>]*rel="stylesheet"/g)).toHaveLength(1);
       const gz = gzipSync(page).length;
-      console.info(`${target} index.html: ${page.length} B, ${gz} B gzip (7C-T4: ${T4_GZIP[target]} B)`);
-      expect(gz).toBeLessThanOrEqual(T4_GZIP[target] + 4_000);
+      const first = page.indexOf(MARKER);
+      const apart = page.indexOf(MARKER, first + 1) - first;
+      console.info(
+        `${target} index.html: ${page.length} B, ${gz} B gzip (merge ${MERGE_GZIP[target]} B, +${gz - MERGE_GZIP[target]}); ` +
+          `the weave's two copies ${apart} B apart (gzip reaches 32 768 B back)`,
+      );
+      expect(gz).toBeLessThanOrEqual(MERGE_GZIP[target] + T6_GZIP);
     });
 
     it('asks the circuit without JavaScript: three native radios, three answers, the wires split by value', () => {
       const page = html();
-      const radios = [...page.matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((m) => m[0]);
+      const radios = [...hero(page).matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((m) => m[0]);
       expect(radios.map((r) => /value="([a-z])"/.exec(r)?.[1])).toEqual(['a', 's', 'l']);
       expect(radios.map((r) => /\schecked=""/.test(r))).toEqual([true, false, false]);
       expect(page.match(/data-for="[asl]"/g)).toHaveLength(3);
@@ -107,6 +124,32 @@ for (const target of ['vercel', 'deweb'] as const) {
         expect(strip).not.toContain(factory);
         expect(strip).toContain('data-external="pending"');
       }
+    });
+
+    it('prerenders the stage: the default story, dated, with its controls inert until the page runs', () => {
+      const page = html();
+      const at = page.indexOf('data-testid="home-stage"');
+      expect(at).toBeGreaterThan(0);
+      const stage = page.slice(page.lastIndexOf('<section', at), page.indexOf('</section>', at));
+      expect(stage).toContain('data-engine="prerender"');
+      expect(stage).toContain('data-story="confirm"');
+      const text = textOf(stage);
+      for (const stamp of [
+        'Day 0 · You make a vault',
+        'Day 0 · Your first check-in',
+        'Days 1–179 · No check-in comes',
+        'Day 180 · Silence. The alarm',
+        'Day 183 · A guardian confirms',
+        'Day 194 · Through the gate',
+      ]) {
+        expect(text.replaceAll(' ', ' ')).toContain(stamp);
+      }
+      const inputs = [...stage.matchAll(/<input[^>]*>/g)].map((m) => m[0]);
+      expect(inputs).toHaveLength(4);
+      for (const input of inputs) expect(input).toMatch(/\sdisabled=""/);
+      expect(stage.match(/<button[^>]*\sdisabled=""/g)).toHaveLength(5);
+      // Ruling R2: the stage's code is in the first load, its simulator is not.
+      expect(stage).not.toContain('data-testid="home-stage-scrubber');
     });
   });
 }

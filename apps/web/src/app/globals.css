@@ -567,7 +567,8 @@
    browser. Every face has a ring, so the choice reads by shape as well as by hue (§4.1): only the checked chip fills
    it and wears the thread, border and tint, like the answer's ring and the release pin. Hover lightens an unchecked
    chip and never borrows the thread, so the mouse never seems to give a second answer (fix round 2 of 7C-T5′). */
-.ask-chip > span::before {
+.ask-chip > span::before,
+.stage-chip > span::before {
   content: "";
   flex-shrink: 0;
   width: 0.5rem;
@@ -576,31 +577,75 @@
   border: 1.5px solid currentColor;
   border-radius: 9999px;
 }
-.ask-chip > :checked + span {
+.ask-chip > :checked + span,
+.stage-chip > :checked + span {
   border-color: var(--atro-thread);
   background-color: color-mix(in oklab, var(--atro-thread) 12%, transparent);
   color: var(--atro-ink);
 }
-.ask-chip > :checked + span::before {
+.ask-chip > :checked + span::before,
+.stage-chip > :checked + span::before {
   border-color: var(--atro-thread);
   background-color: var(--atro-thread);
 }
 @media (hover: hover) {
-  .ask-chip > :not(:checked) + span:hover {
+  .ask-chip > :not(:checked) + span:hover,
+  .stage-chip > :not(:checked):not(:disabled) + span:hover {
     border-color: var(--atro-ink-muted);
     color: var(--atro-ink);
   }
 }
-.ask-chip > :focus-visible + span {
+.ask-chip > :focus-visible + span,
+.stage-chip > :focus-visible + span {
   outline: 2px solid var(--atro-thread);
   outline-offset: 2px;
 }
 /* High contrast drops the tint and the fill, so the filled ring is drawn in the system's ink. */
 @media (forced-colors: active) {
-  .ask-chip > :checked + span::before {
+  .ask-chip > :checked + span::before,
+  .stage-chip > :checked + span::before {
     forced-color-adjust: none;
     border-color: CanvasText;
     background-color: CanvasText;
+  }
+}
+/* The stage's chips (src/home/stage.tsx) are disabled until the page runs; they keep the face they will have, so the
+   first paint is the final layout (§18.2, 6). */
+.stage-chip > :disabled + span {
+  cursor: default;
+}
+/* The stage's dated rows (src/home/stage.tsx), written once here and not in each row's classes (as R-T5p-12): a row
+   the playhead has not reached reads in the muted ink, the current one sits on the raised surface. */
+.stage-beat {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  color: var(--atro-ink);
+}
+.stage-beat[data-ahead] {
+  color: var(--atro-ink-muted);
+}
+.stage-beat[aria-current="step"] {
+  background-color: var(--atro-surface-2);
+}
+@media (hover: hover) {
+  .stage-beat:not(:disabled):hover {
+    background-color: var(--atro-surface-2);
+  }
+}
+.stage-beat:focus-visible {
+  outline: 2px solid var(--atro-thread);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stage-beat {
+    transition:
+      background-color 150ms,
+      color 150ms;
   }
 }
 .hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],

@@ -23,6 +23,11 @@ import { outOf } from './paths';
  * - The calls of "Ask X Layer": the selector of step(uint256,bytes,bytes), with which every calldata of
  *   src/home/impl/ask-calls.ts starts. Only that generated module carries it: viem computes selectors at run time.
  *   It loads on intent (R18.18, R18.19).
+ * - The circuits: the error of buildAll's resolver for a processor it does not know, `unknown cpu ${cpu}`
+ *   (circuits/src/policy.ts), a template literal the minifier keeps. The home stage loads them on intent (7C T6).
+ * - The time machine (7B T5): NEW_WALLET of its scenario logic, `0x${'7e'.repeat(20)}` (src/flows/impl/time-machine.ts),
+ *   in either form a minifier leaves, and Radix Slider's `"SliderThumb"` (@radix-ui/react-slider), which only the
+ *   Scrubber carries. The home stage loads both on intent (R18.18), the vault page and the wizard when they show it.
  * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
  * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
  * or a tooltip, or read the chain, from its first paint, inside its 240 kB. /proof/ is held to the same, ruling R17 of
@@ -44,6 +49,11 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   },
   viem: { markers: [/["'`]viem@/], pages: 'shell' },
   'the SDK': { markers: [/["'`]Run again with --verbose and report the output\.["'`]/], pages: 'shell' },
+  'the circuits': { markers: [/unknown cpu \$\{/], pages: 'shell' },
+  'the time machine': {
+    markers: [/["'`]7e["'`]\.repeat\(20\)|0x(?:7e){20}/i, /["'`]SliderThumb["'`]/],
+    pages: 'shell',
+  },
   'the Ask X Layer calls': { markers: [/["'`]0xe8281a1a/], pages: 'shell' },
 };
 

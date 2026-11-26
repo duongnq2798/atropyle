@@ -43,7 +43,10 @@ async function expectFrame(page: Page): Promise<void> {
   await expectSeen(footer.locator('a[href="/verify/"]'));
 }
 
-/** `/`: the question, the two ways in (rehearse it, see the proof), and the three facts with the door for heirs. */
+/**
+ * `/`: the question, the two ways in (rehearse it, see the proof), the three facts with the door for heirs, and the
+ * stage.
+ */
 async function expectHome(page: Page): Promise<void> {
   await expectSeen(page.getByRole('heading', { level: 1 }));
   const main = page.getByRole('main');
@@ -64,6 +67,16 @@ async function expectHome(page: Page): Promise<void> {
   await expectSeen(main.locator('.ask-answer [data-for="s"]'));
   await expect(main.locator('.ask-answer [data-for="a"]')).toBeHidden();
   await expect.poll(() => silentOnly.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(unlit);
+  // The stage without JavaScript (7C T6): the default story, prerendered and dated, with its controls inert.
+  const stage = main.getByTestId('home-stage');
+  await expectSeen(stage.getByRole('heading', { level: 2, name: 'Every day, decided by the circuit' }));
+  await expect(stage).toHaveAttribute('data-engine', 'prerender');
+  await expectSeen(stage.getByTestId('home-stage-caption').getByText('Day 0 · Your first check-in'));
+  for (const row of ['Day 180 · Silence. The alarm', 'Day 194 · Through the gate']) {
+    await expectSeen(stage.getByTestId('home-stage-beats').getByText(row));
+  }
+  await expect(stage.locator('input[value="recover"]')).toBeDisabled();
+  await expect(stage.getByTestId('home-stage-beat-0')).toBeDisabled();
 }
 
 /** `/proof/`: the question, the empty map and its key, the seal's source row, the command, and every limit. */
