@@ -327,7 +327,11 @@ export function IntegrityChecks({ report: r }: { report: IntegrityReport }) {
           {r.ok ? t('integrityOk') : t('integrityBad')}
         </span>
         <span className="voice-ledger text-caption text-ink-muted">
-          {t('integrityAt', { block: formatCount(r.blockNumber, lang), rpcs: r.rpcs })}{' '}
+          {/* Cross-check is off by default, so one operator is the common case: said in the singular. */}
+          {t(r.rpcs === 1 ? 'integrityAtOne' : 'integrityAt', {
+            block: formatCount(r.blockNumber, lang),
+            rpcs: r.rpcs,
+          })}{' '}
           {t('integrityCount', { ok: r.checks.filter((c) => c.ok).length, all: r.checks.length })}
         </span>
       </p>
@@ -481,11 +485,47 @@ function Nodes({ probes, onRecheck }: { probes: UseQueryResult<RpcProbe[]>; onRe
   );
 }
 
-function HealthList({ rows }: { rows: readonly HealthRow[] }) {
+/**
+ * A sentence with its numbers in the ledger voice: each {param} of the template becomes a mono span, keyed by where it
+ * ends in the sentence. A name with no value stays as written.
+ */
+function ledgered(template: string, params: Params): ReactNode {
+  let end = 0;
+  return template.split(/\{(\w+)\}/).map((p, i) => {
+    if (i % 2 === 0) {
+      end += p.length;
+      return p;
+    }
+    const v = p in params ? String(params[p]) : `{${p}}`;
+    end += v.length + 1;
+    return (
+      <span key={end} className="voice-ledger">
+        {v}
+      </span>
+    );
+  });
+}
+
+/** The verdict of a row, as the check and glance rows give it: a word, with a dot in its tone that a reader skips. */
+function Verdict({ tone }: { tone: HealthTone }) {
+  const t = useT(status);
+  return (
+    <span
+      data-health-verdict
+      className={cn('inline-flex shrink-0 items-center gap-1.5 font-medium text-small', TONE_CLASS[tone])}
+    >
+      <span aria-hidden="true" className="size-2 rounded-full bg-current" />
+      {t(TONE_KEY[tone])}
+    </span>
+  );
+}
+
+/** The backend's reports in the rows of the check list: the title and its detail on the left, the verdict on the right. */
+export function HealthList({ rows }: { rows: readonly HealthRow[] }) {
   const t = useT(status);
   const { lang } = useLang();
   return (
-    <ul className="flex flex-col gap-3">
+    <ul data-testid="status-health" className="flex flex-col divide-y divide-line">
       {rows.map((r) => {
         const p: Params = {};
         if (r.ageSec !== null) p.age = formatAge(r.ageSec, lang);
@@ -493,16 +533,41 @@ function HealthList({ rows }: { rows: readonly HealthRow[] }) {
         if (r.lag !== null) p.lag = formatCount(r.lag, lang);
         if (r.okb !== null) p.okb = r.okb;
         return (
-          <li key={r.id} data-testid={`status-health-${r.id}`} data-tone={r.tone} className="flex flex-col gap-1">
-            <span className="flex items-center gap-2">
+          <li
+            key={r.id}
+            data-testid={`status-health-${r.id}`}
+            data-tone={r.tone}
+            className="flex min-w-0 items-start justify-between gap-4 py-3"
+          >
+            <span className="flex min-w-0 flex-col gap-1">
               <span className="font-medium">{t(HEALTH_TITLE[r.id])}</span>
-              <span className={cn('text-small', TONE_CLASS[r.tone])}>{t(TONE_KEY[r.tone])}</span>
+              <span className="text-pretty text-ink-muted text-small">{ledgered(t(r.text), p)}</span>
             </span>
-            <span className="text-ink-muted text-small">{t(r.text, p)}</span>
+            <Verdict tone={r.tone} />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** The backend's three rows while it is asked, in the shape HealthList will draw them. */
+export function HealthSkeleton() {
+  return (
+    <>
+      <Checking />
+      <ul data-testid="status-health-skeleton" aria-hidden="true" className="flex flex-col divide-y divide-line">
+        {(['indexer', 'integrity', 'keeper'] as const).map((k) => (
+          <li key={k} className="flex min-w-0 items-start justify-between gap-4 py-3">
+            <span className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-4 w-[min(18rem,60%)]" />
+              <Skeleton className="h-3 w-40 max-w-full" />
+            </span>
+            <Skeleton className="h-4 w-10 shrink-0" />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -576,7 +641,7 @@ export function StatusPage() {
   else if (rows) backend = <HealthList rows={rows} />;
   else if (health.isError) backend = <ErrorBox error={health.error} onRetry={() => void health.refetch()} />;
   else if (health.fetchStatus === 'idle') backend = <p data-testid="status-backend-none">{t('backendNone')}</p>;
-  else backend = <Spinner label={t('loading')} />;
+  else backend = <HealthSkeleton />;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-12 sm:px-6">

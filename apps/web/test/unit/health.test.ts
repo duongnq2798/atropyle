@@ -38,6 +38,11 @@ describe('backend health', () => {
     );
   });
 
+  it('says one block behind as one block, never "1 blocks"', () => {
+    expect(tones({ ...GOOD, indexer: { ...GOOD.indexer, lagBlocks: 1 } })[0]).toBe('indexer ok indexerFreshOne');
+    expect(tones({ ...GOOD, indexer: { ...GOOD.indexer, lagBlocks: 0 } })[0]).toBe('indexer ok indexerFresh');
+  });
+
   it('formats gas and ages for people', () => {
     expect(okbText(1_234_567_000_000_000_000n)).toBe('1.2345');
     expect(formatAge(45, 'en')).toBe('45 seconds');

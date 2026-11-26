@@ -12,6 +12,7 @@ export type HealthId = 'indexer' | 'integrity' | 'keeper';
 export type HealthTone = 'ok' | 'warn' | 'bad' | 'unknown';
 export type HealthText =
   | 'indexerFresh'
+  | 'indexerFreshOne'
   | 'indexerStale'
   | 'indexerLagging'
   | 'integrityFresh'
@@ -88,7 +89,8 @@ export function healthRows(h: HealthResponse, nowMs: number): HealthRow[] {
     const base = { id: 'indexer' as const, ageSec: ia, block: h.indexer.block, lag: h.indexer.lagBlocks, okb: null };
     if (ia > INDEXER_STALE_SEC) rows.push({ ...base, tone: 'warn', text: 'indexerStale' });
     else if (h.indexer.lagBlocks > INDEXER_LAG_BLOCKS) rows.push({ ...base, tone: 'warn', text: 'indexerLagging' });
-    else rows.push({ ...base, tone: 'ok', text: 'indexerFresh' });
+    // One block behind is said in the singular, never "1 blocks".
+    else rows.push({ ...base, tone: 'ok', text: h.indexer.lagBlocks === 1 ? 'indexerFreshOne' : 'indexerFresh' });
   }
 
   const ig = h.integrity;

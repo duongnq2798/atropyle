@@ -32,4 +32,16 @@ describe('the integrity checks on /status/', () => {
     const odd = container.querySelector(`[data-name="factory.evil${RLO}txt.exe"]`);
     expect(odd?.getAttribute('data-label')).toBe('false');
   });
+
+  it('names one node operator in the singular, in both languages', () => {
+    const one = renderWithProviders(<IntegrityChecks report={{ ...REPORT, rpcs: 1 }} />);
+    expect(one.container.textContent).toContain('through one node operator.');
+    expect(one.container.textContent).not.toContain('1 node operators');
+    one.unmount();
+    const vi = renderWithProviders(<IntegrityChecks report={{ ...REPORT, rpcs: 1 }} />, { lang: 'vi' });
+    expect(vi.container.textContent).toContain('qua một nhà vận hành node.');
+    vi.unmount();
+    const two = renderWithProviders(<IntegrityChecks report={REPORT} />);
+    expect(two.container.textContent).toContain('through 2 node operators.');
+  });
 });
