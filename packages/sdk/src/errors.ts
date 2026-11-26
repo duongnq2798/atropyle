@@ -116,20 +116,20 @@ export const ERROR_INFO = {
     hint: 'Retry later, or accept a single operator explicitly with --single-rpc.',
   },
   POLICY_MISMATCH: {
-    message: 'The on-chain policy does not match the audited source.',
-    hint: 'Do not use this deployment. Report it through SECURITY.md.',
+    message: 'The on-chain policy does not match the published source.',
+    hint: 'Do not use this deployment. Report it as https://github.com/duongnq2798/atropyle/blob/main/SECURITY.md says.',
   },
   POLICY_UNAVAILABLE: {
     message: 'The policy netlist is not available on this chain.',
-    hint: 'The local devnet uses a mock CPU without a netlist. Use `npm run devnet:fork` or mainnet to verify.',
+    hint: 'The local devnet uses a mock CPU without a netlist. Verify on X Layer mainnet, or on a fork devnet from the Atropyle repository.',
   },
   DEPLOYMENT_MISSING: {
     message: 'There is no Atropyle deployment for this chain yet.',
-    hint: 'Use chain "local" with `npm run devnet`, or pass a Deployment object.',
+    hint: 'Use chain "xlayer" (X Layer mainnet), chain "local" with a devnet started from the Atropyle repository, or pass a Deployment object.',
   },
   DEPLOYMENT_INVALID: {
     message: 'The deployment description is malformed.',
-    hint: 'Regenerate it with the scripts in scripts/.',
+    hint: 'Check the file against the deployment JSON format in the Atropyle repository, or drop --deployment to use X Layer mainnet.',
   },
   PLAN_INVALID: { message: 'The plan is invalid.', hint: 'Fix the listed issues; each has a path and a code.' },
   INVALID_ADDRESS: {
