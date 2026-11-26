@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { VERSION } from '@atropyle/sdk';
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 
@@ -97,10 +98,27 @@ async function expectProof(page: Page): Promise<void> {
   await expectSeen(main.getByTestId('proof-limits-close'));
 }
 
+/** `/developers/`: the pinned commands, the published line and the contracts, all prerendered (ruling T10-R6). */
+async function expectDevelopers(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1 }));
+  const main = page.getByRole('main');
+  await expectSeen(main.getByTestId('dev-published'));
+  await expectSeen(main.getByText(`npx -y atropyle@${VERSION} verify`));
+  await expectSeen(main.getByTestId('dev-contract-factory'));
+}
+
+/** `/privacy/`: every claim reads without JavaScript. */
+async function expectPrivacy(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'Privacy' }));
+  await expectSeen(page.getByRole('main').getByText('A sign-up you do not confirm within 48 hours is deleted.'));
+}
+
 /** Every page that must read without JavaScript. Plan 7B Task 12 adds 'verify/'. */
 const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [
   { path: '', content: expectHome },
   { path: 'proof/', content: expectProof },
+  { path: 'developers/', content: expectDevelopers },
+  { path: 'privacy/', content: expectPrivacy },
 ];
 if (PAGES.length === 0) throw new Error('nojs.spec.ts checks no page');
 

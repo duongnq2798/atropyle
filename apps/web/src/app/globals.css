@@ -762,3 +762,15 @@
   opacity: var(--weave-over, 1);
   mask-image: linear-gradient(to bottom, #000 0.12em, transparent 0.12em);
 }
+
+/* 7C T10 (ruling T10-R8): when the 404 page offers a page or a vault, that offer leads and the way home steps back to
+   a ghost button. Unlayered, so it beats the button's utilities, as .stage-chip does. */
+.nf:has([data-nf-suggest]) .nf-home {
+  background-color: transparent;
+  color: var(--atro-ink-muted);
+  box-shadow: none;
+}
+.nf:has([data-nf-suggest]) .nf-home:hover {
+  background-color: var(--atro-surface-2);
+  color: var(--atro-ink);
+}

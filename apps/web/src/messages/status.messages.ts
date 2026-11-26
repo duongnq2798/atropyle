@@ -16,6 +16,7 @@ export const messages = defineMessages(
     ctStablecoins: 'Stablecoins protected',
     outside: '{n} outside the team',
     atLeast: '{n} or more',
+    orMore: 'or more',
     asOf: 'Read from the factory and vault contracts at block {block}, {time}.',
     partial:
       'Released vaults and stablecoins count the {read} of {all} vaults this page read. Count from the events below to read them all.',
@@ -24,16 +25,17 @@ export const messages = defineMessages(
     teamPartial:
       'The team’s vault list was too long to read to its end, so the counts outside the team may be too high.',
     defTitle: 'How each number is counted',
+    defTeamTerm: 'Outside the team',
     defVaults:
-      'Vaults: every vault the factory created, free Drills included, read as the factory’s account nonce minus one. A contract’s nonce starts at 1 and grows by one for each contract it creates, and the factory creates only vaults. Exact.',
-    defDrills: 'Drills: free practice vaults, the vaults above minus the paid ones. Exact.',
-    defPaid: 'Paid vaults: factory.paidCount(), the vaults that paid the creation fee. Exact.',
+      'Every vault the factory created, free Drills included, read as the factory’s account nonce minus one. A contract’s nonce starts at 1 and grows by one for each contract it creates, and the factory creates only vaults. Exact.',
+    defDrills: 'Free practice vaults: the vaults above minus the paid ones. Exact.',
+    defPaid: 'factory.paidCount(): the vaults that paid the creation fee. Exact.',
     defReleases:
-      'Released vaults: vaults whose policy has released them, to the heirs or to a recovery wallet, Drills included. This is the vault’s state: the sweep that pays out (distribute) leaves nothing a view function can read, so a released vault counts whether or not its sweep has run.',
+      'Vaults whose policy has released them, to the heirs or to a recovery wallet, Drills included. This is the vault’s state: the sweep that pays out (distribute) leaves nothing a view function can read, so a released vault counts whether or not its sweep has run.',
     defStablecoins:
-      'Stablecoins protected: what live paid vaults could move right now (the smaller of the owner’s balance and allowance) in the fee stablecoins, at face value, counted once per owner and token.',
-    defTeam: 'Outside the team: vaults whose owner is not one of the {n} addresses in deployments/team.json.',
-    defTeamNone: 'Outside the team: this network lists no team addresses, so every vault counts as outside the team.',
+      'What live paid vaults could move right now (the smaller of the owner’s balance and allowance) in the fee stablecoins, at face value, counted once per owner and token.',
+    defTeam: 'Vaults whose owner is not one of the {n} addresses in deployments/team.json.',
+    defTeamNone: 'This network lists no team addresses, so every vault counts as outside the team.',
     // Event count (7A useStats)
     statsTitle: 'Counted from the events',
     statsLead:
@@ -144,6 +146,7 @@ export const messages = defineMessages(
     ctStablecoins: 'Stablecoin được bảo vệ',
     outside: '{n} ngoài đội ngũ',
     atLeast: '{n} trở lên',
+    orMore: 'trở lên',
     asOf: 'Đọc từ hợp đồng factory và vault ở block {block}, {time}.',
     partial:
       'Vault đã tới lượt trao và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc. Đếm từ các sự kiện ở bên dưới để đọc hết.',
@@ -151,16 +154,17 @@ export const messages = defineMessages(
       'Vault đã tới lượt trao và stablecoin chỉ tính trên {read} trong {all} vault mà trang này đã đọc: trang chỉ đọc tối đa {max} vault, nên số thực có thể cao hơn.',
     teamPartial: 'Danh sách vault của đội ngũ quá dài để đọc hết, nên số ngoài đội ngũ có thể cao hơn thực tế.',
     defTitle: 'Cách đếm từng con số',
+    defTeamTerm: 'Ngoài đội ngũ',
     defVaults:
-      'Vault: mọi vault mà factory đã tạo, gồm cả Drill miễn phí, đọc bằng nonce tài khoản của factory trừ một. Nonce của một hợp đồng bắt đầu từ 1 và tăng một cho mỗi hợp đồng nó tạo, và factory chỉ tạo vault. Chính xác.',
-    defDrills: 'Drill: vault tập miễn phí, bằng số vault ở trên trừ số vault trả phí. Chính xác.',
-    defPaid: 'Vault trả phí: factory.paidCount(), các vault đã trả phí tạo. Chính xác.',
+      'Mọi vault mà factory đã tạo, gồm cả Drill miễn phí, đọc bằng nonce tài khoản của factory trừ một. Nonce của một hợp đồng bắt đầu từ 1 và tăng một cho mỗi hợp đồng nó tạo, và factory chỉ tạo vault. Chính xác.',
+    defDrills: 'Vault tập miễn phí: bằng số vault ở trên trừ số vault trả phí. Chính xác.',
+    defPaid: 'factory.paidCount(): các vault đã trả phí tạo. Chính xác.',
     defReleases:
-      'Vault đã tới lượt trao: các vault mà policy đã mở để trao cho người thừa kế hoặc sang ví khôi phục, có tính cả Drill. Đây là trạng thái của vault: bước chuyển tài sản (distribute) không để lại gì mà hàm view đọc được, nên vault vẫn được tính dù bước chuyển đã chạy hay chưa.',
+      'Các vault mà policy đã mở để trao cho người thừa kế hoặc sang ví khôi phục, có tính cả Drill. Đây là trạng thái của vault: bước chuyển tài sản (distribute) không để lại gì mà hàm view đọc được, nên vault vẫn được tính dù bước chuyển đã chạy hay chưa.',
     defStablecoins:
-      'Stablecoin được bảo vệ: số mà các vault trả phí còn hiệu lực có thể chuyển ngay lúc này (phần nhỏ hơn giữa số dư và hạn mức cho phép của chủ vault), bằng các stablecoin dùng trả phí, theo mệnh giá, mỗi chủ và mỗi token tính một lần.',
-    defTeam: 'Ngoài đội ngũ: các vault có chủ không thuộc {n} địa chỉ trong deployments/team.json.',
-    defTeamNone: 'Ngoài đội ngũ: mạng này không có địa chỉ đội ngũ nào, nên mọi vault đều tính là ngoài đội ngũ.',
+      'Số mà các vault trả phí còn hiệu lực có thể chuyển ngay lúc này (phần nhỏ hơn giữa số dư và hạn mức cho phép của chủ vault), bằng các stablecoin dùng trả phí, theo mệnh giá, mỗi chủ và mỗi token tính một lần.',
+    defTeam: 'Các vault có chủ không thuộc {n} địa chỉ trong deployments/team.json.',
+    defTeamNone: 'Mạng này không có địa chỉ đội ngũ nào, nên mọi vault đều tính là ngoài đội ngũ.',
     statsTitle: 'Đếm từ các sự kiện',
     statsLead:
       'Mọi sự kiện mà factory và các vault đã phát ra, đếm trong trình duyệt của bạn và lưu trên thiết bị này. Việc đếm cần nhiều yêu cầu tới node công khai, nên nó chờ bạn bấm.',

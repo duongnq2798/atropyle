@@ -35,9 +35,10 @@ export const messages = defineMessages(
     circuitsTitle: 'Circuits anyone can reuse',
     circuitsLead:
       'Beside the Atropyle policy, the same X Layer processor holds two small circuits any contract can call by id. Each netlist is frozen: its keccak below is what the proof checks. These are X Layer mainnet facts.',
+    xlayerCpu: 'The X Layer processor that holds them',
     circuitPolicy: 'Atropyle policy',
     circuitKofn5: 'KofN5: are at least k of 5 inputs set?',
-    circuitGe4: 'Ge4: is a ≥ b, for two 4-bit numbers?',
+    circuitGe4: 'Ge4: is a at least b, for two 4-bit numbers?',
     circuitId: 'Circuit {id}',
     netlist: 'Netlist keccak',
     copyKeccak: 'Copy the keccak',
@@ -82,9 +83,10 @@ export const messages = defineMessages(
     circuitsTitle: 'Circuit ai cũng dùng lại được',
     circuitsLead:
       'Bên cạnh policy của Atropyle, cùng bộ xử lý trên X Layer còn giữ hai circuit nhỏ mà hợp đồng nào cũng gọi được theo id. Mỗi netlist đã đóng băng: keccak bên dưới là thứ mà phép chứng minh kiểm. Đây là dữ kiện của X Layer mainnet.',
+    xlayerCpu: 'Bộ xử lý trên X Layer giữ chúng',
     circuitPolicy: 'Policy của Atropyle',
     circuitKofn5: 'KofN5: có ít nhất k trong 5 đầu vào được bật không?',
-    circuitGe4: 'Ge4: a có ≥ b không, với hai số 4 bit?',
+    circuitGe4: 'Ge4: a có lớn hơn hoặc bằng b không, với hai số 4 bit?',
     circuitId: 'Circuit {id}',
     netlist: 'Keccak của netlist',
     copyKeccak: 'Chép keccak',

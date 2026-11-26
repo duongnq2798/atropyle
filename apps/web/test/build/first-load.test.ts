@@ -34,8 +34,17 @@ import { outOf } from './paths';
  * 7C T3.
  */
 const SHELL_PAGES = new Set(['index.html', '404.html', '404/index.html', '_not-found/index.html']);
-/** `/proof/` too: its proof code, the SDK and viem load when the reader presses Run (or points at it), never first. */
-const LEAN_PAGES = new Set([...SHELL_PAGES, 'proof/index.html']);
+/**
+ * `/proof/` too: its proof code, the SDK and viem load when the reader presses Run (or points at it), never first. And the
+ * pages of 7C T10: `/status/` loads the SDK when it mounts, `/developers/` reads it at build time; neither ships it first.
+ */
+const LEAN_PAGES = new Set([
+  ...SHELL_PAGES,
+  'proof/index.html',
+  'status/index.html',
+  'developers/index.html',
+  'privacy/index.html',
+]);
 const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' }> = {
   'the motion features': { markers: [/["'`]projectionUpdate["'`]/, /["'`]:focus-visible["'`]/], pages: 'all' },
   'the QR encoder': { markers: [/["'`]0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ \$%\*\+-\.\/:["'`]/], pages: 'shell' },
@@ -55,6 +64,8 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
     pages: 'shell',
   },
   'the Ask X Layer calls': { markers: [/["'`]0xe8281a1a/], pages: 'shell' },
+  // 7C T10 (T10-R8): route-suggest.ts and not-found.messages.ts ride the 404 hint's chunk, never a first load.
+  'the 404 suggestion': { markers: [/["'`]Did you mean this page\?["'`]/], pages: 'all' },
 };
 
 /**
