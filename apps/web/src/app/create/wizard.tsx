@@ -118,7 +118,9 @@ export function Wizard() {
   return (
     <div
       className={cn(
-        'group/create mx-auto grid min-h-svh max-w-6xl gap-10 px-4 pt-8 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-14 lg:px-8 lg:pt-12',
+        'group/create mx-auto grid min-h-svh max-w-6xl gap-10 px-4 pt-8 pb-16 sm:px-6 lg:gap-14 lg:px-8 lg:pt-12',
+        // The preview's column; the done screen has none, its own thread is in the page.
+        dock ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : 'lg:max-w-4xl',
         dock && 'max-lg:pb-[calc(10rem+env(safe-area-inset-bottom))]',
       )}
     >

@@ -240,7 +240,13 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // Twelve shots per screen (both themes, both languages, 390, 768 and 1440 px), each a reload.
   test.setTimeout(45 * 60_000);
-  const all = { shots: FULL_MATRIX, ready: () => ready(page) };
+  // From the top: the h1 takes focus on a new step and scrolls, and a full-page shot then paints the sticky header
+  // over the progress line.
+  const top = async () => {
+    await ready(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  };
+  const all = { shots: FULL_MATRIX, ready: top };
   const phones: readonly Shot[] = FULL_MATRIX.filter((s) => s.width < 1024);
   await wallet({ account: OWNER, sendCalls: true });
   await page.goto(`${state.siteUrl}create/#real`);
@@ -256,6 +262,7 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
         await page.getByTestId('create-next').click();
       }
       await expect(page.getByTestId('create-issues')).not.toHaveAttribute('data-count', '0');
+      await page.evaluate(() => window.scrollTo(0, 0));
     },
   });
   await page.getByTestId('create-heir-0-account').fill(HEIR);
@@ -268,7 +275,7 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
   await page.getByTestId('create-guardian-0').fill(GUARDIAN);
   await page.getByTestId('create-add-guardian').click();
   await page.getByTestId('create-guardian-1').fill(ANVIL[6]);
-  await page.getByTestId('create-recovery').click();
+  await pick(page, 'create-recovery');
   await captureScreens(page, 'create-guardians', all);
   await page.getByTestId('create-next').click();
   await captureScreens(page, 'create-timing', all);
@@ -292,6 +299,7 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
   await connectFrom(page, page.getByTestId('create-connect'));
   await expect(page.getByTestId('create-checked')).toBeVisible();
   await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: 'test-results/screens/create-review-checked/night-en-1440.png', fullPage: true });
 
   // A Drill to reach the done screen: a fresh session, since the session wins over the hash (Ruling 9).
@@ -313,11 +321,15 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
   await page.getByTestId('create-prepare').click();
   await expect(page.getByTestId('create-tx-irreversible-0')).toBeVisible();
   await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: 'test-results/screens/create-prepared/night-en-1440.png', fullPage: true });
   await page.getByTestId('create-tx-send').click();
   await expect(page.getByTestId('create-done')).toBeVisible();
   await captureScreens(page, 'create-done', {
     shots: FULL_MATRIX,
-    ready: () => expect(page.getByTestId('create-done')).toBeVisible(),
+    ready: async () => {
+      await expect(page.getByTestId('create-done')).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
+    },
   });
 });
