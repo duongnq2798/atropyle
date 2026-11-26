@@ -440,6 +440,8 @@
    no path animates. Paths keep a 1 px stroke and round dots however far the view stretches. */
 .weave {
   position: relative;
+  /* Second in the hero column, under the H1 (order-first), though last in its markup (src/home/hero.tsx, R-T5p-1). */
+  order: -1;
   height: 9rem;
   margin-inline: -1rem;
   overflow: clip;
@@ -523,4 +525,117 @@
   from {
     transform: translateX(100%);
   }
+}
+/* Ask the circuit (7C-T5′, src/home/ask-circuit.tsx). A chip is a native radio: the hero lights the wires that carry
+   1 for its question (data-v, from WIRE_V), shows its answer, and turns the release pin violet where the gate opens.
+   :has() does it without JavaScript. [data-ask], which HomeHero keeps in step, does it only where :has() is missing,
+   so a chip pressed before hydration never lights two questions (ruling R12). */
+.hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {
+  stroke: var(--atro-thread);
+}
+.ask-answer > [data-for] {
+  visibility: hidden;
+}
+.hero:has(.ask-chip input[value="a"]:checked) .ask-answer > [data-for="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .ask-answer > [data-for="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .ask-answer > [data-for="l"] {
+  visibility: visible;
+}
+.hero:has(.ask-chip input[value="a"]:checked) .weave-pin[data-open~="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .weave-pin[data-open~="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .weave-pin[data-open~="l"] {
+  border-color: var(--atro-release);
+  background-color: color-mix(in oklab, var(--atro-release) 35%, var(--color-bg));
+}
+@supports not selector(:has(*)) {
+  .hero[data-ask="a"] .weave-col [data-v~="a"],
+  .hero[data-ask="s"] .weave-col [data-v~="s"],
+  .hero[data-ask="l"] .weave-col [data-v~="l"] {
+    stroke: var(--atro-thread);
+  }
+  .hero[data-ask="a"] .ask-answer > [data-for="a"],
+  .hero[data-ask="s"] .ask-answer > [data-for="s"],
+  .hero[data-ask="l"] .ask-answer > [data-for="l"] {
+    visibility: visible;
+  }
+  .hero[data-ask="a"] .weave-pin[data-open~="a"],
+  .hero[data-ask="s"] .weave-pin[data-open~="s"],
+  .hero[data-ask="l"] .weave-pin[data-open~="l"] {
+    border-color: var(--atro-release);
+    background-color: color-mix(in oklab, var(--atro-release) 35%, var(--color-bg));
+  }
+}
+/* The release output, where the thread ends: gold while the gate stays closed, violet where it opens. From 64rem
+   only: a phone's strip crops it away, and the ring before the answer stands for it there (ruling R16). */
+.weave-pin {
+  display: none;
+  position: absolute;
+  width: 0.875rem;
+  height: 0.875rem;
+  translate: -50% -50%;
+  border: 2px solid var(--atro-thread);
+  border-radius: 9999px;
+  background-color: var(--color-bg);
+}
+@media (min-width: 64rem) {
+  .weave-pin {
+    display: block;
+  }
+}
+/* The sweep, the one exception to R18.4 (R18.20): after a chip changes, each layer takes its new colour --d × 28 ms
+   later, inputs first, and the pin last at --d = DEPTHS: 39 × 28 + 160 = 1 252 ms. Never on load (a first style has
+   no transition) and never with a reduced-motion preference. */
+@media (prefers-reduced-motion: no-preference) {
+  .weave-col path {
+    transition: stroke 160ms linear calc(var(--d) * 28ms);
+  }
+  .weave-pin {
+    transition:
+      border-color 160ms linear calc(var(--d) * 28ms),
+      background-color 160ms linear calc(var(--d) * 28ms);
+  }
+}
+
+/* The woven title (7C-T5′, src/home/title-weave.tsx), inside an H1 that isolates: a frame from the bottom of line 1
+   to the bottom of the heading. The copy behind (z-index −1) shows between the letters. The copy in front shows only
+   in the frame's top 0.12em, the leading under line 1, so the thread surfaces there and dives back. Set
+   `--weave-over: 0` (for one language, say) to keep only the copy behind, with no code change (ruling R24). */
+.title-weave {
+  position: absolute;
+  inset-inline: 0;
+  top: 1lh;
+  height: calc(100% - 1lh);
+  pointer-events: none;
+}
+@supports not (top: 1lh) {
+  .title-weave {
+    top: 1em;
+    height: calc(100% - 1em);
+  }
+}
+.title-weave svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.title-weave path {
+  fill: none;
+  stroke: var(--atro-thread);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.title-weave-under {
+  z-index: -1;
+  /* The tail tapers off under the last line instead of stopping on a round cap. */
+  mask-image: linear-gradient(to right, #000 70%, transparent 88%);
+}
+.title-weave-over {
+  z-index: 1;
+  opacity: var(--weave-over, 1);
+  mask-image: linear-gradient(to bottom, #000 0.12em, transparent 0.12em);
 }

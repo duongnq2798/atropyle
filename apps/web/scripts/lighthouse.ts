@@ -11,6 +11,8 @@ import {
   forbiddenRequests,
   hostNote,
   LIGHTHOUSE_ROUTES,
+  lcpElementPath,
+  lcpFailures,
   medianRun,
   type Run,
   runOf,
@@ -66,6 +68,7 @@ try {
     const name = route === '/' ? 'home' : route.replaceAll('/', '');
     const runs: Run[] = [];
     const forbidden = new Set<string>();
+    const lcpSeen: string[] = [];
     for (let i = 1; i <= RUNS; i++) {
       // Every run gets a browser context of its own, so its page gets a renderer of its own: Chrome never shares a
       // renderer across contexts. Given only a port, Lighthouse opens each run's page in the default context, where
@@ -79,13 +82,25 @@ try {
       // route misses, and CI uploads the folder, so a runner's miss can be read in DevTools > Performance.
       writeFileSync(join(REPORTS, `${name}-${i}.trace.json`), JSON.stringify(result.artifacts.Trace));
       runs.push(runOf(result.lhr));
+      // Only a run Lighthouse measured names its LCP element. measure() hands back a run still NO_NAVSTART after its
+      // retries (runtimeError); it stays out here, as one such run among three does not move the median either.
+      const lcp = result.lhr.runtimeError ? null : lcpElementPath(result.lhr);
+      if (lcp !== null) lcpSeen.push(lcp);
       // R18.18: a chunk that must wait for intent fails the route when any of the runs loaded it.
       for (const url of forbiddenRequests(result.lhr, FORBIDDEN_REQUESTS[route] ?? [])) forbidden.add(url);
     }
     const median = medianRun(runs);
-    const missed = [...failures(median), ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`)];
+    const missed = [
+      ...failures(median),
+      ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`),
+      // Spec §18.4.3 Task 5′: the LCP of `/` is its H1 in every measured run (R27).
+      ...lcpFailures(route, lcpSeen),
+    ];
     // The median run carries its host's benchmarkIndex: simulated TBT scales with the host CPU (a CI runner's too).
     console.log(`${route}: ${JSON.stringify(median)}`);
+    console.log(
+      `  ${route}: LCP element ${[...new Set(lcpSeen)].join(' | ') || 'none'} (${lcpSeen.length} of ${RUNS} runs)`,
+    );
     const note = hostNote(median);
     if (note) console.warn(`  ${route}: ${note}`);
     for (const m of missed) console.error(`  ${route}: ${m}`);

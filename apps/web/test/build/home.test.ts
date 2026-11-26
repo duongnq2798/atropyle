@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { GEOMETRY_FILE } from '../../scripts/lib/netlist-layout';
 import { XLAYER_EXPLORER } from '../../src/config/env';
 import { MAINNET_FACTORY, MAINNET_SINCE } from '../../src/config/facts';
-import { DEPTHS, NODES, THREAD, WIRES } from '../../src/home/netlist-geometry';
+import { ASK } from '../../src/home/impl/ask-calls';
+import { DEPTHS, NODES, THREAD, WIRE_V, WIRES } from '../../src/home/netlist-geometry';
+import { wirePaths } from '../../src/home/weave-path';
 import { format } from '../../src/i18n/core';
 import { formatDay } from '../../src/lib/format';
 import { explorerAddress } from '../../src/lib/links';
@@ -21,11 +23,18 @@ const jsFiles = (root: string): string[] =>
 /** The first two dots of the weave: a string only the drawing has, once it is drawn. */
 const MARKER = `M${NODES[0]} ${NODES[1]}h0M${NODES[2]} ${NODES[3]}h0`;
 /**
- * The geometry itself, as a minifier prints an array of whole numbers: what a chunk would hold if a client module
- * imported weave-svg, weave-path or netlist-geometry. MARKER cannot catch that, since the path strings only exist once
- * the code has run.
+ * The geometry and the wires' value signatures, as a minifier prints an array of whole numbers: what a chunk would
+ * hold if a client module imported weave-svg, weave-path or netlist-geometry. MARKER cannot catch that, since the path
+ * strings only exist once the code has run.
  */
-const DATA = [NODES.slice(0, 16).join(','), WIRES.slice(0, 15).join(','), THREAD.join(',')];
+const DATA = [
+  NODES.slice(0, 16).join(','),
+  WIRES.slice(0, 15).join(','),
+  THREAD.join(','),
+  WIRE_V.slice(0, 48).join(','),
+];
+/** gzip of index.html after 7C-T4 round 1 (7C-T4-report.md, F1): Task 5′ may add 4 000 B at most (R26). */
+const T4_GZIP = { vercel: 12_519, deweb: 12_216 } as const;
 
 for (const target of ['vercel', 'deweb'] as const) {
   describe(`${target} home`, () => {
@@ -59,8 +68,25 @@ for (const target of ['vercel', 'deweb'] as const) {
       }
       // The weave's CSS is in globals.css: still one render-blocking stylesheet.
       expect(page.match(/<link[^>]*rel="stylesheet"/g)).toHaveLength(1);
-      // The baseline of Task 5′ (at most 4 kB gzip more): the T4 report records these two numbers.
-      console.info(`${target} index.html: ${page.length} B, ${gzipSync(page).length} B gzip`);
+      const gz = gzipSync(page).length;
+      console.info(`${target} index.html: ${page.length} B, ${gz} B gzip (7C-T4: ${T4_GZIP[target]} B)`);
+      expect(gz).toBeLessThanOrEqual(T4_GZIP[target] + 4_000);
+    });
+
+    it('asks the circuit without JavaScript: three native radios, three answers, the wires split by value', () => {
+      const page = html();
+      const radios = [...page.matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((m) => m[0]);
+      expect(radios.map((r) => /value="([a-z])"/.exec(r)?.[1])).toEqual(['a', 's', 'l']);
+      expect(radios.map((r) => /\schecked=""/.test(r))).toEqual([true, false, false]);
+      expect(page.match(/data-for="[asl]"/g)).toHaveLength(3);
+      // Once in the DOM (the RSC payload writes "data-v":…): one per lit signature of each layer.
+      expect(page.match(/ data-v="[asl ]+"/g)).toHaveLength(wirePaths().filter((p) => p.v !== 0).length);
+      expect(page).toMatch(/<span class="weave-pin" data-open="s"/);
+      // Both builds read chain 196 with the SDK's deployment: the ask is there, invisible until hydration (R19).
+      const ask = /<div[^>]*data-testid="ask-x-layer"[^>]*>/.exec(page)?.[0] ?? '';
+      expect(ask).toMatch(/class="[^"]*\binvisible\b/);
+      // The calldata stays in its lazy chunk (first-load.test.ts).
+      for (const data of Object.values(ASK)) expect(page).not.toContain(data.slice(10, 74));
     });
 
     it('opens on the question with no eyebrow, and states three static facts with the door for heirs', () => {

@@ -4,7 +4,10 @@ import {
   failures,
   forbiddenRequests,
   hostNote,
+  LCP_ELEMENT,
   type LhrLike,
+  lcpElementPath,
+  lcpFailures,
   medianRun,
   type Run,
   runOf,
@@ -134,5 +137,33 @@ describe('lighthouse score', () => {
     );
     const noTable: LhrLike = { categories: {}, audits: { 'network-requests': { details: { type: 'opportunity' } } } };
     expect(() => forbiddenRequests(noTable, [])).toThrow(/no network-requests table/);
+  });
+
+  it('reads the LCP element from lcp-breakdown-insight, and wants the H1 on /', () => {
+    const lhr = (items: unknown[]): LhrLike => ({
+      categories: {},
+      audits: { 'lcp-breakdown-insight': { details: { type: 'list', items } } },
+    });
+    const h1 = {
+      type: 'node',
+      path: '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,0,H1',
+      selector: 'div.flex > h1',
+    };
+    expect(lcpElementPath(lhr([{ type: 'table', items: [] }, h1]))).toBe(h1.path);
+    expect(lcpElementPath(lhr([]))).toBeNull();
+    expect(lcpElementPath({ categories: {}, audits: {} })).toBeNull();
+    expect(LCP_ELEMENT['/'].test(h1.path)).toBe(true);
+    expect(LCP_ELEMENT['/'].test('1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,3,P')).toBe(false);
+  });
+
+  it('fails / unless every run that names an LCP element names its H1, and never passes by reading nothing', () => {
+    const h1 = '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,0,H1';
+    const lead = '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,3,P';
+    expect(lcpFailures('/', [h1, h1, h1])).toEqual([]);
+    // A run Lighthouse could not measure is left out by the caller: two H1 runs still pass.
+    expect(lcpFailures('/', [h1, h1])).toEqual([]);
+    expect(lcpFailures('/', [h1, lead, lead])).toEqual([`LCP element ${lead}, expected one matching /(?:^|,)H1$/`]);
+    expect(lcpFailures('/', [])).toEqual(['no measured run reported an LCP element']);
+    expect(lcpFailures('/proof/', [])).toEqual([]);
   });
 });

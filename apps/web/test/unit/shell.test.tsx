@@ -176,10 +176,12 @@ describe('pages', () => {
       level: 1,
       name: 'What happens to your crypto when you can no longer sign?',
     });
-    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4). The weave follows it, as decoration.
+    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4). The weave shows under it, as decoration, but
+    // comes last in the column's markup, so gzip finds its copy in Next's payload (ruling R-T5p-1; home.spec.ts
+    // checks the order a reader sees).
     expect(h1.previousElementSibling).toBeNull();
     const weave = container.querySelector('.weave');
-    expect(h1.nextElementSibling).toBe(weave);
+    expect(h1.parentElement?.lastElementChild).toBe(weave);
     expect(weave?.getAttribute('aria-hidden')).toBe('true');
     expect(weave?.querySelectorAll('.weave-col')).toHaveLength(DEPTHS);
     // R18.4, the markup side (weave-css.test.ts holds the CSS side): in the weave only the thread's glow svg carries
@@ -230,5 +232,50 @@ describe('pages', () => {
     ).toBeTruthy();
     const door = screen.getByRole('link', { name: named('Bạn là người thừa kế hay giám hộ? Bắt đầu ở đây') });
     expect(door.getAttribute('href')).toBe('/verify/');
+  });
+
+  it('the home page asks the circuit: three native radios, the answer of the checked one, the circuit counted', () => {
+    const { container } = renderWithProviders(<HomeHero art={<WeaveArt />} />);
+    const section = container.querySelector('section.hero');
+    expect(section?.getAttribute('data-ask')).toBe('a');
+    const group = screen.getByRole('group', { name: 'Ask the circuit' });
+    const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
+    expect(radios.map((r) => spoken(r.closest('label')?.textContent))).toEqual([
+      'If I keep checking in',
+      'If I go silent',
+      'If my guardians lie while I keep checking in',
+    ]);
+    expect(radios.map((r) => r.checked)).toEqual([true, false, false]);
+    // Each radio is described by its own answer, so a screen reader hears it on the chip.
+    expect(radios.map((r) => document.getElementById(r.getAttribute('aria-describedby') ?? '')?.textContent)).toEqual([
+      home.en.answerAlive,
+      home.en.answerSilent,
+      home.en.answerLiar,
+    ]);
+    fireEvent.click(radios[1]);
+    expect(section?.getAttribute('data-ask')).toBe('s');
+    const caption = screen.getByText(/^The real policy circuit, 196 NAND gates and 3 latches in 39 layers/);
+    const run = within(caption).getByRole('link', { name: 'Run all 67,108,864 cases yourself' });
+    expect(run.getAttribute('href')).toBe('/proof/');
+    // The woven title: two copies of one thread inside the H1, out of the accessibility tree; the name stays.
+    const h1 = screen.getByRole('heading', {
+      level: 1,
+      name: 'What happens to your crypto when you can no longer sign?',
+    });
+    const woven = h1.querySelector('.title-weave');
+    expect(woven?.getAttribute('aria-hidden')).toBe('true');
+    expect(woven?.querySelectorAll('svg path')).toHaveLength(2);
+    // The release pin in the weave turns violet for the questions that open the gate.
+    expect(container.querySelector('.weave-pin')?.getAttribute('data-open')).toBe('s');
+  });
+
+  it('the home page asks the circuit in Vietnamese', async () => {
+    renderWithProviders(<HomeHero art={<WeaveArt />} />, { lang: 'vi' });
+    const named = (text: string) => (name: string) => spoken(name) === text;
+    expect(await screen.findByRole('group', { name: 'Hỏi circuit' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: named('Nếu tôi im lặng') })).toBeTruthy();
+    expect(screen.getByRole('link', { name: named('Tự chạy cả 67.108.864 trường hợp') }).getAttribute('href')).toBe(
+      '/proof/',
+    );
   });
 });

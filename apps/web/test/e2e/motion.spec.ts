@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { runningAnimations } from './helpers.ts';
 
@@ -119,4 +120,52 @@ test("the 404 page's own home link navigates in a view transition that ends when
   expect(committed, 'the home page never committed').toBeDefined();
   // Held to the cap, the update would end about a second after the click, long after the commit.
   expect((done ?? 0) - (committed ?? 0), 'the old picture stayed after the new page had committed').toBeLessThan(300);
+});
+
+/** The colour transitions running in the weave: each one's property, the depth of its group, its delay and duration. */
+function sweep(page: Page) {
+  return page.evaluate(() =>
+    document.getAnimations().flatMap((a) => {
+      if (!(a instanceof CSSTransition) || !(a.effect instanceof KeyframeEffect)) return [];
+      const el = a.effect.target;
+      if (!(el instanceof Element) || !el.closest('.weave')) return [];
+      const t = a.effect.getTiming();
+      return [
+        {
+          property: a.transitionProperty,
+          depth: Number(getComputedStyle(el).getPropertyValue('--d')),
+          delay: Number(t.delay),
+          duration: Number(t.duration),
+        },
+      ];
+    }),
+  );
+}
+
+test('a chip sweeps the circuit layer by layer in at most 1.3 s; never on load, never under reduced motion', async ({
+  page,
+  state,
+}) => {
+  const chip = (letter: string) => page.locator('label.ask-chip', { has: page.locator(`input[value="${letter}"]`) });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  expect(await sweep(page)).toEqual([]);
+  await chip('s').click();
+  const run = await sweep(page);
+  expect(run.length).toBeGreaterThan(0);
+  // The pin turns too, last (1440 px: it is shown). A transition names its longhand: Chromium runs `border-color` as
+  // border-top-color, border-right-color, border-bottom-color and border-left-color, never as the shorthand.
+  expect(run.some((r) => /^border-(?:top|right|bottom|left)-color$/.test(r.property))).toBe(true);
+  for (const r of run) {
+    expect(r.duration).toBe(160);
+    // calc(var(--d) * 28ms) reaches the timing as a float (17 * 28 came back as 476.00000000000006).
+    expect(r.delay).toBeCloseTo(r.depth * 28, 6);
+    expect(r.delay + r.duration).toBeLessThanOrEqual(1300);
+  }
+  await expect.poll(() => sweep(page)).toEqual([]);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await chip('a').click();
+  expect(await sweep(page)).toEqual([]);
 });

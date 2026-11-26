@@ -20,6 +20,9 @@ export const THRESHOLDS = {
  */
 export const FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>> = {};
 
+/** The element that must be each route's LCP, by the DOM path Lighthouse prints. `/`: its H1 (spec §18.4.3 Task 5′). */
+export const LCP_ELEMENT: Readonly<Record<string, RegExp>> = { '/': /(?:^|,)H1$/ };
+
 export interface Run {
   performance: number;
   accessibility: number;
@@ -120,4 +123,31 @@ export function forbiddenRequests(lhr: LhrLike, patterns: readonly (string | Reg
     if (patterns.some((p) => (typeof p === 'string' ? url.includes(p) : url.search(p) !== -1))) out.push(url);
   }
   return out;
+}
+
+/**
+ * The DOM path of the run's LCP element (`1,HTML,1,BODY,…,0,H1`): the node item of the `lcp-breakdown-insight` audit,
+ * where Lighthouse 13 keeps it. Null when the run has none.
+ */
+export function lcpElementPath(lhr: LhrLike): string | null {
+  const details = lhr.audits['lcp-breakdown-insight']?.details;
+  if (!hasItems(details)) return null;
+  for (const item of details.items) {
+    if (typeof item !== 'object' || item === null || (item as { type?: unknown }).type !== 'node') continue;
+    const path = (item as { path?: unknown }).path;
+    return typeof path === 'string' ? path : null;
+  }
+  return null;
+}
+
+/**
+ * The LCP gate of a route, from the LCP element of each measured run: one line per element other than the one it
+ * wants. A run Lighthouse could not measure (runtimeError: still NO_NAVSTART after its retries) names no element and
+ * stays out, as one such run among three does not move the median; a route with no element to read fails.
+ */
+export function lcpFailures(route: string, seen: readonly string[]): string[] {
+  const want = LCP_ELEMENT[route];
+  if (want === undefined) return [];
+  if (seen.length === 0) return ['no measured run reported an LCP element'];
+  return [...new Set(seen)].filter((p) => !want.test(p)).map((p) => `LCP element ${p}, expected one matching ${want}`);
 }

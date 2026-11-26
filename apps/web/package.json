@@ -14,7 +14,8 @@
     "e2e": "playwright test",
     "size": "size-limit",
     "lighthouse": "tsx scripts/lighthouse.ts",
-    "geometry": "tsx scripts/geometry.ts"
+    "geometry": "tsx scripts/geometry.ts",
+    "ask:smoke": "tsx scripts/ask-smoke.ts"
   },
   "dependencies": {
     "@atropyle/sdk": "0.1.0",

@@ -55,6 +55,15 @@ async function expectHome(page: Page): Promise<void> {
   // the raw text, and home.messages.ts glues "X Layer" and "since {date}" with no-break spaces: \s matches them.
   await expectSeen(facts.getByText(/^Live on X\sLayer mainnet since\s\d{1,2} [A-Z][a-z]{2} \d{4}$/));
   await expectSeen(facts.locator('a[href="/verify/"]'));
+  // Ask the circuit without JavaScript (spec §18.4.3 Task 5′): native radios, and :has() lights and answers.
+  await expectSeen(main.locator('.ask-answer [data-for="a"]'));
+  await expect(main.locator('.ask-answer [data-for="s"]')).toBeHidden();
+  const silentOnly = main.locator('.weave-col path[data-v~="s"]:not([data-v~="a"])').first();
+  const unlit = await silentOnly.evaluate((p) => getComputedStyle(p).stroke);
+  await main.locator('label.ask-chip', { has: page.locator('input[value="s"]') }).click();
+  await expectSeen(main.locator('.ask-answer [data-for="s"]'));
+  await expect(main.locator('.ask-answer [data-for="a"]')).toBeHidden();
+  await expect.poll(() => silentOnly.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(unlit);
 }
 
 /** `/proof/`: the question, the empty map and its key, the seal's source row, the command, and every limit. */

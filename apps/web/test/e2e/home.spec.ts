@@ -20,6 +20,37 @@ function layoutShift(page: Page): Promise<number> {
   );
 }
 
+/** A chip's label, found by its radio's value: a click on it checks the radio, as a reader's would. */
+const chip = (page: Page, letter: 'a' | 's' | 'l') =>
+  page.locator('label.ask-chip', { has: page.locator(`input[value="${letter}"]`) });
+
+/** The data-v of the wire paths drawn in a colour other than an unlit one's, and of every path that lights at all. */
+function voices(page: Page): Promise<{ lit: string[]; all: string[] }> {
+  return page.locator('.weave-col path').evaluateAll((paths) => {
+    const plain = paths.find((p) => !p.hasAttribute('data-v'));
+    if (!plain) throw new Error('no unlit wire path');
+    const unlit = getComputedStyle(plain).stroke;
+    const v = (p: Element) => p.getAttribute('data-v') ?? '';
+    const uniq = (a: string[]) => [...new Set(a)].sort();
+    return {
+      lit: uniq(paths.filter((p) => getComputedStyle(p).stroke !== unlit).map(v)),
+      all: uniq(paths.map(v).filter(Boolean)),
+    };
+  });
+}
+
+/** A CSS colour as the page computes it. */
+function computed(page: Page, value: string): Promise<string> {
+  return page.evaluate((v) => {
+    const probe = document.createElement('i');
+    probe.style.color = v;
+    document.body.append(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return c;
+  }, value);
+}
+
 test('on a phone the weave is a strip under the question, and the facts take three lines without a shift', async ({
   page,
   state,
@@ -47,7 +78,55 @@ test('on a phone the weave is a strip under the question, and the facts take thr
   expect(tops).toHaveLength(3);
   expect(tops[1]).toBeGreaterThan(tops[0]);
   expect(tops[2]).toBeGreaterThan(tops[1]);
+  // The release pin is cropped away on a phone; the ring before the answer stands for it (ruling R16).
+  await expect(page.locator('.weave-pin')).toBeHidden();
+  await expect(page.locator('label.ask-chip')).toHaveCount(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  expect(await layoutShift(page)).toBe(0);
+});
+
+test('each chip lights the wires that carry 1 for its question, answers it and rings the pin, with no shift', async ({
+  page,
+  state,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // The e2e build reads the devnet (chain 31337): it never offers to ask X Layer (R18.19).
+  await expect(page.getByTestId('ask-x-layer')).toHaveCount(0);
+  const lead = page.getByText(/^Nothing, unless you plan for it\./);
+  const before = await lead.boundingBox();
+  const gold = await computed(page, 'var(--atro-thread)');
+  const violet = await computed(page, 'var(--atro-release)');
+  const QUESTIONS = [
+    { letter: 'a', name: 'If I keep checking in', answer: 'Nothing moves. The gate stays closed.', open: false },
+    { letter: 's', name: 'If I go silent', answer: 'The gate opens. Your heirs can claim.', open: true },
+    {
+      letter: 'l',
+      name: 'If my guardians lie while I keep checking in',
+      answer: 'The gate stays closed. Your check-in outweighs their word.',
+      open: false,
+    },
+  ] as const;
+  for (const q of QUESTIONS) {
+    await chip(page, q.letter).click();
+    await expect(page.getByRole('radio', { name: q.name, exact: true })).toBeChecked();
+    const { lit, all } = await voices(page);
+    expect(lit.length, q.letter).toBeGreaterThan(0);
+    expect(lit, q.letter).toEqual(all.filter((v) => v.split(' ').includes(q.letter)));
+    for (const other of QUESTIONS) {
+      const answer = page.locator(`.ask-answer [data-for="${other.letter}"]`);
+      if (other === q) {
+        await expect(answer).toBeVisible();
+        await expect(answer).toHaveText(q.answer);
+      } else {
+        await expect(answer).toBeHidden();
+      }
+    }
+    await expect(page.locator('.weave-pin')).toHaveCSS('border-color', q.open ? violet : gold);
+    expect(await lead.boundingBox(), q.letter).toEqual(before);
+  }
   expect(await layoutShift(page)).toBe(0);
 });
 

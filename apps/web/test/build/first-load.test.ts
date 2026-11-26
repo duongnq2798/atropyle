@@ -20,6 +20,9 @@ import { outOf } from './paths';
  *   error carries.
  * - The SDK: the CLI hint of its UNKNOWN code in ERROR_INFO (packages/sdk/src/errors.ts), which every AtropyleError
  *   reads. No file of src/ carries it: this site words that hint itself (src/tx/impl/errors-view.ts).
+ * - The calls of "Ask X Layer": the selector of step(uint256,bytes,bytes), with which every calldata of
+ *   src/home/impl/ask-calls.ts starts. Only that generated module carries it: viem computes selectors at run time.
+ *   It loads on intent (R18.18, R18.19).
  * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
  * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
  * or a tooltip, or read the chain, from its first paint, inside its 240 kB. /proof/ is held to the same, ruling R17 of
@@ -41,6 +44,7 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   },
   viem: { markers: [/["'`]viem@/], pages: 'shell' },
   'the SDK': { markers: [/["'`]Run again with --verbose and report the output\.["'`]/], pages: 'shell' },
+  'the Ask X Layer calls': { markers: [/["'`]0xe8281a1a/], pages: 'shell' },
 };
 
 function walk(dir: string): string[] {
