@@ -117,7 +117,7 @@ export const ERROR_INFO = {
   },
   POLICY_MISMATCH: {
     message: 'The on-chain policy does not match the published source.',
-    hint: 'Do not use this deployment. Report it as https://github.com/duongnq2798/atropyle/blob/main/SECURITY.md says.',
+    hint: 'Do not use this deployment. Report it as SECURITY.md in the Atropyle repository on GitHub describes.',
   },
   POLICY_UNAVAILABLE: {
     message: 'The policy netlist is not available on this chain.',
