@@ -42,6 +42,11 @@ export const messages = defineMessages(
     cliTitle: 'From a terminal',
     cliBody: 'The same list, read with the Atropyle CLI, with no wallet to connect.',
     cliCopy: 'Copy the command',
+    jumpLabel: 'Your vaults by role',
+    ownShort: 'You own',
+    guardShort: 'You guard',
+    inheritShort: 'Name you as an heir',
+    previewLabel: 'The three lists this page reads',
   },
   {
     title: 'Vault của tôi',
@@ -81,5 +86,10 @@ export const messages = defineMessages(
     cliTitle: 'Từ terminal',
     cliBody: 'Cùng danh sách đó, đọc bằng CLI của Atropyle, không cần kết nối ví.',
     cliCopy: 'Chép lệnh',
+    jumpLabel: 'Vault của bạn theo vai trò',
+    ownShort: 'Bạn là chủ',
+    guardShort: 'Bạn giám hộ',
+    inheritShort: 'Ghi bạn là người thừa kế',
+    previewLabel: 'Ba danh sách trang này đọc',
   },
 );

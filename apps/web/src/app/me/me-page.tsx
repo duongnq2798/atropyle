@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Wallet } from 'lucide-react';
+import { ArrowRight, KeyRound, ShieldCheck, Sprout, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { MyVault, MyVaults } from '@/chain/impl/my-vaults';
 import { useMyVaults } from '@/chain/use-my-vaults';
@@ -31,6 +31,15 @@ const TITLE: Record<Section, Key> = { own: 'ownTitle', guard: 'guardTitle', inhe
 const HINT: Record<Section, Key> = { own: 'ownHint', guard: 'guardHint', inherit: 'inheritHint' };
 const EMPTY: Record<Section, Key> = { own: 'ownEmpty', guard: 'guardEmpty', inherit: 'inheritEmpty' };
 const ALSO: Record<ListRole, Key> = { owner: 'alsoOwner', guardian: 'alsoGuardian', heir: 'alsoHeir' };
+const SHORT: Record<Section, Key> = { own: 'ownShort', guard: 'guardShort', inherit: 'inheritShort' };
+/** The connect card names the three lists the page will read, in their order. */
+const PREVIEW = [
+  { key: 'roleOwner', Icon: KeyRound },
+  { key: 'roleGuardian', Icon: ShieldCheck },
+  { key: 'roleHeir', Icon: Sprout },
+] as const;
+/** EmptyState's dashed border, one step stronger: the hairline alone fades into vellum. */
+const CARD = 'border-line-strong/45';
 
 const TITLE_ID = 'me-title';
 /** Where the wallet sheet puts focus when it closes: once connected, the Connect button has left the page. */
@@ -98,10 +107,25 @@ export function MePage() {
 
 function Reading({ label }: { label: string }) {
   return (
-    <div data-testid="me-loading" aria-busy="true" className="flex flex-col gap-3">
+    <div data-testid="me-loading" aria-busy="true" className="flex flex-col gap-4">
       <p className="text-ink-muted text-small">{label}</p>
-      <Skeleton className="h-28 w-full rounded-2xl" />
-      <Skeleton className="h-28 w-full rounded-2xl" />
+      {/* The shape of what comes: the overview, a list title and two rows. */}
+      <Skeleton className="h-[4.75rem] w-full rounded-2xl" />
+      <Skeleton className="mt-4 h-7 w-56 max-w-full rounded-md" />
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          aria-hidden="true"
+          className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface-1 py-4 pr-4 pl-5"
+        >
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <Skeleton className="h-6 w-32 rounded-full" />
+            <Skeleton className="h-3.5 w-3/4 max-w-80" />
+            <Skeleton className="h-3.5 w-1/2 max-w-56" />
+          </div>
+          <Skeleton className="hidden h-8 w-20 shrink-0 rounded-full sm:block" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -109,6 +133,7 @@ function Reading({ label }: { label: string }) {
 function ConnectCard() {
   const t = useT(messages);
   const w = useT(walletText);
+  const l = useT(labels);
   const { openSheet } = useWallet();
   return (
     <EmptyState
@@ -117,17 +142,31 @@ function ConnectCard() {
       icon={<Wallet aria-hidden="true" size={24} strokeWidth={1.5} />}
       title={t('connectTitle')}
       body={t('connectBody')}
+      className={CARD}
       action={
-        <Button
-          variant="primary"
-          data-testid="me-connect"
-          onClick={() => openSheet(titleEl)}
-          // The sheet's chunk loads now if the idle preload has not loaded it yet (7A rule 19).
-          onPointerEnter={connectSheet.preload}
-          onFocus={connectSheet.preload}
-        >
-          {w('connect')}
-        </Button>
+        <div className="flex flex-col items-center gap-6">
+          <ul aria-label={t('previewLabel')} className="flex flex-wrap justify-center gap-2">
+            {PREVIEW.map(({ key, Icon }) => (
+              <li
+                key={key}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-surface-1 px-3 text-caption text-ink-muted"
+              >
+                <Icon aria-hidden="true" size={14} strokeWidth={1.5} className="text-thread" />
+                {l(key)}
+              </li>
+            ))}
+          </ul>
+          <Button
+            variant="primary"
+            data-testid="me-connect"
+            onClick={() => openSheet(titleEl)}
+            // The sheet's chunk loads now if the idle preload has not loaded it yet (7A rule 19).
+            onPointerEnter={connectSheet.preload}
+            onFocus={connectSheet.preload}
+          >
+            {w('connect')}
+          </Button>
+        </div>
       }
     />
   );
@@ -140,6 +179,7 @@ function NoVaults({ data }: { data: MyVaults }) {
     <EmptyState
       as="h2"
       testId="me-empty"
+      className={CARD}
       // Past the newest `limit` entries the page has not looked, so it cannot say the wallet has no vault (R-T8-27).
       title={truncated(data) ? t('noneNewest', { limit: formatCount(data.limit, lang) }) : t('emptyTitle')}
       body={t('emptyBody')}
@@ -156,10 +196,40 @@ function Lists({ vaults }: { vaults: readonly MyVault[] }) {
   const sections = sectionsOf(vaults);
   return (
     <>
+      <Overview sections={sections} />
       {SECTIONS.map((s) => (
         <SectionList key={s} section={s} vaults={sections[s]} />
       ))}
     </>
+  );
+}
+
+/** The three lists at a glance, each a jump to its list: a long list of guarded vaults must not hide the heir's. */
+function Overview({ sections }: { sections: Record<Section, MyVault[]> }) {
+  const t = useT(messages);
+  const { lang } = useLang();
+  return (
+    <nav aria-label={t('jumpLabel')} data-testid="me-overview">
+      <ul className="grid grid-cols-3 overflow-hidden rounded-2xl border border-line bg-surface-1">
+        {SECTIONS.map((s) => {
+          const n = sections[s].length;
+          return (
+            <li key={s} className="min-w-0 border-line not-first:border-l">
+              <a
+                href={`#me-${s}`}
+                data-count={n}
+                className="flex h-full min-w-0 flex-col gap-1.5 px-3 py-3 transition-colors duration-150 hover:bg-surface-2 sm:px-5 sm:py-4"
+              >
+                <span className={cn('font-display text-h2 leading-none', n === 0 ? 'text-ink-muted' : 'text-ink')}>
+                  {formatCount(n, lang)}
+                </span>
+                <span className="text-caption text-ink-muted sm:text-small">{t(SHORT[s])}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -184,7 +254,13 @@ function SectionList({ section, vaults }: { section: Section; vaults: MyVault[] 
   const { lang } = useLang();
   const id = `me-${section}-title`;
   return (
-    <section data-testid={`me-section-${section}`} aria-labelledby={id} className="flex flex-col gap-3">
+    <section
+      id={`me-${section}`}
+      data-testid={`me-section-${section}`}
+      aria-labelledby={id}
+      // Below the sticky header when the overview jumps here.
+      className="flex scroll-mt-24 flex-col gap-3"
+    >
       <h2 id={id} className="flex items-baseline gap-3 font-display text-ink text-title">
         {t(TITLE[section])}
         {/* The list itself says how many items it has; the figure is for the eye. */}

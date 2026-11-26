@@ -87,6 +87,16 @@ describe('/me/ without a wallet', () => {
     expect(fake.myVaults).not.toHaveBeenCalled();
   });
 
+  it('names the three lists it will read, in their order', () => {
+    renderWithProviders(page(idle));
+    const preview = screen.getByRole('list', { name: 'The three lists this page reads' });
+    expect(
+      within(preview)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Owner', 'Guardian', 'Heir']);
+  });
+
   it('Connect opens the wallet sheet, which gives focus back to the title once the button is gone', () => {
     const openSheet = vi.fn();
     renderWithProviders(page({ ...idle, openSheet }));
@@ -280,6 +290,25 @@ describe('/me/ with a wallet', () => {
     renderWithProviders(page());
     await screen.findAllByTestId('me-row');
     expect(screen.queryByTestId('me-truncated')).toBeNull();
+  });
+
+  it('the overview counts each list and jumps to it', async () => {
+    fake.myVaults.mockResolvedValue(list([mv(V1, ['owner']), mv(V2, ['heir', 'guardian']), mv(V3, ['heir'])]));
+    renderWithProviders(page());
+    const nav = await screen.findByRole('navigation', { name: 'Your vaults by role' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['#me-own', '#me-guard', '#me-inherit']);
+    expect(links.map((a) => a.textContent)).toEqual(['1You own', '1You guard', '2Name you as an heir']);
+    for (const s of ['own', 'guard', 'inherit']) {
+      expect(screen.getByTestId(`me-section-${s}`).id).toBe(`me-${s}`);
+    }
+  });
+
+  it('has no overview while it reads, nor on the empty state', async () => {
+    fake.myVaults.mockResolvedValue(list([]));
+    renderWithProviders(page());
+    await screen.findByTestId('me-empty');
+    expect(screen.queryByTestId('me-overview')).toBeNull();
   });
 
   it('speaks Vietnamese', async () => {

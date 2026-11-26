@@ -3,7 +3,7 @@ import type { Page, Route } from '@playwright/test';
 import { type Address, createWalletClient, http, keccak256, toHex } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom } from './flows.ts';
-import { expectAccessibleInBothThemes } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes, setStoredTheme } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
 import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
 import { warp } from './state.ts';
@@ -103,23 +103,37 @@ test('a Drill past its seven days reads as expired, not as active', async ({ pag
 
 /** The chain nodes the page reads through; a route added here wins over routeRpcToAnvil (Playwright tries the last first). */
 const rpc = (url: URL) => OKX_ORIGINS.includes(url.origin);
-/** Every read of the page fails as a node that is down does: the SDK calls it RPC_UNAVAILABLE. */
-const down = (route: Route) => route.fulfill({ status: 503, body: 'down' });
+/**
+ * Every read of the page fails as a node that is down does, after the preflight passes: the SDK calls it
+ * RPC_UNAVAILABLE. Each node retries a 5xx three times and the read itself twice (shouldRetry), so the error box
+ * comes after some 20 s of reading: hence the longer waits below.
+ */
+const down = (route: Route) =>
+  route.request().method() === 'OPTIONS'
+    ? route.fallback()
+    : route.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'down' });
+const SLOW = { timeout: 60_000 };
 
 test('a first read that fails shows the error with Retry, and Retry reads the list', async ({
   page,
   state,
   wallet,
 }) => {
+  test.setTimeout(300_000);
   await wallet({ account: ANVIL[1] });
   await page.goto(meUrl(state.siteUrl));
   await page.route(rpc, down);
   await connectFrom(page, page.getByTestId('me-connect'));
   const box = page.getByTestId('me-error');
-  await expect(box).toBeVisible({ timeout: 20_000 });
+  await expect(box).toBeVisible(SLOW);
   await expect(box).toHaveAttribute('data-code', 'RPC_UNAVAILABLE');
   await expect(page.getByTestId('me-row')).toHaveCount(0);
-  await expectAccessibleInBothThemes(page, box);
+  // expectAccessibleInBothThemes, with the wait the error needs after each reload.
+  for (const theme of ['light', 'dark'] as const) {
+    await setStoredTheme(page, theme);
+    await expect(box).toBeVisible(SLOW);
+    await expectAccessible(page);
+  }
   await page.unroute(rpc, down);
   await box.getByRole('button', { name: 'Retry' }).click();
   await expect(rows(page, 'own')).toHaveCount(3);
@@ -187,7 +201,7 @@ test('screens of /me/: connect, reading, the error, the three lists, no vaults',
   await captureScreens(page, 'me-error', {
     vellum: true,
     ready: async () => {
-      await expect(page.getByTestId('me-error')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('me-error')).toBeVisible(SLOW);
     },
   });
   await page.unroute(rpc, down);
