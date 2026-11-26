@@ -963,8 +963,13 @@ test('switching to Vietnamese in the settings turns the whole story at once, wit
   expect(read.wrong).toEqual([]);
   for (const [selector, name] of Object.entries(TITLES.vi))
     await expect(page.locator(selector)).toHaveAccessibleName(name);
-  // Back to English the same way, so the next test starts from the default.
-  const again = await openSettings(page);
+  // Back to English the same way, so the next test starts from the default. The header speaks Vietnamese now, and
+  // openSettings looks for the English "Settings": on a wide screen the button and its popover are "Cài đặt" (the
+  // phone's "Menu" is the same word in both languages).
+  const wide = page.getByRole('button', { name: 'Cài đặt' });
+  if (await wide.isVisible()) await wide.click();
+  else await page.getByRole('button', { name: 'Menu' }).click();
+  const again = page.getByRole('dialog', { name: /^(?:Cài đặt|Menu)$/ });
   await again.getByText('English', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   expect((await storyLanguage(page)).wrong).toEqual([]);
