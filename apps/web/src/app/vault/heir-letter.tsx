@@ -1,7 +1,7 @@
 'use client';
 
 import type { SendResult, StateName, VaultAction } from '@atropyle/sdk';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useChainNow } from '@/chain/time';
 import { SubscribeForm } from '@/components/subscribe/SubscribeForm';
 import type { TransferRow } from '@/flows/impl/heir';
@@ -143,40 +143,58 @@ export function HeirLetter(p: PanelProps) {
                       key={h.account}
                       data-testid={`heir-legend-${i}`}
                       data-you={you ? 'true' : 'false'}
-                      className="flex flex-wrap items-center gap-x-2 gap-y-1"
+                      className="grid grid-cols-[0.625rem_minmax(0,1fr)] items-baseline gap-x-2.5"
                     >
                       <span
                         aria-hidden
-                        className={cn('size-2.5 shrink-0 rounded-full', you ? 'bg-thread' : 'bg-ink-muted/35')}
+                        className={cn(
+                          'size-2.5 translate-y-px self-center rounded-full',
+                          you ? 'bg-thread' : 'bg-ink-muted/35',
+                        )}
                       />
-                      <span className={you ? 'font-medium text-ink' : undefined}>
-                        {you ? t('legendYou') : t('legendHeir', { n: String(i + 1) })}
-                      </span>
-                      <span aria-hidden>·</span>
-                      <span className="voice-ledger">{formatBps(h.bps)}</span>
-                      {rows.map((r) => {
-                        const a = view.assets.find((x) => x.index === r.assetIndex);
-                        return (
-                          <span key={r.assetIndex} className="inline-flex items-center gap-2">
-                            <span aria-hidden>·</span>
-                            {r.kind === 'erc20' && a ? (
-                              <span>
-                                {t('legendAbout')}{' '}
-                                <Amount
-                                  raw={r.amount}
-                                  decimals={a.info.decimals}
-                                  symbol={a.info.symbol}
-                                  className="voice-ledger"
-                                />
-                              </span>
-                            ) : (
-                              <span className="voice-ledger">
-                                {t('shareNft')} {a ? <UntrustedText value={a.info.symbol} max={16} /> : null}
-                              </span>
-                            )}
+                      {/* On a phone the amounts take their own line under the name: no line starts with a dot. */}
+                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className="inline-flex items-baseline gap-x-2 whitespace-nowrap">
+                          <span className={you ? 'font-medium text-ink' : undefined}>
+                            {you ? t('legendYou') : t('legendHeir', { n: String(i + 1) })}
                           </span>
-                        );
-                      })}
+                          <span aria-hidden>·</span>
+                          <span className="voice-ledger">{formatBps(h.bps)}</span>
+                        </span>
+                        {rows.length > 0 ? (
+                          <span className="flex basis-full flex-wrap items-baseline gap-x-2 sm:basis-auto">
+                            <span aria-hidden className="hidden sm:inline">
+                              ·
+                            </span>
+                            {rows.map((r, j) => {
+                              const a = view.assets.find((x) => x.index === r.assetIndex);
+                              return (
+                                <span
+                                  key={r.assetIndex}
+                                  className="inline-flex items-baseline gap-x-2 whitespace-nowrap"
+                                >
+                                  {j > 0 ? <span aria-hidden>·</span> : null}
+                                  {r.kind === 'erc20' && a ? (
+                                    <span>
+                                      {t('legendAbout')}{' '}
+                                      <Amount
+                                        raw={r.amount}
+                                        decimals={a.info.decimals}
+                                        symbol={a.info.symbol}
+                                        className="voice-ledger"
+                                      />
+                                    </span>
+                                  ) : (
+                                    <span className="voice-ledger">
+                                      {t('shareNft')} {a ? <UntrustedText value={a.info.symbol} max={16} /> : null}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </span>
+                        ) : null}
+                      </span>
                     </li>
                   );
                 })}
@@ -244,9 +262,8 @@ export function HeirLetter(p: PanelProps) {
         <h2 id="heir-steps-title" className="text-title text-ink">
           {t('stepsTitle')}
         </h2>
-        <ol className="flex flex-col gap-6">
-          <li className="flex flex-col gap-2">
-            <h3 className="text-lead text-ink">1. {t('stepVerify')}</h3>
+        <ol className="flex flex-col">
+          <Step n={1} title={t('stepVerify')}>
             <p className="text-small text-ink-muted">{t('stepVerifyHelp')}</p>
             <NavLink
               href={verifyHref(view.vault)}
@@ -254,23 +271,43 @@ export function HeirLetter(p: PanelProps) {
               data-testid="heir-verify"
               className={buttonClass({ variant: 'secondary', size: 'md', className: 'self-start' })}
             >
-              {t('stepVerify')}
+              {t('stepVerifyGo')}
             </NavLink>
-          </li>
-          <li className="flex flex-col gap-2">
-            <h3 className="text-lead text-ink">2. {t('stepMoveTitle')}</h3>
+          </Step>
+          <Step n={2} title={t('stepMoveTitle')}>
             <MoveStep {...p} recover={recover} />
-          </li>
-          <li className="flex flex-col gap-2">
-            <h3 className="text-lead text-ink">3. {t('stepReceiveTitle')}</h3>
+          </Step>
+          <Step n={3} title={t('stepReceiveTitle')} last>
             <ReceiveStep {...p} recover={recover} />
-          </li>
+          </Step>
         </ol>
       </section>
 
       <Glossary />
       <SubscribeForm vault={view.vault} role={ALERTS_ROLE} />
     </div>
+  );
+}
+
+/**
+ * One step of the three, on a rail: its number in a ring (the list itself numbers it for a screen reader), a line down
+ * to the next step, then its heading and what it offers.
+ */
+function Step({ n, title, last = false, children }: { n: number; title: string; last?: boolean; children: ReactNode }) {
+  return (
+    <li className="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-4">
+      {last ? null : <span aria-hidden className="absolute top-11 bottom-2 left-[1.125rem] w-px bg-line" />}
+      <span
+        aria-hidden
+        className="voice-ledger grid size-9 place-items-center rounded-full border border-line-strong bg-surface-1 text-small text-ink"
+      >
+        {n}
+      </span>
+      <div className={cn('flex min-w-0 flex-col gap-2 pt-1', last ? null : 'pb-8')}>
+        <h3 className="text-lead text-ink">{title}</h3>
+        {children}
+      </div>
+    </li>
   );
 }
 

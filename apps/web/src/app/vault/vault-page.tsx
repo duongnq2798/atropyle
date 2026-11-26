@@ -265,11 +265,12 @@ function VaultScreen({ vault }: { vault: Addr }) {
       />
       {panel && active ? (
         // Focus lands here when the wallet sheet closes on a connection (GuestView's fallback): the guest heading is gone.
+        // scroll-mt keeps its first heading clear of the sticky header when the focus scrolls it into view.
         <section
           aria-label={t('rolePanelLabel')}
           data-role-focus=""
           tabIndex={-1}
-          className="flex flex-col gap-6 focus:outline-none"
+          className="flex scroll-mt-24 flex-col gap-6 focus:outline-none"
         >
           {roles.length > 1 ? (
             <Tabs

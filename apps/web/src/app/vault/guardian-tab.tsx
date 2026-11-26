@@ -6,6 +6,7 @@ import type { Address as Addr } from 'viem';
 import { SubscribeForm } from '@/components/subscribe/SubscribeForm';
 import type { TargetCheck } from '@/flows/impl/guardian';
 import { useT } from '@/i18n/provider';
+import { cn } from '@/lib/cn';
 import { isFramed } from '@/lib/framed';
 import { useMounted } from '@/lib/use-mounted';
 import { messages } from '@/messages/guardian.messages';
@@ -98,9 +99,24 @@ export function GuardianTab(p: PanelProps) {
             </li>
           ))}
         </ul>
-        <p data-testid="guardian-attest-count" data-count={attested} className="text-small text-ink">
-          {t('attestCount', { count: attested, k })}
-        </p>
+        <div className="flex items-center gap-3 border-line border-t pt-4">
+          {/* The k posts of the gate (the header's thread draws them too): one fills per guardian who has said it. */}
+          <span aria-hidden className="flex shrink-0 gap-1.5">
+            {Array.from({ length: k }, (_, i) => (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: the posts are positional, one per needed guardian
+                key={i}
+                className={cn(
+                  'size-2.5 rounded-full border',
+                  i < attested ? 'border-thread bg-thread' : 'border-line-strong bg-transparent',
+                )}
+              />
+            ))}
+          </span>
+          <p data-testid="guardian-attest-count" data-count={attested} className="text-small text-ink">
+            {t('attestCount', { count: attested, k })}
+          </p>
+        </div>
         {recoveryEnabled ? (
           <div className="flex flex-col gap-2">
             <h4 className="text-small text-ink">{t('tallyTitle')}</h4>
