@@ -6,11 +6,11 @@ Command line for [Atropyle](https://github.com/duongnq2798/atropyle) inheritance
 
 Requires Node.js 20 or newer.
 
-The default chain is X Layer mainnet (`--chain xlayer`); its deployment ships with the CLI, and the addresses are in [`docs/deployments.md`](../../docs/deployments.md). To read another deployment, such as a local devnet, pass `--deployment <file>`, as the examples below that read the chain do:
+The default chain is X Layer mainnet (`--chain xlayer`). Its deployment ships with the CLI, so the commands below need no flag; the addresses are in [`docs/deployments.md`](https://github.com/duongnq2798/atropyle/blob/main/docs/deployments.md). To read another deployment, such as a local devnet, add `--deployment <file>`.
 
 ```bash
-npx -y atropyle doctor --deployment deployment.json
-npx -y atropyle verify --deployment deployment.json
+npx -y atropyle@0.1.0 doctor
+npx -y atropyle@0.1.0 verify
 ```
 
 ## Commands
@@ -35,10 +35,10 @@ In a terminal, `atropyle plan init` without `--heir` asks one question at a time
 Start with a Drill, a practice vault that runs in minutes instead of months:
 
 ```bash
-npx -y atropyle plan init --heir <HEIR> --drill --owner <YOUR_WALLET>
-npx -y atropyle plan check atropyle.plan.json --deployment deployment.json
-npx -y atropyle simulate --plan atropyle.plan.json --deployment deployment.json
-npx -y atropyle prepare create-vault atropyle.plan.json --deployment deployment.json
+npx -y atropyle@0.1.0 plan init --heir <HEIR> --drill --owner <YOUR_WALLET>
+npx -y atropyle@0.1.0 plan check atropyle.plan.json
+npx -y atropyle@0.1.0 simulate --plan atropyle.plan.json
+npx -y atropyle@0.1.0 prepare create-vault atropyle.plan.json
 ```
 
 A Drill pays out within minutes, so the signing page holds a link that creates a Drill, or approves tokens to one, and also grants a token allowance. That includes the links `prepare create-vault` writes for a Drill plan with assets. It also holds a link that changes the heirs of a Drill, or sets its guardians with recovery on, because the Drill may already hold allowances: the links `prepare set-heirs` writes for a Drill are such links, and so are those of `prepare set-guardians` with recovery on. Sign stays off until the owner types every heir again, and every guardian too when recovery is on, from their own records. The page refuses a second `createVault`, a vault that already exists and any call to the vault the same link creates, so what it states for each `createVault` step is final: the earliest time the assets can leave, the heirs with their shares and the guardians with `k`. With recovery on, `plan check`, `simulate --plan`, `prepare create-vault`, `prepare set-guardians`, `prepare set-timing` and `status` warn `RECOVERY_POWER`: `k` guardians acting together can move 100% of the covered assets to any wallet they choose, and the owner can stop it only by checking in before the alarm window ends.
@@ -78,7 +78,7 @@ The signing link opens the Atropyle web app, where you sign with OKX Wallet or a
 `atropyle mcp` runs the same MCP server as `npx -y @atropyle/mcp`, on stdio, with the same global options. It reads and simulates and prepares unsigned transactions; it has no tool that signs or sends. A wrong-chain `--rpc` stops it; an `--rpc` that does not answer only prints a note on stderr and the server starts. `--json` does not apply to it.
 
 ```bash
-claude mcp add atropyle -- npx -y atropyle mcp --deployment /path/to/deployment.json
+claude mcp add atropyle -- npx -y atropyle@0.1.0 mcp
 ```
 
 ## Output and exit codes
