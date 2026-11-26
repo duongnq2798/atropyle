@@ -62,4 +62,11 @@ describe('local copies of SDK helpers', () => {
     expect(jsonStringify(v)).toBe(sdk.stringify(v));
     expect(jsonStringify(v, 2)).toBe(sdk.stringify(v, 2));
   });
+  it('the create page copies the Drill lifetime and the wizard steps', async () => {
+    const { DRILL_LIFETIME_SECONDS } = await import('../../src/app/create/kind');
+    const { CREATE_STEPS } = await import('../../src/app/create/progress');
+    const { WIZARD_STEPS } = await import('../../src/flows/impl/wizard');
+    expect(DRILL_LIFETIME_SECONDS).toBe(sdk.DRILL_LIFETIME_SECONDS);
+    expect(CREATE_STEPS).toEqual(WIZARD_STEPS);
+  });
 });
