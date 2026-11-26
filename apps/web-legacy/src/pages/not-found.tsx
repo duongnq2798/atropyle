@@ -21,7 +21,7 @@ export function BadAddressPage({ input }: { input: string }) {
     <section class="stack">
       <h1>{t('badAddressTitle')}</h1>
       <p>{t('badAddressBody')}</p>
-      <p class="mono">
+      <p class="mono wrap-anywhere">
         <UntrustedText value={input} max={64} />
       </p>
       <a href="#/">{t('goHome')}</a>

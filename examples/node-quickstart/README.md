@@ -28,7 +28,9 @@ Without a deployment file the example reads X Layer mainnet, through the public 
 node examples/node-quickstart/index.mjs 0xYourVault 0xYourWallet
 ```
 
+Outside this repository, copy `index.mjs` into your own project, run `npm install @atropyle/sdk viem` there, and start it the same way: `node index.mjs 0xYourVault 0xYourWallet`.
+
 ## Next
 
-- `atropyle status <vault>` and `atropyle prepare check-in <vault> --as <owner>` do the same from the command line.
+- `npx -y atropyle@0.1.0 status <vault>` and `npx -y atropyle@0.1.0 prepare check-in <vault> --as <owner>` do the same from the command line.
 - The SDK README covers plans, verification and every other action.

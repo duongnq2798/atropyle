@@ -254,43 +254,45 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
           </div>
         ) : null}
       </div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>{t('target')}</th>
-            <th>{t('action')}</th>
-            <th>{t('simulation')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {check.steps.map((s) => (
-            <tr key={s.index} data-testid={`sign-step-${s.index}`} data-allowed={String(s.allowed)}>
-              <td>{s.index + 1}</td>
-              <td>
-                <AddressText address={s.to} explorer={explorer} />
-              </td>
-              <td>
-                {/* A guardian step is allowed but never "fine": it gets a neutral badge, not the green one. */}
-                {!s.allowed ? (
-                  <span class="badge badge-bad">{t('allowedNo')}</span>
-                ) : isGuardianStep(s) ? (
-                  <span class="badge">{t('allowedGuardian')}</span>
-                ) : (
-                  <span class="badge badge-ok">{t('allowedYes')}</span>
-                )}{' '}
-                {s.allowed ? s.summary : s.reason}
-                {s.builderCodes ? (
-                  <div class="muted">{t('builderCodes', { codes: s.builderCodes.join(', ') })}</div>
-                ) : null}
-              </td>
-              <td>
-                {s.simulation.ok === true ? t('simOk') : s.simulation.ok === false ? t('simFailed') : t('simSkipped')}
-              </td>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{t('action')}</th>
+              <th>{t('simulation')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {check.steps.map((s) => (
+              <tr key={s.index} data-testid={`sign-step-${s.index}`} data-allowed={String(s.allowed)}>
+                <td>{s.index + 1}</td>
+                {/* The contract is the first line of the wide Action cell, so its address is never squeezed. */}
+                <td class="wrap-anywhere">
+                  <div>
+                    {t('target')}: <AddressText address={s.to} explorer={explorer} />
+                  </div>
+                  {/* A guardian step is allowed but never "fine": it gets a neutral badge, not the green one. */}
+                  {!s.allowed ? (
+                    <span class="badge badge-bad">{t('allowedNo')}</span>
+                  ) : isGuardianStep(s) ? (
+                    <span class="badge">{t('allowedGuardian')}</span>
+                  ) : (
+                    <span class="badge badge-ok">{t('allowedYes')}</span>
+                  )}{' '}
+                  {s.allowed ? s.summary : s.reason}
+                  {s.builderCodes ? (
+                    <div class="muted">{t('builderCodes', { codes: s.builderCodes.join(', ') })}</div>
+                  ) : null}
+                </td>
+                <td>
+                  {s.simulation.ok === true ? t('simOk') : s.simulation.ok === false ? t('simFailed') : t('simSkipped')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {check.steps.map((s) =>
         s.create ? <TermsCard key={s.index} index={s.index} terms={s.create} explorer={explorer} /> : null,
@@ -437,7 +439,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
         <div data-testid="sign-confirmed" class="stack">
           <p>{t('confirmedSoFar')}</p>
           {confirmed.map((h) => (
-            <div key={h} class="mono">
+            <div key={h} class="mono wrap-anywhere">
               {h}
             </div>
           ))}
@@ -454,7 +456,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
       ) : null}
       {bundle ? (
         <div class="stack" data-testid="sign-bundle-id">
-          <p class="mono">{t('bundleId', { id: bundle.id })}</p>
+          <p class="mono wrap-anywhere">{t('bundleId', { id: bundle.id })}</p>
           {submitted ? <p>{t('checkWallet')}</p> : null}
         </div>
       ) : null}
@@ -474,7 +476,7 @@ function SignRequest({ sdk, hash }: { sdk: Sdk; hash: string }) {
                 </a>
               </div>
             ) : (
-              <div key={h} class="mono">
+              <div key={h} class="mono wrap-anywhere">
                 {h}
               </div>
             ),

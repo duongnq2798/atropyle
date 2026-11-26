@@ -329,6 +329,17 @@ describe('vault page', () => {
     expect((await screen.findByTestId('asset-1-heir')).textContent).toBe(`Thuộc về ${PEOPLE.heirB}`);
   });
 
+  it('puts the name, the symbol, the token and the heir of an asset on their own lines', async () => {
+    mount(fixtureSnapshot(), null);
+    const heir = await screen.findByTestId('asset-1-heir');
+    const cell = heir.parentElement as HTMLElement;
+    // Block children only: inline ones run together in the cell ("USD CoinUSDC0x779D…").
+    expect([...cell.children].every((e) => e.tagName === 'DIV')).toBe(true);
+    for (const id of ['asset-1-name', 'asset-1-symbol', 'asset-1-token']) {
+      expect(screen.getByTestId(id).parentElement).toBe(cell);
+    }
+  });
+
   it('warns when a heir edit hands an NFT to someone else, and saves only after the owner acknowledges it', async () => {
     const { prepare } = mount(fixtureSnapshot(), PEOPLE.owner);
     await screen.findByTestId('owner-panel');

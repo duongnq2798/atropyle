@@ -1,0 +1,36 @@
+import { defineMessages } from '../lib/i18n';
+
+export const messages = defineMessages(
+  {
+    title: 'Full count from events',
+    none: 'This device has not run the full count yet.',
+    load: 'Count from the chain',
+    update: 'Update from the chain',
+    asOf: 'As of block {block}.',
+    note: 'Counted from factory and vault events through public RPC. The first count can take a few minutes.',
+    tileVaults: 'Vaults',
+    tilePaid: 'Paid vaults',
+    tileDrill: 'Drills',
+    tileOwners: 'Owners',
+    tileCheckIns: 'Check-ins',
+    tileAlarms: 'Alarms raised',
+    tileReleases: 'Releases',
+    tileDistributions: 'Distributions',
+  },
+  {
+    title: 'Đếm đầy đủ từ event',
+    none: 'Thiết bị này chưa chạy lần đếm đầy đủ.',
+    load: 'Đếm từ chain',
+    update: 'Cập nhật từ chain',
+    asOf: 'Tính đến block {block}.',
+    note: 'Đếm từ event của factory và vault qua RPC công khai. Lần đếm đầu có thể mất vài phút.',
+    tileVaults: 'Vault',
+    tilePaid: 'Vault trả phí',
+    tileDrill: 'Drill',
+    tileOwners: 'Chủ vault',
+    tileCheckIns: 'Lần điểm danh',
+    tileAlarms: 'Lần báo động',
+    tileReleases: 'Lần giải phóng',
+    tileDistributions: 'Lần chia tài sản',
+  },
+);

@@ -14,7 +14,7 @@ function Amount({ row, asset }: { row: TransferRow; asset: AssetView | undefined
   const t = useT(messages);
   if (row.amount === null) return null;
   if (asset?.kind === 'erc20') return <TokenAmount raw={row.amount} token={asset.info} />;
-  if (asset?.kind === 'erc721') return <span class="mono">{t('nftId', { id: row.amount })}</span>;
+  if (asset?.kind === 'erc721') return <span class="mono wrap-anywhere">{t('nftId', { id: row.amount })}</span>;
   return <span class="mono">{row.amount.toString()}</span>;
 }
 
@@ -29,39 +29,41 @@ function TransferTable({ rows, view, testid }: { rows: readonly TransferRow[]; v
   }
   return (
     <>
-      <table class="table" data-testid={testid}>
-        <thead>
-          <tr>
-            <th>{t('colAsset')}</th>
-            <th>{t('colTo')}</th>
-            <th>{t('colAmount')}</th>
-            <th>{t('colResult')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const a = view.assets.find((x) => x.index === r.assetIndex);
-            return (
-              <tr key={`${r.hash}-${r.logIndex}`} data-testid={`${testid}-${i}`} data-ok={String(r.ok)}>
-                <td>{a ? <UntrustedText value={a.info.symbol} max={16} /> : `#${r.assetIndex + 1}`}</td>
-                <td>
-                  <AddressText address={r.to} />
-                </td>
-                <td>
-                  <Amount row={r} asset={a} />
-                </td>
-                <td>
-                  {r.ok ? (
-                    <span class="badge badge-ok">{t('sent')}</span>
-                  ) : (
-                    <span class="badge badge-bad">{t('failed')}</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="table" data-testid={testid}>
+          <thead>
+            <tr>
+              <th>{t('colAsset')}</th>
+              <th>{t('colTo')}</th>
+              <th>{t('colAmount')}</th>
+              <th>{t('colResult')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const a = view.assets.find((x) => x.index === r.assetIndex);
+              return (
+                <tr key={`${r.hash}-${r.logIndex}`} data-testid={`${testid}-${i}`} data-ok={String(r.ok)}>
+                  <td>{a ? <UntrustedText value={a.info.symbol} max={16} /> : `#${r.assetIndex + 1}`}</td>
+                  <td>
+                    <AddressText address={r.to} />
+                  </td>
+                  <td>
+                    <Amount row={r} asset={a} />
+                  </td>
+                  <td>
+                    {r.ok ? (
+                      <span class="badge badge-ok">{t('sent')}</span>
+                    ) : (
+                      <span class="badge badge-bad">{t('failed')}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {rows.some((r) => !r.ok) ? <p class="muted">{t('failedHelp')}</p> : null}
     </>
   );

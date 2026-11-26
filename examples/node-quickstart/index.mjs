@@ -35,7 +35,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   const [vault, owner, file] = process.argv.slice(2);
   if (vault === undefined || owner === undefined) {
     console.log('Usage: node index.mjs <vault> <owner> [deployment.json]');
-    console.log('Without a deployment file it reads X Layer mainnet, once its deployment is published.');
+    console.log('Without a deployment file it reads X Layer mainnet, through the deployment that ships with the SDK.');
     process.exitCode = 2;
   } else {
     const deployment = file === undefined ? undefined : parseDeployment(JSON.parse(readFileSync(file, 'utf8')));

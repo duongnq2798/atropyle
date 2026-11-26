@@ -51,7 +51,7 @@ export function counterTiles(c: ChainCounters): CounterTile[] {
 }
 
 /**
- * Vaults this device already knows from a full event count (the home page statistics), so the counters can read them
+ * Vaults this device already knows from a full event count (on the status page), so the counters can read them
  * too and report exact releases. The SDK checks each one with factory.isVault.
  */
 export function knownVaults(kv: KV, d: Pick<Deployment, 'chainId' | 'factory'>): string[] {

@@ -8,12 +8,12 @@ Requires Node.js 20 or newer.
 
 ## Install
 
-The default chain is `xlayer`, X Layer mainnet; its deployment ships with the server. To use another deployment, such as a local devnet, point the server at its file with `--deployment <file>`.
+The default chain is `xlayer`, X Layer mainnet. Its deployment ships with the server, so it needs no flag.
 
 Claude Code:
 
 ```bash
-claude mcp add atropyle -- npx -y @atropyle/mcp --deployment /path/to/deployment.json
+claude mcp add atropyle -- npx -y @atropyle/mcp@0.1.0
 ```
 
 Claude Desktop (`claude_desktop_config.json`) and Cursor (`.cursor/mcp.json`):
@@ -21,14 +21,14 @@ Claude Desktop (`claude_desktop_config.json`) and Cursor (`.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "atropyle": { "command": "npx", "args": ["-y", "@atropyle/mcp", "--deployment", "/path/to/deployment.json"] }
+    "atropyle": { "command": "npx", "args": ["-y", "@atropyle/mcp@0.1.0"] }
   }
 }
 ```
 
-Without the flag the server reads X Layer mainnet: `claude mcp add atropyle -- npx -y @atropyle/mcp`.
+To use another deployment, such as a local devnet, add `--deployment <file>` with the path of its JSON file.
 
-The CLI starts the same server: `npx -y atropyle mcp`.
+The CLI starts the same server: `npx -y atropyle@0.1.0 mcp`.
 
 ## Options
 

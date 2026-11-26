@@ -14,4 +14,4 @@ const report = verifyPolicy(program);
 console.log(report.mismatches === 0 && report.violations.every((v) => v === 0));
 ```
 
-To check the circuit that is live on chain, use `npx atropyle verify` or `verifyPolicy()` from `@atropyle/sdk`.
+To check the circuit that is live on chain, use `npx -y atropyle@0.1.0 verify` or `verifyPolicy()` from `@atropyle/sdk`.

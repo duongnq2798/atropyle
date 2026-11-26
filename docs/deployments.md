@@ -2,7 +2,7 @@
 
 The project's deployer wallet created every address below with `npm run deploy:mainnet` on 22 November 2026: 17 transactions, blocks 76566929 to 76567053, for 0.14 BEM and 0.00407 OKB. Machine-readable copy: [`deployments/xlayer.json`](../deployments/xlayer.json), written by `npm run deployment:write` (read-only chain reads, through two independent RPC operators).
 
-Check it again with one read-only command (from a checkout: `node packages/cli/dist/bin.js verify`; after the npm publish: `npx atropyle verify`). Result when this file was written, at block 76567369: P1-P8 hold on all 67,108,864 combinations, the netlists of all three circuits match the source in `circuits/`, the beacon is frozen, and the two RPC operators agree. Check with Foundry: `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` with the environment variables of `contracts/broadcast/atropyle-deploy/196/exports.env` (10 PASS, 1 SKIP, which is `test_tapeoutBudget`, as designed).
+Check it again with one read-only command (`npx -y atropyle@0.1.0 verify`, or from a checkout: `node packages/cli/dist/bin.js verify`). Result when this file was written, at block 76567369: P1-P8 hold on all 67,108,864 combinations, the netlists of all three circuits match the source in `circuits/`, the beacon is frozen, and the two RPC operators agree. Check with Foundry: `XLAYER_FORK_RPC=https://rpc.xlayer.tech forge test --match-contract ForkTest -vv` with the environment variables of `contracts/broadcast/atropyle-deploy/196/exports.env` (10 PASS, 1 SKIP, which is `test_tapeoutBudget`, as designed).
 
 | Component | Value | Transaction |
 |---|---|---|
