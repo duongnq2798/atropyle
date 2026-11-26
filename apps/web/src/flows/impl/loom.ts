@@ -71,11 +71,14 @@ export function loomOf(p: LoomInput): Loom {
   const heirs = exits.routes.find((r) => r.route !== 'recovery') ?? null;
   const alarmAt = BigInt(timing.threshold * timing.period);
   const end = BigInt(heirs ? heirs.after : (exits.expiresAfter ?? DRILL_LIFETIME_SECONDS));
+  // The home thread's composition: the axis runs half a release past the gate, so the gate stands at GATE_X (two
+  // thirds) and drawnAxis leaves it there; the posts, the exit and the heirs' branches get the last third to fan out.
+  const to = heirs ? end + end / 2n : end > alarmAt ? end : alarmAt + 1n;
   return {
     timing,
     exits,
     state: heirs ? 'releasedInherit' : 'expired',
-    axis: { from: 0n, now: 0n, alarmAt, releaseAt: heirs ? end : null, to: end > alarmAt ? end : alarmAt + 1n },
+    axis: { from: 0n, now: 0n, alarmAt, releaseAt: heirs ? end : null, to },
     heirsAfter: heirs?.after ?? null,
     exit: exits.routes.some((r) => r.route === 'recovery'),
   };

@@ -5,9 +5,9 @@ import * as impl from '../../src/flows/impl';
 import { renderWithProviders } from '../helpers/render';
 import { PEOPLE } from './fixtures';
 
-function Probe(p: { form: impl.CreateForm; vault?: `0x${string}` | null }) {
+function Probe(p: { form: impl.CreateForm; vault?: `0x${string}` | null; aspect?: 4 | 5 }) {
   const model = usePreviewModel(impl, p.form);
-  return <PlanThread model={model} vault={p.vault ?? null} testId="probe" />;
+  return <PlanThread model={model} vault={p.vault ?? null} testId="probe" aspect={p.aspect} />;
 }
 
 const base = impl.initialForm(false);
@@ -55,6 +55,25 @@ describe('loom preview', () => {
     expect(thread()?.getAttribute('aria-label')).toMatch(
       /your heirs can receive 194 days after it is created if your guardians confirm, otherwise after 15 months/,
     );
+  });
+
+  it('in the rail and the sheet, a 4:1 box: the gate label still hugs the foot, at two thirds across', () => {
+    const form = { ...two, guardians: [PEOPLE.g1, PEOPLE.g2], k: '2' };
+    renderWithProviders(<Probe form={form} aspect={4} />);
+    expect(thread()?.getAttribute('class')).toContain('aspect-[4/1]!');
+    const gate = screen.getByTestId('probe-gate');
+    // Half of a 42 % arch, or of min(3rem, 80 %), of a box a quarter as tall as wide.
+    expect(gate.style.marginTop).toMatch(/^calc\(.*% \+ max\(5\.25%, min\(1\.5rem, 10%\)\) \+ 6px\)$/);
+    // The gate at GATE_X (two thirds), the words on its side.
+    expect(thread()?.querySelector<HTMLElement>('[data-part="gate"]')?.style.left).toBe('66.667%');
+    expect(gate).toHaveClass('text-right');
+    // Air on the right, so the branch end dots never touch the card's edge.
+    expect(screen.getByTestId('probe-box')).toHaveClass('pr-1.5');
+  });
+
+  it('keeps the Thread at its own 5:1 by default', () => {
+    renderWithProviders(<Probe form={two} />);
+    expect(thread()?.getAttribute('class')).not.toContain('aspect-[4/1]');
   });
 
   it('n posts at the gate, k of them needed, and an exit when recovery is on', () => {

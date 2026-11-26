@@ -20,7 +20,7 @@ import { roughDuration } from '@/lib/when';
 import { messages } from '@/messages/create.messages';
 import { messages as sign } from '@/messages/sign.messages';
 import { BRANCH_BG } from '@/thread/branches';
-import { courseX, drawnAxis, pctX, threadSignature, waveY } from '@/thread/geometry';
+import { courseX, drawnAxis, pctX, pctY, threadSignature, waveY } from '@/thread/geometry';
 import { Thread } from '@/thread/thread';
 import { Address } from '@/ui/address';
 import { useLazyOverlay } from '@/ui/lazy-overlay';
@@ -74,18 +74,29 @@ function threadProps(model: PreviewModel, vault: Addr | null) {
   } as const;
 }
 
-/** The plan as the Thread draws it: an image with a name; the text list next to it says the same in words. */
 /**
  * Where the gate's foot stands, as a margin from the top of the Thread's box: a margin in percent reads the box's width,
- * and the box is 5:1 (VIEW), so a y in view units is pctX(y) of the width. The arch is 42 % of the box tall, or with
- * posts at least min(3rem, 80 %) (thread.tsx), centred on the wave; then 6 px of air.
+ * and the box is `aspect`:1 (5:1 is the Thread's own, VIEW), so a y in view units is pctY(y) / aspect of the width. The
+ * arch is 42 % of the box tall, or with posts at least min(3rem, 80 %) (thread.tsx), centred on the wave; then 6 px
+ * of air.
  */
-export function gateFoot(y: number, posts: boolean): string {
-  const half = posts ? 'max(4.2%, min(1.5rem, 8%))' : '4.2%';
-  return `calc(${pctX(y)}% + ${half} + 6px)`;
+export function gateFoot(y: number, posts: boolean, aspect: ThreadAspect = 5): string {
+  const pct = (x: number) => `${Math.round((x / aspect) * 1000) / 1000}%`;
+  const half = posts ? `max(${pct(21)}, min(1.5rem, ${pct(40)}))` : pct(21);
+  return `calc(${pct(pctY(y))} + ${half} + 6px)`;
 }
 
-export function PlanThread(p: { model: PreviewModel; vault: Addr | null; testId: string; className?: string }) {
+/** The Thread's own 5:1, or 4:1 where the plan has a column of its own (the rail, the sheet): taller posts. */
+export type ThreadAspect = 4 | 5;
+
+/** The plan as the Thread draws it: an image with a name; the text list next to it says the same in words. */
+export function PlanThread(p: {
+  model: PreviewModel;
+  vault: Addr | null;
+  testId: string;
+  className?: string;
+  aspect?: ThreadAspect;
+}) {
   const t = useT(messages);
   const { lang } = useLang();
   const { loom, form } = p.model;
@@ -109,13 +120,20 @@ export function PlanThread(p: { model: PreviewModel; vault: Addr | null; testId:
             ? t('previewThreadGuarded', { time, fallback: later })
             : t('previewThreadGuardedOnly', { time });
   const props = threadProps(p.model, p.vault);
+  const aspect = p.aspect ?? 5;
   // The gate on the drawn axis: x for the side the words stand on, the wave's y there for the gate's foot.
   const gateX = loom.axis && loom.axis.releaseAt !== null ? courseX(loom.axis.releaseAt, drawnAxis(loom.axis)) : null;
   const sig = p.vault ? threadSignature(p.vault) : null;
   return (
     <figure data-testid={p.testId} className={cn('space-y-2', p.className)}>
-      <div className="grid grid-cols-[minmax(0,1fr)]">
-        <Thread {...props} label={label} className="w-full self-start [grid-area:1/1]" />
+      {/* 6 px of air on the right: the branches' end dots never touch the card's edge. */}
+      <div data-testid={`${p.testId}-box`} className="grid grid-cols-[minmax(0,1fr)] pr-1.5">
+        <Thread
+          {...props}
+          label={label}
+          // Important: the Thread's root sets its own 5:1, and cn does not merge classes.
+          className={cn('w-full self-start [grid-area:1/1]', aspect === 4 && 'aspect-[4/1]!')}
+        />
         {gateX !== null && loom.heirsAfter !== null ? (
           // Which route the gate is and when, at its foot at every width; the label and the list say it for a
           // screen reader. The words end under the gate (or start there, on the left half), never past the box.
@@ -127,7 +145,7 @@ export function PlanThread(p: { model: PreviewModel; vault: Addr | null; testId:
               pctX(gateX) > 50 ? 'text-right' : 'text-left',
             )}
             style={{
-              marginTop: gateFoot(waveY(gateX, sig), props.posts !== undefined),
+              marginTop: gateFoot(waveY(gateX, sig), props.posts !== undefined, aspect),
               ...(pctX(gateX) > 50
                 ? { paddingRight: `max(0px, calc(${100 - pctX(gateX)}% - 2.5rem))` }
                 : { paddingLeft: `max(0px, calc(${pctX(gateX)}% - 2.5rem))` }),
@@ -222,7 +240,7 @@ function PreviewList({ model, step }: { model: PreviewModel; step: WizardStep })
 export function PreviewBody(p: { model: PreviewModel; step: WizardStep; vault: Addr | null; testId: string }) {
   return (
     <div className="space-y-6">
-      <PlanThread model={p.model} vault={p.vault} testId={`${p.testId}-thread`} />
+      <PlanThread model={p.model} vault={p.vault} testId={`${p.testId}-thread`} aspect={4} />
       <PreviewList model={p.model} step={p.step} />
     </div>
   );

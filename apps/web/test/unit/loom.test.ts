@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loomOf, timingOf } from '../../src/flows/impl/loom';
+import { courseX, drawnAxis, GATE_X } from '../../src/thread/geometry';
 
 const real = { preset: 'sixMonths', period: '', threshold: '', window: '' } as const;
 
@@ -27,6 +28,18 @@ describe('loom', () => {
     expect(l.exit).toBe(false);
   });
 
+  it('ends the axis half a release past the gate, so the gate stands at two thirds and the branches fan out', () => {
+    for (const guardians of [0, 3]) {
+      const l = loomOf({ drill: false, guardians, k: guardians ? 2 : 0, recoveryEnabled: guardians > 0, timing: real });
+      const axis = l.axis;
+      if (!axis || axis.releaseAt === null) throw new Error('no release');
+      expect(axis.to).toBe(axis.releaseAt + axis.releaseAt / 2n);
+      // drawnAxis leaves it alone: the gate stands where the home thread has it.
+      expect(drawnAxis(axis)).toEqual(axis);
+      expect(courseX(axis.releaseAt, drawnAxis(axis))).toBe(GATE_X);
+    }
+  });
+
   it('draws an exit only when recovery is a route', () => {
     const on = loomOf({ drill: false, guardians: 3, k: 2, recoveryEnabled: true, timing: real });
     expect(on.exit).toBe(true);
@@ -39,6 +52,9 @@ describe('loom', () => {
     const l = loomOf({ drill: true, guardians: 0, k: 0, recoveryEnabled: false, timing: t });
     expect(l.state).toBe('expired');
     expect(l.heirsAfter).toBeNull();
+    // No gate: the axis keeps its end, just past the alarm when the Drill ends before it.
+    expect(l.axis?.releaseAt).toBeNull();
+    expect(l.axis?.to).toBe((l.axis?.alarmAt ?? 0n) + 1n);
   });
 
   it('waits while the timing cannot be read', () => {

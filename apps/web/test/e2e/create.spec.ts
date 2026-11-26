@@ -71,7 +71,13 @@ test('a Drill is created through wallet_sendCalls', async ({ page, state, atro, 
     const rail = await box(page.getByTestId('create-preview'));
     const drawn = await box(page.getByTestId('create-preview-thread').locator('[data-thread]'));
     expect(drawn.x + drawn.width).toBeLessThanOrEqual(rail.x + rail.width);
-    expect(drawn.width / drawn.height).toBeCloseTo(5, 1);
+    // In the rail the plan is 4:1, with 6 px of air before the figure's edge for the branches' end dots.
+    expect(drawn.width / drawn.height).toBeCloseTo(4, 1);
+    const figure = await box(page.getByTestId('create-preview-thread'));
+    expect(figure.x + figure.width - (drawn.x + drawn.width)).toBeGreaterThanOrEqual(5.5);
+    // The gate stands at two thirds, as on the home thread.
+    const gate = await box(page.getByTestId('create-preview-thread').locator('[data-part="gate"]'));
+    expect((gate.x + gate.width / 2 - drawn.x) / drawn.width).toBeCloseTo(2 / 3, 1);
   } else {
     await expect(page.getByTestId('create-strip').locator('[data-thread]')).toHaveAttribute('data-signed', 'true');
   }
@@ -107,7 +113,7 @@ test('a Drill is created through wallet_sendCalls', async ({ page, state, atro, 
   await expectAccessibleInBothThemes(page, page.getByTestId('create-done'));
 });
 
-test('a real vault pays its fee and is signed one step at a time', async ({ page, state, atro, wallet }) => {
+test('a real vault pays its fee and is signed one step at a time', async ({ page, state, atro, wallet }, info) => {
   const fee = atro.deployment.feeTokens[0] as Address;
   const w = await wallet({ account: OWNER });
   await page.goto(`${state.siteUrl}create/#real`);
@@ -124,6 +130,13 @@ test('a real vault pays its fee and is signed one step at a time', async ({ page
   await page.getByTestId('create-next').click();
   await expect(page.getByTestId('create-guardians-with')).toBeChecked();
   await page.getByTestId('create-guardian-0').fill(GUARDIAN);
+  if (info.project.name === 'desktop') {
+    // The guardians' posts stand under an arch tall enough to read as posts in the rail.
+    const thread = page.getByTestId('create-preview-thread');
+    await expect(thread.locator('[data-part="post"]')).toHaveCount(1);
+    expect((await box(thread.locator('[data-part="gate"]'))).height).toBeGreaterThanOrEqual(47);
+    expect((await box(thread.locator('[data-part="posts"]'))).height).toBeGreaterThanOrEqual(14);
+  }
   await page.getByTestId('create-next').click();
   await expect(page.getByTestId('create-preset-sixMonths')).toBeChecked();
   await page.getByTestId('create-next').click();
