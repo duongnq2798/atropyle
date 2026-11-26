@@ -146,8 +146,12 @@ test('a Drill link that approves a token signs only after the owner types every 
   await expectAccessible(page);
   await expect(page.getByTestId('sign-tx-send')).toBeDisabled();
   await page.getByLabel(/^Heir 1 \(100%\)/).fill(heir.toLowerCase());
-  await expect(page.getByTestId('sign-confirm-count')).toHaveText('1 of 1 addresses match.');
+  await expect(page.getByTestId('sign-confirm-count')).toHaveText('Matched 1 of 1');
   await expect(page.getByTestId('sign-tx-send')).toBeEnabled();
+  // Open, the gate looks open: its colours and the address typed back in groups pass axe too.
+  await expect(page.getByTestId('sign-confirm')).toHaveAttribute('data-open', 'true');
+  await expect(page.getByTestId('sign-confirm-0-typed')).toBeVisible();
+  await expectAccessible(page);
   expect(methods(w)).not.toContain('wallet_sendCalls');
   expect(methods(w)).not.toContain('eth_sendTransaction');
 
@@ -193,12 +197,18 @@ test('calls to contracts outside the whitelist are refused', async ({ page, atro
   await expect(page.getByTestId('sign-tx')).toHaveCount(0);
 });
 
-test('a corrupt link, or none at all, shows LINK_INVALID', async ({ page, state }) => {
-  for (const hash of ['#p=AAAAAAAAAAAA', '']) {
-    await page.goto(`${new URL('sign/', state.siteUrl).href}${hash}`);
-    await expect(page.getByTestId('sign-invalid')).toBeVisible();
-    await expect(page.getByTestId('error')).toHaveAttribute('data-code', 'LINK_INVALID');
-  }
+test('a corrupt link shows LINK_INVALID in one box', async ({ page, state }) => {
+  await page.goto(`${new URL('sign/', state.siteUrl).href}#p=AAAAAAAAAAAA`);
+  await expect(page.getByTestId('sign-invalid')).toBeVisible();
+  await expect(page.getByTestId('sign-invalid').getByTestId('error')).toHaveAttribute('data-code', 'LINK_INVALID');
+});
+
+test('no link at all is not an error: the page says where a request comes from', async ({ page, state }) => {
+  await page.goto(new URL('sign/', state.siteUrl).href);
+  await expect(page.getByTestId('sign-empty')).toBeVisible();
+  await expect(page.getByTestId('sign-invalid')).toHaveCount(0);
+  await expect(page.getByTestId('error')).toHaveCount(0);
+  await expectAccessibleInBothThemes(page, page.getByTestId('sign-empty'));
 });
 
 test('wrong account, then the right one on the wrong network', async ({ page, atro, state, wallet }) => {
@@ -310,7 +320,9 @@ test('screens of the sign page: every state, from checking to signed', async ({ 
   w.setAccount(OWNER);
   const drill = await drillPlan(atro, ANVIL[2]);
   await page.goto(signUrl(state.siteUrl, toPayload(drill)));
+  // In vellum too: the open gate's colours, and the refusal's reason in ink, in both themes.
   await captureScreens(page, 'sign-drill', {
+    vellum: true,
     ready: async () => {
       const field = page.getByTestId('sign-confirm-0');
       await expect(field).toBeVisible();
@@ -322,6 +334,7 @@ test('screens of the sign page: every state, from checking to signed', async ({ 
 
   await page.goto(signUrl(state.siteUrl, outsideWhitelist(atro)));
   await captureScreens(page, 'sign-refused', {
+    vellum: true,
     ready: async () => {
       await expect(page.getByTestId('sign-refused')).toBeVisible();
       await atTop(page);
@@ -332,6 +345,14 @@ test('screens of the sign page: every state, from checking to signed', async ({ 
   await captureScreens(page, 'sign-invalid', {
     ready: async () => {
       await expect(page.getByTestId('error')).toHaveAttribute('data-code', 'LINK_INVALID');
+      await atTop(page);
+    },
+  });
+
+  await page.goto(new URL('sign/', state.siteUrl).href);
+  await captureScreens(page, 'sign-empty', {
+    ready: async () => {
+      await expect(page.getByTestId('sign-empty')).toBeVisible();
       await atTop(page);
     },
   });

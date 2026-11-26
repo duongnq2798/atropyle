@@ -15,6 +15,7 @@ import {
   sendCallsParams,
   type TxPlan,
   vaultAbi,
+  type Warning,
 } from '@atropyle/sdk';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { type Address, encodeFunctionData, erc20Abi, type Hex } from 'viem';
@@ -193,7 +194,45 @@ describe('SignPage: what the link asks', () => {
     // ErrorBox shows its test id once the decoder chunk has loaded: find it, do not get it.
     const error = await within(box).findByTestId('error');
     expect(error.getAttribute('data-code')).toBe('LINK_INVALID');
+    // One box that says it once: the code and its docs sit in the verdict's footer, with no frame or advice of their
+    // own that could contradict the verdict's.
+    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe(
+      'This signing link is broken or was changed',
+    );
+    expect(box.textContent).toContain('Ask whoever sent it for a new link.');
+    expect(box.textContent).not.toContain('Only open signing links you created yourself');
+    expect(box.textContent).not.toContain('The signing link is not valid.');
+    expect(within(box).getByRole('link', { name: /How to fix this/ })).toBeTruthy();
+    expect(box.querySelector('[data-tone]')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(fake.inspect).not.toHaveBeenCalled();
+  });
+
+  it('opened with no request at all, says so calmly and offers a way on, loading nothing', async () => {
+    for (const url of ['/sign/', '/sign/#', '/sign/#from=cli']) {
+      window.history.replaceState(null, '', url);
+      const { unmount } = show();
+      const box = await screen.findByTestId('sign-empty');
+      expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('No signing request here');
+      expect(box.textContent).toContain('opens this page with its request after #p=');
+      expect(within(box).getByRole('link', { name: 'Create a vault' }).getAttribute('href')).toBe('/create/');
+      expect(within(box).getByRole('link', { name: 'Developers' }).getAttribute('href')).toBe('/developers/');
+      // Not a broken link: no alarm, no error code.
+      expect(screen.queryByTestId('sign-invalid')).toBeNull();
+      expect(screen.queryByTestId('error')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+      unmount();
+    }
+    expect(fake.parse).not.toHaveBeenCalled();
+    expect(fake.inspect).not.toHaveBeenCalled();
+  });
+
+  it('says it in Vietnamese when there is no request', async () => {
+    window.history.replaceState(null, '', '/sign/');
+    show({ lang: 'vi' });
+    const box = await screen.findByTestId('sign-empty');
+    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('Ở đây chưa có yêu cầu ký nào');
+    expect(within(box).getByRole('link', { name: 'Tạo vault' })).toBeTruthy();
   });
 
   it('shows no request inside a frame of another page', async () => {
@@ -239,6 +278,13 @@ describe('SignPage: what the link asks', () => {
     expect(row.getAttribute('data-allowed')).toBe('false');
     expect(row.textContent).toContain('unknown call');
     expect(row.textContent).toContain('A call this page does not recognise');
+    // The reason reads as a sentence in ink: red stays with the chip, the number ring and the border.
+    const reason = within(row).getByTestId('sign-step-0-reason');
+    expect(reason.textContent).toBe('unknown call');
+    expect(reason.getAttribute('lang')).toBe('en');
+    expect(reason.className).toContain('first-letter:uppercase');
+    expect(reason.className).toContain('text-ink');
+    expect(reason.className).not.toContain('text-danger');
     expect(screen.getByTestId('sign-check-decoded').getAttribute('data-state')).toBe('fail');
     expect(screen.getByTestId('sign-check-whitelist').getAttribute('data-state')).toBe('fail');
     expect(screen.getByTestId('sign-check-simulation').getAttribute('data-state')).toBe('unknown');
@@ -247,12 +293,23 @@ describe('SignPage: what the link asks', () => {
   });
 
   it('says why nothing can be signed when a step would fail, and shows the error', async () => {
-    const failing = step({ simulation: { ok: false, error: new AtropyleError('NOT_OWNER').toJSON() } });
+    const said = 'Only the vault owner can do this.';
+    const failing = step({
+      simulation: { ok: false, error: new AtropyleError('NOT_OWNER', { message: said }).toJSON() },
+    });
     link(payloadOf([{ to: V, data: CHECK_IN }]), checkOf([failing]));
     show();
-    expect(await screen.findByTestId('sign-sim-failed')).toBeTruthy();
+    const verdict = await screen.findByTestId('sign-sim-failed');
+    expect(verdict.getAttribute('role')).toBe('alert');
     // No TxCard here loads the decoder: ErrorBox loads it itself, so its test id comes a tick later.
-    expect((await screen.findByTestId('sign-sim-error')).getAttribute('data-code')).toBe('NOT_OWNER');
+    const error = await within(verdict).findByTestId('sign-sim-error');
+    expect(error.getAttribute('data-code')).toBe('NOT_OWNER');
+    // One box: the SDK's own reason is the verdict's body, with no generic advice and no second alert beside it.
+    expect(within(verdict).getByRole('heading', { level: 2 }).textContent).toBe('Nothing can be signed right now');
+    expect(error.textContent).toContain(said);
+    expect(verdict.textContent).not.toContain('Ask for a new link later');
+    expect(verdict.textContent).not.toContain('Connect the wallet that owns this vault');
+    expect(screen.getAllByRole('alert')).toEqual([verdict]);
     expect(screen.getByTestId('sign-check-simulation').getAttribute('data-state')).toBe('fail');
     expect(screen.queryByTestId('sign-tx')).toBeNull();
     // The step that would fail says so on its own row, not only in its technical details.
@@ -416,9 +473,19 @@ describe('SignPage guardian vote (spec §16.3)', () => {
     expect(field.value).toBe('');
     expect(sendButton().disabled).toBe(true);
 
+    const gate = screen.getByTestId('sign-votes');
+    expect(gate.getAttribute('data-open')).toBe('false');
+    expect(within(gate).getByRole('heading', { level: 2 }).textContent).toBe('Type the new wallet yourself');
     type('sign-vote-target-0', OTHER);
     expect(screen.getByTestId('sign-vote-target-0-error').getAttribute('data-reason')).toBe('mismatch');
     expect(field.getAttribute('aria-invalid')).toBe('true');
+    // What was typed comes back in groups of four, to compare with the mirror group by group.
+    const echo = screen.getByTestId('sign-vote-target-0-typed');
+    expect(echo.textContent).toContain('You typed');
+    expect(echo.querySelector(`[data-address="${OTHER}"] [data-part="groups"]`)?.textContent).toBe(
+      `0x${OTHER.slice(2).match(/.{4}/g)?.join('')}`,
+    );
+    expect(within(echo).queryByRole('button')).toBeNull();
     expect(screen.getByTestId('sign-votes-live').textContent).toBe(
       'This is not the wallet this link votes for. Do not sign, and ask the owner again.',
     );
@@ -429,13 +496,18 @@ describe('SignPage guardian vote (spec §16.3)', () => {
     type('sign-vote-target-0', typo);
     expect(screen.getByTestId('sign-vote-target-0-error').getAttribute('data-reason')).toBe('invalid');
     expect(sendButton().disabled).toBe(true);
-    // Still being typed: no error yet.
+    // Still being typed: no error yet, and nothing to compare.
     type('sign-vote-target-0', T.slice(0, 20));
     expect(screen.queryByTestId('sign-vote-target-0-error')).toBeNull();
+    expect(screen.queryByTestId('sign-vote-target-0-typed')).toBeNull();
 
     type('sign-vote-target-0', T.toLowerCase());
     expect(screen.queryByTestId('sign-vote-target-0-error')).toBeNull();
     expect(screen.getByTestId('sign-votes-live').textContent).toBe('It matches the wallet this link votes for.');
+    // The gate is open, and looks it.
+    expect(gate.getAttribute('data-open')).toBe('true');
+    expect(within(gate).getByRole('heading', { level: 2 }).textContent).toBe('Every address matches');
+    expect(screen.getByTestId('sign-vote-target-0-typed').querySelector('[data-address]')).toBeTruthy();
     await ready();
     fireEvent.click(sendButton());
     await screen.findByTestId('sign-tx-done');
@@ -491,7 +563,7 @@ const toType: ConfirmAddress[] = [
 function drillPage(
   lang: 'en' | 'vi' = 'en',
   reason: AddressConfirmation['reason'] = 'DRILL_WITH_ALLOWANCE',
-  drill: { skipped?: boolean } = {},
+  drill: { skipped?: boolean; terms?: CreateTerms; warnings?: Warning[] } = {},
 ) {
   const options: (InspectOptions | undefined)[] = [];
   link(
@@ -509,7 +581,13 @@ function drillPage(
         from: A,
         vault: DRILL,
         steps: [
-          step({ index: 0, action: 'createVault', summary: 'Create a Drill vault.', create: terms }),
+          step({
+            index: 0,
+            action: 'createVault',
+            summary: 'Create a Drill vault.',
+            create: drill.terms ?? terms,
+            warnings: drill.warnings ?? [],
+          }),
           step({
             index: 1,
             to: TOKEN,
@@ -566,6 +644,32 @@ describe('SignPage createVault terms', () => {
     // Only the createVault step has a terms card.
     expect(screen.queryByTestId('sign-terms-1')).toBeNull();
   });
+
+  it('says once, in the terms card and in the reader language, that it is a Drill and needs no guardian', async () => {
+    const alone: CreateTerms = {
+      ...terms,
+      heirs: [{ account: HEIR_A, bps: 10_000 }],
+      guardians: [],
+      k: 0,
+      recoveryEnabled: false,
+      exit: exitTimes({ drill: true, guardians: [], k: 0, recoveryEnabled: false, timing: PRESETS.drill }),
+    };
+    drillPage('vi', 'DRILL_WITH_ALLOWANCE', {
+      terms: alone,
+      warnings: [
+        { code: 'NO_GUARDIANS', message: 'No guardian confirmation is needed: if 2 check-ins (every 1m) are missed.' },
+        { code: 'DRILL_NOT_FOR_REAL_ASSETS', message: 'This is a Drill: it expires 7 days after creation.' },
+      ],
+    });
+    const card = await screen.findByTestId('sign-terms-0');
+    await screen.findByTestId('sign-tx');
+    expect(screen.queryByTestId('warning-NO_GUARDIANS')).toBeNull();
+    expect(screen.queryByTestId('warning-DRILL_NOT_FOR_REAL_ASSETS')).toBeNull();
+    expect(document.body.textContent).not.toContain('No guardian confirmation is needed');
+    expect(card.textContent).toContain('Đây là Drill (bản diễn tập)');
+    expect(screen.getByTestId('sign-terms-0-guardians').textContent).toBe('Không có người giám hộ.');
+    expect(screen.getByTestId('sign-terms-0-routes').textContent).toContain('không cần ai ký');
+  });
 });
 
 describe('SignPage Drill retype gate', () => {
@@ -576,12 +680,12 @@ describe('SignPage Drill retype gate', () => {
     for (const i of [0, 1, 2]) expect((screen.getByTestId(`sign-confirm-${i}`) as HTMLInputElement).value).toBe('');
     for (const label of gate.querySelectorAll('label')) expect(label.textContent).not.toContain(HEIR_A);
     expect(sendButton().disabled).toBe(true);
-    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('0 of 3 addresses match.');
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('Matched 0 of 3');
 
     type('sign-confirm-0', HEIR_A);
     type('sign-confirm-1', HEIR_B.toLowerCase());
     expect(sendButton().disabled).toBe(true);
-    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('2 of 3 addresses match.');
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('Matched 2 of 3');
     // Each address that matches says so under its own field, and the field points at those words.
     const said = (testId: string) =>
       (screen.getByTestId(testId).getAttribute('aria-describedby') ?? '')
@@ -590,8 +694,17 @@ describe('SignPage Drill retype gate', () => {
         .join(' ');
     expect(said('sign-confirm-0')).toBe('It matches the address in this link.');
     expect(said('sign-confirm-2')).toBe('');
+    expect(gate.getAttribute('data-open')).toBe('false');
+    expect(within(gate).getByRole('heading', { level: 2 }).textContent).toBe(
+      'Type the addresses again before you sign',
+    );
     type('sign-confirm-2', ` ${GUARD} `);
-    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('3 of 3 addresses match.');
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('Matched 3 of 3');
+    // Each address typed comes back in groups, the spaces around it gone; the gate opens and says so.
+    expect(screen.getByTestId('sign-confirm-2-typed').querySelector(`[data-address="${GUARD}"]`)).toBeTruthy();
+    expect(gate.getAttribute('data-open')).toBe('true');
+    expect(within(gate).getByRole('heading', { level: 2 }).textContent).toBe('Every address matches');
+    expect(gate.querySelector('#sign-confirm-intro')).toBeTruthy();
     await ready();
 
     fireEvent.click(sendButton());
@@ -643,7 +756,8 @@ describe('SignPage Drill retype gate', () => {
     expect(screen.getByTestId('sign-confirm-1-error').textContent).toBe(
       'Đây không phải địa chỉ trong link này. Đừng ký nếu bạn không biết địa chỉ này của ai.',
     );
-    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('0 trên 3 địa chỉ đã khớp.');
+    expect(screen.getByTestId('sign-confirm-count').textContent).toBe('Đã khớp 0/3');
+    expect(screen.getByTestId('sign-confirm-1-typed').textContent).toContain('Bạn đã gõ');
     expect(screen.getByTestId('sign-terms-0-earliest').textContent).toContain('2 phút sau khi vault được tạo');
     expect(screen.getByTestId('sign-terms-0').textContent).toContain('Đây là Drill (bản diễn tập): nó trao tài sản');
   });

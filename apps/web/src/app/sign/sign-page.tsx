@@ -2,7 +2,7 @@
 
 import type { SignPayload, SignRequestCheck } from '@atropyle/sdk';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleQuestionMark, Link2Off, type LucideIcon, ShieldCheck, ShieldX, X } from 'lucide-react';
+import { Check, CircleQuestionMark, Link2, Link2Off, type LucideIcon, ShieldCheck, ShieldX, X } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { CHAIN_ID } from '@/chain/hooks';
 import { chainKeys } from '@/chain/keys';
@@ -17,10 +17,12 @@ import { isFramed } from '@/lib/framed';
 import { useLocationHash } from '@/lib/hash';
 import { useMounted } from '@/lib/use-mounted';
 import { messages } from '@/messages/sign.messages';
-import { toSdkSignLink } from '@/routes';
+import { ROUTES, toSdkSignLink } from '@/routes';
+import { NavLink } from '@/shell/nav-link';
 import { ErrorBox } from '@/tx/error-box';
 import type { MirrorToken } from '@/tx/mirror';
 import { Address } from '@/ui/address';
+import { buttonClass } from '@/ui/button';
 import { Skeleton, SkeletonText } from '@/ui/skeleton';
 import { Spinner } from '@/ui/spinner';
 import { networkName } from '@/wallet/network';
@@ -51,6 +53,9 @@ const NO_TOKENS: readonly MirrorToken[] = [];
 
 const bytesOf = (p: SignPayload, i: number) => Math.max(0, ((p.steps[i]?.data.length ?? 2) - 2) / 2);
 
+/** A fragment that carries a request: `p=` as one of its parameters. Without one there is nothing to check. */
+const hasRequest = (hash: string) => /(^|[#&?])p=/.test(hash);
+
 export function SignPage() {
   const t = useT(messages);
   const mounted = useMounted();
@@ -71,6 +76,8 @@ export function SignPage() {
         <Verdict id="sign-framed" icon={ShieldX} title={t('framed')} testId="sign-framed">
           {t('framedHelp')}
         </Verdict>
+      ) : !hasRequest(hash) ? (
+        <NoRequest />
       ) : (
         // Keyed by the fragment: another link never inherits what was typed, sent or refused for this one.
         <SignRequest key={hash} hash={hash} />
@@ -82,7 +89,8 @@ export function SignPage() {
 /**
  * The page's verdict when nothing may be signed, or the link cannot be read: first on the page, before any address
  * or check (Ruling 20), and in the display voice, so it is what the signer reads first. An alert is announced; a
- * broken link is a plain region, since the page has nothing else to say.
+ * broken link is a plain region, since the page has nothing else to say. One box says it once: the error's code and
+ * its docs go in the footer (ErrorBox bare), never in a second red box with advice of its own.
  */
 function Verdict({
   id,
@@ -90,6 +98,7 @@ function Verdict({
   title,
   alert = true,
   testId,
+  footer,
   children,
 }: {
   id: string;
@@ -97,6 +106,7 @@ function Verdict({
   title: ReactNode;
   alert?: boolean;
   testId?: string;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const body = (
@@ -107,11 +117,12 @@ function Verdict({
       >
         <Icon size={20} strokeWidth={2} />
       </span>
-      <div className="flex min-w-0 flex-col gap-1.5 pt-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-1">
         <h2 id={`${id}-title`} className="font-display text-ink text-title">
           {title}
         </h2>
         <div className="text-body text-ink-muted">{children}</div>
+        {footer ? <div className="mt-1.5">{footer}</div> : null}
       </div>
     </>
   );
@@ -161,12 +172,52 @@ function Checking() {
 function Invalid({ error }: { error: unknown }) {
   const t = useT(messages);
   return (
-    <div data-testid="sign-invalid" className="flex flex-col gap-3">
-      <Verdict id="sign-invalid" icon={Link2Off} title={t('invalid')} alert={false}>
-        {t('invalidHelp')}
-      </Verdict>
-      <ErrorBox error={error} />
-    </div>
+    <Verdict
+      id="sign-invalid"
+      icon={Link2Off}
+      title={t('invalid')}
+      alert={false}
+      testId="sign-invalid"
+      footer={<ErrorBox bare="code" error={error} />}
+    >
+      {t('invalidHelp')}
+    </Verdict>
+  );
+}
+
+/**
+ * /sign/ opened with no request at all, as anyone exploring the site may: nothing is wrong, so nothing is red. It
+ * says where a request comes from and offers a way on. Nothing loads for it: no SDK, no flow logic, no send chunk.
+ */
+function NoRequest() {
+  const t = useT(messages);
+  return (
+    <section
+      data-testid="sign-empty"
+      aria-labelledby="sign-empty-title"
+      className="flex items-start gap-4 rounded-3xl border border-line bg-surface-1 p-5 sm:gap-5 sm:p-6"
+    >
+      <span
+        aria-hidden="true"
+        className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-ink-muted"
+      >
+        <Link2 size={20} strokeWidth={1.5} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-1">
+        <h2 id="sign-empty-title" className="font-display text-ink text-title">
+          {t('emptyTitle')}
+        </h2>
+        <p className="text-body text-ink-muted">{t('emptyBody')}</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <NavLink href={ROUTES.create} prefetch={false} className={buttonClass({ variant: 'primary' })}>
+            {t('emptyCreate')}
+          </NavLink>
+          <NavLink href={ROUTES.developers} prefetch={false} className={buttonClass({ variant: 'secondary' })}>
+            {t('emptyDevelopers')}
+          </NavLink>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -176,7 +227,7 @@ function SignRequest({ hash }: { hash: string }) {
   // The send half starts loading now, beside the SDK and the flow logic, so it is there when inspect answers.
   useSendChunk();
   const sdk = sdkQuery.data ?? null;
-  // A link without `p=`, or no fragment at all, fails to parse like any broken link: LINK_INVALID.
+  // A fragment with `p=` that does not decode is a broken link: LINK_INVALID. One without `p=` never gets here.
   const decoded = useMemo<Decoded | null>(() => {
     if (!sdk) return null;
     try {
@@ -314,12 +365,14 @@ function SignChecked({
         </Verdict>
       ) : null}
       {view.verdict === 'simulationFailed' ? (
-        <div data-testid="sign-sim-failed" className="flex flex-col gap-3">
-          <Verdict id="sign-sim-failed" icon={X} title={t('simFailedTitle')}>
-            {t('simFailedAll')}
-          </Verdict>
-          {failure && failure.ok === false ? <ErrorBox error={failure.error} testId="sign-sim-error" /> : null}
-        </div>
+        // The SDK's own reason is the body (the step that fails, in its words), its code and docs below it.
+        <Verdict id="sign-sim-failed" icon={X} title={t('simFailedTitle')} testId="sign-sim-failed">
+          {failure && failure.ok === false ? (
+            <ErrorBox bare="message" error={failure.error} testId="sign-sim-error" />
+          ) : (
+            t('simFailedAll')
+          )}
+        </Verdict>
       ) : null}
       {view.verdict === 'unproven' ? (
         <Verdict id="sign-unproven" icon={ShieldX} title={t('unprovenTitle')} testId="sign-unproven">

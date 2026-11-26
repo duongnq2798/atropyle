@@ -7,6 +7,7 @@ import { useT } from '@/i18n/provider';
 import { formatBps } from '@/lib/format';
 import { messages } from '@/messages/sign.messages';
 import { TextField } from '@/ui/text-field';
+import { Gate, TypedEcho } from './gate';
 import { Matched } from './matched';
 import { shownReason } from './typed';
 
@@ -48,15 +49,13 @@ export function ConfirmGate({
   const lastShown = lastRow ? shown(lastRow) : null;
   const done = rows.filter((r) => r.reason === null).length;
   return (
-    <section
-      data-testid="sign-confirm"
-      aria-labelledby="sign-confirm-title"
-      aria-describedby="sign-confirm-intro"
-      className="flex flex-col gap-4 rounded-3xl border border-danger/45 bg-danger/8 p-5 sm:p-6"
+    <Gate
+      id="sign-confirm"
+      testId="sign-confirm"
+      open={done === rows.length}
+      title={t('confirmTitle')}
+      describedBy="sign-confirm-intro"
     >
-      <h2 id="sign-confirm-title" className="font-display text-ink text-title">
-        {t('confirmTitle')}
-      </h2>
       <p id="sign-confirm-intro" className="text-body text-ink">
         {t(recipients ? 'confirmIntroRecipients' : 'confirmIntro')}
       </p>
@@ -65,35 +64,37 @@ export function ConfirmGate({
         const value = typed[r.key] ?? '';
         const reason = shown(r);
         return (
-          <TextField
-            key={r.key}
-            label={
-              a.role === 'heir'
-                ? t('confirmHeir', { n: a.index + 1, share: formatBps(a.bps ?? 0), step: a.step + 1 })
-                : t('confirmGuardian', { n: a.index + 1, step: a.step + 1 })
-            }
-            mono
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="0x…"
-            readOnly={locked}
-            value={value}
-            onChange={(e) => {
-              setLast(r.key);
-              onType(r.key, e.currentTarget.value);
-            }}
-            onBlur={() => setTouched((x) => ({ ...x, [r.key]: true }))}
-            data-testid={`sign-confirm-${r.i}`}
-            hint={r.reason === null ? <Matched>{t('confirmOk')}</Matched> : undefined}
-            error={
-              reason ? (
-                <span data-testid={`sign-confirm-${r.i}-error`} data-reason={reason}>
-                  {t(REASON_KEY[reason])}
-                </span>
-              ) : undefined
-            }
-          />
+          <div key={r.key} className="flex flex-col gap-2">
+            <TextField
+              label={
+                a.role === 'heir'
+                  ? t('confirmHeir', { n: a.index + 1, share: formatBps(a.bps ?? 0), step: a.step + 1 })
+                  : t('confirmGuardian', { n: a.index + 1, step: a.step + 1 })
+              }
+              mono
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="0x…"
+              readOnly={locked}
+              value={value}
+              onChange={(e) => {
+                setLast(r.key);
+                onType(r.key, e.currentTarget.value);
+              }}
+              onBlur={() => setTouched((x) => ({ ...x, [r.key]: true }))}
+              data-testid={`sign-confirm-${r.i}`}
+              hint={r.reason === null ? <Matched>{t('confirmOk')}</Matched> : undefined}
+              error={
+                reason ? (
+                  <span data-testid={`sign-confirm-${r.i}-error`} data-reason={reason}>
+                    {t(REASON_KEY[reason])}
+                  </span>
+                ) : undefined
+              }
+            />
+            <TypedEcho value={value} testId={`sign-confirm-${r.i}-typed`} />
+          </div>
         );
       })}
       <p aria-live="polite" data-testid="sign-confirm-count" className="text-ink-muted text-small">
@@ -102,6 +103,6 @@ export function ConfirmGate({
       <p aria-live="polite" className="sr-only" data-testid="sign-confirm-live">
         {lastShown ? t(REASON_KEY[lastShown]) : ''}
       </p>
-    </section>
+    </Gate>
   );
 }

@@ -150,6 +150,23 @@ describe('signPlan', () => {
     expect(plan?.warnings).toEqual([]);
     expect(plan?.steps[0].warnings).toEqual([w]);
   });
+
+  it('leaves to the terms card what it already states of a new vault, and keeps the recovery warning', () => {
+    const noGuardians = { code: 'NO_GUARDIANS', message: 'No guardian confirmation is needed: every 1m.' } as const;
+    const drill = { code: 'DRILL_NOT_FOR_REAL_ASSETS', message: 'This is a Drill: it expires 7 days.' } as const;
+    const recovery = { code: 'RECOVERY_POWER', message: 'Wallet recovery is on.' } as const;
+    const create = step({
+      action: 'createVault',
+      create: { ...TERMS, drill: true },
+      warnings: [noGuardians, drill, recovery],
+    });
+    const plan = signPlan(payload(['0x01']), checkOf([create]), 196);
+    const codes = [...(plan?.warnings ?? []), ...(plan?.steps.flatMap((s) => s.warnings) ?? [])].map((w) => w.code);
+    expect(codes).toEqual(['RECOVERY_POWER']);
+    // A step that does not create the vault has no terms card: its warnings stay as the SDK wrote them.
+    const other = step({ action: 'setGuardians', warnings: [noGuardians] });
+    expect(signPlan(payload(['0x01']), checkOf([other]), 196)?.steps[0].warnings).toEqual([noGuardians]);
+  });
 });
 
 /** A wallet without wallet_sendCalls, so a send that passes goes to atro.send one step at a time. */

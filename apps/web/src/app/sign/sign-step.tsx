@@ -1,7 +1,7 @@
 'use client';
 
 import type { InspectedStep } from '@atropyle/sdk';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { formatAmount } from '@/lib/format';
@@ -89,9 +89,18 @@ export function SignStep({
           </p>
         ) : null}
         {step.reason ? (
-          <p lang="en" className="text-danger text-small">
-            <SdkText text={step.reason} max={280} />
-          </p>
+          // Why it was refused, as a sentence in ink: the chip, the number ring and the border already carry the red.
+          // ::first-letter reaches the first letter inside the <bdi>, so the SDK's fragment starts with a capital.
+          <div className="flex items-start gap-2">
+            <X aria-hidden="true" size={14} strokeWidth={2.25} className="mt-1.5 shrink-0 text-danger" />
+            <p
+              data-testid={`sign-step-${step.index}-reason`}
+              lang="en"
+              className="text-body text-ink first-letter:uppercase"
+            >
+              <SdkText text={step.reason} max={280} />
+            </p>
+          </div>
         ) : null}
         <details className="group mt-1">
           <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-caption text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">

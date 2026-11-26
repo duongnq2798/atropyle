@@ -46,11 +46,18 @@ export function ErrorBox({
   onRetry,
   testId = 'error',
   className,
+  bare,
 }: {
   error: unknown;
   onRetry?(): void;
   testId?: string;
   className?: string;
+  /**
+   * Inside a box that already says what went wrong in its own words (the sign page's verdict): no frame, no alert and
+   * no hint, whose advice could contradict the box's. 'message' leads with the error's message, 'code' gives only the
+   * code and the docs link. A revert reason and Retry stay in both.
+   */
+  bare?: 'message' | 'code';
 }) {
   const c = useT(common);
   const t = useT(messages);
@@ -66,6 +73,56 @@ export function ErrorBox({
     </Button>
   ) : null;
 
+  // The revert reason of an unknown revert, and the code with its docs: the same in the banner and bare.
+  const reason = (gap?: string) =>
+    view?.reason ? (
+      <p className={cn('flex flex-col items-start gap-1', gap)}>
+        <span>{t('reason')}</span>
+        <UntrustedText
+          value={view.reason}
+          max={160}
+          className="rounded-lg bg-surface-2 px-2 py-1 font-mono text-caption text-ink"
+        />
+      </p>
+    ) : null;
+  const code = view ? (
+    <>
+      <span className="inline-flex text-caption">
+        <span className="sr-only">{t('errorCode')}</span>
+        <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-ink">{view.code}</code>
+      </span>
+      <DocsLink href={view.docsUrl}>{t('readDocs')}</DocsLink>
+    </>
+  ) : null;
+
+  if (bare) {
+    if (view) {
+      return (
+        <div data-testid={testId} data-code={view.code} className={cn('flex flex-col gap-3', className)}>
+          {bare === 'message' ? (
+            <p className="break-words">
+              <bdi lang={english}>{untrusted(view.message, MESSAGE_MAX).value}</bdi>
+            </p>
+          ) : null}
+          {reason()}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-caption">
+            {code}
+            {retry}
+          </div>
+        </div>
+      );
+    }
+    // The box around says what went wrong; without the decoder only its message is missing.
+    if (unavailable)
+      return bare === 'message' || retry ? (
+        <div data-testid={testId} className={cn('flex flex-col items-start gap-3', className)}>
+          {bare === 'message' ? <p>{t('errorUnavailable')}</p> : null}
+          {retry}
+        </div>
+      ) : null;
+    return <SkeletonText lines={bare === 'message' ? 2 : 1} className={className} />;
+  }
+
   if (view) {
     return (
       <div data-testid={testId} data-code={view.code} className={className}>
@@ -75,22 +132,9 @@ export function ErrorBox({
           className="break-words"
         >
           <p lang={english}>{view.hint}</p>
-          {view.reason ? (
-            <p className="mt-2 flex flex-col items-start gap-1">
-              <span>{t('reason')}</span>
-              <UntrustedText
-                value={view.reason}
-                max={160}
-                className="rounded-lg bg-surface-2 px-2 py-1 font-mono text-caption text-ink"
-              />
-            </p>
-          ) : null}
+          {reason('mt-2')}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="inline-flex text-caption">
-              <span className="sr-only">{t('errorCode')}</span>
-              <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-ink">{view.code}</code>
-            </span>
-            <DocsLink href={view.docsUrl}>{t('readDocs')}</DocsLink>
+            {code}
             {retry}
           </div>
         </Banner>

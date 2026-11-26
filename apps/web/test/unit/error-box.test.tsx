@@ -101,6 +101,28 @@ describe('ErrorBox', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('bare: inside a box that already says what went wrong, no frame, no alert and no hint of its own', async () => {
+    const e = new AtropyleError('NOT_OWNER', { message: 'Only the vault owner can do this.' });
+    const { rerender } = renderWithProviders(<ErrorBox bare="message" error={e} testId="why" />, { lang: 'vi' });
+    const box = await screen.findByTestId('why');
+    expect(box.getAttribute('data-code')).toBe('NOT_OWNER');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(box.querySelector('[data-tone]')).toBeNull();
+    expect(box.querySelector('bdi[lang="en"]')?.textContent).toBe('Only the vault owner can do this.');
+    expect(box.textContent).not.toContain('Connect the wallet that owns this vault');
+    expect(box.querySelector('code')?.textContent).toBe('NOT_OWNER');
+    expect(screen.getByRole('link', { name: /Cách khắc phục/ }).getAttribute('href')).toBe(
+      `${DOCS_BASE_URL}/reference/errors.html#not_owner`,
+    );
+    // 'code': the box says it all in its own words; only the code and its docs remain.
+    rerender(<ErrorBox bare="code" error={e} testId="why" />);
+    const code = screen.getByTestId('why');
+    expect(code.querySelector('bdi')).toBeNull();
+    expect(code.textContent).not.toContain('Only the vault owner');
+    expect(code.querySelector('code')?.textContent).toBe('NOT_OWNER');
+    expect(screen.getByRole('link', { name: /Cách khắc phục/ })).toBeTruthy();
+  });
+
   it("marks the SDK's English words on a Vietnamese page, and not a backend error worded in Vietnamese", async () => {
     renderWithProviders(<ErrorBox error={new AtropyleError('NOT_OWNER')} />, { lang: 'vi' });
     const box = await screen.findByTestId('error');

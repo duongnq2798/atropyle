@@ -40,15 +40,22 @@ export function typedReason(typed: string, expected: Address | null): TypedReaso
   return null;
 }
 
-const withoutGuardianWarning = (ws: readonly Warning[]): Warning[] =>
-  ws.filter((w) => w.code !== GUARDIAN_WARNING.code);
+/** The warnings the page says in its own words: the guardian banner, and the terms card of a step creating a vault. */
+const SAID_BY_PAGE: ReadonlySet<string> = new Set([GUARDIAN_WARNING.code]);
+const SAID_WITH_TERMS: ReadonlySet<string> = new Set([...SAID_BY_PAGE, 'NO_GUARDIANS', 'DRILL_NOT_FOR_REAL_ASSETS']);
+
+const without = (ws: readonly Warning[], codes: ReadonlySet<string>): Warning[] => ws.filter((w) => !codes.has(w.code));
 
 /**
  * The plan the sign page hands to useTxRunner: the payload's own bytes with inspect's summaries. null when nothing
  * may be signed whatever the wallet: a refused step, a simulation that fails, a Drill whose steps were not simulated
  * in order (signView with no wallet answers 'connect' only for a request that passes everything else). A request
  * that waits only for addresses typed again gets its plan too: the sender inspects again with what was typed, and
- * the SDK refuses unless it matches. The guardian warning is left out: the page says it once, in its own words.
+ * the SDK refuses unless it matches.
+ *
+ * A warning the page already states is left out, so the signer reads each fact once and in their own language: the
+ * guardian warning (the page's own banner), and on a step that creates a vault, that no guardian is needed and that
+ * it is a Drill (its terms card says both, with the times in words). RECOVERY_POWER stays: WarningText words it.
  */
 export function signPlan(p: SignPayload, c: SignRequestCheck, appChainId: number): TxPlan | null {
   if (signView(c, null, appChainId).verdict !== 'connect') return null;
@@ -56,8 +63,11 @@ export function signPlan(p: SignPayload, c: SignRequestCheck, appChainId: number
     const plan = checkToPlan(p, c.ok ? c : { ...c, ok: true });
     return {
       ...plan,
-      warnings: withoutGuardianWarning(plan.warnings),
-      steps: plan.steps.map((s) => ({ ...s, warnings: withoutGuardianWarning(s.warnings) })),
+      warnings: without(plan.warnings, SAID_BY_PAGE),
+      steps: plan.steps.map((s, i) => ({
+        ...s,
+        warnings: without(s.warnings, c.steps[i]?.create ? SAID_WITH_TERMS : SAID_BY_PAGE),
+      })),
     };
   } catch {
     return null;
