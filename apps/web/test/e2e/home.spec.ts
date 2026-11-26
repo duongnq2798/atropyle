@@ -1,7 +1,14 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme, settle } from './helpers.ts';
-import { captureScreens, shouldCapture } from './screens.ts';
+import {
+  expectAccessible,
+  expectAccessibleInBothThemes,
+  openSettings,
+  setStoredLang,
+  setStoredTheme,
+  settle,
+} from './helpers.ts';
+import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
 
 /** The layout shift of the page so far, as CLS counts it (rounded as scripts/lib/lighthouse-score.ts rounds it). */
 function layoutShift(page: Page): Promise<number> {
@@ -59,15 +66,17 @@ async function heroParts(page: Page) {
     if (b === null) throw new Error(`${name} is not laid out`);
     return b;
   };
+  // Inside the hero: the closing scene (7C T7a) offers the same Drill with the same note.
+  const hero = page.locator('section.hero');
   return {
-    question: await box('the H1', page.getByRole('heading', { level: 1 })),
-    answer: await box('the lead', page.getByText(/^Nothing, unless you plan for it\./)),
-    drill: await box('the Drill offer', page.getByRole('link', { name: 'Rehearse it in about 6 minutes' })),
-    note: await box('its note', page.getByText(/^No Atropyle fee\./)),
-    strip: await box('the weave', page.locator('.weave')),
-    chips: await box('the chips', page.getByRole('group', { name: 'Ask the circuit' })),
-    said: await box('the checked answer', page.locator('.ask-answer [data-for="a"]')),
-    facts: await box('the facts', page.getByTestId('hero-facts')),
+    question: await box('the H1', hero.getByRole('heading', { level: 1 })),
+    answer: await box('the lead', hero.getByText(/^Nothing, unless you plan for it\./)),
+    drill: await box('the Drill offer', hero.getByRole('link', { name: 'Rehearse it in about 6 minutes' })),
+    note: await box('its note', hero.getByText(/^No Atropyle fee\./)),
+    strip: await box('the weave', hero.locator('.weave')),
+    chips: await box('the chips', hero.getByRole('group', { name: 'Ask the circuit' })),
+    said: await box('the checked answer', hero.locator('.ask-answer [data-for="a"]')),
+    facts: await box('the facts', hero.getByTestId('hero-facts')),
   };
 }
 
@@ -850,4 +859,316 @@ test('screens of the stage, for the design review', async ({ page, state }, info
     await page.screenshot({ path: `test-results/screens/home-stage-failed/night-en-${width}.png`, fullPage: true });
     await page.unroute('**/_next/static/chunks/**');
   }
+});
+
+/** The blocks of the story after the hero, in order (src/app/page.tsx). */
+const STORY = ['home-quiet1', 'stage', 'home-quiet2', 'trust', 'agent', 'rehearse'];
+/** 2^26, every case of the policy circuit (CIRCUIT.cases, held to TOTAL_CASES by hero-eval.test.ts). */
+const CASES = 2 ** 26;
+const TOOLS = ['atropyle_check_plan', 'atropyle_simulate', 'atropyle_prepare_create_vault'];
+
+/** Every text Say wrote in the story: shown when its lang is <html lang>, display: none otherwise. */
+function storyLanguage(page: Page) {
+  return page.locator('.story').evaluate((story) => {
+    const lang = document.documentElement.lang;
+    const spans = [...story.querySelectorAll<HTMLElement>('.say-en, .say-vi')];
+    return {
+      lang,
+      count: spans.length,
+      wrong: spans.filter((s) => s.checkVisibility() !== (s.lang === lang)).map((s) => `${s.lang}: ${s.textContent}`),
+    };
+  });
+}
+
+// (a)
+test('after the stage the story reads in order, in the language of the page, and links where it says', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  const ids = await page
+    .locator('.story > *')
+    .evaluateAll((els) =>
+      els.map((e) => (e.getAttribute('data-testid')?.startsWith('home-quiet') ? e.getAttribute('data-testid') : e.id)),
+    );
+  expect(ids).toEqual(STORY);
+  for (const lang of ['en', 'vi'] as const) {
+    await setStoredLang(page, lang);
+    const read = await storyLanguage(page);
+    expect(read.lang).toBe(lang);
+    expect(read.count).toBeGreaterThan(30);
+    expect(read.wrong).toEqual([]);
+    await expect(page.locator('#trust .trust-cases')).toHaveText(
+      CASES.toLocaleString(lang === 'en' ? 'en-US' : 'vi-VN'),
+      { useInnerText: true },
+    );
+  }
+  await setStoredLang(page, 'en');
+  await expect(page.getByTestId('home-agent-transcript').locator('code')).toHaveText(TOOLS);
+  const install = page.getByTestId('home-agent-install');
+  await expect(install).toHaveText(/^claude mcp add atropyle -- npx -y @atropyle\/mcp@\d+\.\d+\.\d+$/);
+  await expect(install).toHaveCSS('user-select', 'all');
+  for (const [block, href] of [
+    ['trust', '/proof/#limits'],
+    ['trust', '/proof/'],
+    ['trust', '/status/'],
+    ['agent', '/developers/'],
+    ['rehearse', '/create/#drill'],
+    ['rehearse', '/verify/'],
+  ] as const) {
+    await expect(page.locator(`#${block} a[href="${href}"]`), `${block} → ${href}`).toBeVisible();
+  }
+  await expect(page.locator('#rehearse a[href="/create/#drill"]')).toHaveAttribute('aria-describedby', 'rehearse-note');
+  await expectAccessibleInBothThemes(page);
+});
+
+/** The names of the story's headings, one language each: the hidden language is display: none, so out of the name. */
+const TITLES = {
+  en: {
+    '#trust-title': /^67,108,864\s+cases$/,
+    '#agent-title': /^Plan in plain words\. Sign in your own wallet\.$/,
+    '#rehearse-title': /^Rehearse it before it is real\.$/,
+  },
+  // \s: the Vietnamese copy glues words of two syllables with a no-break space.
+  vi: {
+    '#trust-title': /^67\.108\.864\s+trường\shợp$/,
+    '#agent-title': /^Lập\skế\shoạch\sbằng\slời\sthường\.\sKý\sbằng\sví\scủa\schính\sbạn\.$/,
+    '#rehearse-title': /^Diễn\stập\strước\skhi\slà\sthật\.$/,
+  },
+} as const;
+
+// (a2)
+test('switching to Vietnamese in the settings turns the whole story at once, with no reload, one language per name', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  for (const [selector, name] of Object.entries(TITLES.en))
+    await expect(page.locator(selector)).toHaveAccessibleName(name);
+  // A mark on the window: a reload would drop it, so it proves the switch happens in place.
+  await page.evaluate(() => {
+    (window as Window & { __noReload?: boolean }).__noReload = true;
+  });
+  const settings = await openSettings(page);
+  await settings.getByText('Tiếng Việt', { exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+  // Close the popover or the sheet, so no modal hides the page from the accessibility tree.
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+  expect(await page.evaluate(() => (window as Window & { __noReload?: boolean }).__noReload)).toBe(true);
+  const read = await storyLanguage(page);
+  expect(read.lang).toBe('vi');
+  expect(read.count).toBeGreaterThan(30);
+  expect(read.wrong).toEqual([]);
+  for (const [selector, name] of Object.entries(TITLES.vi))
+    await expect(page.locator(selector)).toHaveAccessibleName(name);
+  // Back to English the same way, so the next test starts from the default.
+  const again = await openSettings(page);
+  await again.getByText('English', { exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect((await storyLanguage(page)).wrong).toEqual([]);
+});
+
+// (b)
+test('the story fits every width from 320 px in both languages: no sideways scroll, the number on one line', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  for (const lang of ['en', 'vi'] as const) {
+    await setStoredLang(page, lang);
+    for (const width of [320, 390, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const at = `${lang} ${width} px`;
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), at).toBe(width);
+      const number = await page
+        .locator('#trust .trust-cases')
+        .evaluate((n) => ({ sw: n.scrollWidth, cw: n.clientWidth }));
+      expect(number.sw, at).toBeLessThanOrEqual(number.cw);
+      const out = await page.locator('.story').evaluate((story) =>
+        [...story.querySelectorAll('a, code, h2, p')]
+          .filter((e) => {
+            const r = e.getBoundingClientRect();
+            return r.width > 0 && (r.left < -0.5 || r.right > window.innerWidth + 0.5);
+          })
+          .map((e) => e.textContent),
+      );
+      expect(out, at).toEqual([]);
+    }
+  }
+  await setStoredLang(page, 'en');
+});
+
+/** The spine in page pixels: each piece's centre line and extent, each node's centre, its anchor's first line and edge. */
+function spine(page: Page) {
+  return page.locator('.story').evaluate((story) => {
+    const y0 = window.scrollY;
+    const segs = [...story.querySelectorAll<HTMLElement>('.spine-seg')].map((s) => {
+      const r = s.getBoundingClientRect();
+      return {
+        shown: getComputedStyle(s).display !== 'none',
+        x: r.left + r.width / 2,
+        top: r.top + y0,
+        bottom: r.bottom + y0,
+      };
+    });
+    const nodes = [...story.querySelectorAll<HTMLElement>('.spine-node')].map((n) => {
+      const r = n.getBoundingClientRect();
+      const anchor = n.parentElement as HTMLElement;
+      const a = anchor.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(anchor);
+      // The anchor's first line box: the node is absolute, left of the anchor, and so outside every line.
+      const line =
+        [...range.getClientRects()]
+          .filter((q) => q.width > 0 && q.left >= a.left - 0.5)
+          .sort((p, q) => p.top - q.top)[0] ?? a;
+      return {
+        x: r.left + r.width / 2,
+        y: r.top + r.height / 2 + y0,
+        right: r.right,
+        lineTop: line.top + y0,
+        lineBottom: line.bottom + y0,
+        textLeft: a.left,
+      };
+    });
+    return { segs, nodes };
+  });
+}
+
+// (c)
+test('from 48rem the spine runs down one line beside every block, a node on each first line, never under text', async ({
+  page,
+  state,
+}) => {
+  // Reduced motion: no rise, so every anchor stands where it is laid out.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(state.siteUrl);
+  for (const width of [768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const { segs, nodes } = await spine(page);
+    expect(segs).toHaveLength(STORY.length);
+    expect(nodes).toHaveLength(STORY.length);
+    const x = segs[0].x;
+    expect(x, `${width} px`).toBeGreaterThan(4);
+    for (const [i, s] of segs.entries()) {
+      const at = `${width} px, piece ${i}`;
+      expect(s.shown, at).toBe(true);
+      expect(Math.abs(s.x - x), at).toBeLessThanOrEqual(0.5);
+      if (i > 0) expect(Math.abs(s.top - segs[i - 1].bottom), at).toBeLessThanOrEqual(1);
+    }
+    for (const [i, n] of nodes.entries()) {
+      const at = `${width} px, node ${i}`;
+      expect(Math.abs(n.x - x), at).toBeLessThanOrEqual(1);
+      expect(n.y, at).toBeGreaterThanOrEqual(n.lineTop - 0.5);
+      expect(n.y, at).toBeLessThanOrEqual(n.lineBottom + 0.5);
+      expect(n.right, at).toBeLessThanOrEqual(n.textLeft - 4);
+    }
+    // The line ends at the closing scene's node.
+    expect(Math.abs((segs.at(-1)?.bottom ?? 0) - (nodes.at(-1)?.y ?? 0)), `${width} px`).toBeLessThanOrEqual(1.5);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect((await spine(page)).segs.some((s) => s.shown)).toBe(false);
+});
+
+/** The vertical scale of an element's transform, 1 for none. */
+const scaleOf = (page: Page, selector: string) =>
+  page
+    .locator(selector)
+    .first()
+    .evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).d);
+
+// (d)
+test('the spine fills as the reader scrolls, by transform alone, and stands full without motion', async ({
+  page,
+  state,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  // At the top the trust band is far below: its piece is empty, its node untied.
+  await expect.poll(() => scaleOf(page, '#trust .spine-fill')).toBeLessThan(0.01);
+  await expect.poll(() => scaleOf(page, '#trust .spine-node > span')).toBeLessThan(0.01);
+  await page.locator('#trust').evaluate((e) => e.scrollIntoView({ block: 'center' }));
+  await expect.poll(() => scaleOf(page, '#trust .spine-fill')).toBeGreaterThan(0.2);
+  expect(await scaleOf(page, '#trust .spine-fill')).toBeLessThan(0.95);
+  await expect.poll(() => scaleOf(page, '#trust .spine-node > span')).toBe(1);
+  await expect.poll(() => scaleOf(page, '[data-testid="home-quiet2"] .spine-fill')).toBe(1);
+  // What moves, moves by transform alone (R18.4).
+  const props = await page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a instanceof CSSAnimation && /^(?:spine|story)-/.test(a.animationName))
+      .flatMap((a) =>
+        (a.effect as KeyframeEffect)
+          .getKeyframes()
+          .flatMap((k) =>
+            Object.keys(k).filter((p) => !['offset', 'computedOffset', 'easing', 'composite'].includes(p)),
+          ),
+      ),
+  );
+  expect([...new Set(props)]).toEqual(['transform']);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  for (const selector of [
+    '#trust .spine-fill',
+    '#trust .spine-node > span',
+    '#rehearse .spine-fill',
+    '#trust .trust-cases',
+  ]) {
+    await expect
+      .poll(
+        () =>
+          page
+            .locator(selector)
+            .first()
+            .evaluate((e) => getComputedStyle(e).transform),
+        selector,
+      )
+      .toBe('none');
+  }
+});
+
+// (e)
+test('reading down the whole page moves no layout: the spine, the rise and the bands shift nothing', async ({
+  page,
+  state,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(state.siteUrl);
+    // After the fonts: the fallback's shift on load is ruling R-T6-8's, not this test's.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await settle(page);
+    const before = await layoutShift(page);
+    await page.mouse.move(width / 2, 450);
+    for (let i = 0; i < 30; i++) await page.mouse.wheel(0, 500);
+    await expect(page.locator('#rehearse')).toBeInViewport();
+    await settle(page);
+    expect(await layoutShift(page), `${width} px`).toBeLessThanOrEqual(before);
+  }
+});
+
+// (f)
+test('screens of the story after the stage, for the design review', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'set SCREENS=1 to take the review screenshots');
+  test.setTimeout(300_000);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // The spec's whole gate (§11): 390, 768 and 1440 px, night and vellum, English and Vietnamese. Vellum is the brand
+  // since 26 Nov; the app boots night until 7C T12, so both must hold.
+  await captureScreens(page, 'home-story', { shots: FULL_MATRIX });
+  // The spine mid-read. A full-page shot does not scroll, so its scroll timelines show the top of the page: these are
+  // viewport shots with the trust band in the middle.
+  await setStoredTheme(page, 'light');
+  for (const width of [1440, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator('#trust').evaluate((e) => e.scrollIntoView({ block: 'center' }));
+    await settle(page);
+    await page.screenshot({ path: `test-results/screens/home-spine/vellum-en-${width}.png` });
+  }
+  await setStoredTheme(page, 'dark');
 });

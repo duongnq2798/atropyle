@@ -4,6 +4,7 @@ import { HERO_CASES } from '../../src/home/hero-cases';
 import { RELEASE } from '../../src/home/hero-circuit';
 import { messages as ask } from '../../src/messages/ask.messages';
 import { messages as home } from '../../src/messages/home.messages';
+import { messages as story } from '../../src/messages/story.messages';
 
 const LANGS = ['en', 'vi'] as const;
 
@@ -15,6 +16,7 @@ describe('the words of the home page', () => {
     for (const [file, m] of [
       ['home', home],
       ['ask', ask],
+      ['story', story],
     ] as const) {
       for (const lang of LANGS) {
         for (const [key, text] of Object.entries(m[lang])) {

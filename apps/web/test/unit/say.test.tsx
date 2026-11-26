@@ -19,4 +19,8 @@ describe('Say: a message of a server component in both languages', () => {
       '<span lang="en" class="say-en">EN</span><span lang="vi" class="say-vi">VI</span>',
     );
   });
+
+  it('writes words that read the same in both languages once, with no span (a name, "Agent")', () => {
+    expect(renderToStaticMarkup(<ByLang text={() => 'Agent'} />)).toBe('Agent');
+  });
 });

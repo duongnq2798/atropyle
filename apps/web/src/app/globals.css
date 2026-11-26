@@ -845,3 +845,167 @@
 :root:lang(vi) .say-vi {
   display: inline;
 }
+
+/* The trust band's number, in the Proclaim voice at a size that keeps 67,108,864 on one line inside its column from
+   320 px, in the real face and in its wider fallback (about 5.7 em with the fallback's 127 % size-adjust: 1 007 px at
+   11rem, under the 1 104 px column at 1440). Not text-monument, which is for one or two words (spec §18.4.2 Task 1). */
+.trust-cases {
+  font-size: clamp(3rem, 14vw, 11rem);
+  line-height: 0.92;
+}
+
+/* The spine (spec §18.4.3 Task 7a, R18.5): not a Thread but a 2 px line down every block of .story, one piece per
+   block, with an HTML node on each block's first line. From 48rem only: on a phone it would crowd the text. It runs
+   0.625rem inside the 72rem box (whose padding is 1.5rem), and from 76.25rem in the gutter, 1.5rem left of the box.
+   A node sits in an anchor that starts at the box's padding, hence the 1.5rem taken off its left. */
+.story {
+  --spine-x: 0.625rem;
+}
+@media (min-width: 76.25rem) {
+  .story {
+    --spine-x: -1.5rem;
+  }
+}
+.spine-seg,
+.spine-node {
+  display: none;
+}
+@media (min-width: 48rem) {
+  .story .spine-seg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--spine-x);
+    display: block;
+    width: 2px;
+    translate: -50% 0;
+    background-color: var(--atro-line);
+    pointer-events: none;
+    view-timeline-name: --seg;
+  }
+  /* The closing scene's piece ends at its node: md:pt-28 (7rem) and half its 3.5rem mark (src/home/bands.tsx). */
+  .story .spine-seg[data-end] {
+    bottom: auto;
+    height: 8.75rem;
+  }
+  .spine-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: top;
+    background-color: var(--atro-thread);
+  }
+  .story .spine-node {
+    position: absolute;
+    top: var(--node-y, 0.5lh);
+    left: calc(var(--spine-x) - 1.5rem);
+    display: block;
+    width: 0.75rem;
+    height: 0.75rem;
+    translate: -50% -50%;
+    border: 2px solid var(--atro-thread);
+    border-radius: 9999px;
+    background-color: var(--atro-bg);
+    pointer-events: none;
+  }
+  .spine-node > span {
+    position: absolute;
+    inset: 2px;
+    border-radius: 9999px;
+    background-color: var(--atro-thread);
+  }
+}
+@supports not (top: 1lh) {
+  .story .spine-node {
+    top: var(--node-y, 0.6em);
+  }
+}
+/* As the reader scrolls (R18.4: transform only, never opacity, so axe never meets half-faded text): a piece fills
+   while its block passes the middle of the screen, a node ties as it reaches it, a quiet paragraph and the trust
+   number rise 1.5rem as they enter. Without scroll timelines (Firefox, older Safari) or with a reduced-motion
+   preference, all of it stands still and full. settle() of the e2e ignores scroll timelines. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .spine-fill {
+      animation: spine-fill linear both;
+      animation-timeline: --seg;
+      animation-range: cover 50vh cover calc(100% - 50vh);
+    }
+    .spine-node > span {
+      animation: spine-tie linear both;
+      animation-timeline: view();
+      animation-range: cover calc(50vh - 2rem) cover 50vh;
+    }
+    .story-rise {
+      animation: story-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+}
+@keyframes spine-fill {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes spine-tie {
+  from {
+    transform: scale(0);
+  }
+}
+@keyframes story-rise {
+  from {
+    transform: translateY(1.5rem);
+  }
+}
+/* A door's arrow in the story's bands: lucide's ArrowRight (stroke 2), as ARROW of src/home/look.ts sets it on the
+   hero, painted in the text's colour through a mask. An empty span costs the HTML nothing next to an inline SVG. */
+.story-arrow {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 0.5ch;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  /* In forced colours a background is painted over: keep the arrow in the link's colour. */
+  forced-color-adjust: none;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* The agent band's transcript (src/home/bands.tsx): a bubble for the person and for the agent, the person's on the
+   right, each with the corner nearest its speaker cut; a tool call in the thread's colour after the knot glyph
+   (src/thread/glyphs.tsx, stroke 1.5), painted through a mask as the doors' arrow is. */
+.agent-say {
+  display: flex;
+  max-width: 88%;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-self: flex-start;
+  border-radius: 1rem 1rem 1rem 0.375rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--atro-surface-2);
+}
+.agent-say[data-who="you"] {
+  align-self: flex-end;
+  border-radius: 1rem 1rem 0.375rem 1rem;
+  background-color: var(--atro-surface-3);
+}
+.agent-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding-inline-start: 0.5rem;
+  color: var(--atro-thread);
+}
+.agent-tool::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  forced-color-adjust: none;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h6M16 12h6M8 12c0-3 2-4.5 4-4.5s4 1.5 4 4.5-2 4.5-4 4.5-4-1.5-4-4.5ZM9.5 9l5 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}

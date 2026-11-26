@@ -25,10 +25,34 @@ export function Stamp({
   );
 }
 
+/**
+ * A block's piece of the story's spine (spec §18.4.3 Task 7a, R18.5; globals.css `.spine-*`): a 2 px line the full
+ * height of its block, or down to its node only (`end`, the closing scene). Shown from 48rem, inside `.story` only.
+ */
+export function SpineSeg({ end = false }: { end?: boolean }) {
+  return (
+    <span aria-hidden="true" className="spine-seg" {...(end && { 'data-end': '' })}>
+      <span className="spine-fill" />
+    </span>
+  );
+}
+
+/**
+ * The spine's node, centred on the first line of its anchor. The anchor must be `relative` and start at its block's
+ * content edge (the box's 1.5rem padding from 48rem): globals.css places the node from there.
+ */
+export function SpineNode() {
+  return (
+    <span aria-hidden="true" className="spine-node">
+      <span />
+    </span>
+  );
+}
+
 export interface SceneProps {
   id: string;
   stamp: ReactNode;
-  title: string;
+  title: ReactNode;
   lead: ReactNode;
   ref?: Ref<HTMLElement>;
   /** data-* attributes of the section: a test id, and the state a test or the CSS reads. */
@@ -38,7 +62,8 @@ export interface SceneProps {
 
 /**
  * One scene of the home page (spec §5.1, §18.4.3 Task 6): a stamp, a heading in the Proclaim voice, a lead, then its
- * body. No hook, so a server component can render one too (T7a's bands). T7a adds the spine's node beside it.
+ * body. No hook, so a server component can render one too (T7a's bands). Its block's piece of the spine (SpineSeg)
+ * and the node at its stamp (SpineNode) show only inside `.story`.
  */
 export function Scene({ id, stamp, title, lead, ref, attrs, children }: SceneProps) {
   return (
@@ -49,8 +74,12 @@ export function Scene({ id, stamp, title, lead, ref, attrs, children }: ScenePro
       className="scene relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-20 sm:px-6 md:py-28"
       {...attrs}
     >
+      <SpineSeg />
       <header className="scene-head flex max-w-3xl flex-col gap-4">
-        <p>{stamp}</p>
+        <p className="relative">
+          <SpineNode />
+          {stamp}
+        </p>
         <h2 id={`${id}-title`} className="voice-proclaim text-balance text-h2">
           {title}
         </h2>

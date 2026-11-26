@@ -11,6 +11,9 @@ const LANGS: readonly Lang[] = ['en', 'vi'];
  * stay out of a first load with no JavaScript to spare (7C-T7a).
  */
 export function ByLang({ text }: { text: (lang: Lang) => string }): ReactNode {
+  // The same words in both languages (a name, "Agent") need no span: they read the same under either <html lang>.
+  const en = text('en');
+  if (en === text('vi')) return en;
   return LANGS.map((lang) => (
     <span key={lang} lang={lang} className={`say-${lang}`}>
       {text(lang)}

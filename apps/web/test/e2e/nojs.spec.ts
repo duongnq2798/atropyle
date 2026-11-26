@@ -44,8 +44,8 @@ async function expectFrame(page: Page): Promise<void> {
 }
 
 /**
- * `/`: the question, the two ways in (rehearse it, see the proof), the three facts with the door for heirs, and the
- * stage.
+ * `/`: the question, the two ways in (rehearse it, see the proof), the three facts with the door for heirs, the
+ * stage, and the story after it.
  */
 async function expectHome(page: Page): Promise<void> {
   await expectSeen(page.getByRole('heading', { level: 1 }));
@@ -77,6 +77,15 @@ async function expectHome(page: Page): Promise<void> {
   }
   await expect(stage.locator('input[value="recover"]')).toBeDisabled();
   await expect(stage.getByTestId('home-stage-beat-0')).toBeDisabled();
+  // The story after the stage (7C T7a): server HTML, English shown and Vietnamese hidden, every way on a link.
+  await expectSeen(main.getByTestId('home-quiet1').locator('.say-en'));
+  await expect(main.getByTestId('home-quiet1').locator('.say-vi')).toBeHidden();
+  await expectSeen(main.locator('#trust .trust-cases .say-en'));
+  await expectSeen(main.locator('#trust a[href="/proof/#limits"]'));
+  await expectSeen(main.getByTestId('home-agent-transcript').getByText('atropyle_prepare_create_vault'));
+  await expectSeen(main.getByTestId('home-agent-install'));
+  await expectSeen(main.locator('#rehearse a[href="/create/#drill"]'));
+  await expectSeen(main.locator('#rehearse a[href="/verify/"]'));
 }
 
 /** `/proof/`: the question, the empty map and its key, the seal's source row, the command, and every limit. */
