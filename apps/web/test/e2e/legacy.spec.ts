@@ -35,12 +35,42 @@ test('legacy links land on the new routes', async ({ page, state }) => {
 });
 
 test('unknown hashes and hashes on other pages stay where they are', async ({ page, state }) => {
-  for (const rest of ['#/nope', '#/v/a/edit', '#drill', '#p=abc', 'no-such-page/#/sign?p=a']) {
+  for (const rest of ['#/', '#/nope', '#/v/a/edit', '#drill', '#p=abc', 'no-such-page/#/sign?p=a']) {
     // From another document each time: a hash-only change would not load the page, and the boot script would not run.
     await page.goto(new URL('robots.txt', state.siteUrl).href);
     await page.goto(`${state.siteUrl}${rest}`);
     // Once the page has hydrated, a redirect would already have changed the URL.
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(page.url(), rest).toBe(`${state.siteUrl}${rest}`);
+  }
+});
+
+/**
+ * Every shape the old hash router knew (its route.ts, removed with the previous web app in 7C-T12) opens its new page, and
+ * that page works: it renders its heading, and /vault/ and /verify/ read the address from the fragment.
+ */
+test('every page of the old app opens from its legacy link and works there', async ({ page, state }) => {
+  const g = state.seeded.guarded;
+  const cases: { hash: string; want: string; address?: true }[] = [
+    { hash: '#/create', want: '/create/' },
+    { hash: '#/create?drill=1', want: '/create/#drill' },
+    { hash: '#/proof', want: '/proof/' },
+    { hash: '#/status', want: '/status/' },
+    { hash: '#/developers', want: '/developers/' },
+    { hash: '#/sign', want: '/sign/' },
+    { hash: `#/v/${g}`, want: `/vault/#${g}`, address: true },
+    { hash: `#/v/${g}/`, want: `/vault/#${g}`, address: true },
+    { hash: `#/v/${g}/verify`, want: `/verify/#${g}`, address: true },
+    // The old app's bad-address route: the vault page shows its own state for it.
+    { hash: '#/v/0x1234', want: '/vault/#0x1234' },
+    // The document path the old app was also reachable at.
+    { hash: 'index.html#/proof', want: '/proof/' },
+  ];
+  for (const c of cases) {
+    const before = await openLegacy(page, state.siteUrl, c.hash);
+    await page.waitForURL((u) => `${u.pathname}${u.hash}` === c.want);
+    expect(await page.evaluate(() => history.length), c.hash).toBe(before + 1);
+    await expect(page.getByRole('heading', { level: 1 }), c.hash).toBeVisible();
+    if (c.address) await expect(page.locator('html'), c.hash).toHaveAttribute('data-hash', 'address');
   }
 });

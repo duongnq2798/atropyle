@@ -67,7 +67,7 @@ try {
       await page
         .locator('main section')
         .first()
-        .screenshot({ path: join(SHOTS, `night-en-1440-${name}${crossCheck ? '-cross' : ''}.png`) });
+        .screenshot({ path: join(SHOTS, `vellum-en-1440-${name}${crossCheck ? '-cross' : ''}.png`) });
     }
     await context.close();
   }
