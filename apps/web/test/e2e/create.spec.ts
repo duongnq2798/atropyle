@@ -619,6 +619,11 @@ test('a reload after the vault exists only sends what is left', async ({ page, s
   await expect(page.getByTestId('create-prepare')).toHaveCount(0);
   // The chain proved createVault ran: the session now says so, and a second reload resumes the same way.
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('atropyle:create') ?? '{}').offset)).toBe(1);
+  // The lede says that part of the plan is on chain, and the mirror names the token as a plan prepared here does.
+  await expect(page.getByTestId('create-review-intro')).toContainText('Part of this plan is already on chain.');
+  const mirror = page.getByTestId('create-tx-mirror-0');
+  await expect(page.getByTestId('create-tx-mirror-0-token')).not.toContainText('name not read');
+  await expect(mirror).not.toContainText('base units');
   await expectAccessibleInBothThemes(page, banner);
   // The banner is the first thing under the title; one press brings the steps below the summary into view.
   await expect(banner).toBeInViewport();

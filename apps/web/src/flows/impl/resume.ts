@@ -62,11 +62,17 @@ export async function resumePlan(
     p = decodePayload(saved.payload);
   } catch {
     // The SDK's words are about a signing link; this is the plan the page saved in this tab.
-    throw new AtropyleError('LINK_INVALID', { message: 'The plan saved in this tab cannot be read.' });
+    throw new AtropyleError('LINK_INVALID', {
+      message: 'The plan saved in this tab cannot be read.',
+      details: { resume: 'unreadable' },
+    });
   }
   const total = p.steps.length;
   if (saved.createStep < 0 || saved.createStep >= total) {
-    throw new AtropyleError('INVALID_OPTIONS', { message: 'The saved plan has no step that creates the vault.' });
+    throw new AtropyleError('INVALID_OPTIONS', {
+      message: 'The saved plan has no step that creates the vault.',
+      details: { resume: 'unreadable' },
+    });
   }
   const code = await atro.publicClient.getCode({ address: saved.vault });
   const created = code !== undefined && code !== '0x';
@@ -78,5 +84,26 @@ export async function resumePlan(
   let check = await atro.handoff.inspect(rest);
   const confirmed = confirmFromForm(check, form, saved.vault);
   if (confirmed) check = await atro.handoff.inspect(rest, { confirmed });
-  return { plan: { ...checkToPlan(rest, check), vault: saved.vault }, offset, total, created };
+  let plan: TxPlan;
+  try {
+    plan = checkToPlan(rest, check);
+  } catch (e) {
+    // The checks refuse what is left (heirs on chain other than the form's, a step that no longer passes): the same
+    // answer every time, which the page says in its own words.
+    if (e instanceof AtropyleError && e.code === 'LINK_INVALID') {
+      throw new AtropyleError('LINK_INVALID', { message: e.message, details: { resume: 'mismatch' }, cause: e });
+    }
+    throw e;
+  }
+  return { plan: { ...plan, vault: saved.vault }, offset, total, created };
+}
+
+/** Why a resume fails the same way every time, in words the page has for it. */
+export type ResumeFailure = 'unreadable' | 'mismatch';
+
+/** The ResumeFailure of an error resumePlan threw; null for any other error (the RPC's, which Retry may cure). */
+export function resumeFailure(e: unknown): ResumeFailure | null {
+  if (!(e instanceof AtropyleError)) return null;
+  const why = e.details?.resume;
+  return why === 'unreadable' || why === 'mismatch' ? why : null;
 }

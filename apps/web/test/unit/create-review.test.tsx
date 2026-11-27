@@ -3,6 +3,7 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { formTokens, planTokens } from '../../src/app/create/plan-tokens';
 import { AssetsSummary, CheckResult, CheckWarnings } from '../../src/app/create/review';
+import type { TokenMeta } from '../../src/flows/impl/balances';
 import { untrusted } from '../../src/lib/untrusted';
 import { renderWithProviders } from '../helpers/render';
 import { PEOPLE } from './fixtures';
@@ -122,6 +123,24 @@ describe('planTokens', () => {
     expect(formTokens(rows, PEOPLE.token)).toEqual([
       { address: PEOPLE.nft, kind: 'erc721', symbol: null, decimals: null },
       { address: PEOPLE.token, kind: 'erc20', symbol: null, decimals: null },
+    ]);
+  });
+
+  it('after a reload, names each ERC-20 from what the chain answered, and never an NFT', () => {
+    const rows = [
+      { kind: 'erc20' as const, token: PEOPLE.token, id: '', heir: '0' },
+      { kind: 'erc721' as const, token: PEOPLE.nft, id: '2', heir: '0' },
+    ];
+    const meta: TokenMeta[] = [
+      { token: PEOPLE.token.toLowerCase() as `0x${string}`, symbol: untrusted('USDT0'), decimals: 6 },
+      { token: PEOPLE.nft, symbol: untrusted('MNFT'), decimals: 0 },
+      { token: FEE_A, symbol: null, decimals: null },
+    ];
+    expect(formTokens(rows, FEE_A, meta)).toEqual([
+      { address: PEOPLE.token, kind: 'erc20', symbol: untrusted('USDT0'), decimals: 6 },
+      { address: PEOPLE.nft, kind: 'erc721', symbol: null, decimals: null },
+      // A read that failed: still in the plan, name unknown.
+      { address: FEE_A, kind: 'erc20', symbol: null, decimals: null },
     ]);
   });
 });

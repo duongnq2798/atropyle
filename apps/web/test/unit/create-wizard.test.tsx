@@ -1,5 +1,6 @@
 import type { SignPayload, SignRequestCheck } from '@atropyle/sdk';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { encodeFunctionData, erc20Abi } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sessionKV } from '../../src/app/create/use-wizard';
 import { Wizard } from '../../src/app/create/wizard';
@@ -179,10 +180,16 @@ describe('create wizard', () => {
     );
     // createVault is on chain (saved offset): preparing again could only be refused, so it is not offered.
     expect(screen.queryByTestId('create-resume-discard')).toBeNull();
-    // The error, inside the banner, is worded once its decoder chunk is in: the saved plan, not a link.
-    expect(await within(banner).findByTestId('create-resume-error', {}, { timeout: 30_000 })).toHaveTextContent(
+    // The page says why in its own words (the saved plan, not a link); the error below gives its code and docs.
+    expect(within(banner).getByTestId('create-resume-why')).toHaveTextContent(
       'The plan saved in this tab cannot be read.',
     );
+    expect(await within(banner).findByTestId('create-resume-error', {}, { timeout: 30_000 })).toHaveAttribute(
+      'data-code',
+      'LINK_INVALID',
+    );
+    // Nothing is offered to sign, so the lede does not say so.
+    expect(screen.getByTestId('create-review-intro')).toHaveTextContent('This is the plan this tab saved.');
     expect(screen.queryByTestId('create-prepare')).toBeNull();
     expect(screen.queryByTestId('create-tx')).toBeNull();
     // createVault ran: the page never says that nothing is signed, nor asks for a wallet the banner does not need.
@@ -195,6 +202,38 @@ describe('create wizard', () => {
     expect(step()).toBe('review');
     expect(saved()?.salt).toBe(salt);
     // The first import of the finish chunk transforms TxCard and the runner: seconds on a cold, busy worker.
+  }, 60_000);
+
+  it('says why a saved plan cannot be sent in Vietnamese too, with no English sentence', async () => {
+    const getCode = vi.fn(async () => '0x6080' as const);
+    sdk.data = {
+      atro: { publicClient: { getCode }, handoff: { inspect: vi.fn() } },
+      deployment: { explorerUrl: null },
+    };
+    window.sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        v: 1,
+        ...impl.freshState({ ...impl.initialForm(true), heirs: [{ account: PEOPLE.heirA, percent: '100' }] }, salt),
+        step: 'review',
+        payload: 'x',
+        vault: PEOPLE.vault,
+        createStep: 0,
+        offset: 1,
+      }),
+    );
+    renderWithProviders(<Wizard />, { lang: 'vi' });
+    await ready();
+    const banner = await screen.findByTestId('create-resume-failed', {}, { timeout: 30_000 });
+    expect(within(banner).getByTestId('create-resume-why')).toHaveTextContent(
+      'Không đọc được kế hoạch đã lưu trong tab này.',
+    );
+    expect(await within(banner).findByTestId('create-resume-error', {}, { timeout: 30_000 })).toHaveAttribute(
+      'data-code',
+      'LINK_INVALID',
+    );
+    expect(banner).not.toHaveTextContent('cannot be read');
+    expect(screen.getByTestId('create-review-intro')).toHaveTextContent('Đây là kế hoạch tab này đã lưu.');
   }, 60_000);
 
   it('a saved plan waits for the chain before anything can be sent or prepared again', async () => {
@@ -219,6 +258,7 @@ describe('create wizard', () => {
     // Until the chain answers, the page cannot say that nothing is signed.
     expect(screen.queryByTestId('create-connect')).toBeNull();
     expect(screen.getByTestId('create-review')).not.toHaveTextContent('Nothing is signed yet');
+    expect(screen.getByTestId('create-review-intro')).toHaveTextContent('This is the plan this tab saved.');
   }, 60_000);
 
   it('a reload before any signature brings the plan back, and an edit drops it with its banner', async () => {
@@ -287,6 +327,8 @@ describe('create wizard', () => {
     expect(step()).toBe('review');
     const banner = await screen.findByTestId('create-resume', {}, { timeout: 30_000 });
     expect(banner).toHaveTextContent('Your plan is still here, 0 of 2 steps done.');
+    // Nothing is on chain yet: the wallet signs the whole plan, as the lede of a plan prepared here says.
+    expect(screen.getByTestId('create-review-intro')).toHaveTextContent('This is what your wallet will sign.');
     expect(screen.getByTestId('create-tx')).toBeInTheDocument();
     // One way to connect, in the signing card, and no line that contradicts the banner's count of steps done.
     expect(screen.queryByTestId('create-connect')).toBeNull();
@@ -315,6 +357,86 @@ describe('create wizard', () => {
     // No plan any more: the review asks for the owner's wallet again, before anything is signed.
     expect(screen.getByTestId('create-connect')).toBeInTheDocument();
     expect(inspect).toHaveBeenCalledTimes(1);
+  }, 60_000);
+
+  it('a reload after createVault says that only the rest is signed, and the wallet mirror names the token', async () => {
+    const deployment = fixtureDeployment();
+    const approve = encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [PEOPLE.vault, 10_000_000n] });
+    const steps = [
+      { to: deployment.factory, data: '0xc0ffee00' as const, value: 0n },
+      { to: PEOPLE.token, data: approve, value: 0n },
+    ];
+    const getCode = vi.fn(async () => '0x6080' as const);
+    // The token's symbol and decimals, read again after the reload: untrusted text from the chain.
+    const readContract = vi.fn(async (a: { address: string; functionName: string }) =>
+      a.address === PEOPLE.token ? (a.functionName === 'decimals' ? 6 : 'USDT0') : Promise.reject(new Error('no')),
+    );
+    const inspect = vi.fn(
+      async (p: SignPayload): Promise<SignRequestCheck> => ({
+        ok: true,
+        chainId: p.chainId,
+        from: p.from,
+        vault: PEOPLE.vault,
+        confirm: null,
+        steps: p.steps.map((s, index) => ({
+          index,
+          to: s.to,
+          value: s.value,
+          action: 'approve',
+          summary: `step ${index}`,
+          warnings: [],
+          allowed: true,
+          reason: null,
+          builderCodes: null,
+          simulation: { ok: true, gas: 50_000n },
+          create: null,
+        })),
+      }),
+    );
+    sdk.data = {
+      atro: {
+        publicClient: { getCode, readContract },
+        handoff: {
+          inspect,
+          link: () => {
+            throw new Error('no hand-off in this test');
+          },
+        },
+      },
+      deployment,
+    };
+    const form = {
+      ...impl.initialForm(true),
+      heirs: [{ account: PEOPLE.heirA, percent: '100' }],
+      assets: [{ kind: 'erc20' as const, token: PEOPLE.token, id: '', heir: '0' }],
+    };
+    window.sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        v: 1,
+        ...impl.freshState(form, salt),
+        step: 'review',
+        payload: impl.encodePayload({ chainId: 196, from: PEOPLE.owner, steps }),
+        vault: PEOPLE.vault,
+        createStep: 0,
+        offset: 1,
+      }),
+    );
+    renderWithProviders(<Wizard />);
+    await ready();
+    const banner = await screen.findByTestId('create-resume', {}, { timeout: 30_000 });
+    expect(banner).toHaveTextContent('1 of 2 steps done');
+    expect(screen.getByTestId('create-review-intro')).toHaveTextContent(
+      'Part of this plan is already on chain. This is the whole plan; your wallet signs only what is left.',
+    );
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ address: PEOPLE.token, functionName: 'symbol' }),
+    );
+    // The mirror names the token and says the amount in it, as on a plan prepared on this page.
+    const tx = await screen.findByTestId('create-tx', {}, { timeout: 30_000 });
+    await waitFor(() => expect(tx).toHaveTextContent('USDT0'));
+    expect(tx).not.toHaveTextContent('name not read');
+    expect(tx).not.toHaveTextContent('base units');
   }, 60_000);
 
   it('a hash cannot change the kind of a frozen session, and is written back', async () => {

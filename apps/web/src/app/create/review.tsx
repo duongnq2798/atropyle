@@ -37,7 +37,7 @@ import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { useWallet } from '@/wallet/provider';
 import { DRILL_LIFETIME_SECONDS } from './kind';
-import { formTokens, planTokens } from './plan-tokens';
+import { erc20Addresses, formTokens, planTokens } from './plan-tokens';
 import { STEP_KEY } from './progress';
 import { PlanTimeMachine } from './steps';
 import type { Wizard } from './use-wizard';
@@ -306,6 +306,8 @@ export interface Prepared {
   base: number;
   /** Set when the plan was rebuilt from the saved payload after a reload (Task 8): what the resume banner says. */
   resumed?: { created: boolean; total: number };
+  /** The plan's tokens as the mirror names them, read again after a reload (no chain check runs then). */
+  tokens?: readonly MirrorToken[];
 }
 
 function CreateTx(p: {
@@ -395,7 +397,17 @@ export function ReviewStep(p: ReviewStepProps) {
       : null;
   const resume = useQuery({
     queryKey: ['atropyle', CHAIN_ID, 'resume', s.vault?.toLowerCase() ?? ''],
-    queryFn: sdk && saved ? () => flows.resumePlan(sdk.atro, saved, f) : skipToken,
+    // The tokens' names and decimals are read with it, so the mirror of the first card already names them.
+    queryFn:
+      sdk && saved
+        ? async () => {
+            const [r, meta] = await Promise.all([
+              flows.resumePlan(sdk.atro, saved, f),
+              flows.tokenMeta(sdk.atro, erc20Addresses(formTokens(f.assets, s.feeToken))),
+            ]);
+            return { ...r, tokens: formTokens(f.assets, s.feeToken, meta) };
+          }
+        : skipToken,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
@@ -408,19 +420,33 @@ export function ReviewStep(p: ReviewStepProps) {
     const r = resume.data;
     if (!r || applied.current === r) return;
     applied.current = r;
-    if (r.plan) onPrepared({ plan: r.plan, base: r.offset, resumed: { created: r.created, total: r.total } });
+    if (r.plan) {
+      onPrepared({ plan: r.plan, base: r.offset, resumed: { created: r.created, total: r.total }, tokens: r.tokens });
+    }
     patch(r.plan ? { offset: r.offset } : { offset: r.offset, step: 'done' });
   }, [resume.data, onPrepared, patch]);
   const resumeError = saved ? (resume.error ?? sdkQuery.error ?? null) : null;
   // A saved plan that does not read, or that the checks refuse, gives the same answer again: no Retry (the RPC's own
   // failures keep it).
   const retryable = !FINAL_CODES.has((resumeError as { code?: unknown } | null)?.code as string);
+  // Such a failure is said in this page's words and language; the error below it keeps only its code and docs.
+  const why = retryable ? null : (flows.resumeFailure(resumeError) ?? 'unreadable');
   // A payload without its vault was written by hand: it can only be dropped.
   const orphan = s.payload !== null && s.vault === null && !p.prepared;
   const createdOnChain = s.createStep >= 0 && s.offset > s.createStep;
+  // The lede says what the page shows: a saved plan not (yet) offered to sign, a plan partly on chain, or the plan the
+  // wallet will sign.
+  const intro =
+    resumeError || orphan || saved
+      ? t('reviewIntroSaved')
+      : p.prepared?.resumed && p.prepared.base > 0
+        ? t('reviewIntroResumed')
+        : t('reviewIntro');
   return (
     <div data-testid="create-review" className="space-y-10">
-      <p className="text-body text-ink-muted">{t('reviewIntro')}</p>
+      <p data-testid="create-review-intro" className="text-body text-ink-muted">
+        {intro}
+      </p>
       {/* After a reload the first thing in view says where the plan stands: the summary below is long. */}
       {saved && !resumeError ? (
         <div data-testid="create-resuming" aria-busy="true" className="space-y-2">
@@ -429,8 +455,9 @@ export function ReviewStep(p: ReviewStepProps) {
         </div>
       ) : null}
       {resumeError || orphan ? (
-        // One box: the banner says what went wrong in this page's words, the error inside it gives the SDK's reason,
-        // its code and Retry, without a hint written for signing links (ErrorBox bare).
+        // One box: the banner says what went wrong in this page's words. A failure that gives the same answer again is
+        // explained in them too, and the error inside gives only its code and docs; an RPC failure keeps the SDK's
+        // reason and Retry. Never a hint written for signing links (ErrorBox bare).
         <Banner
           tone="warn"
           testId="create-resume-failed"
@@ -459,9 +486,12 @@ export function ReviewStep(p: ReviewStepProps) {
             </div>
           }
         >
+          {why ? (
+            <p data-testid="create-resume-why">{t(why === 'mismatch' ? 'resumeMismatch' : 'resumeUnreadable')}</p>
+          ) : null}
           {resumeError ? (
             <ErrorBox
-              bare="message"
+              bare={why ? 'code' : 'message'}
               error={resumeError}
               testId="create-resume-error"
               className="pt-1"
@@ -571,7 +601,7 @@ export function ReviewStep(p: ReviewStepProps) {
         <div id={SIGN_ID} tabIndex={-1} className="outline-none">
           <CreateTx
             prepared={p.prepared}
-            tokens={checked ? planTokens(checked) : formTokens(f.assets, s.feeToken)}
+            tokens={checked ? planTokens(checked) : (p.prepared.tokens ?? formTokens(f.assets, s.feeToken))}
             onLock={p.onLock}
             onOffset={(offset) => patch({ offset })}
             onDone={(vault) => patch({ vault, step: 'done' })}

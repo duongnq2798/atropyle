@@ -1,6 +1,7 @@
 import {
   type AddressConfirmation,
   type AtropyleClient,
+  AtropyleError,
   encodePayload,
   type InspectOptions,
   type SignPayload,
@@ -10,7 +11,7 @@ import {
 import { type Address, encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 import { initialForm } from '../../src/flows/impl/create-form';
-import { resumePlan } from '../../src/flows/impl/resume';
+import { resumeFailure, resumePlan } from '../../src/flows/impl/resume';
 import { PEOPLE } from './fixtures';
 
 const FACTORY: Address = '0x1111111111111111111111111111111111111111';
@@ -121,7 +122,21 @@ describe('resumePlan', () => {
 
   it('refuses when the heirs on chain are not the ones in the form', async () => {
     const c = chain('0x6080', heirOnChain(PEOPLE.heirB));
-    await expect(resumePlan(c.atro, saved(drill, 0, 1), form)).rejects.toMatchObject({ code: 'LINK_INVALID' });
+    const err = await resumePlan(c.atro, saved(drill, 0, 1), form).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: 'LINK_INVALID' });
+    // The page says it in its own words: the plan no longer matches the chain.
+    expect(resumeFailure(err)).toBe('mismatch');
+  });
+
+  it('names each failure that gives the same answer again, and none of the RPC', async () => {
+    const c = chain('0x6080');
+    const unreadable = await resumePlan(c.atro, { ...saved(drill, 0, 1), payload: 'x' }, form).catch((e) => e);
+    expect(resumeFailure(unreadable)).toBe('unreadable');
+    const noCreate = await resumePlan(c.atro, saved(drill, -1, 0), form).catch((e) => e);
+    expect(resumeFailure(noCreate)).toBe('unreadable');
+    expect(resumeFailure(new AtropyleError('RPC_UNAVAILABLE'))).toBeNull();
+    expect(resumeFailure(new Error('boom'))).toBeNull();
+    expect(resumeFailure(null)).toBeNull();
   });
 
   it('says that the saved plan, not a signing link, cannot be read', async () => {

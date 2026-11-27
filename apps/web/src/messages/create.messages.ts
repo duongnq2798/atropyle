@@ -94,6 +94,11 @@ export const messages = defineMessages(
     resumeVault: 'Finish from the vault page',
     resumeDiscard: 'Prepare the plan again',
     resumeJump: 'Go to the steps',
+    resumeUnreadable: 'The plan saved in this tab cannot be read.',
+    resumeMismatch: 'The saved plan no longer passes the checks: what is on chain differs from the plan in this tab.',
+    reviewIntroSaved: 'This is the plan this tab saved.',
+    reviewIntroResumed:
+      'Part of this plan is already on chain. This is the whole plan; your wallet signs only what is left.',
     doneTitle: 'Your vault is live',
     doneBody: 'Check in from the vault page now and then. That is all it needs from you.',
     doneVault: 'Vault address',
@@ -214,6 +219,12 @@ export const messages = defineMessages(
     resumeVault: 'Làm nốt ở trang vault',
     resumeDiscard: 'Chuẩn\u00a0bị lại kế\u00a0hoạch',
     resumeJump: 'Tới các bước cần ký',
+    resumeUnreadable: 'Không đọc được kế\u00a0hoạch đã lưu trong tab này.',
+    resumeMismatch:
+      'Kế\u00a0hoạch đã lưu không còn qua được kiểm\u00a0tra: những\u00a0gì trên chuỗi khác với kế\u00a0hoạch trong tab này.',
+    reviewIntroSaved: 'Đây là kế\u00a0hoạch tab này đã lưu.',
+    reviewIntroResumed:
+      'Một phần kế\u00a0hoạch này đã có trên chuỗi. Đây là toàn bộ kế\u00a0hoạch; ví của bạn chỉ ký phần còn lại.',
     doneTitle: 'Vault của bạn đã chạy',
     doneBody: 'Thỉnh thoảng hãy điểm danh ở trang vault. Vault chỉ cần bạn làm vậy.',
     doneVault: 'Địa\u00a0chỉ vault',
