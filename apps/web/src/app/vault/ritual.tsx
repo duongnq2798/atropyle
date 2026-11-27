@@ -16,6 +16,7 @@ import type { RevealWindowHandle } from '@/motion/reveal-window';
 import { DURATION, HOLD_MS, REDUCED_MS, sec } from '@/motion/tokens';
 import { threadRemaining, threadStateOf } from '@/thread/state';
 import { Thread } from '@/thread/thread';
+import { HoldCardShape } from '@/tx/hold-card-shape';
 import type { FlowProgress } from './action-flow';
 import { LazyActionFlow } from './lazy-action-flow';
 import {
@@ -286,6 +287,9 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
           onHoldEnd,
         }}
         receiptFooter={footer}
+        // While the check-in prepares, its card and its hold already stand where they will, the face on it: when the
+        // plan lands, only the step and what the wallet should show come in under the hold.
+        preparing={<HoldCardShape title={t('ritualTxTitle')} nested face={face} hint={hint} />}
         onProgress={setProgress}
         onDone={onDone}
         onReset={onReset}

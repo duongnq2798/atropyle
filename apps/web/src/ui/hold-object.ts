@@ -3,8 +3,8 @@ import { cn } from '@/lib/cn';
 /**
  * The check-in ritual's object (a hold with a face, spec §4.6.3 "one big button"): its classes, shared by the hold
  * (HoldButton), its end (HoldEnd) and its silhouette while the plan is prepared (HoldCardShape), so all three stand at
- * the same place in the same boxes. Plain strings and no component: the silhouette rides the first load of /vault/
- * (LazyActionFlow), the hold does not.
+ * the same place in the same boxes. Plain strings and no component: the silhouette (in the owner tab's chunk) loads
+ * no HoldButton.
  *
  * Per tone: the frame and the face's paper in the tone, and the bar in the primary action's accent (button-class.ts
  * `primary`). The fill sweeps the bar towards the ink, away from the label's own colour (deeper on vellum, brighter on

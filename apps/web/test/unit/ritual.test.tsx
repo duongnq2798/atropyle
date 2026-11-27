@@ -1,5 +1,5 @@
 import type { SendResult } from '@atropyle/sdk';
-import { act, screen } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionFlowProps } from '../../src/app/vault/action-flow';
 import { Ritual } from '../../src/app/vault/ritual';
@@ -150,6 +150,14 @@ describe('the check-in ritual', () => {
     expect(props().holdPlacement).toBe('top');
     expect(props().hold?.showKnot).toBe(false);
     expect(props().hold?.doneLabel).toBe('Now sign in your wallet');
+    // While it prepares, the card and its hold stand where they will (HoldCardShape), the face on the hold.
+    const shape = renderWithProviders(<div>{props().preparing}</div>);
+    const shaped = within(shape.container);
+    expect(shaped.getByRole('heading', { name: 'Your check-in' })).toBeTruthy();
+    expect((shaped.getByRole('button', { name: 'Preparing…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(shaped.getByTestId('owner-ritual-face')).toBeTruthy();
+    expect(shaped.getByText('Hold for a moment, or press Enter')).toBeTruthy();
+    shape.unmount();
     expect(phase()).toBe('idle');
     expect(hint()).toBe('Hold for a moment, or press Enter');
     // The live line is for a screen reader only, in every phase: what the eye reads stays in the hold's own slots.

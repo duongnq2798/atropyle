@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn';
 /**
  * TxCard's own boxes down to a hold up front (`holdPlacement="top"`), shared with the silhouette that stands in its
  * place while the plan is prepared (HoldCardShape): the card, its header and heading, the area under the heading, and
- * the area that centres the hold. Plain strings: the silhouette rides the first load of /vault/, TxCard does not.
+ * the area that centres the hold. Plain strings, so the silhouette (in the owner tab's chunk) loads no TxCard.
  */
 export const TX_CARD = 'flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6';
 export const TX_HEADER = 'flex flex-col gap-1.5';

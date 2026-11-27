@@ -5,6 +5,7 @@ import { ActionFlow, type ActionFlowProps } from '../../src/app/vault/action-flo
 import { LazyActionFlow } from '../../src/app/vault/lazy-action-flow';
 import type { Sdk } from '../../src/chain/types';
 import * as flows from '../../src/flows/impl';
+import { HoldCardShape } from '../../src/tx/hold-card-shape';
 import { TxCard } from '../../src/tx/tx-card';
 import { txView } from '../../src/tx/tx-view';
 import type { TxRunner } from '../../src/tx/use-tx-runner';
@@ -44,7 +45,7 @@ const PREPARING = {
 
 const HINT = 'Hold for a moment, or press Enter';
 
-/** The ritual's flow, as ritual.tsx passes it: the hold up front, with its face. */
+/** The ritual's flow, as ritual.tsx passes it: the hold up front, with its face, and its shape while it prepares. */
 function ritualProps(over: Partial<ActionFlowProps> = {}): ActionFlowProps {
   return {
     flows,
@@ -61,6 +62,7 @@ function ritualProps(over: Partial<ActionFlowProps> = {}): ActionFlowProps {
     holdPlacement: 'top',
     auto: true,
     hold: { face: <span data-testid="face" />, hint: HINT, showKnot: false },
+    preparing: <HoldCardShape title="Your check-in" nested face={<span data-testid="face" />} hint={HINT} />,
     ...over,
   };
 }
@@ -176,8 +178,8 @@ describe('the hold up front while its plan is prepared (spec §6, §18.2.6)', ()
     for (const [k, el] of Object.entries(card)) expect(was[k], k).toEqual(tokens(el));
   });
 
-  it('keeps the text skeleton for every other auto flow', () => {
-    renderWithProviders(<LazyActionFlow {...ritualProps({ holdPlacement: 'end' })} />);
+  it('keeps the text skeleton for an auto flow that gives no shape of its own', () => {
+    renderWithProviders(<LazyActionFlow {...ritualProps({ preparing: undefined })} />);
     const preparing = screen.getByTestId('x-preparing');
     expect(preparing.querySelector('section')).toBeNull();
     expect(screen.queryByTestId('face')).toBeNull();

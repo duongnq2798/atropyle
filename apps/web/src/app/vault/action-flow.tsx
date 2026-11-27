@@ -10,7 +10,6 @@ import { useT } from '@/i18n/provider';
 import { focusInView } from '@/lib/focus';
 import { messages } from '@/messages/action-runner.messages';
 import { ErrorBox } from '@/tx/error-box';
-import { HoldCardShape, holdShaped } from '@/tx/hold-card-shape';
 import type { MirrorToken } from '@/tx/mirror';
 import { TxCard } from '@/tx/tx-card';
 import { useTxRunner } from '@/tx/use-tx-runner';
@@ -58,6 +57,12 @@ export interface ActionFlowProps {
   onProgress?(p: FlowProgress): void;
   /** Start over was pressed: the page lets go of what it kept from the last plan (a receipt it showed, a done card). */
   onReset?(): void;
+  /**
+   * What stands while an auto flow prepares (here, and in LazyActionFlow before this chunk), in place of the text
+   * skeleton: the check-in ritual's HoldCardShape, its card and its hold where they will stand once the plan lands.
+   * The page builds it, so it rides the page's chunk and not the first load of /vault/.
+   */
+  preparing?: ReactNode;
 }
 
 function ActionTx(p: {
@@ -214,12 +219,9 @@ export function ActionFlow(p: ActionFlowProps) {
           )}
         </>
       ) : p.auto && !a.error ? (
-        // A hold up front with its face (the check-in ritual) stands where it will be, its card around it; any other
-        // auto flow waits as a line of text.
+        // The page's own shape of what comes (the check-in ritual's card and hold), or a line of text.
         <div data-testid={`${p.testId}-preparing`} aria-busy="true" className="flex flex-col gap-2">
-          {holdShaped(p) ? (
-            <HoldCardShape title={p.title} nested={p.nested} tone={p.tone} face={p.hold?.face} hint={p.hold?.hint} />
-          ) : (
+          {p.preparing ?? (
             <>
               <p className="text-small text-ink-muted">{t('preparing')}</p>
               <SkeletonText lines={2} />
