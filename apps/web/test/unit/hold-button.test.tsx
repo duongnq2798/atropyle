@@ -478,16 +478,47 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expect(onHoldEnd).toHaveBeenCalledWith(true);
   });
 
-  it('draws the face above the button, at full width', () => {
+  it('makes the face and the button one object: the thread on its face, the label on an accent bar under it', () => {
     renderWithProviders(
       <HoldButton onConfirm={() => {}} face={<span data-testid="face" />}>
         Check in
       </HoldButton>,
     );
-    const face = screen.getByTestId('face');
     const button = screen.getByRole('button', { name: 'Check in' });
-    expect(face.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(button.parentElement?.className).toContain('w-full');
+    const face = screen.getByTestId('face');
+    const bar = button.querySelector<HTMLElement>('[data-part="bar"]');
+    if (!bar) throw new Error('no bar');
+    // In the button's own box, above its label: one press target, one focus ring, one shake.
+    expect(button.contains(face)).toBe(true);
+    expect(face.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bar.textContent).toBe('Check in');
+    // Large: the column's full width up to 28rem, a bar of at least 3.5rem, the label in the lead size, and the
+    // primary action's accent, never the neutral pill of a secondary action.
+    expect(button.className).toContain('w-full');
+    expect(button.parentElement?.className).toContain('max-w-md');
+    expect(button.className).not.toContain('rounded-full');
+    expect(button.className).not.toContain('bg-surface-2');
+    for (const c of ['min-h-14', 'text-lead', 'bg-thread', 'text-on-thread']) expect(bar.className).toContain(c);
+    // The pill's own line under the label stays out: the face is the thread.
+    expect(button.querySelector('[data-part="underline"]')).toBeNull();
+  });
+
+  it('disabled, the face keeps its thread at full strength: only the bar goes quiet', () => {
+    renderWithProviders(
+      <HoldButton onConfirm={() => {}} disabled face={<span data-testid="face" />}>
+        Sending…
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Sending…' });
+    expect(button.className).not.toContain('disabled:opacity-50');
+    expect(button.querySelector('[data-part="bar"]')?.className).toContain('group-disabled:');
+  });
+
+  it('without a face it stays the pill, its thread under the label', () => {
+    const { button } = setup();
+    expect(button.className).toContain('rounded-full');
+    expect(button.querySelector('[data-part="bar"]')).toBeNull();
+    expect(button.querySelector('[data-part="underline"]')).not.toBeNull();
   });
 
   it('shakes again on a second early release (parked item 59)', () => {

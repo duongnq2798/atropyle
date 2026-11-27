@@ -35,8 +35,10 @@ export interface HoldButtonProps
   /** The knot that snaps in when the hold is done. False for a hold that only opens the wallet (R18.16). */
   showKnot?: boolean;
   /**
-   * Drawn above the button, inside the hold's own column, which then takes the full width: the check-in ritual's
-   * thread (spec §18.4.2 T10). The caller moves it with onHoldStart and onHoldEnd.
+   * The button's face (spec §4.6.3 "one big button", §18.4.2 T10): the check-in ritual's thread. With a face the hold
+   * is the ritual's object, not a pill: the face on top and the label on an accent bar under it, both in the button's
+   * own box (one press target, one focus ring, one shake), the full width of its column up to 28rem. The caller moves
+   * the face with onHoldStart and onHoldEnd.
    */
   face?: ReactNode;
   /** A hold began (a pointer or Space). Enter and an assistive click confirm without one. */
@@ -68,6 +70,27 @@ function compose<E>(theirs: ((e: E) => void) | undefined, ours: (e: E) => void):
 const TONE = {
   thread: { fill: 'bg-thread/15', line: 'bg-thread', knot: 'bg-thread', hover: 'hover:border-thread' },
   danger: { fill: 'bg-danger/15', line: 'bg-danger', knot: 'bg-danger', hover: 'hover:border-danger' },
+} as const;
+
+/**
+ * The ritual's object (a hold with a face): its frame and the face's paper in the tone, and the bar in the primary
+ * action's accent (button-class.ts `primary`), its fill a lighter sweep over it. Disabled (the wallet is open, the
+ * transaction waits for its block), the face keeps its thread at full strength, since it shows the pending knot; only
+ * the frame and the bar go quiet.
+ */
+const OBJECT = {
+  thread: {
+    frame: 'border-thread bg-thread/6',
+    bar: 'bg-thread text-on-thread group-enabled:group-hover:bg-thread/90',
+    fill: 'bg-on-thread/20',
+    knot: 'bg-on-thread',
+  },
+  danger: {
+    frame: 'border-danger bg-danger/6',
+    bar: 'bg-danger text-on-danger group-enabled:group-hover:bg-danger/90',
+    fill: 'bg-on-danger/20',
+    knot: 'bg-on-danger',
+  },
 } as const;
 
 /**
@@ -187,65 +210,109 @@ export function HoldButton({
       ? SPRING
       : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO };
   const c = TONE[tone];
+  const o = OBJECT[tone];
+  const press = {
+    ...rest,
+    onPointerDown: compose(onPointerDown, bind.onPointerDown),
+    onPointerUp: compose(onPointerUp, bind.onPointerUp),
+    onPointerLeave: compose(onPointerLeave, bind.onPointerLeave),
+    onPointerCancel: compose(onPointerCancel, bind.onPointerCancel),
+    onKeyDown: compose(onKeyDown, bind.onKeyDown),
+    onKeyUp: compose(onKeyUp, bind.onKeyUp),
+    onClick: bind.onClick,
+    onContextMenu: compose(onContextMenu, bind.onContextMenu),
+    onBlur: compose(onBlur, bind.onBlur),
+    type: 'button' as const,
+    disabled,
+    'aria-describedby': describedBy ? `${describedBy} ${hintId}` : hintId,
+    'data-phase': phase,
+    'data-shake': shake ? '' : undefined,
+  };
+  const knotMark = (className: string) =>
+    showKnot ? (
+      <m.span
+        aria-hidden
+        data-part="knot"
+        className={cn('absolute size-2.5 rounded-full', className)}
+        initial={false}
+        animate={knot}
+        transition={knotMove}
+      />
+    ) : null;
 
-  return (
-    <span className={cn('inline-flex flex-col items-center gap-2', face ? 'w-full' : null)}>
-      {face ? <span className="w-full">{face}</span> : null}
-      <button
-        {...rest}
-        onPointerDown={compose(onPointerDown, bind.onPointerDown)}
-        onPointerUp={compose(onPointerUp, bind.onPointerUp)}
-        onPointerLeave={compose(onPointerLeave, bind.onPointerLeave)}
-        onPointerCancel={compose(onPointerCancel, bind.onPointerCancel)}
-        onKeyDown={compose(onKeyDown, bind.onKeyDown)}
-        onKeyUp={compose(onKeyUp, bind.onKeyUp)}
-        onClick={bind.onClick}
-        onContextMenu={compose(onContextMenu, bind.onContextMenu)}
-        onBlur={compose(onBlur, bind.onBlur)}
-        type="button"
-        disabled={disabled}
-        aria-describedby={describedBy ? `${describedBy} ${hintId}` : hintId}
-        data-phase={phase}
-        data-shake={shake ? '' : undefined}
+  const button = face ? (
+    <button
+      {...press}
+      className={cn(
+        'group relative isolate flex w-full select-none flex-col overflow-hidden rounded-3xl border font-medium',
+        'touch-manipulation transition-[border-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
+        'disabled:cursor-not-allowed disabled:border-line-strong',
+        o.frame,
+        className,
+      )}
+    >
+      <span data-part="face" className="block w-full px-4 pt-4 pb-3 sm:px-6">
+        {face}
+      </span>
+      <span
+        data-part="bar"
         className={cn(
-          'relative isolate inline-flex select-none items-center justify-center overflow-hidden rounded-full',
-          'touch-manipulation border border-line-strong bg-surface-2 font-medium text-ink',
-          'transition-[border-color,background-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          !disabled && c.hover,
-          SIZE[size],
-          className,
+          'relative isolate flex min-h-14 w-full items-center justify-center gap-3 px-6 py-3 text-lead',
+          'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] transition-colors duration-150 ease-out-expo',
+          'group-disabled:bg-surface-3 group-disabled:text-ink-muted group-disabled:shadow-none',
+          o.bar,
         )}
       >
         <m.span
           aria-hidden
-          className={cn('-z-10 absolute inset-0 origin-left', c.fill)}
+          className={cn('-z-10 absolute inset-0 origin-left', o.fill)}
           initial={false}
           animate={fill}
           transition={grow}
         />
         {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
         <span>{children}</span>
-        <span aria-hidden className="absolute inset-x-8 bottom-2.5 h-px bg-line" />
-        <m.span
-          aria-hidden
-          className={cn('absolute inset-x-8 bottom-2.5 h-0.5 origin-left rounded-full', c.line)}
-          initial={false}
-          animate={fill}
-          transition={grow}
-        />
-        {showKnot ? (
-          <m.span
-            aria-hidden
-            data-part="knot"
-            className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
-            initial={false}
-            animate={knot}
-            transition={knotMove}
-          />
-        ) : null}
-      </button>
-      <span id={hintId} aria-live="polite" className="text-caption text-ink-muted">
+        {knotMark(cn('top-1/2 right-6 -translate-y-1/2', o.knot))}
+      </span>
+    </button>
+  ) : (
+    <button
+      {...press}
+      className={cn(
+        'relative isolate inline-flex select-none items-center justify-center overflow-hidden rounded-full',
+        'touch-manipulation border border-line-strong bg-surface-2 font-medium text-ink',
+        'transition-[border-color,background-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        !disabled && c.hover,
+        SIZE[size],
+        className,
+      )}
+    >
+      <m.span
+        aria-hidden
+        className={cn('-z-10 absolute inset-0 origin-left', c.fill)}
+        initial={false}
+        animate={fill}
+        transition={grow}
+      />
+      {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
+      <span>{children}</span>
+      <span aria-hidden data-part="underline" className="absolute inset-x-8 bottom-2.5 h-px bg-line" />
+      <m.span
+        aria-hidden
+        className={cn('absolute inset-x-8 bottom-2.5 h-0.5 origin-left rounded-full', c.line)}
+        initial={false}
+        animate={fill}
+        transition={grow}
+      />
+      {knotMark(cn('right-7 bottom-1.5', c.knot))}
+    </button>
+  );
+
+  return (
+    <span className={cn('flex-col items-center gap-2', face ? 'flex w-full max-w-md' : 'inline-flex')}>
+      {button}
+      <span id={hintId} aria-live="polite" className="text-center text-caption text-ink-muted">
         {phase === 'done'
           ? doneLabel === undefined
             ? t('holdDone')
