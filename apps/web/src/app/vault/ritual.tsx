@@ -21,14 +21,17 @@ import type { PanelProps } from './vault-page';
 
 const CHECK_IN: VaultAction = { type: 'checkIn' };
 
-/** The new knot, at the start of a full thread: the period starts again from it. */
-const TIED_KNOT = [0] as const;
+/**
+ * The new knot, at the start of a full thread: the period starts again from it. A step in from the very start, since
+ * the Thread clips what crosses its box and a knot at 0 would show only its right half.
+ */
+const TIED_KNOT = [0.025] as const;
 
 /**
  * Once tied, "now" stands just past the new knot (the period has begun from it), so its dot never covers the knot: drawn
- * at the same point, the knot would be hidden under it.
+ * at the same point, the knot would be hidden under it. 8 % of the thread clears the knot even on a phone.
  */
-const TIED_REMAINING = 0.96;
+const TIED_REMAINING = 0.92;
 
 /** When the wallet opened, the transaction left and the receipt came, on this machine's clock (performance.now). */
 type Marks = Record<'wallet' | 'sent' | 'tied', number | null>;
@@ -161,7 +164,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
 
   const tied = phase === 'tied';
   // From the wallet on, the check-in restarts the period: the thread is drawn whole, so "now" and the pending knot
-  // stand at its start, where the tied knot (TIED_KNOT [0]) lands. Without an axis the geometry draws "now" only while
+  // stand at its start, by the tied knot (TIED_KNOT). Without an axis the geometry draws "now" only while
   // remaining > 0 (geometry.ts), and an owner checking in late has 0 left: threadRemaining would draw no pending knot.
   // A hold keeps the old props, so the reveal window's recharge (setRange) is not cut by a prop change.
   const restarting = phase === 'wallet' || phase === 'sent' || tied;
@@ -174,8 +177,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
       initial={tied ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: sec(calm ? REDUCED_MS : DURATION.base) }}
-      // The knots stand at the thread's very start: the inset keeps them whole inside the receipt, which clips.
-      className="w-full px-2"
+      className="w-full"
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
