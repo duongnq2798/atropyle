@@ -40,7 +40,14 @@ describe('standingSentence', () => {
     for (const role of ['owner', 'guest'] as const) {
       for (const lang of ['en', 'vi'] as const) {
         it(`${role} · ${name} · ${lang}`, () => {
-          const s = standingSentence({ role, status: { ...base, ...over }, chainNow: 1_000n, lang, drill: true });
+          const s = standingSentence({
+            role,
+            status: { ...base, ...over },
+            chainNow: 1_000n,
+            lang,
+            drill: true,
+            delivered: false,
+          });
           if (!s) throw new Error('no sentence');
           expect(s.key).toBe(`${role}${suffix}`);
           expect(String(s.params.date).replaceAll(NBSP, ' ')).toBe(chainDate(at, lang, true));
@@ -63,14 +70,30 @@ describe('standingSentence', () => {
     expect(standingRole([])).toBe('guest');
     expect(standingRole(['heir'])).toBeNull();
     expect(standingRole(['guardian', 'heir'])).toBeNull();
-    expect(standingSentence({ role: null, status: base, chainNow: 1_000n, lang: 'en', drill: true })).toBeNull();
+    expect(
+      standingSentence({ role: null, status: base, chainNow: 1_000n, lang: 'en', drill: true, delivered: false }),
+    ).toBeNull();
   });
 
   it('gives the time of day to a Drill and to a moment within two days, a date alone otherwise', () => {
     const far = { ...base, lastAlive: 1_000n - 10n * 86_400n };
-    const s = standingSentence({ role: 'guest', status: far, chainNow: 1_000n, lang: 'en', drill: false });
+    const s = standingSentence({
+      role: 'guest',
+      status: far,
+      chainNow: 1_000n,
+      lang: 'en',
+      drill: false,
+      delivered: false,
+    });
     expect(s?.params.date).not.toContain('UTC');
-    const near = standingSentence({ role: 'guest', status: base, chainNow: 1_000n, lang: 'en', drill: false });
+    const near = standingSentence({
+      role: 'guest',
+      status: base,
+      chainNow: 1_000n,
+      lang: 'en',
+      drill: false,
+      delivered: false,
+    });
     expect(near?.params.date).toContain('UTC');
   });
 
@@ -89,6 +112,45 @@ describe('standingSentence', () => {
           expect(text).not.toContain(rules.slice(0, 20));
         }
       }
+    }
+  });
+
+  it('once released and delivered, says the assets reached the heirs or the recovery wallet (7B-P1)', () => {
+    const released = [
+      ['releasedInherit', 'ReleasedInherit', /delivered to them\.$/, /tới họ\.$/],
+      ['releasedRecover', 'ReleasedRecover', /delivered there\.$/, /tới ví đó\.$/],
+    ] as const;
+    for (const [state, suffix, en, vi] of released) {
+      for (const role of ['owner', 'guest'] as const) {
+        const status = { ...base, state, pending: state, releasedAt: 1_300n };
+        const at = (lang: 'en' | 'vi', delivered: boolean) => {
+          const s = standingSentence({ role, status, chainNow: 1_000n, lang, drill: true, delivered });
+          if (!s) throw new Error('no sentence');
+          return { key: s.key, text: translate(messages, lang, s.key, s.params) };
+        };
+        expect(at('en', false).key).toBe(`${role}${suffix}`);
+        expect(at('en', false).text).toContain('Anyone can now deliver');
+        expect(at('en', true).key).toBe(`${role}${suffix}Done`);
+        expect(at('en', true).text).not.toContain('Anyone can now deliver');
+        expect(at('en', true).text).toMatch(en);
+        expect(at('vi', true).text).toMatch(vi);
+        expect(at('vi', true).text).not.toContain('ai cũng có thể chuyển');
+      }
+    }
+  });
+
+  it('a delivered flag changes nothing before the release, nor in an expired Drill', () => {
+    for (const [, over, suffix] of CASES) {
+      if (suffix.startsWith('Released')) continue;
+      const s = standingSentence({
+        role: 'guest',
+        status: { ...base, ...over },
+        chainNow: 1_000n,
+        lang: 'en',
+        drill: true,
+        delivered: true,
+      });
+      expect(s?.key).toBe(`guest${suffix}`);
     }
   });
 });

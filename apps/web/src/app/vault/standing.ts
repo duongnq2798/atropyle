@@ -14,6 +14,8 @@ type Kind =
   | 'RecoveryDue'
   | 'ReleasedInherit'
   | 'ReleasedRecover'
+  | 'ReleasedInheritDone'
+  | 'ReleasedRecoverDone'
   | 'Expired';
 
 export interface StandingInput {
@@ -27,6 +29,11 @@ export interface StandingInput {
   lang: Lang;
   /** A Drill's moments are minutes apart: always with the time of day. */
   drill: boolean;
+  /**
+   * Every asset of the vault has left the owner's wallet (each `held` is 0): once released, the sentence says the
+   * assets were delivered instead of offering a delivery that would send nothing (7B-P1).
+   */
+  delivered: boolean;
 }
 
 export interface Standing {
@@ -62,7 +69,14 @@ export function standingRole(roles: readonly Role[]): StandingRole | null {
  * The header's first sentence: where this vault stands, with absolute dates in chain time (UTC). "Late" and "Due"
  * are the moments the rules allow what nobody has asked for yet (status.pending).
  */
-export function standingSentence({ role, status: s, chainNow, lang, drill }: StandingInput): Standing | null {
+export function standingSentence({
+  role,
+  status: s,
+  chainNow,
+  lang,
+  drill,
+  delivered,
+}: StandingInput): Standing | null {
   if (role === null) return null;
   const date = (ts: bigint | null): string => {
     const t = ts ?? chainNow;
@@ -76,9 +90,9 @@ export function standingSentence({ role, status: s, chainNow, lang, drill }: Sta
   if (s.expired) return say('Expired', { date: date(s.expiresAt) });
   switch (s.state) {
     case 'releasedInherit':
-      return say('ReleasedInherit', { date: date(s.releasedAt) });
+      return say(delivered ? 'ReleasedInheritDone' : 'ReleasedInherit', { date: date(s.releasedAt) });
     case 'releasedRecover':
-      return say('ReleasedRecover', { date: date(s.releasedAt) });
+      return say(delivered ? 'ReleasedRecoverDone' : 'ReleasedRecover', { date: date(s.releasedAt) });
     case 'recovery':
       return s.pending === 'releasedRecover'
         ? say('RecoveryDue', { date: date(s.windowEndsAt) })

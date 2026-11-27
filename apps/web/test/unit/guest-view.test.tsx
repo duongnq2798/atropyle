@@ -83,7 +83,42 @@ describe('the guest view', () => {
     guest(PEOPLE.stranger, emptied);
     expect(screen.queryByTestId('vault-distribute')).toBeNull();
     expect(screen.getByTestId('vault-public-idle')).toBeTruthy();
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('You are watching this vault');
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Delivered to the heirs');
+  });
+
+  it('titles a released vault whose assets all left the owner by where they went, never "watching" (7B-P1)', () => {
+    const emptied = (state: 'releasedInherit' | 'releasedRecover'): RegisteredVault => {
+      const loaded = loadedAt(state, state);
+      const status = loaded.snap.status;
+      return {
+        ...loaded,
+        snap: { ...loaded.snap, status: { ...status, assets: status.assets.map((a) => ({ ...a, held: 0n })) } },
+      };
+    };
+    const title = () => screen.getByRole('heading', { level: 2 }).textContent;
+    const inherit = guest(PEOPLE.stranger, emptied('releasedInherit'));
+    expect(title()).toBe('Delivered to the heirs');
+    inherit.unmount();
+    const recover = guest(PEOPLE.stranger, emptied('releasedRecover'));
+    expect(title()).toBe('Delivered to the recovery wallet');
+    recover.unmount();
+    // Not yet released: an empty wallet is only watched.
+    const status = loadedAt('active', 'active');
+    const empty: RegisteredVault = {
+      ...status,
+      snap: {
+        ...status.snap,
+        status: { ...status.snap.status, assets: status.snap.status.assets.map((a) => ({ ...a, held: 0n })) },
+      },
+    };
+    guest(PEOPLE.stranger, empty);
+    expect(title()).toBe('You are watching this vault');
+  });
+
+  it('binds the Vietnamese delivered title so "người thừa kế" never splits', async () => {
+    const { messages } = await import('../../src/messages/vault.messages');
+    expect(messages.vi.deliveredTitle).toBe('Đã chuyển tới người\u00a0thừa\u00a0kế');
+    expect(messages.vi.deliveredTitleRecover).toBe('Đã chuyển tới ví khôi\u00a0phục');
   });
 
   it('titles a stranger by what they can do, and says who may act once (review fix 3)', () => {

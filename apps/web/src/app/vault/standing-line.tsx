@@ -20,6 +20,8 @@ export function StandingLine({ loaded, view }: { loaded: RegisteredVault; view: 
     chainNow: now,
     lang,
     drill: view.drill,
+    // Nothing left in the owner's wallet for the vault to move: the delivery happened (or had nothing to send).
+    delivered: view.assets.every((a) => a.held === 0n),
   });
   if (!sentence) return null;
   return (

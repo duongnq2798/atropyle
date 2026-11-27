@@ -12,6 +12,10 @@ export const messages = defineMessages(
     ownerReleasedInherit: 'On {date} the vault was released to your heirs. Anyone can now deliver the assets to them.',
     ownerReleasedRecover:
       'On {date} the vault was released to the recovery wallet your guardians chose. Anyone can now deliver the assets there.',
+    ownerReleasedInheritDone:
+      'On {date} the vault was released to your heirs, and its assets have been delivered to them.',
+    ownerReleasedRecoverDone:
+      'On {date} the vault was released to the recovery wallet your guardians chose, and its assets have been delivered there.',
     ownerExpired: 'This Drill expired on {date}. Nothing more can happen in it.',
     guestActive:
       'The owner last checked in on {date}. If they do not check in again, an alarm can be raised from {until}.',
@@ -23,6 +27,10 @@ export const messages = defineMessages(
     guestReleasedInherit: 'On {date} the vault was released to the heirs. Anyone can now deliver the assets to them.',
     guestReleasedRecover:
       'On {date} the vault was released to the recovery wallet the guardians chose. Anyone can now deliver the assets there.',
+    guestReleasedInheritDone:
+      'On {date} the vault was released to the heirs, and its assets have been delivered to them.',
+    guestReleasedRecoverDone:
+      'On {date} the vault was released to the recovery wallet the guardians chose, and its assets have been delivered there.',
     guestExpired: 'This Drill expired on {date}. Nothing more can happen in it.',
   },
   {
@@ -38,6 +46,10 @@ export const messages = defineMessages(
       'Từ {date}, đã tới lúc vault trao tài sản cho người thừa kế của bạn. Giờ ai cũng có thể chuyển tài sản tới họ.',
     ownerReleasedRecover:
       'Từ {date}, đã tới lúc vault trao tài sản cho ví khôi phục do người giám hộ của bạn chọn. Giờ ai cũng có thể chuyển tài sản tới ví đó.',
+    ownerReleasedInheritDone:
+      'Ngày {date} vault đã được trao cho người thừa kế của bạn, và tài sản đã được chuyển tới họ.',
+    ownerReleasedRecoverDone:
+      'Ngày {date} vault đã được trao cho ví khôi phục do người giám hộ của bạn chọn, và tài sản đã được chuyển tới ví đó.',
     ownerExpired: 'Drill này đã hết hạn vào {date}. Không còn gì xảy ra được nữa.',
     guestActive: 'Chủ vault điểm danh lần gần nhất vào {date}. Nếu họ không điểm danh lại, từ {until} có thể báo động.',
     guestLate: 'Chủ vault chưa điểm danh từ {since}. Từ {date}, bất kỳ ai cũng có thể báo động.',
@@ -50,6 +62,9 @@ export const messages = defineMessages(
       'Từ {date}, đã tới lúc vault trao tài sản cho người thừa kế. Giờ ai cũng có thể chuyển tài sản tới họ.',
     guestReleasedRecover:
       'Từ {date}, đã tới lúc vault trao tài sản cho ví khôi phục do các người giám hộ chọn. Giờ ai cũng có thể chuyển tài sản tới ví đó.',
+    guestReleasedInheritDone: 'Ngày {date} vault đã được trao cho người thừa kế, và tài sản đã được chuyển tới họ.',
+    guestReleasedRecoverDone:
+      'Ngày {date} vault đã được trao cho ví khôi phục do các người giám hộ chọn, và tài sản đã được chuyển tới ví đó.',
     guestExpired: 'Drill này đã hết hạn vào {date}. Không còn gì xảy ra được nữa.',
   },
 );
