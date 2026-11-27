@@ -35,6 +35,8 @@ export interface ActionFlowProps {
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
   hold?: HoldWords;
+  /** Where the hold stands on its TxCard: `top` is the check-in ritual's, straight under the card's heading. */
+  holdPlacement?: 'end' | 'top';
   variant?: ButtonVariant;
   auto?: boolean;
   /** Its button was pressed before this chunk loaded (LazyActionFlow): prepare once, as the press asked. */
@@ -65,6 +67,7 @@ function ActionTx(p: {
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
   hold?: HoldWords;
+  holdPlacement?: 'end' | 'top';
   tokens?: readonly MirrorToken[];
   receiptFooter?: ReactNode;
   nested?: boolean;
@@ -112,6 +115,7 @@ function ActionTx(p: {
       confirm={p.confirm}
       tone={p.tone}
       hold={p.hold}
+      holdPlacement={p.holdPlacement}
       receiptFooter={p.receiptFooter}
       nested={p.nested}
       testId={p.testId}
@@ -182,6 +186,7 @@ export function ActionFlow(p: ActionFlowProps) {
             confirm={p.confirm}
             tone={p.tone}
             hold={p.hold}
+            holdPlacement={p.holdPlacement}
             tokens={p.tokens}
             receiptFooter={p.receiptFooter}
             nested={p.nested}
