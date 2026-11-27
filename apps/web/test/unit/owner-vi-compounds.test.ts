@@ -38,13 +38,18 @@ const COMPOUNDS = [
   'tiếp theo',
   'ngăn lại',
   'x layer',
+  // This tab's own.
+  'thu hồi',
+  'nhắc nhở',
+  'thời điểm',
+  'khung hình',
 ];
 
 /** Every syllable of a compound at word edges, with any run of spaces between them: bound or not. */
 const finder = (compound: string) => new RegExp(`(?<!\\p{L})${compound.split(' ').join('\\s+')}(?!\\p{L})`, 'gu');
 
 /** A breakable space: any white space but U+00A0. */
-const BREAKABLE = /[^\S ]/u;
+const BREAKABLE = /[^\S\u00a0]/u;
 
 describe('the owner tab never breaks a Vietnamese word', () => {
   it('binds every compound with a no-break space, in every string', () => {
