@@ -1,0 +1,242 @@
+'use client';
+
+import type { SendResult, VaultAction } from '@atropyle/sdk';
+import * as m from 'motion/react-m';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useChainNow } from '@/chain/time';
+import type { RitualDrill } from '@/flows/impl/ritual';
+import type { Params } from '@/i18n/core';
+import { useLang, useT } from '@/i18n/provider';
+import { chainDate } from '@/lib/when';
+import { messages } from '@/messages/owner.messages';
+import { usePrefersReducedMotion } from '@/motion/provider';
+import type { RevealWindowHandle } from '@/motion/reveal-window';
+import { DURATION, HOLD_MS, REDUCED_MS, sec } from '@/motion/tokens';
+import { threadRemaining, threadStateOf } from '@/thread/state';
+import { Thread } from '@/thread/thread';
+import type { FlowProgress } from './action-flow';
+import { LazyActionFlow } from './lazy-action-flow';
+import { dueOf, formatSeconds, type HoldState, IDLE_PROGRESS, type RitualPhase, ritualPhase } from './owner-view';
+import type { PanelProps } from './vault-page';
+
+const CHECK_IN: VaultAction = { type: 'checkIn' };
+
+/** The new knot, at the start of a full thread: the period starts again from it. */
+const TIED_KNOT = [0] as const;
+
+/** When the wallet opened, the transaction left and the receipt came, on this machine's clock (performance.now). */
+type Marks = Record<'wallet' | 'sent' | 'tied', number | null>;
+const NO_MARKS: Marks = { wallet: null, sent: null, tied: null };
+
+/** An armed hold (Enter, or a full hold) that opened no wallet rests again after this long. */
+const ARMED_MS = DURATION.story * 2;
+
+const STATUS_KEY = {
+  idle: null,
+  holding: 'ritualHolding',
+  wallet: 'ritualWallet',
+  sent: 'ritualSent',
+  tied: 'ritualTiedStatus',
+} as const satisfies Record<RitualPhase, keyof typeof messages.en | null>;
+
+type T = (key: keyof typeof messages.en, params?: Params) => string;
+
+function drillSentence(t: T, d: RitualDrill, expires: string): string {
+  switch (d.kind) {
+    case 'simple':
+      return t('drillSimple', { a: d.a });
+    case 'guarded':
+      return t('drillGuarded', { a: d.a, b: d.b, k: d.k, n: d.n });
+    case 'guardedOnly':
+      return t('drillGuardedOnly', { a: d.a, k: d.k, n: d.n });
+    case 'expires':
+      return t('drillExpires', { date: expires });
+  }
+}
+
+/**
+ * Spec §18.4.2 T10 `knot-ritual`: hold to tie a knot on the vault's own thread, sign, wait for X Layer, and only with
+ * the receipt is the knot tied (R18.16). The phase comes from the runner (ritualPhase), never ahead of it; the runner's
+ * own 12 ms pulse marks the receipt (useTxRunner.finish), so the ritual adds none.
+ */
+export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelProps) {
+  const t = useT(messages);
+  const { lang } = useLang();
+  const calm = usePrefersReducedMotion();
+  const snap = loaded.snap;
+  const s = snap.status;
+  const now =
+    useChainNow({ blockTimestamp: s.blockTimestamp, fetchedAtMs: loaded.fetchedAtMs }, 30_000) ?? s.blockTimestamp;
+  const reveal = useRef<RevealWindowHandle>(null);
+  const [hold, setHold] = useState<HoldState>('off');
+  const holdNow = useRef(hold);
+  holdNow.current = hold;
+  const [progress, setProgress] = useState<FlowProgress>(IDLE_PROGRESS);
+  const [marks, setMarks] = useState<Marks>(NO_MARKS);
+  const [block, setBlock] = useState<bigint | null>(null);
+  const [clock, setClock] = useState(0);
+  const phase = ritualPhase(hold, progress);
+  const drill = useMemo(() => (view.drill ? flows.ritualMinutes(snap) : null), [flows, snap, view.drill]);
+  const due = dueOf(s);
+
+  // Each moment once, on the client's clock: the spec times the ritual where the owner is.
+  useEffect(() => {
+    if (phase !== 'wallet' && phase !== 'sent' && phase !== 'tied') return;
+    const at = performance.now();
+    setClock(at);
+    setMarks((x) => (x[phase] === null ? { ...x, [phase]: at } : x));
+  }, [phase]);
+
+  // "Waiting for X Layer · 0.8 s": a tenth of a second at a time, only while it waits.
+  useEffect(() => {
+    if (phase !== 'sent') return;
+    const id = setInterval(() => setClock(performance.now()), 100);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // The runner took over, or an armed hold opened nothing (a refused send): the hold is over.
+  useEffect(() => {
+    if (hold === 'off') return;
+    if (progress.busy || progress.committed || progress.finished) {
+      setHold('off');
+      return;
+    }
+    if (hold !== 'armed') return;
+    const id = setTimeout(() => setHold('off'), ARMED_MS);
+    return () => clearTimeout(id);
+  }, [hold, progress]);
+
+  // Back at rest (a release, a rejection in the wallet, Start over): the thread shows the vault's time again.
+  useEffect(() => {
+    if (phase === 'idle') reveal.current?.reset();
+  }, [phase]);
+
+  // A tab put away mid-hold comes back at rest; one that comes back while waiting shows the time that passed. Every
+  // other phase is the runner's, so it is still right on return.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (holdNow.current !== 'on') return;
+        setHold('off');
+        reveal.current?.reset('instant');
+      } else {
+        setClock(performance.now());
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  const onHoldStart = useCallback(() => {
+    setHold('on');
+    // The thread recharges over the hold, straight (motion-safe only); an early release springs it back.
+    if (!calm) reveal.current?.setRange(0, 100, { linear: HOLD_MS });
+  }, [calm]);
+
+  const onHoldEnd = useCallback((confirmed: boolean) => {
+    setHold(confirmed ? 'armed' : 'off');
+    if (!confirmed) reveal.current?.reset();
+  }, []);
+
+  const onDone = useCallback(
+    (r: SendResult) => {
+      setBlock(r.steps.at(-1)?.blockNumber ?? null);
+      onChanged(r);
+    },
+    [onChanged],
+  );
+
+  const onReset = useCallback(() => {
+    setHold('off');
+    setProgress(IDLE_PROGRESS);
+    setMarks(NO_MARKS);
+    setBlock(null);
+  }, []);
+
+  const tied = phase === 'tied';
+  // From the wallet on, the check-in restarts the period: the thread is drawn whole, so "now" and the pending knot
+  // stand at its start, where the tied knot (TIED_KNOT [0]) lands. Without an axis the geometry draws "now" only while
+  // remaining > 0 (geometry.ts), and an owner checking in late has 0 left: threadRemaining would draw no pending knot.
+  // A hold keeps the old props, so the reveal window's recharge (setRange) is not cut by a prop change.
+  const restarting = phase === 'wallet' || phase === 'sent' || tied;
+  // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one.
+  const face = (
+    <m.div
+      key={tied ? 'tied' : 'open'}
+      data-testid="owner-ritual-face"
+      data-ritual={phase}
+      initial={tied ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      transition={{ duration: sec(calm ? REDUCED_MS : DURATION.base) }}
+      className="w-full"
+    >
+      <Thread
+        state={tied ? 'active' : threadStateOf(s)}
+        remaining={restarting ? 1 : threadRemaining(s, now)}
+        knots={tied ? TIED_KNOT : undefined}
+        pendingKnot={phase === 'wallet' || phase === 'sent'}
+        signature={view.vault}
+        revealRef={reveal}
+        className="h-16 w-full"
+      />
+    </m.div>
+  );
+
+  const since = marks.sent ?? marks.wallet;
+  const elapsed = (to: number | null) => formatSeconds(to !== null && since !== null ? to - since : 0, lang);
+  // TxCard draws the HoldButton (and so hold.face) only until runner.result, then the Receipt in its place
+  // (tx-card.tsx: `if (result) action = <Receipt … footer={receiptFooter} />`). The same face rides in both slots, so the
+  // vault's thread stays on screen and the solid knot ties in the receipt; only one of the two is ever mounted.
+  const footer = (
+    <>
+      {face}
+      {block !== null ? (
+        <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-small text-ink">
+          {t('ritualTied', { block: String(block), seconds: elapsed(marks.tied) })}
+        </p>
+      ) : null}
+    </>
+  );
+  const key = STATUS_KEY[phase];
+  const date = (ts: bigint) => chainDate(ts, lang, view.drill);
+
+  return (
+    <div data-testid="owner-ritual" data-ritual={phase} className="flex flex-col gap-4">
+      <p className="text-body text-ink-muted">{t('ritualLead')}</p>
+      {due ? (
+        <p data-testid="owner-due" data-kind={due.kind} className="text-body text-ink">
+          {t(due.kind, { date: due.at === null ? '' : date(due.at) })}
+        </p>
+      ) : null}
+      {drill ? (
+        <p data-testid="owner-drill" data-kind={drill.kind} className="text-small text-ink-muted">
+          {drillSentence(t, drill, s.expiresAt === null ? '' : date(s.expiresAt))}
+        </p>
+      ) : null}
+      <LazyActionFlow
+        flows={flows}
+        sdk={sdk}
+        vault={view.vault}
+        drill={view.drill}
+        action={CHECK_IN}
+        as={account}
+        label={t('checkIn')}
+        title={t('ritualTxTitle')}
+        testId="owner-checkin"
+        confirm="hold"
+        auto
+        hold={{ hint: t('ritualHint'), doneLabel: t('ritualSign'), showKnot: false, face, onHoldStart, onHoldEnd }}
+        receiptFooter={footer}
+        onProgress={setProgress}
+        onDone={onDone}
+        onReset={onReset}
+      />
+      <p data-testid="owner-ritual-status" role="status" className="min-h-5 text-small text-ink">
+        {key ? t(key, { block: block === null ? '' : String(block) }) : null}
+        {phase === 'sent' ? (
+          <span aria-hidden className="voice-ledger tabular-nums">{` · ${elapsed(clock)}`}</span>
+        ) : null}
+      </p>
+    </div>
+  );
+}
