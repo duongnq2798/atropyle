@@ -48,6 +48,8 @@ export interface ActionFlowProps {
   nested?: boolean;
   /** Offer "Start over" while a plan is held (default). False once a one-shot send is done: nothing to start over. */
   resettable?: boolean;
+  /** The reset button's words in place of "Start over": the check-in ritual's "Check in again" once tied. */
+  resetLabel?: string;
   onDone?(r: SendResult): void;
   onPlan?(held: boolean): void;
   onProgress?(p: FlowProgress): void;
@@ -189,10 +191,11 @@ export function ActionFlow(p: ActionFlowProps) {
             onProgress={onProgress}
           />
           {a.locked || p.resettable === false ? null : (
+            // -ml-3 takes back the ghost's own px-3: its words stand on the card's content edge, not 12 px in.
             <Button
               variant="ghost"
               size="sm"
-              className="self-start"
+              className="-ml-3 self-start"
               data-testid={`${p.testId}-reset`}
               onClick={() => {
                 want.current = focusWasHere();
@@ -200,7 +203,7 @@ export function ActionFlow(p: ActionFlowProps) {
                 p.onReset?.();
               }}
             >
-              {t('startOver')}
+              {p.resetLabel ?? t('startOver')}
             </Button>
           )}
         </>

@@ -45,12 +45,16 @@ type WithTokens = PanelProps & { tokens: readonly MirrorToken[] };
 /**
  * The owner's tab (spec §16.2, §18.4.2 T10): the check-in ritual first, then coverage, the plan's four parts, revoke,
  * the time machine and reminders. A released or expired vault keeps only what still means something: the closing
- * line, Deliver once released, and Revoke while the plan lists assets.
+ * card with Deliver once released, and Revoke while the plan lists assets. An expired Drill has no closing card: the
+ * header's lead and the hero already say it is over, and a titled frame with nothing in it would only repeat them.
  */
 export function OwnerTab(p: PanelProps) {
   const { loaded, view } = p;
   const t = useT(messages);
   const open = !view.released && !view.expired;
+  const closed = view.released && !view.expired;
+  // The contract never changes the owner on a recovery: the owner reads a vault released to their recovery wallet.
+  const recovered = loaded.snap.status.state === 'releasedRecover';
   const tokens = useMemo(() => ownerTokens(loaded.snap), [loaded.snap]);
   return (
     <div data-testid="owner-tab" className="flex flex-col gap-8">
@@ -59,12 +63,14 @@ export function OwnerTab(p: PanelProps) {
         <p className="text-body text-ink-muted">{t(open ? 'lead' : 'leadClosed')}</p>
       </header>
 
-      <section aria-labelledby="owner-ritual-title" className={CARD}>
-        <h3 id="owner-ritual-title" className={SECTION_TITLE}>
-          {t(open ? 'ritualTitle' : view.released && !view.expired ? 'closedTitleReleased' : 'closedTitle')}
-        </h3>
-        {open ? <Ritual {...p} /> : <Closed {...p} />}
-      </section>
+      {open || closed ? (
+        <section aria-labelledby="owner-ritual-title" className={CARD}>
+          <h3 id="owner-ritual-title" className={SECTION_TITLE}>
+            {t(open ? 'ritualTitle' : recovered ? 'closedTitleRecovered' : 'closedTitleReleased')}
+          </h3>
+          {open ? <Ritual {...p} /> : <Closed {...p} recovered={recovered} />}
+        </section>
+      ) : null}
 
       {open ? <CoverageSection {...p} tokens={tokens} /> : null}
       {open ? <EditSection {...p} /> : null}
@@ -83,13 +89,13 @@ export function OwnerTab(p: PanelProps) {
 
 /**
  * No more check-ins. Released and not expired, anyone may deliver (T9 R7: never a poke from the owner before); the
- * title says what happened and Deliver's own help how it pays, so the card adds no sentence of its own (each fact once).
+ * title says whose turn it is, the heirs' or the recovery wallet's, and Deliver's own help how it pays, so the card
+ * adds no sentence of its own (each fact once).
  */
-function Closed(p: PanelProps) {
-  const { view } = p;
+function Closed({ recovered, ...p }: PanelProps & { recovered: boolean }) {
   return (
-    <div data-testid="owner-closed" data-kind={view.expired ? 'expired' : 'released'} className="flex flex-col gap-4">
-      {view.released && !view.expired ? <PublicActions {...p} /> : null}
+    <div data-testid="owner-closed" data-kind={recovered ? 'recovered' : 'released'} className="flex flex-col gap-4">
+      <PublicActions {...p} />
     </div>
   );
 }

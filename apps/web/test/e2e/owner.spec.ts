@@ -197,8 +197,18 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   // The tied receipt in both themes (each reload checks in again).
   await accessibleInBothThemes(page, () => tiedOnScreen(page));
 
-  // Start over prepares the next check-in at once (again()).
-  await page.getByTestId('owner-checkin-reset').click();
+  // "Check in again" (a tied knot's reset, never "Start over") prepares the next check-in at once (again()). Its words
+  // stand on the card's content edge: the ghost's own padding is taken back.
+  const again = page.getByTestId('owner-checkin-reset');
+  await expect(again).toHaveText('Check in again');
+  const words = await again.evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return r.getBoundingClientRect().left;
+  });
+  const lead = await ritual.locator('p').first().boundingBox();
+  expect(Math.abs(words - (lead?.x ?? 0))).toBeLessThanOrEqual(1);
+  await again.click();
   await expect(ritual).toHaveAttribute('data-ritual', 'idle');
   await expect(page.getByTestId('owner-checkin-tx-send')).toBeVisible();
 });

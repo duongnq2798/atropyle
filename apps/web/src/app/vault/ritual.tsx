@@ -169,10 +169,11 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   }, []);
 
   const tied = phase === 'tied';
-  // From the wallet on, the check-in restarts the period: the thread is drawn whole, so "now" and the pending knot
-  // stand at its start, by the tied knot (TIED_KNOT). Without an axis the geometry draws "now" only while
-  // remaining > 0 (geometry.ts), and an owner checking in late has 0 left: threadRemaining would draw no pending knot.
-  // A hold keeps the old props, so the reveal window's recharge (setRange) is not cut by a prop change.
+  // From the wallet on, the check-in restarts the period: "now" and the hollow pending knot stand where the solid knot
+  // will tie (TIED_KNOT, 5 %), so the knot fills in place and is never clipped at the Thread's edge. Without an axis
+  // the geometry draws "now" only while remaining > 0 (geometry.ts), and an owner checking in late has 0 left:
+  // threadRemaining would draw no pending knot. A hold keeps the old props, so the reveal window's recharge
+  // (setRange) is not cut by a prop change.
   const restarting = phase === 'wallet' || phase === 'sent' || tied;
   // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one.
   const face = (
@@ -187,7 +188,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
-        remaining={tied ? TIED_REMAINING : restarting ? 1 : threadRemaining(s, now)}
+        remaining={restarting ? TIED_REMAINING : threadRemaining(s, now)}
         knots={tied ? TIED_KNOT : undefined}
         tiedKnots={tied}
         pendingKnot={phase === 'wallet' || phase === 'sent'}
@@ -215,6 +216,20 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   );
   const key = STATUS_KEY[phase];
   const date = (ts: bigint) => chainDate(ts, lang, view.drill);
+  // The words under the hold, by phase: how to hold, then where to sign, then the wait itself with its seconds. The
+  // status line below says each phase to a screen reader, so the wait here is for the eye only (aria-hidden): the
+  // ticking seconds are never read out.
+  const hint =
+    phase === 'sent' ? (
+      <span aria-hidden className="tabular-nums">
+        {t('ritualSent')}
+        <span className="voice-ledger">{` · ${elapsed(clock)}`}</span>
+      </span>
+    ) : phase === 'wallet' ? (
+      t('ritualSign')
+    ) : (
+      t('ritualHint')
+    );
 
   return (
     <div data-testid="owner-ritual" data-ritual={phase} className="flex flex-col gap-4">
@@ -242,7 +257,14 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         testId="owner-checkin"
         confirm="hold"
         auto
-        hold={{ hint: t('ritualHint'), doneLabel: t('ritualSign'), showKnot: false, face, onHoldStart, onHoldEnd }}
+        hold={{
+          hint,
+          doneLabel: phase === 'sent' ? hint : t('ritualSign'),
+          showKnot: false,
+          face,
+          onHoldStart,
+          onHoldEnd,
+        }}
         receiptFooter={footer}
         onProgress={setProgress}
         onDone={onDone}
@@ -250,13 +272,12 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         // Nothing to start over at rest (the check-in is prepared at once); from the wallet on, a stuck prompt or a
         // tied knot starts again from here.
         resettable={restarting}
+        // Once tied, the last words invite the next check-in; a stuck wallet or wait still starts over.
+        resetLabel={tied ? t('ritualAgain') : undefined}
       />
-      {/* Once tied, the receipt says the same in its footer: the sentence stays for a screen reader only. */}
-      <p data-testid="owner-ritual-status" role="status" className={tied ? 'sr-only' : 'min-h-5 text-small text-ink'}>
+      {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the receipt's footer. */}
+      <p data-testid="owner-ritual-status" role="status" className="sr-only">
         {key ? t(key, { block: block === null ? '' : String(block) }) : null}
-        {phase === 'sent' ? (
-          <span aria-hidden className="voice-ledger tabular-nums">{` · ${elapsed(clock)}`}</span>
-        ) : null}
       </p>
     </div>
   );

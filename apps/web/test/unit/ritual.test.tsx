@@ -25,7 +25,10 @@ vi.mock('../../src/app/vault/lazy-action-flow', () => ({
         {flow.done.has(p.testId) ? (
           <div data-testid={`${p.testId}-tx-done`}>{p.receiptFooter}</div>
         ) : (
-          <div data-testid={`${p.testId}-tx-hold`}>{p.hold?.face ?? null}</div>
+          <div data-testid={`${p.testId}-tx-hold`}>
+            {p.hold?.face ?? null}
+            <span data-testid={`${p.testId}-tx-hint`}>{p.hold?.hint}</span>
+          </div>
         )}
       </div>
     );
@@ -92,6 +95,8 @@ function ritual(loaded = loadedWith(), lang: 'en' | 'vi' = 'en', onChanged = vi.
 
 const props = () => flow.last.get('owner-checkin') as ActionFlowProps;
 const phase = () => screen.getByTestId('owner-ritual').getAttribute('data-ritual');
+const hint = () => screen.getByTestId('owner-checkin-tx-hint').textContent;
+const nowAt = () => screen.getByTestId('owner-ritual-face').querySelector<HTMLElement>('[data-part="now-at"]');
 const knots = () => screen.getByTestId('owner-ritual-face').querySelectorAll('[data-part="knot"]').length;
 const progress = (p: Partial<{ committed: boolean; finished: boolean; busy: boolean; sent: boolean }>) =>
   act(() => props().onProgress?.({ committed: false, finished: false, busy: false, sent: false, ...p }));
@@ -117,6 +122,9 @@ describe('the check-in ritual', () => {
     expect(props().hold?.showKnot).toBe(false);
     expect(props().hold?.doneLabel).toBe('Now sign in your wallet');
     expect(phase()).toBe('idle');
+    expect(hint()).toBe('Hold for a moment, or press Enter');
+    // The live line is for a screen reader only, in every phase: what the eye reads stays in the hold's own slots.
+    expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
   });
 
   it('runs holding → wallet → sent → tied, and ties the knot only with the receipt', () => {
@@ -127,10 +135,21 @@ describe('the check-in ritual', () => {
     expect(phase()).toBe('holding');
     progress({ busy: true });
     expect(phase()).toBe('wallet');
-    expect(screen.getByTestId('owner-ritual-face').querySelector('[data-part="pending"]')).not.toBeNull();
+    // The hollow knot waits where the solid one will tie (TIED_KNOT, 5 %): whole on screen, never clipped at 0.
+    expect(nowAt()?.querySelector('[data-part="pending"]')).not.toBeNull();
+    expect(nowAt()?.style.transform).toMatch(/^translate\(5%,/);
+    expect(hint()).toBe('Now sign in your wallet');
+    expect(props().resetLabel).toBeUndefined();
     progress({ busy: true, committed: true, sent: true });
     expect(phase()).toBe('sent');
+    expect(nowAt()?.querySelector('[data-part="pending"]')).not.toBeNull();
+    expect(nowAt()?.style.transform).toMatch(/^translate\(5%,/);
+    // Under the disabled button, the wait and its seconds: no instruction the owner cannot follow.
+    expect(hint()).toMatch(/^Waiting for X Layer\u00a0·\u00a0\d+\.\d\u00a0s$/);
+    expect(hint()).not.toContain('Hold');
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Waiting for X Layer');
+    expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
+    expect(props().resetLabel).toBeUndefined();
     // From the wallet on, Start over is offered (a stuck prompt); at rest there is nothing to start over.
     expect(props().resettable).toBe(true);
     // R18.16: before the receipt nothing says Confirmed and no knot is tied.
@@ -144,6 +163,8 @@ describe('the check-in ritual', () => {
     expect(phase()).toBe('sent');
     progress({ committed: true, finished: true });
     expect(phase()).toBe('tied');
+    // The last words of a tied knot invite the next one; nothing reads as "something broke, start over".
+    expect(props().resetLabel).toBe('Check in again');
     expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('42');
     // The receipt's footer says it: the status sentence stays for a screen reader only.
     expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
@@ -269,6 +290,7 @@ describe('the check-in ritual', () => {
     progress({ busy: true, committed: true, sent: true });
     expect(document.body.textContent).not.toContain('Đã xác nhận');
     expect(knots()).toBe(0);
+    expect(hint()).toMatch(/^Đang chờ X\u00a0Layer\u00a0·\u00a0\d+,\d\u00a0s$/);
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Đang chờ X\u00a0Layer');
   });
 });

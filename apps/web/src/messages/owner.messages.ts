@@ -17,6 +17,7 @@ export const messages = defineMessages(
     ritualSent: 'Waiting for X Layer',
     ritualTiedStatus: 'Your check-in is in block {block}. The thread starts again from this knot.',
     ritualTied: 'Tied at block\u00a0{block}\u00a0·\u00a0{seconds}',
+    ritualAgain: 'Check in again',
     dueActive: 'Check in by {date}.',
     dueGrace: 'An alarm is raised. Check in by {date} to cancel it.',
     dueRecovery: 'A recovery is pending. Check in by {date} to stop it.',
@@ -28,8 +29,8 @@ export const messages = defineMessages(
     drillGuardedOnly:
       "Stop checking in and the rules let your heirs receive after {a} minutes once enough guardians confirm ({k} of {n}); the keeper's rounds add up to about {keeper} minutes more. If nobody confirms, this Drill ends first.",
     drillExpires: 'This Drill ends before your heirs could receive anything: it expires on {date}.',
-    closedTitle: 'No more check-ins',
     closedTitleReleased: "Your heirs' turn",
+    closedTitleRecovered: "Your recovery wallet's turn",
     coverageTitle: 'Coverage',
     coverageHelp: 'The vault can move only part of what you hold. Approve again so your heirs receive all of it.',
     coveragePercent: '{percent}% covered',
@@ -62,9 +63,9 @@ export const messages = defineMessages(
     revokeHelp:
       'Removes every allowance the vault has over your assets. Your heirs then receive nothing until you approve again.',
     revokeHelpReleased: 'If this is not what you meant, revoking stops every transfer that has not happened yet.',
-    revokeHelpExpired: 'Revoke all removes the allowances the vault still holds.',
+    revokeHelpExpired: 'Removes the allowances the vault still holds over your assets.',
     revoke: 'Revoke all',
-    revokeIdle: 'The vault can move nothing you hold right now. Revoke all still removes any allowance it keeps.',
+    revokeIdle: 'The vault can move nothing you hold right now, but an allowance you gave it may still stand.',
     revokeNone: 'This plan lists no assets, so there is nothing to revoke.',
   },
   {
@@ -83,6 +84,7 @@ export const messages = defineMessages(
     ritualSent: 'Đang chờ X\u00a0Layer',
     ritualTiedStatus: 'Lần điểm\u00a0danh đã vào block {block}. Sợi\u00a0chỉ bắt\u00a0đầu lại từ nút này.',
     ritualTied: 'Đã thắt nút ở block\u00a0{block}\u00a0·\u00a0{seconds}',
+    ritualAgain: 'Điểm\u00a0danh lại',
     dueActive: 'Hãy điểm\u00a0danh trước {date}.',
     dueGrace: 'Đã có báo\u00a0động. Hãy điểm\u00a0danh trước {date} để huỷ.',
     dueRecovery: 'Đang chờ khôi\u00a0phục. Hãy điểm\u00a0danh trước {date} để ngăn\u00a0lại.',
@@ -94,8 +96,8 @@ export const messages = defineMessages(
     drillGuardedOnly:
       'Nếu bạn ngừng điểm\u00a0danh, theo luật người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}); các vòng chạy của keeper cộng thêm khoảng {keeper} phút. Nếu không ai xác\u00a0nhận, Drill này sẽ kết\u00a0thúc trước.',
     drillExpires: 'Drill này kết\u00a0thúc trước khi người\u00a0thừa\u00a0kế kịp nhận gì: nó hết\u00a0hạn vào {date}.',
-    closedTitle: 'Không còn điểm\u00a0danh',
     closedTitleReleased: 'Đến lượt người\u00a0thừa\u00a0kế',
+    closedTitleRecovered: 'Đến lượt ví khôi\u00a0phục',
     coverageTitle: 'Độ\u00a0phủ',
     coverageHelp: 'Vault chỉ chuyển được một phần số bạn đang giữ. Hãy approve lại để người\u00a0thừa\u00a0kế nhận đủ.',
     coveragePercent: 'phủ {percent}%',
@@ -128,10 +130,10 @@ export const messages = defineMessages(
     revokeHelp:
       'Xoá mọi allowance của vault trên tài\u00a0sản của bạn. Khi đó người\u00a0thừa\u00a0kế không nhận được gì cho tới khi bạn approve lại.',
     revokeHelpReleased: 'Nếu đây không phải ý bạn, thu\u00a0hồi sẽ chặn mọi lần chuyển chưa diễn ra.',
-    revokeHelpExpired: 'Thu\u00a0hồi tất cả xoá các allowance mà vault còn giữ.',
+    revokeHelpExpired: 'Xoá các allowance mà vault còn giữ trên tài\u00a0sản của bạn.',
     revoke: 'Thu\u00a0hồi tất cả',
     revokeIdle:
-      'Lúc\u00a0này vault không chuyển được gì trong số tài\u00a0sản bạn đang giữ. Thu\u00a0hồi tất cả vẫn xoá mọi allowance vault còn giữ.',
+      'Lúc\u00a0này vault không chuyển được gì trong số tài\u00a0sản bạn đang giữ, nhưng allowance bạn đã cấp cho vault có\u00a0thể vẫn còn.',
     revokeNone: 'Kế\u00a0hoạch này không có tài\u00a0sản nào, nên không có gì để thu\u00a0hồi.',
   },
 );

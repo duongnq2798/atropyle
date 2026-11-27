@@ -22,13 +22,16 @@ export interface HoldButtonProps
   tone?: 'thread' | 'danger';
   size?: 'md' | 'lg';
   duration?: number;
-  /** Replaces the default "Hold to confirm, or press Enter". */
-  hint?: string;
+  /**
+   * Replaces the default "Hold to confirm, or press Enter". A node, so a caller can say a live wait under a disabled
+   * hold (the check-in ritual's "Waiting for X Layer · 1.7 s", its ticking seconds aria-hidden).
+   */
+  hint?: ReactNode;
   /**
    * Said once the hold is done, in place of "Confirmed"; null says nothing. A hold that only opens the wallet is not
    * a confirmation (R18.16): such a caller passes its own words ("Now confirm in your wallet").
    */
-  doneLabel?: string | null;
+  doneLabel?: ReactNode;
   /** The knot that snaps in when the hold is done. False for a hold that only opens the wallet (R18.16). */
   showKnot?: boolean;
   /**

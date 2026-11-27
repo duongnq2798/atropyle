@@ -113,13 +113,50 @@ describe('the owner tab', () => {
     expect(screen.queryByTestId('owner-alerts')).toBeNull();
   });
 
-  it('expired: the closing line and the expired revoke help', () => {
-    tab(loadedWith({ expired: true }));
-    expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('expired');
-    expect(screen.getByRole('heading', { name: 'No more check-ins' })).toBeTruthy();
-    expect(screen.getByTestId('owner-revoke-card').textContent).toContain(
-      'Revoke all removes the allowances the vault still holds.',
+  it('released to the recovery wallet: the title names the recovery wallet, and nothing names the heirs', () => {
+    tab(
+      loadedWith({
+        state: 'releasedRecover',
+        stateCode: 7,
+        pending: 'releasedRecover',
+        releasedAt: 1000n,
+        recoveryTarget: PEOPLE.stranger,
+      }),
     );
+    expect(screen.queryByTestId('owner-ritual')).toBeNull();
+    expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('recovered');
+    expect(screen.getByRole('heading', { name: "Your recovery wallet's turn" })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: "Your heirs' turn" })).toBeNull();
+    expect(screen.getByTestId('vault-distribute')).toBeTruthy();
+    expect(screen.getByTestId('owner-tab').textContent).not.toMatch(/heir/i);
+  });
+
+  it('released to the recovery wallet, in Vietnamese: "Đến lượt ví khôi phục"', () => {
+    tab(
+      loadedWith({
+        state: 'releasedRecover',
+        stateCode: 7,
+        pending: 'releasedRecover',
+        releasedAt: 1000n,
+        recoveryTarget: PEOPLE.stranger,
+      }),
+      'vi',
+    );
+    expect(screen.getByRole('heading', { name: 'Đến lượt ví khôi\u00a0phục' })).toBeTruthy();
+    expect(screen.getByTestId('owner-tab').textContent).not.toMatch(/thừa.kế/i);
+  });
+
+  it('expired: no empty closing card, and the revoke help does not repeat the button', () => {
+    tab(loadedWith({ expired: true }));
+    // The header's lead and the hero say the Drill is over: no titled frame with nothing in it.
+    expect(screen.queryByTestId('owner-closed')).toBeNull();
+    expect(screen.queryByTestId('owner-ritual')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'No more check-ins' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Check in' })).toBeNull();
+    const card = screen.getByTestId('owner-revoke-card').textContent ?? '';
+    expect(card).toContain('Removes the allowances the vault still holds over your assets.');
+    // The title and the button say "Revoke all"; no sentence says it a third time.
+    expect(card.match(/Revoke all/g)).toHaveLength(2);
     expect(screen.queryByTestId('vault-distribute')).toBeNull();
   });
 
@@ -129,8 +166,10 @@ describe('the owner tab', () => {
     tab(loadedWith({ assets: base.assets.map((a) => ({ ...a, coverage: 0n, held: 0n })) }));
     expect(screen.getByTestId('owner-revoke').getAttribute('data-action')).toBe('{"type":"revokeAll"}');
     expect(screen.getByTestId('owner-revoke-idle').textContent).toBe(
-      'The vault can move nothing you hold right now. Revoke all still removes any allowance it keeps.',
+      'The vault can move nothing you hold right now, but an allowance you gave it may still stand.',
     );
+    // The title and the button say "Revoke all"; the help and the idle line never repeat it.
+    expect(screen.getByTestId('owner-revoke-card').textContent?.match(/Revoke all/g)).toHaveLength(2);
     expect(screen.queryByTestId('owner-revoke-none')).toBeNull();
     expect(document.body.textContent).not.toContain('holds no allowance');
   });
