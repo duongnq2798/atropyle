@@ -314,4 +314,29 @@ describe('/verify/', () => {
     renderWithProviders(<VerifyPage site={SITE} />, { lang: 'en' });
     await waitFor(() => expect(screen.getByTestId('verify-line-real')).toHaveAttribute('data-state', 'pass'));
   });
+
+  it('gives the answer first, right under the address, and explains after it', async () => {
+    impl.runVaultVerify.mockResolvedValue(verified(proof()));
+    show();
+    await waitFor(() => expect(screen.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass'));
+    const overall = screen.getByTestId('verify-overall');
+    const intro = screen.getByTestId('verify-intro');
+    expect(overall.compareDocumentPosition(intro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The intro is said once: the shell does not repeat it above the answer.
+    expect(screen.getAllByText(/Anyone can send you a link to a vault/)).toHaveLength(1);
+    expect(within(overall).getByTestId('verify-verdict-title')).toHaveTextContent(
+      'This vault is what Atropyle says it is.',
+    );
+  });
+
+  it('keeps a Vietnamese compound word on one line in the headings', async () => {
+    impl.runVaultVerify.mockResolvedValue(verified(proof()));
+    show({ lang: 'vi' });
+    await waitFor(() => expect(screen.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass'));
+    const nbsp = ' ';
+    expect(within(screen.getByTestId('verify-line-rules')).getByRole('heading').textContent).toContain(
+      `chứng${nbsp}minh`,
+    );
+    expect(within(screen.getByTestId('verify-proof')).getByRole('heading').textContent).toContain(`chứng${nbsp}minh`);
+  });
 });

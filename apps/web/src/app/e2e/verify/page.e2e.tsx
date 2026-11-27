@@ -91,7 +91,7 @@ export default function Page() {
   if (!mounted) return null;
   const scene = SCENES[hash.slice(1)] ?? SCENES.pass;
   return (
-    <VerifyShell vault={VAULT} explorer={SITE.explorer}>
+    <VerifyShell vault={VAULT} explorer={SITE.explorer} answered>
       <VerifyReport vault={VAULT} site={SITE} {...scene} proofError={null} />
     </VerifyShell>
   );

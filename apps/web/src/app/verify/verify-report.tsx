@@ -12,7 +12,6 @@ import { ROUTES, vaultHref } from '@/routes';
 import { NavLink } from '@/shell/nav-link';
 import { ErrorBox } from '@/tx/error-box';
 import { Address } from '@/ui/address';
-import { Banner, type BannerTone } from '@/ui/banner';
 import { buttonClass } from '@/ui/button';
 import { CopyButton } from '@/ui/copy-button';
 import { ExternalLink } from '@/ui/external-link';
@@ -99,12 +98,31 @@ const CHIP = {
   checking: 'bg-surface-2 text-ink',
 } as const satisfies Record<LineState, string>;
 
+/** The page's one answer: its wash, its disc and its words. Pending has no disc colour: it says nothing yet. */
 const OVERALL = {
-  pending: { tone: 'info', title: 'checkingPolicy', body: 'checkingHelp' },
-  pass: { tone: 'success', title: 'overallOk', body: 'overallOkHelp' },
-  fail: { tone: 'error', title: 'overallFail', body: 'overallFailHelp' },
-  partial: { tone: 'warn', title: 'overallNo', body: 'overallNoHelp' },
-} as const satisfies Record<Overall, { tone: BannerTone; title: string; body: string }>;
+  pending: { box: 'border-line bg-surface-1', disc: null, title: 'checkingPolicy', body: 'checkingHelp' },
+  pass: {
+    box: 'border-alive/45 bg-alive/8',
+    disc: { box: 'bg-alive text-bg', Icon: Check },
+    title: 'overallOk',
+    body: 'overallOkHelp',
+  },
+  fail: {
+    box: 'border-danger/45 bg-danger/8',
+    disc: { box: 'bg-danger text-on-danger', Icon: X },
+    title: 'overallFail',
+    body: 'overallFailHelp',
+  },
+  partial: {
+    box: 'border-grace/45 bg-grace/8',
+    disc: { box: 'bg-grace text-bg', Icon: Minus },
+    title: 'overallNo',
+    body: 'overallNoHelp',
+  },
+} as const satisfies Record<
+  Overall,
+  { box: string; disc: { box: string; Icon: LucideIcon } | null; title: string; body: string }
+>;
 
 type CodeState = 'true' | 'false' | 'none';
 const CODE_KEY = { true: 'codePinned', false: 'codeDiffers', none: 'codeNoPin' } as const satisfies Record<
@@ -118,14 +136,29 @@ function codeState(matches: boolean | null): CodeState {
 
 const LINK = 'underline decoration-line-strong decoration-1 underline-offset-4 hover:decoration-thread';
 
-/** The page's frame: the question, the vault it is asked about, and why the answer can be trusted. */
+/** Why the answer can be trusted. Before there is an answer it leads; under the answer it explains, at body size. */
+function VerifyIntro({ lead }: { lead: boolean }) {
+  const t = useT(messages);
+  return (
+    <p data-testid="verify-intro" className={cn('max-w-[62ch] text-ink-muted', lead ? 'text-lead' : 'text-body')}>
+      {t('intro')}
+    </p>
+  );
+}
+
+/**
+ * The page's frame: the question and the vault it is asked about. `answered`: the children are a report, which puts
+ * its answer right under the address and the intro after it; otherwise the intro closes the header.
+ */
 export function VerifyShell({
   vault,
   explorer,
+  answered = false,
   children,
 }: {
   vault: Addr | null;
   explorer: string | null;
+  answered?: boolean;
   children: ReactNode;
 }) {
   const t = useT(messages);
@@ -138,7 +171,7 @@ export function VerifyShell({
         ) : (
           <Skeleton className="h-9 w-72 max-w-full [@media(scripting:none)]:hidden" />
         )}
-        <p className="max-w-[62ch] text-ink-muted text-lead">{t('intro')}</p>
+        {answered ? null : <VerifyIntro lead />}
       </header>
       {children}
     </div>
@@ -241,7 +274,8 @@ function LineCard({
       <StateMark state={state} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {/* On a phone the chip follows the last word of the title, so it never sits alone on a line of its own. */}
-        <div className="sm:flex sm:items-center sm:justify-between sm:gap-3">
+        {/* On a phone the wrapper is the block whose lines hold both, so it is the one that balances them. */}
+        <div className="[text-wrap:balance] sm:flex sm:items-center sm:justify-between sm:gap-3 sm:[text-wrap:wrap]">
           <h2 className="inline font-display text-ink text-title sm:block">{t(title)}</h2>
           <span
             className={cn(
@@ -484,7 +518,47 @@ export interface VerifyReportProps {
   proofError: { error: unknown; retry(): void } | null;
 }
 
-/** The answer, the three lines, the proof, the technical rows and the command; no data hook (the e2e page feeds it). */
+/**
+ * The page's one answer, in its loudest voice after the question. Until there is an answer it stays at title size,
+ * with a spinner: it does not shout "checking".
+ */
+function Verdict({ overall }: { overall: Overall }) {
+  const t = useT(messages);
+  const o = OVERALL[overall];
+  return (
+    <div
+      role={overall === 'fail' ? 'alert' : undefined}
+      className={cn('flex items-start gap-4 rounded-2xl border p-5 sm:gap-5 sm:p-6', o.box)}
+    >
+      {o.disc ? (
+        <span aria-hidden="true" className={cn('grid size-12 shrink-0 place-items-center rounded-full', o.disc.box)}>
+          <o.disc.Icon size={24} strokeWidth={2.25} />
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="grid size-12 shrink-0 place-items-center rounded-full border border-line-strong text-thread"
+        >
+          <Spinner size={22} />
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <p
+          data-testid="verify-verdict-title"
+          className={cn('font-display text-ink [text-wrap:balance]', o.disc ? 'text-h2' : 'text-title')}
+        >
+          {t(o.title)}
+        </p>
+        <p className="text-body text-ink-muted">{t(o.body)}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The answer, the intro, the three lines, the proof, the technical rows and the command; no data hook (the e2e page
+ * feeds it). Its shell is `answered`, so the intro is said once, after the answer.
+ */
 export function VerifyReport({ vault, site, verification: v, proofRunning, progress, proofError }: VerifyReportProps) {
   const t = useT(messages);
   const { lang } = useLang();
@@ -501,11 +575,10 @@ export function VerifyReport({ vault, site, verification: v, proofRunning, progr
         data-ok={overall === 'pending' ? 'pending' : String(overall === 'pass')}
         data-overall={overall}
       >
-        <Banner tone={o.tone} title={t(o.title)}>
-          {t(o.body)}
-        </Banner>
+        <Verdict overall={overall} />
       </div>
-      {/* A failure interrupts (the banner's role="alert"); the other final answers are read once they land. */}
+      <VerifyIntro lead={false} />
+      {/* A failure interrupts (the verdict's role="alert"); the other final answers are read once they land. */}
       <p data-testid="verify-live" aria-live="polite" className="sr-only">
         {overall === 'pass' || overall === 'partial' ? t(o.title) : ''}
       </p>

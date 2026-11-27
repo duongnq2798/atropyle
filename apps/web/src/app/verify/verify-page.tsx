@@ -35,7 +35,7 @@ export function VerifyScreen({ vault, site }: { vault: Addr; site: VerifySite })
     );
   }
   return (
-    <VerifyShell vault={vault} explorer={site.explorer}>
+    <VerifyShell vault={vault} explorer={site.explorer} answered>
       <VerifyReport
         vault={vault}
         site={site}
