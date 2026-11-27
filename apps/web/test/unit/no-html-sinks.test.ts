@@ -8,7 +8,8 @@ const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 const SINKS =
   /dangerouslySetInnerHTML|\.innerHTML\s*=|\.outerHTML\s*=|insertAdjacentHTML|document\.write|\beval\s*\(|new Function\s*\(|\brenderSVG\s*\(/;
 /**
- * The one inline script (Quyết định 14); its content is a constant. And the home stage's island, whose only
+ * The one inline script (Quyết định 14); its content is a constant, or in the browser the constant empty string that
+ * keeps the prerendered script through hydration (7C-F1). And the home stage's island, whose only
  * dangerouslySetInnerHTML is the constant empty string that keeps the prerendered stage through hydration (R23).
  */
 const ALLOWED = new Set(['theme/boot-script.tsx', 'home/stage-island.tsx']);
