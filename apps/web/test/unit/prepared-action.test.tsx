@@ -73,4 +73,23 @@ describe('usePreparedAction', () => {
     rerender({ action: REVOKE });
     expect(prepare).toHaveBeenCalledTimes(2);
   });
+
+  it('starts over in auto mode by preparing the same action again', async () => {
+    const prepare = vi.fn(async () => planOf('Check in'));
+    const { result } = setup(prepare, true);
+    await waitFor(() => expect(result.current.plan).not.toBeNull());
+    act(() => result.current.again());
+    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.plan).not.toBeNull());
+  });
+
+  it('starts over without auto by dropping the plan only', async () => {
+    const prepare = vi.fn(async () => planOf('Check in'));
+    const { result } = setup(prepare, false);
+    act(() => result.current.prepare());
+    await waitFor(() => expect(result.current.plan).not.toBeNull());
+    act(() => result.current.again());
+    expect(result.current.plan).toBeNull();
+    expect(prepare).toHaveBeenCalledTimes(1);
+  });
 });

@@ -35,6 +35,11 @@ export interface PreparedAction {
   held: boolean;
   prepare(): void;
   reset(): void;
+  /**
+   * Start over: drops the plan and, in auto mode, prepares the same action again. reset() alone leaves an auto
+   * action on "Preparing…" for good, since auto prepares once per context.
+   */
+  again(): void;
   report(p: RunProgress): void;
 }
 
@@ -104,6 +109,11 @@ export function usePreparedAction(o: PreparedActionOptions): PreparedAction {
     void run();
   }, [auto, sdk, as, plan, busy, ctx, run]);
 
+  const again = useCallback(() => {
+    autoCtx.current = '';
+    reset();
+  }, [reset]);
+
   const report = useCallback((p: RunProgress) => {
     setProgress((q) => (q.committed === p.committed && q.finished === p.finished ? q : p));
   }, []);
@@ -118,6 +128,7 @@ export function usePreparedAction(o: PreparedActionOptions): PreparedAction {
     held: busy || (plan !== null && !progress.finished),
     prepare,
     reset,
+    again,
     report,
   };
 }

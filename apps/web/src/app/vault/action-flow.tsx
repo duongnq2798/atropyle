@@ -17,7 +17,8 @@ import type { HoldWords } from '@/ui/hold-button';
 import { SkeletonText } from '@/ui/skeleton';
 import { type RunProgress, usePreparedAction } from './use-prepared-action';
 
-export type FlowProgress = RunProgress & { busy: boolean };
+/** `sent`: a transaction of the plan left the wallet and waits for its block (a step row is `pending`). */
+export type FlowProgress = RunProgress & { busy: boolean; sent: boolean };
 
 export interface ActionFlowProps {
   flows: FlowsImpl;
@@ -47,6 +48,8 @@ export interface ActionFlowProps {
   onDone?(r: SendResult): void;
   onPlan?(held: boolean): void;
   onProgress?(p: FlowProgress): void;
+  /** Start over was pressed: the page lets go of what it kept from the last plan (a receipt it showed, a done card). */
+  onReset?(): void;
 }
 
 function ActionTx(p: {
@@ -66,9 +69,10 @@ function ActionTx(p: {
   const report = useRef(p.onProgress);
   report.current = p.onProgress;
   const finished = runner.result !== null;
+  const sent = runner.view.rows.some((r) => r.phase === 'pending');
   useEffect(() => {
-    report.current({ committed: runner.committed, finished, busy: runner.busy });
-  }, [runner.committed, finished, runner.busy]);
+    report.current({ committed: runner.committed, finished, busy: runner.busy, sent });
+  }, [runner.committed, finished, runner.busy, sent]);
   return (
     <TxCard
       runner={runner}
@@ -130,7 +134,10 @@ export function ActionFlow(p: ActionFlowProps) {
               size="sm"
               className="self-start"
               data-testid={`${p.testId}-reset`}
-              onClick={a.reset}
+              onClick={() => {
+                a.again();
+                p.onReset?.();
+              }}
             >
               {t('startOver')}
             </Button>
