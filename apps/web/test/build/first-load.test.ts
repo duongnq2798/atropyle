@@ -75,6 +75,8 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   "the time machine's view": { markers: [/\}-moment-\$\{/], pages: 'all' },
   'the owner tab': { markers: [/["'`]owner-ritual["'`]/], pages: 'all' },
   'the owner editor': { markers: [/["'`]owner-edit-fields["'`]/], pages: 'all' },
+  // The home stage (src/home/stage.tsx): prerendered whole, its code loads after the first load (stage-island.tsx).
+  'the home stage': { markers: [/["'`]home-stage-beats["'`]/], pages: 'shell' },
 };
 
 /**
