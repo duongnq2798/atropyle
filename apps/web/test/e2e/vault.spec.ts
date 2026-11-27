@@ -277,6 +277,63 @@ test('the thread and its countdowns end on the right edge of the cards at 1024, 
   }
 });
 
+test('the skeleton draws the thread where the loaded thread lands, at 1440 px (7B-P1)', async ({
+  page,
+  state,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop width');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const box = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top + window.scrollY, right: r.right };
+      });
+  // The chain does not answer yet: the skeleton stays. Registered last, this route wins.
+  const okx = (url: URL) => OKX_ORIGINS.includes(url.origin);
+  const hang = (route: Route) => {
+    void route;
+  };
+  await page.route(okx, hang);
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-loading-thread')).toBeVisible();
+  const skeleton = await box('[data-testid="vault-loading-thread"]');
+  await page.unroute(okx, hang);
+  await page.reload();
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  const loaded = await box('[data-testid="vault-course"] > :first-child');
+  expect(Math.round(skeleton.right)).toBe(Math.round(loaded.right));
+  expect(Math.abs(skeleton.top - loaded.top), `skeleton ${skeleton.top}, loaded ${loaded.top}`).toBeLessThanOrEqual(8);
+});
+
+test('the sticky header stays at the top while a reader scrolls, and clear of the thread at the top (7B-P1)', async ({
+  page,
+  state,
+}) => {
+  // Full-page screenshots drew the header in the middle of the page. In the live page it never leaves the top.
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  const read = () =>
+    page.evaluate(() => {
+      const header = document.querySelector('header.site-header')?.getBoundingClientRect();
+      const thread = document.querySelector('[data-testid="vault-course"] > :first-child')?.getBoundingClientRect();
+      return { header: header && { top: header.top, bottom: header.bottom }, thread: thread?.top, y: window.scrollY };
+    });
+  const top = await read();
+  expect(top.header?.top).toBe(0);
+  expect(top.thread ?? 0, 'the thread starts below the header').toBeGreaterThan(top.header?.bottom ?? Infinity);
+  const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  for (const y of [200, 600, Math.round(max / 2), max]) {
+    await page.evaluate((to) => window.scrollTo({ top: to, behavior: 'instant' }), y);
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+    const at = await read();
+    expect(at.header?.top, `header at scrollY ${at.y}`).toBe(0);
+    expect(at.header?.bottom, `header height at scrollY ${at.y}`).toBe(top.header?.bottom);
+  }
+});
+
 test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // Every screen in both themes, both languages, at 1440, 768 and 390 px: up to 108 reloads on a shared machine.
