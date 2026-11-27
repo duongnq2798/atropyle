@@ -118,7 +118,7 @@ describe('the guest view', () => {
   it('binds the Vietnamese delivered title so "người thừa kế" never splits', async () => {
     const { messages } = await import('../../src/messages/vault.messages');
     expect(messages.vi.deliveredTitle).toBe('Đã chuyển tới người\u00a0thừa\u00a0kế');
-    expect(messages.vi.deliveredTitleRecover).toBe('Đã chuyển tới ví khôi\u00a0phục');
+    expect(messages.vi.deliveredTitleRecover).toBe('Đã chuyển tới ví\u00a0khôi\u00a0phục');
   });
 
   it('titles a stranger by what they can do, and says who may act once (review fix 3)', () => {

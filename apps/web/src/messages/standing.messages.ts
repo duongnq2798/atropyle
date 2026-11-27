@@ -34,38 +34,42 @@ export const messages = defineMessages(
     guestExpired: 'This Drill expired on {date}. Nothing more can happen in it.',
   },
   {
-    ownerActive: 'Bạn điểm danh lần gần nhất vào {date}. Hãy điểm danh lại trước {until} thì mọi thứ giữ nguyên.',
+    ownerActive:
+      'Bạn điểm\u00a0danh lần gần\u00a0nhất vào {date}. Hãy điểm\u00a0danh lại trước {until} thì mọi thứ giữ nguyên.',
     ownerLate:
-      'Bạn chưa điểm danh từ {since}. Từ {date}, bất kỳ ai cũng có thể báo động; điểm danh ngay bây giờ thì mọi thứ giữ nguyên.',
-    ownerGrace: 'Báo động đã được bật vào {date}. Hãy điểm danh trước {until} để huỷ.',
-    ownerDue: 'Thời gian huỷ báo động đã hết vào {date}.',
+      'Bạn chưa điểm\u00a0danh từ {since}. Từ {date}, bất\u00a0kỳ ai cũng có thể báo\u00a0động; điểm\u00a0danh ngay bây giờ thì mọi thứ giữ nguyên.',
+    ownerGrace: 'Báo\u00a0động đã được bật vào {date}. Hãy điểm\u00a0danh trước {until} để huỷ.',
+    ownerDue: 'Thời\u00a0gian huỷ báo\u00a0động đã hết vào {date}.',
     ownerRecovery:
-      'Người giám hộ của bạn đã bắt đầu khôi phục vào {date}. Nếu bạn vẫn ở đây, hãy điểm danh trước {until} để ngăn lại.',
-    ownerRecoveryDue: 'Thời gian ngăn khôi phục đã hết vào {date}.',
+      'Người\u00a0giám\u00a0hộ của bạn đã bắt\u00a0đầu khôi\u00a0phục vào {date}. Nếu bạn vẫn ở đây, hãy điểm\u00a0danh trước {until} để ngăn\u00a0lại.',
+    ownerRecoveryDue: 'Thời\u00a0gian ngăn khôi\u00a0phục đã hết vào {date}.',
     ownerReleasedInherit:
-      'Từ {date}, đã tới lúc vault trao tài sản cho người thừa kế của bạn. Giờ ai cũng có thể chuyển tài sản tới họ.',
+      'Từ {date}, đã tới lúc vault trao tài\u00a0sản cho người\u00a0thừa\u00a0kế của bạn. Giờ ai cũng có thể chuyển tài\u00a0sản tới họ.',
     ownerReleasedRecover:
-      'Từ {date}, đã tới lúc vault trao tài sản cho ví khôi phục do người giám hộ của bạn chọn. Giờ ai cũng có thể chuyển tài sản tới ví đó.',
+      'Từ {date}, đã tới lúc vault trao tài\u00a0sản cho ví\u00a0khôi\u00a0phục do người\u00a0giám\u00a0hộ của bạn chọn. Giờ ai cũng có thể chuyển tài\u00a0sản tới ví đó.',
     ownerReleasedInheritDone:
-      'Ngày {date} vault đã được trao cho người thừa kế của bạn, và tài sản đã được chuyển tới họ.',
+      'Ngày {date} vault đã được trao cho người\u00a0thừa\u00a0kế của bạn, và tài\u00a0sản đã được chuyển tới họ.',
     ownerReleasedRecoverDone:
-      'Ngày {date} vault đã được trao cho ví khôi phục do người giám hộ của bạn chọn, và tài sản đã được chuyển tới ví đó.',
-    ownerExpired: 'Drill này đã hết hạn vào {date}. Không còn gì xảy ra được nữa.',
-    guestActive: 'Chủ vault điểm danh lần gần nhất vào {date}. Nếu họ không điểm danh lại, từ {until} có thể báo động.',
-    guestLate: 'Chủ vault chưa điểm danh từ {since}. Từ {date}, bất kỳ ai cũng có thể báo động.',
-    guestGrace: 'Báo động đã được bật vào {date}. Chủ vault vẫn huỷ được bằng cách điểm danh trước {until}.',
-    guestDue: 'Thời gian huỷ báo động đã hết vào {date}.',
+      'Ngày {date} vault đã được trao cho ví\u00a0khôi\u00a0phục do người\u00a0giám\u00a0hộ của bạn chọn, và tài\u00a0sản đã được chuyển tới ví đó.',
+    ownerExpired: 'Drill này đã hết\u00a0hạn vào {date}. Không còn gì xảy\u00a0ra được nữa.',
+    guestActive:
+      'Chủ\u00a0vault điểm\u00a0danh lần gần\u00a0nhất vào {date}. Nếu họ không điểm\u00a0danh lại, từ {until} có thể báo\u00a0động.',
+    guestLate: 'Chủ\u00a0vault chưa điểm\u00a0danh từ {since}. Từ {date}, bất\u00a0kỳ ai cũng có thể báo\u00a0động.',
+    guestGrace:
+      'Báo\u00a0động đã được bật vào {date}. Chủ\u00a0vault vẫn huỷ được bằng cách điểm\u00a0danh trước {until}.',
+    guestDue: 'Thời\u00a0gian huỷ báo\u00a0động đã hết vào {date}.',
     guestRecovery:
-      'Các người giám hộ đã bắt đầu khôi phục vào {date}. Chủ vault có thể ngăn lại bằng cách điểm danh trước {until}.',
-    guestRecoveryDue: 'Thời gian ngăn khôi phục đã hết vào {date}.',
+      'Các người\u00a0giám\u00a0hộ đã bắt\u00a0đầu khôi\u00a0phục vào {date}. Chủ\u00a0vault có thể ngăn\u00a0lại bằng cách điểm\u00a0danh trước {until}.',
+    guestRecoveryDue: 'Thời\u00a0gian ngăn khôi\u00a0phục đã hết vào {date}.',
     guestReleasedInherit:
-      'Từ {date}, đã tới lúc vault trao tài sản cho người thừa kế. Giờ ai cũng có thể chuyển tài sản tới họ.',
+      'Từ {date}, đã tới lúc vault trao tài\u00a0sản cho người\u00a0thừa\u00a0kế. Giờ ai cũng có thể chuyển tài\u00a0sản tới họ.',
     guestReleasedRecover:
-      'Từ {date}, đã tới lúc vault trao tài sản cho ví khôi phục do các người giám hộ chọn. Giờ ai cũng có thể chuyển tài sản tới ví đó.',
-    guestReleasedInheritDone: 'Ngày {date} vault đã được trao cho người thừa kế, và tài sản đã được chuyển tới họ.',
+      'Từ {date}, đã tới lúc vault trao tài\u00a0sản cho ví\u00a0khôi\u00a0phục do các người\u00a0giám\u00a0hộ chọn. Giờ ai cũng có thể chuyển tài\u00a0sản tới ví đó.',
+    guestReleasedInheritDone:
+      'Ngày {date} vault đã được trao cho người\u00a0thừa\u00a0kế, và tài\u00a0sản đã được chuyển tới họ.',
     guestReleasedRecoverDone:
-      'Ngày {date} vault đã được trao cho ví khôi phục do các người giám hộ chọn, và tài sản đã được chuyển tới ví đó.',
-    guestExpired: 'Drill này đã hết hạn vào {date}. Không còn gì xảy ra được nữa.',
+      'Ngày {date} vault đã được trao cho ví\u00a0khôi\u00a0phục do các người\u00a0giám\u00a0hộ chọn, và tài\u00a0sản đã được chuyển tới ví đó.',
+    guestExpired: 'Drill này đã hết\u00a0hạn vào {date}. Không còn gì xảy\u00a0ra được nữa.',
   },
 );
 

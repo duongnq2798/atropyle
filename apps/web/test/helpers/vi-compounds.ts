@@ -18,6 +18,7 @@ export const VI_COMPOUNDS: readonly string[] = [
   'báo động',
   'cảnh báo',
   'lời mời',
+  'ví khôi phục',
   'khôi phục',
   'kế hoạch',
   'chủ ví',

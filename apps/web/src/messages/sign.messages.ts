@@ -105,7 +105,7 @@ export const messages = defineMessages(
   {
     title: 'Yêu\u00a0cầu ký',
     intro:
-      'Trang này không tin link. Trang tự giải mã lại từng bước từ đúng dữ liệu mà ví của bạn sẽ ký, tự viết mọi tóm tắt, và đối chiếu từng bước với chain trước khi gửi tới ví.',
+      'Trang này không tin link. Trang tự giải\u00a0mã lại từng bước từ đúng dữ\u00a0liệu mà ví của bạn sẽ ký, tự viết mọi tóm tắt, và đối chiếu từng bước với chain trước khi gửi tới ví.',
     signer: 'Người\u00a0ký',
     chain: 'Mạng',
     vault: 'Vault',
@@ -114,7 +114,7 @@ export const messages = defineMessages(
     invalidHelp: 'Hãy xin người gửi một link mới. Chưa có gì được gửi tới ví của bạn.',
     emptyTitle: 'Ở đây chưa có yêu\u00a0cầu ký nào',
     emptyBody:
-      'Link từ CLI, MCP server hoặc một agent sẽ mở trang này, kèm yêu cầu của nó sau #p=. Hãy mở link bạn được gửi, hoặc tự tạo một vault.',
+      'Link từ CLI, MCP server hoặc một agent sẽ mở trang này, kèm yêu\u00a0cầu của nó sau #p=. Hãy mở link bạn được gửi, hoặc tự tạo một vault.',
     emptyCreate: 'Tạo vault',
     emptyDevelopers: 'Nhà\u00a0phát\u00a0triển',
     framed: 'Trang này đang bị hiện bên trong một trang khác',

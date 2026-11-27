@@ -40,6 +40,34 @@ const SENTENCE_HEADINGS: Readonly<Record<string, readonly string[]>> = {
   verify: ['overallOk'],
 };
 
+/**
+ * Files whose every key is checked whatever its length: the standing sentence is the largest line of the vault page
+ * (voice-proclaim, text-lead), so a split compound there is the most visible one.
+ */
+const WHOLE_FILES: readonly string[] = ['standing'];
+
+/**
+ * Lead lines in the lead or body voice right under a page heading: the vault header's moment line (predicted* and
+ * moved*), the lead of the empty /vault/ and /verify/, and the intros of /verify/ and /sign/.
+ */
+const LEAD_SENTENCES: Readonly<Record<string, readonly string[]>> = {
+  vault: [
+    'missingBody',
+    'predictedActive',
+    'predictedGrace',
+    'predictedRecovery',
+    'predictedReleasedInherit',
+    'predictedReleasedRecover',
+    'movedActive',
+    'movedGrace',
+    'movedRecovery',
+    'movedReleasedInherit',
+    'movedReleasedRecover',
+  ],
+  'verify-page': ['intro', 'missingBody'],
+  sign: ['intro', 'emptyBody'],
+};
+
 const TITLE = /^title|Title$/;
 
 const headings = (lang: 'en' | 'vi') =>
@@ -48,7 +76,11 @@ const headings = (lang: 'en' | 'vi') =>
       .filter(
         ([key, text]) =>
           typeof text === 'string' &&
-          (TITLE.test(key) || isShortLabel(dict.vi[key] ?? '') || SENTENCE_HEADINGS[file]?.includes(key)),
+          (WHOLE_FILES.includes(file) ||
+            TITLE.test(key) ||
+            isShortLabel(dict.vi[key] ?? '') ||
+            SENTENCE_HEADINGS[file]?.includes(key) ||
+            LEAD_SENTENCES[file]?.includes(key)),
       )
       .map(([key, text]) => [`${file}.${lang}.${key}`, text] as const),
   );
@@ -67,15 +99,23 @@ describe('the Vietnamese headings, titles and buttons of the Plan 7B pages never
         'sign.vi.emptyTitle',
         'subscribe.vi.send',
         'labels.vi.roleHeir',
+        'standing.vi.guestReleasedInheritDone',
+        'standing.vi.ownerActive',
+        'vault.vi.predictedReleasedInherit',
+        'vault.vi.missingBody',
+        'verify-page.vi.intro',
+        'sign.vi.emptyBody',
       ]),
     );
   });
 
-  it('names only sentence headings that exist', () => {
-    const missing = Object.entries(SENTENCE_HEADINGS).flatMap(([file, keys]) => {
-      const dict = FILES.find(([f]) => f === file)?.[1];
-      return keys.filter((k) => typeof dict?.vi[k] !== 'string').map((k) => `${file}.${k}`);
-    });
+  it('names only sentence headings and lead lines that exist', () => {
+    const missing = [...Object.entries(SENTENCE_HEADINGS), ...Object.entries(LEAD_SENTENCES)].flatMap(
+      ([file, keys]) => {
+        const dict = FILES.find(([f]) => f === file)?.[1];
+        return keys.filter((k) => typeof dict?.vi[k] !== 'string').map((k) => `${file}.${k}`);
+      },
+    );
     expect(missing).toEqual([]);
   });
 

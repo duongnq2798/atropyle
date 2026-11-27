@@ -20,7 +20,7 @@ export const messages = defineMessages(
     stateGrace: 'Thời\u00a0gian báo\u00a0động',
     stateRecovery: 'Đang chờ khôi\u00a0phục',
     stateReleasedInherit: 'Thuộc\u00a0về người\u00a0thừa\u00a0kế',
-    stateReleasedRecover: 'Thuộc\u00a0về ví khôi\u00a0phục',
+    stateReleasedRecover: 'Thuộc\u00a0về ví\u00a0khôi\u00a0phục',
     stateExpired: 'Drill đã hết\u00a0hạn',
     roleOwner: 'Chủ\u00a0vault',
     roleHeir: 'Người\u00a0thừa\u00a0kế',

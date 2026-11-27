@@ -4,7 +4,7 @@ export const messages = defineMessages(
   {
     title: 'Is this vault real?',
     intro:
-      'Anyone can send you a link to a vault. This page checks it against X Layer itself, here in your browser, through RPC operators that do not depend on each other. It does not trust this website.',
+      'Anyone can send you a link to a vault. This page checks it against X00a0Layer itself, here in your browser, through RPC operators that do not depend on each other. It does not trust this website.',
     loading: 'Reading the vault from X\u00a0Layer…',
     noScript:
       'This check runs in your browser and needs JavaScript. The command below runs the same check on your computer.',
@@ -71,7 +71,7 @@ export const messages = defineMessages(
   {
     title: 'Vault này có thật không?',
     intro:
-      'Ai cũng có thể gửi cho bạn một đường link tới một vault. Trang này kiểm nó với chính X Layer, ngay trong trình duyệt của bạn, qua các nhà vận hành RPC không phụ thuộc nhau. Trang không tin website này.',
+      'Ai cũng có thể gửi cho bạn một đường link tới một vault. Trang này kiểm nó với chính X\u00a0Layer, ngay trong trình\u00a0duyệt của bạn, qua các nhà\u00a0vận\u00a0hành RPC không phụ thuộc nhau. Trang không tin website này.',
     loading: 'Đang đọc vault từ X\u00a0Layer…',
     noScript:
       'Bước kiểm này chạy trong trình duyệt và cần JavaScript. Lệnh bên dưới chạy cùng bước kiểm đó trên máy của bạn.',
@@ -130,7 +130,7 @@ export const messages = defineMessages(
     copyCommand: 'Chép lệnh',
     openVault: 'Mở trang vault',
     missingTitle: 'Kiểm một vault',
-    missingBody: 'Dán địa chỉ vault trong lá thư hoặc lời mời bạn nhận được.',
+    missingBody: 'Dán địa\u00a0chỉ vault trong lá thư hoặc lời\u00a0mời bạn nhận được.',
     openLabel: 'Địa\u00a0chỉ vault',
     open: 'Kiểm',
     openInvalid: 'Đây không phải một địa chỉ. Địa chỉ bắt đầu bằng 0x và dài 42 ký tự.',

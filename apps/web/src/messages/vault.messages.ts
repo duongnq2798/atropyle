@@ -123,7 +123,8 @@ export const messages = defineMessages(
     pageTitle: 'Vault',
     loading: 'Đang đọc vault từ X\u00a0Layer…',
     missingTitle: 'Mở một vault',
-    missingBody: 'Dán địa chỉ của một vault để xem kế hoạch, trạng thái, và ví của bạn làm được gì ở đó.',
+    missingBody:
+      'Dán địa\u00a0chỉ của một vault để xem kế\u00a0hoạch, trạng\u00a0thái, và ví của bạn làm được gì ở đó.',
     openLabel: 'Địa\u00a0chỉ vault',
     open: 'Mở',
     openInvalid: 'Đây không phải một địa chỉ. Địa chỉ bắt đầu bằng 0x và có thêm 40 ký tự.',
@@ -137,9 +138,9 @@ export const messages = defineMessages(
     nextRelease: 'Có thể trao tài\u00a0sản',
     nextDrillExpiry: 'Drill hết\u00a0hạn',
     nextReleaseDue: 'Có thể trao cho người\u00a0thừa\u00a0kế',
-    nextReleaseDueRecover: 'Có thể trao cho ví khôi\u00a0phục',
+    nextReleaseDueRecover: 'Có thể trao cho ví\u00a0khôi\u00a0phục',
     nextReleased: 'Đã tới lúc trao cho người\u00a0thừa\u00a0kế',
-    nextReleasedRecover: 'Đã tới lúc trao cho ví khôi\u00a0phục',
+    nextReleasedRecover: 'Đã tới lúc trao cho ví\u00a0khôi\u00a0phục',
     expired: 'Drill này đã hết hạn. Không còn gì xảy ra được nữa.',
     recoveryPending:
       'Đang chờ khôi phục. Nếu không bị ngăn lại, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
@@ -153,16 +154,18 @@ export const messages = defineMessages(
     threadPredicted: 'Luật cho phép lúc\u00a0này: {state}',
     postsInherit: '{lit} trên {n} người giám hộ đã xác nhận; cần {k} người.',
     postsRecover: '{lit} trên {n} người giám hộ đã bầu cho ví khôi phục này; cần {k} người.',
-    predictedActive: 'Luật giờ cho phép kết thúc báo động. Chưa ai yêu cầu.',
-    predictedGrace: 'Luật giờ cho phép báo động. Chưa ai bật nó.',
-    predictedRecovery: 'Luật giờ cho phép bắt đầu khôi phục. Chưa ai bắt đầu.',
-    predictedReleasedInherit: 'Luật giờ cho phép vault trao tài sản cho người thừa kế. Chưa ai yêu cầu.',
-    predictedReleasedRecover: 'Luật giờ cho phép vault trao tài sản cho ví khôi phục. Chưa ai yêu cầu.',
-    movedActive: 'Báo động đã kết thúc ở block {block}.',
-    movedGrace: 'Đã báo động ở block {block}.',
-    movedRecovery: 'Khôi phục đã bắt đầu ở block {block}.',
-    movedReleasedInherit: 'Đã tới lúc vault trao tài sản cho người thừa kế, từ block {block}.',
-    movedReleasedRecover: 'Đã tới lúc vault trao tài sản cho ví khôi phục, từ block {block}.',
+    predictedActive: 'Luật giờ cho phép kết\u00a0thúc báo\u00a0động. Chưa ai yêu\u00a0cầu.',
+    predictedGrace: 'Luật giờ cho phép báo\u00a0động. Chưa ai bật nó.',
+    predictedRecovery: 'Luật giờ cho phép bắt\u00a0đầu khôi\u00a0phục. Chưa ai bắt\u00a0đầu.',
+    predictedReleasedInherit:
+      'Luật giờ cho phép vault trao tài\u00a0sản cho người\u00a0thừa\u00a0kế. Chưa ai yêu\u00a0cầu.',
+    predictedReleasedRecover:
+      'Luật giờ cho phép vault trao tài\u00a0sản cho ví\u00a0khôi\u00a0phục. Chưa ai yêu\u00a0cầu.',
+    movedActive: 'Báo\u00a0động đã kết\u00a0thúc ở block {block}.',
+    movedGrace: 'Đã báo\u00a0động ở block {block}.',
+    movedRecovery: 'Khôi\u00a0phục đã bắt\u00a0đầu ở block {block}.',
+    movedReleasedInherit: 'Đã tới lúc vault trao tài\u00a0sản cho người\u00a0thừa\u00a0kế, từ block {block}.',
+    movedReleasedRecover: 'Đã tới lúc vault trao tài\u00a0sản cho ví\u00a0khôi\u00a0phục, từ block {block}.',
     rolesLabel: 'Vai\u00a0trò của bạn trong vault này',
     rolePanelLabel: 'Những việc bạn có thể làm trong vault này',
     panelLoading: 'Đang mở phần của bạn trong vault…',
@@ -195,7 +198,7 @@ export const messages = defineMessages(
     guestTitleConnected: 'Giúp vault này đi tiếp',
     guestTitleIdle: 'Bạn đang theo\u00a0dõi vault này',
     deliveredTitle: 'Đã chuyển tới người\u00a0thừa\u00a0kế',
-    deliveredTitleRecover: 'Đã chuyển tới ví khôi\u00a0phục',
+    deliveredTitleRecover: 'Đã chuyển tới ví\u00a0khôi\u00a0phục',
     noRole:
       'Ví này không có vai trò ở đây. Ai cũng có thể đưa vault sang bước tiếp khi luật cho phép; tài sản chỉ đi tới người thừa kế.',
     noRoleRecover:
@@ -219,7 +222,7 @@ export const messages = defineMessages(
     pokeEnd: 'Kết\u00a0thúc báo\u00a0động',
     pokeRecovery: 'Bắt\u00a0đầu khôi\u00a0phục',
     pokeReleaseInherit: 'Trao cho người\u00a0thừa\u00a0kế',
-    pokeReleaseRecover: 'Trao cho ví khôi\u00a0phục',
+    pokeReleaseRecover: 'Trao cho ví\u00a0khôi\u00a0phục',
     deliverHelp:
       'Đã tới lúc vault trao tài sản. Dùng nút Chuyển tài sản để gửi mọi tài sản tới người thừa kế, đúng như vault đã được thiết lập. Ví của bạn không nhận gì.',
     deliverHelpRecover:

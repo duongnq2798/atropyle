@@ -58,7 +58,7 @@ export const messages = defineMessages(
     cancelOwner: 'Chủ\u00a0vault đã điểm\u00a0danh và dừng báo\u00a0động',
     cancelOther: 'Báo\u00a0động đã bị huỷ',
     releaseInherit: 'Đã tới lúc vault trao tài\u00a0sản cho người\u00a0thừa\u00a0kế',
-    releaseRecover: 'Đã tới lúc vault trao tài\u00a0sản cho ví khôi\u00a0phục',
+    releaseRecover: 'Đã tới lúc vault trao tài\u00a0sản cho ví\u00a0khôi\u00a0phục',
     transfers: 'Đã chuyển tài\u00a0sản: {sent} thành\u00a0công, {failed} thất\u00a0bại',
     decided: 'Circuit đã quyết',
     decidedTo: 'thành',
