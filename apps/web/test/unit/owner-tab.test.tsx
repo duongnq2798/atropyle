@@ -142,7 +142,7 @@ describe('the owner tab', () => {
       }),
       'vi',
     );
-    expect(screen.getByRole('heading', { name: 'Đến lượt ví khôi\u00a0phục' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Đến lượt ví\u00a0khôi\u00a0phục' })).toBeTruthy();
     expect(screen.getByTestId('owner-tab').textContent).not.toMatch(/thừa.kế/i);
   });
 
