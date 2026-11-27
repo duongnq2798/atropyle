@@ -370,6 +370,27 @@
   }
 }
 
+/*
+ * Shared looks as one class each, in the components layer, so any utility a caller adds still wins (7C-F1): written
+ * out on every element, they cost the HTML of a page, twice where a server component draws them (the DOM and Next's
+ * payload). `ext-arrow`: Lucide's ArrowUpRight at 14 px, stroke 1.5, through a mask, for ExternalLink
+ * (src/ui/external-link.tsx); it is painted as a background, which forced colours would turn into the page's own and
+ * hide, so `forced-color-adjust: none` keeps it the link's colour.
+ */
+@layer components {
+  .ext-arrow {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    background-color: currentColor;
+    forced-color-adjust: none;
+    mask:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h10v10M7 17 17 7'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+}
+
 /* Shared-element and theme transitions (src/motion/view-transition.tsx). */
 ::view-transition-old(root),
 ::view-transition-new(root) {

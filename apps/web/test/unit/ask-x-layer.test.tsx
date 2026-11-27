@@ -128,8 +128,9 @@ describe('Ask X Layer', () => {
       'X Layer agrees: the gate opens. block 123 (opens in a new tab) · OKX same answer',
     );
     expect(new Set(fetch.mock.calls.map(([url]) => String(url)))).toEqual(new Set([OKX]));
-    // ✓ is an icon, never a character (glyphs.test.ts); the link's arrow is the other one.
-    expect(ledger.querySelectorAll('svg')).toHaveLength(2);
+    // ✓ is an icon, never a character (glyphs.test.ts); the link's arrow is a masked span (7C-F1).
+    expect(ledger.querySelectorAll('svg')).toHaveLength(1);
+    expect(ledger.querySelectorAll('.ext-arrow')).toHaveLength(1);
     expect(within(ledger).getByText('OKX').querySelector('svg.text-alive')).not.toBeNull();
   });
 
