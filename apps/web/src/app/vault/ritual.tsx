@@ -5,6 +5,7 @@ import * as m from 'motion/react-m';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChainNow } from '@/chain/time';
 import type { RitualDrill } from '@/flows/impl/ritual';
+import { usePolicyEngine } from '@/flows/time-machine/use-engine';
 import type { Params } from '@/i18n/core';
 import { useLang, useT } from '@/i18n/provider';
 import { chainDate } from '@/lib/when';
@@ -85,7 +86,12 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   const [block, setBlock] = useState<bigint | null>(null);
   const [clock, setClock] = useState(0);
   const phase = ritualPhase(hold, progress);
-  const drill = useMemo(() => (view.drill ? flows.ritualMinutes(snap) : null), [flows, snap, view.drill]);
+  // The vault's own engine, the one its time machine reads (one query per binding): the sentence waits for it.
+  const engine = usePolicyEngine(snap.binding, { enabled: view.drill }).data ?? null;
+  const drill = useMemo(
+    () => (view.drill && engine ? flows.ritualMinutes(snap, engine) : null),
+    [flows, snap, view.drill, engine],
+  );
   const due = dueOf(s);
 
   // Each moment once, on the client's clock: the spec times the ritual where the owner is.

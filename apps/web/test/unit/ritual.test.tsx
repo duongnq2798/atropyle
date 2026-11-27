@@ -49,9 +49,12 @@ vi.mock('../../src/motion/haptics', () => ({
 }));
 vi.mock('../../src/chain/load', async () => {
   const { fixtureDeployment } = await import('./fixtures');
+  const { modelEngine } = await import('@atropyle/sdk');
+  // The vault's engine (usePolicyEngine): the devnet's, the reference model.
+  const atro = { engine: () => modelEngine(), engineFor: async () => modelEngine() };
   const chain = {
     loadDeployment: () => fixtureDeployment(),
-    createSdk: () => ({ deployment: fixtureDeployment(), atro: {}, rpc: { read: [], verify: [] } }),
+    createSdk: () => ({ deployment: fixtureDeployment(), atro, rpc: { read: [], verify: [] } }),
   };
   return { loadChainImpl: async () => chain, peekChainImpl: () => chain };
 });
@@ -229,17 +232,17 @@ describe('the check-in ritual', () => {
     expect(phase()).toBe('wallet');
   });
 
-  it("says the guarded Drill's own minutes, with the guardians' condition", () => {
+  it("says the guarded Drill's own minutes, with the guardians' condition", async () => {
     ritual();
-    const drill = screen.getByTestId('owner-drill');
+    const drill = await screen.findByTestId('owner-drill');
     expect(drill.getAttribute('data-kind')).toBe('guarded');
     expect(drill.textContent).toContain('about 6 minutes later once enough guardians confirm (2 of 3)');
     expect(drill.textContent).toContain('about 17 minutes later if nobody does');
   });
 
-  it('says one time for a Drill without guardians', () => {
+  it('says one time for a Drill without guardians', async () => {
     ritual(loadedWith((s) => ({ ...s, config: { ...s.config, guardians: [], k: 0, recoveryEnabled: false } })));
-    const drill = screen.getByTestId('owner-drill');
+    const drill = await screen.findByTestId('owner-drill');
     expect(drill.getAttribute('data-kind')).toBe('simple');
     expect(drill.textContent).toBe('Stop checking in and your heirs can receive about 6 minutes later.');
   });
