@@ -25,14 +25,14 @@ export const messages = defineMessages(
     noAssets: 'No assets yet. You can add them later from the vault page.',
   },
   {
-    assetsTitle: 'Vault trông\u00a0chừng những gì',
+    assetsTitle: 'Vault trông\u00a0chừng những gì',
     assetsHelp:
       'Vault không bao giờ giữ token của bạn. Chúng ở yên trong ví, và vault chỉ được chuyển chúng khi người thừa kế nhận.',
     quickTitle: 'Token trên X Layer',
     testToken: 'Token thử {n}',
     youHold: 'Bạn đang có {amount}',
     holdUnknown: 'Chưa rõ số\u00a0dư',
-    notHeldShort: 'Hôm nay bạn chưa có',
+    notHeldShort: 'Hôm nay bạn chưa có',
     kind: 'Loại',
     kindErc20: 'Token',
     kindErc721: 'NFT',

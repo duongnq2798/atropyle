@@ -49,6 +49,17 @@ const COMPOUNDS = [
   'kiểm tra',
   'mô phỏng',
   'vấn đề',
+  'xảy ra',
+  'khoảnh khắc',
+  'hôm nay',
+  'ít nhất',
+  'tối đa',
+  'bao nhiêu',
+  'khi nào',
+  'những gì',
+  'số lần',
+  'đọc lại',
+  'nối lại',
 ];
 
 /** The h1 of each step, the step names, the section titles and the invitation headings: whatever their length. */
@@ -122,5 +133,7 @@ describe('the Vietnamese labels of /create/ never break inside a word', () => {
     expect(create.vi.stepKind).toBe('Drill hay vault thật');
     expect(create.vi.stepHeirs).toBe('Người thừa kế');
     expect(editors.vi.addGuardian).toBe('Thêm người giám hộ');
+    expect(create.vi.timingPreview).toBe('Chuyện gì sẽ xảy ra, từng khoảnh khắc');
+    expect(create.vi.emailTitle).toBe('Nhận email trước khi có chuyện gì xảy ra');
   });
 });
