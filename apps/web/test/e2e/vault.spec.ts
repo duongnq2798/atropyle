@@ -320,12 +320,13 @@ test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   await guest();
   await captureScreens(page, 'vault-guest', { shots, ready: guest });
 
-  // Its owner, before Task 10's tab: their roles named, no poke (their signature would make it a check-in).
+  // Its owner: the owner tab (Task 10) in place of the guest view; no poke (their signature would make it a check-in).
   const w = await wallet({ account: OWNER });
   const owner = async () => {
     await stateIs(page, 'active');
     await connected();
-    await expect(page.getByTestId('vault-public-owner')).toBeVisible();
+    await expect(page.getByTestId('owner-tab')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('vault-poke')).toHaveCount(0);
   };
   // The test wallet is injected into new documents only: a reload brings it to this page.
   await page.reload();
