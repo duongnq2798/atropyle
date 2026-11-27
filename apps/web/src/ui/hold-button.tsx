@@ -1,12 +1,12 @@
 'use client';
 
 import * as m from 'motion/react-m';
-import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useState } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { messages as ui } from '@/messages/ui.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
-import { DURATION, EASE_OUT_EXPO, HOLD_MS, SPRING, sec } from '@/motion/tokens';
+import { DURATION, EASE_OUT_EXPO, HOLD_MS, REDUCED_MS, SPRING, sec } from '@/motion/tokens';
 import { useHold } from '@/motion/use-hold';
 
 /**
@@ -31,10 +31,19 @@ export interface HoldButtonProps
   doneLabel?: string | null;
   /** The knot that snaps in when the hold is done. False for a hold that only opens the wallet (R18.16). */
   showKnot?: boolean;
+  /**
+   * Drawn above the button, inside the hold's own column, which then takes the full width: the check-in ritual's
+   * thread (spec §18.4.2 T10). The caller moves it with onHoldStart and onHoldEnd.
+   */
+  face?: ReactNode;
+  /** A hold began (a pointer or Space). Enter and an assistive click confirm without one. */
+  onHoldStart?(): void;
+  /** The hold ended: true once confirmed (Enter included, after onConfirm), false when let go early. */
+  onHoldEnd?(confirmed: boolean): void;
 }
 
-/** The words and the knot of a hold, as TxCard and ActionFlow pass them through. */
-export type HoldWords = Pick<HoldButtonProps, 'hint' | 'doneLabel' | 'showKnot'>;
+/** The words, the knot and the face of a hold, as TxCard and ActionFlow pass them through. */
+export type HoldWords = Pick<HoldButtonProps, 'hint' | 'doneLabel' | 'showKnot' | 'face' | 'onHoldStart' | 'onHoldEnd'>;
 
 const SIZE = {
   md: 'h-12 px-6 text-body gap-2',
@@ -60,9 +69,10 @@ const TONE = {
 
 /**
  * The check-in ritual (spec §4.6): hold to tie a knot on the thread. A thread runs under the label and tightens
- * while held; on release before the end it slackens and the button shakes once; on confirmation a knot snaps in.
- * Under reduced motion the fill fades in place of growing, and nothing shakes. The shake is a CSS keyframe
- * (globals.css `atro-shake`), so the button brings no animation engine into the first load.
+ * while held; on release before the end it slackens and the button shakes, again on every early release; on
+ * confirmation a knot snaps in. Under reduced motion the fill and the knot fade in place of growing, and nothing
+ * shakes. The shake is a CSS keyframe (globals.css `atro-shake`), so the button brings no animation engine into the
+ * first load.
  */
 export function HoldButton({
   onConfirm,
@@ -74,6 +84,9 @@ export function HoldButton({
   hint,
   doneLabel,
   showKnot = true,
+  face,
+  onHoldStart,
+  onHoldEnd,
   disabled,
   className,
   onPointerDown,
@@ -93,13 +106,41 @@ export function HoldButton({
   const [nudges, setNudges] = useState(0);
   const [keep, setKeep] = useState(false);
   const [shake, setShake] = useState(false);
+  const shaking = useRef(shake);
+  shaking.current = shake;
+  const again = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ends = useRef({ onHoldStart, onHoldEnd });
+  ends.current = { onHoldStart, onHoldEnd };
 
   const onCancel = useCallback(() => {
     setNudges((n) => n + 1);
-    if (!calm) setShake(true);
+    ends.current.onHoldEnd?.(false);
+    if (calm) return;
+    if (!shaking.current) {
+      setShake(true);
+      return;
+    }
+    // A second early release during the first shake (parked item 59): the attribute goes, then comes back, so the
+    // keyframe runs again instead of being cut short.
+    setShake(false);
+    if (again.current !== null) clearTimeout(again.current);
+    again.current = setTimeout(() => {
+      again.current = null;
+      setShake(true);
+    }, 0);
   }, [calm]);
 
-  const { phase, bind } = useHold({ duration, disabled, onConfirm, onCancel });
+  const confirmed = useCallback(() => {
+    try {
+      onConfirm();
+    } finally {
+      ends.current.onHoldEnd?.(true);
+    }
+  }, [onConfirm]);
+
+  const onStart = useCallback(() => ends.current.onHoldStart?.(), []);
+
+  const { phase, bind } = useHold({ duration, disabled, onConfirm: confirmed, onCancel, onStart });
 
   useEffect(() => {
     if (nudges === 0) return;
@@ -115,6 +156,13 @@ export function HoldButton({
     return () => clearTimeout(id);
   }, [shake]);
 
+  useEffect(
+    () => () => {
+      if (again.current !== null) clearTimeout(again.current);
+    },
+    [],
+  );
+
   const on = phase !== 'idle';
   const grow =
     phase === 'holding'
@@ -128,10 +176,18 @@ export function HoldButton({
       ? { opacity: 1, scaleX: 1 }
       : { opacity: 0, transitionEnd: { scaleX: 0 } }
     : { opacity: 1, scaleX: on ? 1 : 0 };
+  // Under reduced motion the knot fades in REDUCED_MS at full size (parked item 59): no scale to cut.
+  const knot = phase === 'done' ? { scale: 1, opacity: 1 } : calm ? { scale: 1, opacity: 0 } : { scale: 0, opacity: 0 };
+  const knotMove = calm
+    ? { duration: sec(REDUCED_MS) }
+    : phase === 'done'
+      ? SPRING
+      : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO };
   const c = TONE[tone];
 
   return (
-    <span className="inline-flex flex-col items-center gap-2">
+    <span className={cn('inline-flex flex-col items-center gap-2', face ? 'w-full' : null)}>
+      {face ? <span className="w-full">{face}</span> : null}
       <button
         {...rest}
         onPointerDown={compose(onPointerDown, bind.onPointerDown)}
@@ -181,8 +237,8 @@ export function HoldButton({
             data-part="knot"
             className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
             initial={false}
-            animate={phase === 'done' ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-            transition={phase === 'done' ? SPRING : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO }}
+            animate={knot}
+            transition={knotMove}
           />
         ) : null}
       </button>
