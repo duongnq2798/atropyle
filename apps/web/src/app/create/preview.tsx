@@ -287,6 +287,34 @@ export const previewSheet = lazyChunk(() => import('./preview-sheet'));
 /** The strip shows below lg (64rem): only there is its sheet worth warming. */
 const NARROW = '(max-width: 63.99rem)';
 
+/** The strip's box below lg: 72 px, hidden while a text field or a slider has focus (the dock's group, wizard.tsx). */
+const STRIP_BOX = cn(
+  'h-18 border-line border-b lg:hidden',
+  'group-has-[input:not([type=radio]):not([type=checkbox]):focus]/create:hidden',
+  'group-has-[textarea:focus]/create:hidden group-has-[select:focus]/create:hidden',
+  'group-has-[[role=slider]:focus]/create:hidden',
+);
+
+/**
+ * The strip's place in the first paint (the static HTML), before the flow chunk brings the plan: the same box, so the
+ * dock keeps its height when the strip arrives and nothing moves (CLS 0, spec §11). It says what the strip will say and
+ * draws a plain line where the Thread goes; it is not a control yet, so it is hidden from assistive tech.
+ */
+export function StripFrame() {
+  const t = useT(messages);
+  return (
+    <div data-testid="create-strip-frame" aria-hidden="true" className={STRIP_BOX}>
+      <div className="flex size-full items-center gap-3 px-4">
+        <span className="flex w-36 shrink-0 items-center md:w-60">
+          <span className="h-px w-full bg-line-strong" />
+        </span>
+        <span className="min-w-0 grow font-medium text-ink-muted text-small">{t('previewOpen')}</span>
+        <ChevronUp aria-hidden="true" className="size-5 shrink-0 text-ink-muted" />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Below lg: a 72 px strip in the dock, a simpler Thread (stripThreadProps) and a line of words; a tap opens the sheet. It hides while a
  * text field or a slider has focus (the dock's group, wizard.tsx), so it never covers what is being typed; a radio
@@ -305,15 +333,7 @@ export function PreviewStrip(p: { model: PreviewModel; step: WizardStep; vault: 
   );
   const { loom } = p.model;
   return (
-    <div
-      data-testid="create-strip"
-      className={cn(
-        'h-18 border-line border-b lg:hidden',
-        'group-has-[input:not([type=radio]):not([type=checkbox]):focus]/create:hidden',
-        'group-has-[textarea:focus]/create:hidden group-has-[select:focus]/create:hidden',
-        'group-has-[[role=slider]:focus]/create:hidden',
-      )}
-    >
+    <div data-testid="create-strip" className={STRIP_BOX}>
       <button
         type="button"
         data-testid="create-preview-open"

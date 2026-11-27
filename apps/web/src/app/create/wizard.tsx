@@ -18,7 +18,7 @@ import type { StepsModule } from './edit-chunk';
 import { useStepsChunk } from './edit-chunk';
 import { useFinishChunk } from './finish-chunk';
 import { KindCards } from './kind-cards';
-import { Preview, PreviewStrip, usePreviewModel } from './preview';
+import { Preview, PreviewStrip, StripFrame, usePreviewModel } from './preview';
 import { ASK_KEY, Progress } from './progress';
 import type { Prepared } from './review';
 import { useWizard, type Wizard as WizardApi } from './use-wizard';
@@ -183,7 +183,8 @@ export function Wizard() {
               'max-lg:bg-bg max-lg:pb-[env(safe-area-inset-bottom)] lg:border-line lg:border-t lg:pt-6',
             )}
           >
-            {wizard && flows ? <DockStrip flows={flows} wizard={wizard} /> : null}
+            {/* The strip's place is in the static HTML: the dock never grows when the plan arrives (CLS 0). */}
+            {wizard && flows ? <DockStrip flows={flows} wizard={wizard} /> : <StripFrame />}
             <div className="flex items-center justify-between gap-3 max-lg:px-4 max-lg:py-3">
               {step !== 'kind' ? (
                 <Button variant="ghost" data-testid="create-back" disabled={frozen} onClick={() => w?.back()}>
