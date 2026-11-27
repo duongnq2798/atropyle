@@ -76,6 +76,9 @@ describe('the owner tab', () => {
     expect(revoke.getAttribute('data-tone')).toBe('danger');
     expect(screen.getByTestId('owner-time').getAttribute('data-bound')).toBe('true');
     expect(screen.getByTestId('owner-alerts')).toBeTruthy();
+    // The time machine and the alerts form stand in their own frames: no second title around either.
+    expect(screen.queryByRole('heading', { name: 'What happens next' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Reminders' })).toBeNull();
     expect(screen.queryByTestId('vault-poke')).toBeNull();
   });
 
@@ -96,6 +99,8 @@ describe('the owner tab', () => {
     tab(loadedWith({ state: 'releasedInherit', stateCode: 5, pending: 'releasedInherit', releasedAt: 1000n }));
     expect(screen.queryByTestId('owner-ritual')).toBeNull();
     expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('released');
+    expect(screen.getByRole('heading', { name: 'No more check-ins' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Check in' })).toBeNull();
     expect(screen.getByTestId('vault-distribute')).toBeTruthy();
     expect(screen.getByTestId('owner-revoke-card').textContent).toContain('The vault has passed on.');
     expect(screen.queryByTestId('owner-edit')).toBeNull();

@@ -168,7 +168,8 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
       initial={tied ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: sec(calm ? REDUCED_MS : DURATION.base) }}
-      className="w-full"
+      // The knots stand at the thread's very start: the inset keeps them whole inside the receipt, which clips.
+      className="w-full px-2"
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
@@ -177,7 +178,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         pendingKnot={phase === 'wallet' || phase === 'sent'}
         signature={view.vault}
         revealRef={reveal}
-        className="h-16 w-full"
+        className="h-12 w-full sm:h-16"
       />
     </m.div>
   );
@@ -230,8 +231,12 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         onProgress={setProgress}
         onDone={onDone}
         onReset={onReset}
+        // Nothing to start over at rest (the check-in is prepared at once); from the wallet on, a stuck prompt or a
+        // tied knot starts again from here.
+        resettable={restarting}
       />
-      <p data-testid="owner-ritual-status" role="status" className="min-h-5 text-small text-ink">
+      {/* Once tied, the receipt says the same in its footer: the sentence stays for a screen reader only. */}
+      <p data-testid="owner-ritual-status" role="status" className={tied ? 'sr-only' : 'min-h-5 text-small text-ink'}>
         {key ? t(key, { block: block === null ? '' : String(block) }) : null}
         {phase === 'sent' ? (
           <span aria-hidden className="voice-ledger tabular-nums">{` · ${elapsed(clock)}`}</span>

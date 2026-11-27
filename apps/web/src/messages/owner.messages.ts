@@ -28,6 +28,7 @@ export const messages = defineMessages(
     drillExpires: 'This Drill ends before your heirs could receive anything: it expires on {date}.',
     closedReleased: 'The vault has passed on: no more check-ins.',
     closedExpired: 'This Drill has expired: no more check-ins.',
+    closedTitle: 'No more check-ins',
     coverageTitle: 'Coverage',
     coverageHelp: 'The vault can move only part of what you hold. Approve again so your heirs receive all of it.',
     coveragePercent: '{percent}% covered',
@@ -65,11 +66,6 @@ export const messages = defineMessages(
     revoke: 'Revoke all',
     revokeIdle: 'The vault can move nothing you hold right now. Revoke all still removes any allowance it keeps.',
     revokeNone: 'This plan lists no assets, so there is nothing to revoke.',
-    timeTitle: 'What happens next',
-    timeHelp:
-      "Drag along the thread to see what the rules allow at each moment. Each frame is the circuit's own answer.",
-    alertsTitle: 'Reminders',
-    alertsHelp: 'Get an email or a Telegram message before a check-in is due.',
   },
   {
     title: 'Bạn là chủ\u00a0vault này',
@@ -99,6 +95,7 @@ export const messages = defineMessages(
     drillExpires: 'Drill này kết\u00a0thúc trước khi người\u00a0thừa\u00a0kế kịp nhận gì: nó hết\u00a0hạn vào {date}.',
     closedReleased: 'Vault đã tới lúc trao tài\u00a0sản: không còn điểm\u00a0danh được nữa.',
     closedExpired: 'Drill này đã hết\u00a0hạn: không còn điểm\u00a0danh được nữa.',
+    closedTitle: 'Không còn điểm\u00a0danh',
     coverageTitle: 'Độ\u00a0phủ',
     coverageHelp: 'Vault chỉ chuyển được một phần số bạn đang giữ. Hãy approve lại để người\u00a0thừa\u00a0kế nhận đủ.',
     coveragePercent: 'phủ {percent}%',
@@ -137,10 +134,5 @@ export const messages = defineMessages(
     revokeIdle:
       'Lúc\u00a0này vault không chuyển được gì trong số tài\u00a0sản bạn đang giữ. Thu\u00a0hồi tất cả vẫn xoá mọi allowance vault còn giữ.',
     revokeNone: 'Kế\u00a0hoạch này không có tài\u00a0sản nào, nên không có gì để thu\u00a0hồi.',
-    timeTitle: 'Điều gì xảy\u00a0ra tiếp\u00a0theo',
-    timeHelp:
-      'Kéo dọc sợi\u00a0chỉ để xem luật cho\u00a0phép những\u00a0gì ở mỗi thời\u00a0điểm. Mỗi khung\u00a0hình là câu trả lời của chính mạch.',
-    alertsTitle: 'Nhắc\u00a0nhở',
-    alertsHelp: 'Nhận email hoặc tin Telegram trước hạn điểm\u00a0danh.',
   },
 );

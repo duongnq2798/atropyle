@@ -58,7 +58,7 @@ export function OwnerTab(p: PanelProps) {
 
       <section aria-labelledby="owner-ritual-title" className={CARD}>
         <h3 id="owner-ritual-title" className="voice-proclaim text-title text-ink">
-          {t('ritualTitle')}
+          {t(open ? 'ritualTitle' : 'closedTitle')}
         </h3>
         {open ? <Ritual {...p} /> : <Closed {...p} />}
       </section>
@@ -68,14 +68,11 @@ export function OwnerTab(p: PanelProps) {
       <RevokeSection {...p} tokens={tokens} />
       {open ? <TimeSection {...p} /> : null}
 
+      {/* The alerts form is its own titled card (SubscribeForm): a second frame around it would only repeat it. */}
       {open ? (
-        <section aria-labelledby="owner-alerts-title" data-testid="owner-alerts" className={CARD}>
-          <h3 id="owner-alerts-title" className="text-lead text-ink">
-            {t('alertsTitle')}
-          </h3>
-          <p className="text-small text-ink-muted">{t('alertsHelp')}</p>
+        <div data-testid="owner-alerts">
           <SubscribeForm vault={view.vault} role={ALERTS_ROLE} />
-        </section>
+        </div>
       ) : null}
     </div>
   );
@@ -186,7 +183,8 @@ function EditSection(p: PanelProps) {
         {t('editTitle')}
       </h3>
       <p className="text-small text-ink-muted">{t('editHelp')}</p>
-      <div role="group" aria-label={t('partLabel')} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+      <fieldset className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <legend className="sr-only">{t('partLabel')}</legend>
         {EDIT_PARTS.map((x) => (
           <Button
             key={x}
@@ -205,7 +203,7 @@ function EditSection(p: PanelProps) {
             {t(PART_KEY[x])}
           </Button>
         ))}
-      </div>
+      </fieldset>
       {!opened ? null : Edit ? (
         <Edit {...p} part={part} onLocked={setLocked} />
       ) : q.error ? (
@@ -274,24 +272,18 @@ function RevokeSection({ flows, sdk, loaded, view, account, onChanged, tokens }:
   );
 }
 
+/** The time machine is its own titled section, with its lead and its frame: it stands here as it is. */
 function TimeSection({ flows, loaded, view }: PanelProps) {
-  const t = useT(messages);
   const snap = loaded.snap;
   const state = useMemo(() => flows.evalStateOf(snap), [flows, snap]);
   return (
-    <section aria-labelledby="owner-time-title" className={CARD}>
-      <h3 id="owner-time-title" className="text-lead text-ink">
-        {t('timeTitle')}
-      </h3>
-      <p className="text-small text-ink-muted">{t('timeHelp')}</p>
-      <LazyTimeMachine
-        state={state}
-        now={snap.status.blockTimestamp}
-        expiresAt={snap.status.expiresAt}
-        drill={view.drill}
-        binding={snap.binding}
-        testId="owner-time"
-      />
-    </section>
+    <LazyTimeMachine
+      state={state}
+      now={snap.status.blockTimestamp}
+      expiresAt={snap.status.expiresAt}
+      drill={view.drill}
+      binding={snap.binding}
+      testId="owner-time"
+    />
   );
 }

@@ -107,6 +107,7 @@ afterEach(() => {
 describe('the check-in ritual', () => {
   it('prepares the check-in at once and holds it with the ritual words, no knot of its own', () => {
     ritual();
+    expect(props().resettable).toBe(false);
     expect(screen.getByTestId('owner-checkin').getAttribute('data-auto')).toBe('true');
     expect(props().action).toEqual({ type: 'checkIn' });
     expect(props().confirm).toBe('hold');
@@ -127,6 +128,8 @@ describe('the check-in ritual', () => {
     progress({ busy: true, committed: true, sent: true });
     expect(phase()).toBe('sent');
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Waiting for X Layer');
+    // From the wallet on, Start over is offered (a stuck prompt); at rest there is nothing to start over.
+    expect(props().resettable).toBe(true);
     // R18.16: before the receipt nothing says Confirmed and no knot is tied.
     expect(document.body.textContent).not.toContain('Confirmed');
     expect(knots()).toBe(0);
@@ -139,6 +142,8 @@ describe('the check-in ritual', () => {
     progress({ committed: true, finished: true });
     expect(phase()).toBe('tied');
     expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('42');
+    // The receipt's footer says it: the status sentence stays for a screen reader only.
+    expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
     expect(screen.getByTestId('owner-tied').textContent).toMatch(/^Tied at block 42 · \d+\.\d\u00a0s$/);
     // The hold is gone (TxCard shows the Receipt): the thread and its solid knot are in the receipt's footer.
     expect(screen.queryByTestId('owner-checkin-tx-hold')).toBeNull();

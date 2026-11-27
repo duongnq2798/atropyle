@@ -1,6 +1,7 @@
 import type { AtropyleClient } from '@atropyle/sdk';
 import type { Page } from '@playwright/test';
-import { type Address, erc20Abi } from 'viem';
+import { type Address, createPublicClient, erc20Abi, http } from 'viem';
+import { anvil } from 'viem/chains';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { expectAccessible, setStoredTheme } from './helpers.ts';
 import { mint, walletFor } from './onchain.ts';
@@ -96,6 +97,18 @@ async function holdAndAllow(atro: AtropyleClient, state: E2EState, vault: Addres
     args: [vault, allowance],
     account: OWNER,
     chain: null,
+  });
+}
+
+/** The vault's allowance over the owner's ERC-20, read on the chain: coverage is min(allowance, balance), not it. */
+async function allowanceOf(atro: AtropyleClient, state: E2EState, vault: Address): Promise<bigint> {
+  const erc20 = (await atro.vault(vault).status()).assets.find((a) => a.asset.kind === 'erc20');
+  if (!erc20) throw new Error('the seed has no ERC-20 in this vault');
+  return createPublicClient({ chain: anvil, transport: http(state.rpcUrl) }).readContract({
+    address: erc20.asset.token,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: [OWNER, vault],
   });
 }
 
@@ -220,6 +233,7 @@ test('a released vault: no more check-ins, Deliver for anyone, Revoke still ther
   await pokeAs(atro, state, vault, KEEPER);
   // An allowance stands over a token the owner holds, so revokeAll has a real approve(vault, 0) to prepare.
   await holdAndAllow(atro, state, vault, 1_000_000n);
+  expect(await allowanceOf(atro, state, vault)).toBe(1_000_000n);
   await openAsOwner(page, state, wallet, vault);
   await expect(page.getByTestId('owner-closed')).toHaveAttribute('data-kind', 'released');
   await expect(page.getByTestId('owner-ritual')).toHaveCount(0);
@@ -238,8 +252,8 @@ test('a released vault: no more check-ins, Deliver for anyone, Revoke still ther
   await expect(page.getByTestId('owner-revoke-tx-send')).toBeEnabled();
   await page.getByTestId('owner-revoke-tx-send').click();
   await expect(page.getByTestId('owner-revoke-tx-done')).toBeVisible({ timeout: 30_000 });
-  const after = (await atro.vault(vault).status()).assets.find((a) => a.asset.kind === 'erc20');
-  expect(after?.coverage).toBe(0n);
+  // The allowance itself, before and after: a released vault may read coverage 0 while the allowance stands.
+  expect(await allowanceOf(atro, state, vault)).toBe(0n);
 });
 
 test('screens', async ({ page, state, atro, wallet }, info) => {
