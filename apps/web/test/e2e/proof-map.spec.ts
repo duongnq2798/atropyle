@@ -67,21 +67,27 @@ async function expectTokens(map: Locator): Promise<void> {
   }
 }
 
-test('the map painted tick by tick is the map painted in one go, in the theme colours', async ({ page, state }) => {
-  await page.goto(harness(state.siteUrl, `#run=${AT}`));
-  // The prerendered page is 'idle' (it has no hash), so 'done' means the run has ended.
-  await expect(run(page)).toHaveAttribute('data-state', 'done', { timeout: 30_000 });
-  const map = live(page);
-  await expect(map).toHaveAttribute('data-size', '1024');
-  await expect(map).toHaveAttribute('data-done', String(AT));
-  await expect(map).toHaveAttribute('data-painted', PAINTED);
-  await expect(map).toHaveAttribute('data-palette', 'dark');
-  // One map from the base, then only new dots: a tick that repainted from the base would raise the generation.
-  await expect(map).toHaveAttribute('data-generation', '1');
-  expect(Number(await map.getAttribute('data-ticks'))).toBeGreaterThan(20);
-  await expect(fresh(page)).toHaveAttribute('data-ticks', '1');
-  expect(await difference(page)).toBe(0);
-  await expectTokens(map);
+test.describe('in the default theme', () => {
+  // Vellum, the theme the page is prerendered in: hydration keeps the first map (7C-T12). A page that loads in another
+  // theme paints one more map when hydration reads the stored choice, so the count below would not be the ticks' alone.
+  test.use({ firstTheme: null });
+
+  test('the map painted tick by tick is the map painted in one go, in the theme colours', async ({ page, state }) => {
+    await page.goto(harness(state.siteUrl, `#run=${AT}`));
+    // The prerendered page is 'idle' (it has no hash), so 'done' means the run has ended.
+    await expect(run(page)).toHaveAttribute('data-state', 'done', { timeout: 30_000 });
+    const map = live(page);
+    await expect(map).toHaveAttribute('data-size', '1024');
+    await expect(map).toHaveAttribute('data-done', String(AT));
+    await expect(map).toHaveAttribute('data-painted', PAINTED);
+    await expect(map).toHaveAttribute('data-palette', 'light');
+    // One map from the base, then only new dots: a tick that repainted from the base would raise the generation.
+    await expect(map).toHaveAttribute('data-generation', '1');
+    expect(Number(await map.getAttribute('data-ticks'))).toBeGreaterThan(20);
+    await expect(fresh(page)).toHaveAttribute('data-ticks', '1');
+    expect(await difference(page)).toBe(0);
+    await expectTokens(map);
+  });
 });
 
 test('a theme change during the run repaints the map in vellum and keeps its progress', async ({ page, state }) => {
@@ -89,13 +95,16 @@ test('a theme change during the run repaints the map in vellum and keeps its pro
   const map = live(page);
   // Hydrated and painting: a click before hydration would be lost.
   await expect(map).toHaveAttribute('data-painted', /^[1-9]/);
+  // The page loads in night (fixtures.ts firstTheme), so hydration has already painted a second map (7C-T12).
+  const before = Number(await map.getAttribute('data-generation'));
   const settings = await openSettings(page);
   await settings.getByText('Vellum', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   // Whether the run was still going (the usual case) or had just ended, the end is the same.
   await expect(run(page)).toHaveAttribute('data-state', 'done', { timeout: 30_000 });
   await expect(map).toHaveAttribute('data-palette', 'light');
-  await expect(map).toHaveAttribute('data-generation', '2');
+  // The theme change paints one new map, and no tick paints another.
+  await expect(map).toHaveAttribute('data-generation', String(before + 1));
   await expect(map).toHaveAttribute('data-painted', PAINTED);
   expect(await difference(page)).toBe(0);
   expect(await pixel(map, 0, 0)).toEqual(VELLUM_ALIVE);

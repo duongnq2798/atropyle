@@ -1,10 +1,13 @@
 export type ThemeChoice = 'dark' | 'light' | 'system';
-/** Night, vellum, match device: the order of the theme switch (R18.1). */
-export const THEME_CHOICES: readonly ThemeChoice[] = ['dark', 'light', 'system'];
-/** Night whatever the device prefers (R18.1). It needs no attribute: `:root` carries the night tokens. */
-export const DEFAULT_THEME = 'dark' as const satisfies ThemeChoice;
+/** Vellum, night, match device: the order of the theme switch, the default first (7C-T12 Ruling 9). */
+export const THEME_CHOICES: readonly ThemeChoice[] = ['light', 'dark', 'system'];
+/**
+ * Vellum whatever the device prefers: the maintainer's decision of 26 Nov 2026 (night read as less trustworthy and
+ * harder to read), applied at the cutover. `:root` carries the vellum tokens, so it holds before the boot script runs.
+ */
+export const DEFAULT_THEME = 'light' as const satisfies ThemeChoice;
 
-/** Only an exact choice counts; anything else is night (Review Focus 2: storage may hold garbage). */
+/** Only an exact choice counts; anything else is vellum (Review Focus 2: storage may hold garbage). */
 export function parseTheme(raw: string | null | undefined): ThemeChoice {
   return raw === 'light' || raw === 'system' || raw === 'dark' ? raw : DEFAULT_THEME;
 }
@@ -49,14 +52,13 @@ export function holdThemeTransitions(): void {
 }
 
 /**
- * Night removes the attribute; vellum and match device set it (Quyết định 14). `root` may be any element:
- * `data-theme="light"` on a letter or a print sheet makes just that element vellum. `system` means something only
- * on <html>, where the stylesheet's media query reads it. A change on <html> holds the weave's transitions back.
+ * Every choice sets the attribute, as the boot script does (7C-T12): the `[data-theme=light]` variants read it, and night
+ * is `[data-theme="dark"]` now that `:root` is vellum. `root` may be any element: `data-theme="light"` on a letter or a
+ * print sheet makes just that element vellum. `system` means something only on <html>, where the stylesheet's media
+ * query reads it. A change on <html> holds the weave's transitions back.
  */
 export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
-  const next = choice === 'dark' ? null : choice;
-  if (root === document.documentElement && root.getAttribute('data-theme') !== next) holdThemeTransitions();
-  if (next === null) root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', next);
+  if (root === document.documentElement && root.getAttribute('data-theme') !== choice) holdThemeTransitions();
+  root.setAttribute('data-theme', choice);
   for (const l of listeners) l();
 }

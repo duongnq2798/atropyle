@@ -216,12 +216,11 @@ test('a theme change never sweeps the circuit, nor does the device under match d
   const settings = await openSettings(page);
   for (const [label, theme] of [
     ['Vellum', 'light'],
-    ['Night', null],
+    ['Night', 'dark'],
     ['Match device', 'system'],
   ] as const) {
     await settings.getByText(label, { exact: true }).click();
-    if (theme === null) await expect(html).not.toHaveAttribute('data-theme');
-    else await expect(html).toHaveAttribute('data-theme', theme);
+    await expect(html).toHaveAttribute('data-theme', theme);
     expect(await sweep(page), label).toEqual([]);
     await expect(html).not.toHaveAttribute('data-theme-swap');
   }

@@ -181,39 +181,13 @@
   size-adjust: 99.98%;
 }
 
-/* Themes (R18.1). Night is the default and needs no attribute: :root carries it. Vellum is data-theme="light", on
-   <html> or on any one element (a letter, a print sheet). Match device is data-theme="system" on <html>: vellum
-   while the device prefers light, night otherwise. test/unit/contrast.test.ts reads the marker comments below. */
-/* tokens:dark */
-:root,
-[data-theme="dark"] {
-  color-scheme: dark;
-  --atro-bg: #0b0d12;
-  --atro-surface-1: #12151c;
-  --atro-surface-2: #181c25;
-  --atro-surface-3: #20252f;
-  --atro-ink: #ece7dd;
-  --atro-ink-muted: #a59f94;
-  --atro-thread: #e8b65a;
-  --atro-on-thread: #0b0d12;
-  --atro-alive: #5cc8b0;
-  --atro-grace: #f0a23b;
-  --atro-recovery: #7fa8ff;
-  --atro-release: #b7a6ff;
-  --atro-danger: #ff6b5e;
-  --atro-on-danger: #0b0d12;
-  --atro-line: #2a303c;
-  --atro-line-strong: #737985;
-  /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
-  --atro-branch-1: #e8b65a;
-  --atro-branch-2: #5ec4e8;
-  --atro-branch-3: #f2879f;
-  --atro-branch-4: #7fd48a;
-  --atro-branch-5: #c99cff;
-  --avatar-l: 0.78;
-}
-
+/* Themes (7C-T12). Vellum is the default: :root carries it, so a page is vellum before and without the boot script,
+   which then always sets data-theme on <html>. Vellum is also data-theme="light" on any one element (a letter, a print
+   sheet). Night is data-theme="dark", declared after :root so it wins on <html>. Match device is data-theme="system" on
+   <html>: night while the device prefers dark, vellum otherwise. test/unit/contrast.test.ts and scripts/lib/tokens.ts
+   read the marker comments below. */
 /* tokens:light */
+:root,
 [data-theme="light"] {
   color-scheme: light;
   --atro-bg: #f6f1e7;
@@ -241,33 +215,60 @@
   --avatar-l: 0.52;
 }
 
-/* tokens:light-system */
-@media (prefers-color-scheme: light) {
+/* tokens:dark */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --atro-bg: #0b0d12;
+  --atro-surface-1: #12151c;
+  --atro-surface-2: #181c25;
+  --atro-surface-3: #20252f;
+  --atro-ink: #ece7dd;
+  --atro-ink-muted: #a59f94;
+  --atro-thread: #e8b65a;
+  --atro-on-thread: #0b0d12;
+  --atro-alive: #5cc8b0;
+  --atro-grace: #f0a23b;
+  --atro-recovery: #7fa8ff;
+  --atro-release: #b7a6ff;
+  --atro-danger: #ff6b5e;
+  --atro-on-danger: #0b0d12;
+  --atro-line: #2a303c;
+  --atro-line-strong: #737985;
+  /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
+  --atro-branch-1: #e8b65a;
+  --atro-branch-2: #5ec4e8;
+  --atro-branch-3: #f2879f;
+  --atro-branch-4: #7fd48a;
+  --atro-branch-5: #c99cff;
+  --avatar-l: 0.78;
+}
+
+/* tokens:dark-system */
+@media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    color-scheme: light;
-    --atro-bg: #f6f1e7;
-    --atro-surface-1: #fffdf8;
-    --atro-surface-2: #f0eadf;
-    --atro-surface-3: #e7dfd1;
-    --atro-ink: #16130f;
-    --atro-ink-muted: #5e574c;
-    --atro-thread: #86590e;
-    --atro-on-thread: #fffdf8;
-    --atro-alive: #106f5a;
-    --atro-grace: #945100;
-    --atro-recovery: #2e5bc7;
-    --atro-release: #5b44c9;
-    --atro-danger: #b42318;
-    --atro-on-danger: #fffdf8;
-    --atro-line: #ddd3c2;
-    --atro-line-strong: #80766a;
-    /* Heirs' branches (spec §18.4.2 T6): branch 1 is the thread; each 3:1 or more on every surface. */
-    --atro-branch-1: #86590e;
-    --atro-branch-2: #1f6f8b;
-    --atro-branch-3: #b03c78;
-    --atro-branch-4: #2f7a3a;
-    --atro-branch-5: #7048b8;
-    --avatar-l: 0.52;
+    color-scheme: dark;
+    --atro-bg: #0b0d12;
+    --atro-surface-1: #12151c;
+    --atro-surface-2: #181c25;
+    --atro-surface-3: #20252f;
+    --atro-ink: #ece7dd;
+    --atro-ink-muted: #a59f94;
+    --atro-thread: #e8b65a;
+    --atro-on-thread: #0b0d12;
+    --atro-alive: #5cc8b0;
+    --atro-grace: #f0a23b;
+    --atro-recovery: #7fa8ff;
+    --atro-release: #b7a6ff;
+    --atro-danger: #ff6b5e;
+    --atro-on-danger: #0b0d12;
+    --atro-line: #2a303c;
+    --atro-line-strong: #737985;
+    --atro-branch-1: #e8b65a;
+    --atro-branch-2: #5ec4e8;
+    --atro-branch-3: #f2879f;
+    --atro-branch-4: #7fd48a;
+    --atro-branch-5: #c99cff;
+    --avatar-l: 0.78;
   }
 }
 

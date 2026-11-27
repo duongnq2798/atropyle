@@ -17,17 +17,42 @@ test('the home page and the 404 page pass axe in both themes', async ({ page, st
   await expectAccessibleInBothThemes(page);
 });
 
-test('the stored theme changes the palette axe checks, and the system preference does not', async ({ page, state }) => {
-  const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
-  await page.goto(state.siteUrl);
-  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
-  // Night is not the system theme (spec §18.4.1): emulateMedia leaves it alone, which is why R18.17 exists.
-  await page.emulateMedia({ colorScheme: 'light' });
-  await expect.poll(background).toBe(NIGHT_BG);
-  await setStoredTheme(page, 'light');
-  await expect.poll(background).toBe(VELLUM_BG);
-  await setStoredTheme(page, 'dark');
-  await expect.poll(background).toBe(NIGHT_BG);
+test.describe('from empty storage', () => {
+  // These two test the default, so the suite's night start is off.
+  test.use({ firstTheme: null });
+
+  test('vellum is the default whatever the device prefers, and the stored choice changes it', async ({
+    page,
+    state,
+  }) => {
+    const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+    // A device that prefers dark still opens in vellum: vellum is not the system theme (spec §18.4.1, 7C-T12).
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(state.siteUrl);
+    await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+    await expect.poll(background).toBe(VELLUM_BG);
+    await setStoredTheme(page, 'dark');
+    await expect.poll(background).toBe(NIGHT_BG);
+    await setStoredTheme(page, 'light');
+    await expect.poll(background).toBe(VELLUM_BG);
+  });
+
+  test('the theme and the language persist across a reload', async ({ page, state }) => {
+    await page.goto(state.siteUrl);
+    await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+    // Vellum is the default, and the boot script sets its attribute too.
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    const settings = await openSettings(page);
+    await settings.getByText('Night', { exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await settings.getByText('Tiếng Việt', { exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+    await page.reload();
+    // The boot script sets the theme before the first paint; the language follows after hydration.
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('heading', { level: 1, name: HERO_VI })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+  });
 });
 
 test('the skip button moves focus to the main content and keeps the hash', async ({ page, state }) => {
@@ -41,23 +66,6 @@ test('the skip button moves focus to the main content and keeps the hash', async
   await expect(page.locator('main')).toBeFocused();
   // A fragment link would have replaced it; the hash carries page parameters (Task 9).
   expect(new URL(page.url()).hash).toBe('#keep');
-});
-
-test('the theme and the language persist across a reload', async ({ page, state }) => {
-  await page.goto(state.siteUrl);
-  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
-  // Night is the default and carries no attribute.
-  await expect(page.locator('html')).not.toHaveAttribute('data-theme');
-  const settings = await openSettings(page);
-  await settings.getByText('Vellum', { exact: true }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await settings.getByText('Tiếng Việt', { exact: true }).click();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
-  await page.reload();
-  // The boot script sets the theme before the first paint; the language follows after hydration.
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByRole('heading', { level: 1, name: HERO_VI })).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
 });
 
 /**

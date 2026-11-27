@@ -49,9 +49,11 @@ describe('theme stylesheet', () => {
     });
   });
 
-  it('night is :root with no attribute; vellum is an attribute any element can carry', () => {
-    expect(decls('/* tokens:dark */\n:root,\n[data-theme="dark"]')['color-scheme']).toBe('dark');
-    expect(decls('/* tokens:light */\n[data-theme="light"]')['color-scheme']).toBe('light');
+  it('vellum is :root, so it holds before the boot script; night is an attribute declared after it', () => {
+    expect(decls('/* tokens:light */\n:root,\n[data-theme="light"]')['color-scheme']).toBe('light');
+    expect(decls('/* tokens:dark */\n[data-theme="dark"]')['color-scheme']).toBe('dark');
+    // Same specificity as :root: night wins on <html> only because it comes later.
+    expect(CSS.indexOf('/* tokens:dark */')).toBeGreaterThan(CSS.indexOf('/* tokens:light */'));
     // A scoped vellum element paints its own paper and ink instead of inheriting night's.
     expect(decls('[data-theme="light"]', CSS.indexOf('@layer base {'))).toEqual({
       'background-color': 'var(--atro-bg)',
@@ -59,12 +61,13 @@ describe('theme stylesheet', () => {
     });
   });
 
-  it('match device turns vellum only for data-theme="system", inside the light media query', () => {
+  it('match device turns night only for data-theme="system", inside the dark media query', () => {
     expect(CSS).toContain(
-      '/* tokens:light-system */\n@media (prefers-color-scheme: light) {\n  :root[data-theme="system"] {',
+      '/* tokens:dark-system */\n@media (prefers-color-scheme: dark) {\n  :root[data-theme="system"] {',
     );
-    expect(decls(':root[data-theme="system"]')['color-scheme']).toBe('light');
+    expect(decls(':root[data-theme="system"]')['color-scheme']).toBe('dark');
     expect(CSS).not.toContain(':not([data-theme])');
+    expect(CSS).not.toContain('tokens:light-system');
   });
 
   it('the shared thread keeps its height, and the header and the footer stay put between pages', () => {

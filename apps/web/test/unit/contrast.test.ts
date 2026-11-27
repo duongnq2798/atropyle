@@ -83,10 +83,10 @@ const SURFACES = ['bg', 'surface-1', 'surface-2', 'surface-3'];
 const TEXT = ['ink', 'ink-muted', 'thread', 'alive', 'grace', 'recovery', 'release', 'danger'];
 
 describe('colour tokens', () => {
-  it('declares the same twenty-one colours for both themes, and the system light block equals the light block', () => {
+  it('declares the same twenty-one colours for both themes, and the system dark block equals the dark block', () => {
     expect(Object.keys(tokens('dark')).sort()).toEqual([...NAMES].sort());
     expect(Object.keys(tokens('light')).sort()).toEqual([...NAMES].sort());
-    expect(tokens('light-system')).toEqual(tokens('light'));
+    expect(tokens('dark-system')).toEqual(tokens('dark'));
   });
 
   it('maps every token to a Tailwind colour', () => {

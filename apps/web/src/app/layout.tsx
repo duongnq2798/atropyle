@@ -22,11 +22,11 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false, address: false, email: false },
 };
 
-// Night whatever the device prefers (R18.1). The stylesheet sets color-scheme per theme; this meta only decides the
-// canvas before the stylesheet applies, and the browser bar keeps the night colour under every theme.
+// Vellum whatever the device prefers (7C-T12). The stylesheet sets color-scheme per theme; this meta only decides the
+// canvas before the stylesheet applies, and the browser bar keeps the vellum colour under every theme (7C-T12 Ruling 10).
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#0b0d12',
+  colorScheme: 'light',
+  themeColor: '#f6f1e7',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

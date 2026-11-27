@@ -26,9 +26,10 @@ export function legacyTarget(pathname: string, hash: string): string | null {
 }
 
 /**
- * Runs before the first paint. Self-contained like legacyTarget, which it receives as an argument. Night needs no
- * attribute (R18.1), so only a stored vellum (`light`) or match device (`system`) sets one; anything else stays
- * night, exactly as parseTheme reads it (test/unit/boot.test.ts checks the two agree).
+ * Runs before the first paint. Self-contained like legacyTarget, which it receives as an argument. It always leaves a
+ * theme on <html> (7C-T12): vellum (`light`) unless storage holds night (`dark`) or match device (`system`), exactly as
+ * parseTheme reads it (test/unit/boot.test.ts checks the two agree). `:root` carries vellum as well, so a page whose
+ * script never runs is vellum too; the attribute is what the `[data-theme=light]` variants of the components read.
  */
 export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void {
   try {
@@ -40,12 +41,14 @@ export function boot(themeKey: string, legacy: (pathname: string, hash: string) 
   } catch {
     // A failed redirect leaves the visitor on the home page, which works on its own.
   }
+  let theme = 'light';
   try {
     const stored = localStorage.getItem(themeKey);
-    if (stored === 'light' || stored === 'system') document.documentElement.setAttribute('data-theme', stored);
+    if (stored === 'dark' || stored === 'system') theme = stored;
   } catch {
-    // Storage is blocked (private window, sandboxed frame): the page stays at night.
+    // Storage is blocked (private window, sandboxed frame): the page stays vellum.
   }
+  document.documentElement.setAttribute('data-theme', theme);
 }
 
 /**

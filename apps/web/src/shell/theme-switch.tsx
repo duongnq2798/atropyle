@@ -15,7 +15,7 @@ const OPTION: Record<ThemeChoice, { label: 'themeDark' | 'themeLight' | 'themeSy
 };
 
 /**
- * Night, Vellum, Match device (R18.1), in the order of THEME_CHOICES. Icon above the word, so "Match device" fits
+ * Vellum, Night, Match device, in the order of THEME_CHOICES (the default first). Icon above the word, so "Match device" fits
  * the 18rem popover in both languages. The new theme crossfades in through a View Transition where the browser has
  * one (reduced motion: instant).
  */
@@ -32,7 +32,7 @@ export function ThemeSwitch() {
           return (
             <label
               key={value}
-              className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center text-caption text-ink-muted leading-tight transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
+              className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center text-caption text-ink-muted leading-tight transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-checked:ring-1 has-checked:ring-line-strong has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
             >
               <input
                 type="radio"

@@ -1,7 +1,8 @@
 import { act, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { memoryKV } from '../../src/lib/store';
+import { KEYS, memoryKV } from '../../src/lib/store';
 import { fillBase, type ProofPalette, paintRange, pixelsDone, proofGrid, readPalette } from '../../src/proof/paint';
 import { ProofCanvas } from '../../src/proof/proof-canvas';
 import { applyTheme } from '../../src/theme/theme';
@@ -52,12 +53,20 @@ const ui = (doneBlocks: number, comboBits = BITS) => (
   <ProofCanvas comboBits={comboBits} doneBlocks={doneBlocks} label="Proof map" />
 );
 
+/** Rendered as a page whose storage holds night: the provider's effect keeps the night the boot script set (7C-T12). */
+function atNight(el: ReactElement) {
+  const kv = memoryKV();
+  kv.set(KEYS.theme, 'dark');
+  return renderWithProviders(el, { kv });
+}
+
 let ctx: FakeContext;
 /** True: the browser gives no 2D context (a canvas it cannot back, a blocked GPU). */
 let noContext = false;
 
 beforeEach(() => {
-  document.documentElement.removeAttribute('data-theme');
+  // Night, as the boot script leaves it when storage holds night (7C-T12).
+  document.documentElement.setAttribute('data-theme', 'dark');
   ctx = new FakeContext();
   noContext = false;
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() =>
@@ -72,7 +81,7 @@ afterEach(() => {
 
 describe('ProofCanvas', () => {
   it('paints 8 dots per 16 blocks, every dot by the end, and starts again from the base for a new run', () => {
-    const { rerender } = renderWithProviders(ui(0));
+    const { rerender } = atNight(ui(0));
     expect(map()).toHaveAttribute('data-size', '256');
     expect(map()).toHaveAttribute('data-painted', '0');
     expect(ctx.full).toBe(1);
@@ -91,7 +100,7 @@ describe('ProofCanvas', () => {
   });
 
   it('puts only the new boxes on each tick, and ends with the same picture as one paint', () => {
-    const { rerender } = renderWithProviders(ui(0));
+    const { rerender } = atNight(ui(0));
     // The worker reports every 4096 blocks and its 100 ms throttle drops ticks, so the steps are uneven.
     const steps = [1000, 4096, 8192, 20_480, 24_576, 61_440, 65_536, 126_976, 2 ** 17];
     for (const done of steps) {
@@ -109,7 +118,7 @@ describe('ProofCanvas', () => {
   });
 
   it('repaints from the base in the new theme mid-run, keeping the progress, and the run goes on in it', () => {
-    const { rerender } = renderWithProviders(ui(1000));
+    const { rerender } = atNight(ui(1000));
     expect(map()).toHaveAttribute('data-palette', 'dark');
     const generation = num('data-generation');
     act(() => applyTheme('light'));
@@ -134,7 +143,7 @@ describe('ProofCanvas', () => {
     style.textContent = '[data-testid="proof-canvas"] { --atro-alive: #010203; }';
     document.head.append(style);
     try {
-      renderWithProviders(ui(16));
+      atNight(ui(16));
       expect([...ctx.pixels.subarray(0, 4)]).toEqual([1, 2, 3, 255]);
       // The other tokens are not set here: they fall back to the values of globals.css.
       expect([...ctx.pixels.subarray(4, 8)]).toEqual([0x20, 0x25, 0x2f, 255]);
@@ -144,7 +153,7 @@ describe('ProofCanvas', () => {
   });
 
   it('stops painting while the tab is hidden and catches up in one tick when it is shown again', () => {
-    const { rerender } = renderWithProviders(ui(1000));
+    const { rerender } = atNight(ui(1000));
     const state = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
     act(() => {
       document.dispatchEvent(new Event('visibilitychange'));
@@ -163,7 +172,7 @@ describe('ProofCanvas', () => {
   });
 
   it('puts the whole map back when the browser restores a canvas it dropped', () => {
-    renderWithProviders(ui(1000));
+    atNight(ui(1000));
     ctx.pixels.fill(0);
     act(() => {
       map().dispatchEvent(new Event('contextrestored'));
@@ -173,7 +182,7 @@ describe('ProofCanvas', () => {
   });
 
   it('starts a new map for a new size and stops at the last dot when told more than the run holds', () => {
-    const { rerender } = renderWithProviders(ui(1000));
+    const { rerender } = atNight(ui(1000));
     rerender(ui(2 ** 30, 16));
     expect(map()).toHaveAttribute('data-size', '32');
     expect(map()).toHaveAttribute('data-painted', String(8 * proofGrid(16).perRegion));
@@ -183,14 +192,14 @@ describe('ProofCanvas', () => {
 
   it('still counts what it paints when the browser gives no 2D context', () => {
     noContext = true;
-    const { rerender } = renderWithProviders(ui(0));
+    const { rerender } = atNight(ui(0));
     rerender(ui(1000));
     expect(map()).toHaveAttribute('data-painted', '496');
     expect(num('data-ticks')).toBe(1);
   });
 
   it('is one labelled picture, and prerenders an empty map of eight regions', () => {
-    renderWithProviders(ui(1000));
+    atNight(ui(1000));
     expect(screen.getByRole('img', { name: 'Proof map' })).toContainElement(map());
     const html = renderToString(
       <TestProviders kv={memoryKV()} queryClient={testQueryClient()}>
@@ -208,7 +217,7 @@ describe('ProofCanvas', () => {
   });
 
   it('keys every code with its glyph in its colour, the unused codes 2, 4 and 6 with the bare gate', () => {
-    renderWithProviders(ui(0));
+    atNight(ui(0));
     const regions = [...document.querySelectorAll<HTMLElement>('[data-region]')];
     expect(regions.map((r) => r.querySelector('[data-glyph]')?.getAttribute('data-glyph') ?? null)).toEqual([
       'active',
@@ -240,7 +249,7 @@ describe('ProofCanvas', () => {
     // 2^13 dots per region: the bottom band (band 3) starts at dot 6144, block 98 304.
     const band3 = (g.perRegion * 3) / 4;
     expect(band3).toBe(6144);
-    const { rerender } = renderWithProviders(ui(0));
+    const { rerender } = atNight(ui(0));
     expect(map()).toHaveAttribute('data-key', 'on');
     rerender(ui(1000));
     expect(map()).toHaveAttribute('data-key', 'on');
@@ -266,7 +275,7 @@ describe('ProofCanvas', () => {
   });
 
   it('stamps every glyph in ink once the map is done, over the colours of its bottom band', () => {
-    renderWithProviders(ui(2 ** 17));
+    atNight(ui(2 ** 17));
     const glyphs = [...document.querySelectorAll('[data-glyph]')];
     expect(glyphs).toHaveLength(8);
     // Tailwind needs the selector whole: the class beats text-alive and the other inks, and e2e checks the colour.
@@ -276,7 +285,7 @@ describe('ProofCanvas', () => {
 
   it('puts the whole map when a 2D context comes after paints without one', () => {
     noContext = true;
-    const { rerender } = renderWithProviders(ui(1000));
+    const { rerender } = atNight(ui(1000));
     noContext = false;
     rerender(ui(4096));
     // Not only the boxes of this tick: the base and the dots of the paints before it must reach the canvas too.
@@ -292,7 +301,7 @@ describe('ProofCanvas', () => {
 
   it('keeps the key when the browser gives no 2D context: the map stays blank and the key is all it shows', () => {
     noContext = true;
-    const { rerender } = renderWithProviders(ui(0));
+    const { rerender } = atNight(ui(0));
     expect(map()).toHaveAttribute('data-key', 'on');
     rerender(ui(2 ** 17));
     expect(map()).toHaveAttribute('data-painted', '65536');
