@@ -1,6 +1,7 @@
 'use client';
 
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
+import { inOwnTask } from '@/lib/lazy-chunk';
 import { type FlowsImpl, loadFlowsImpl, peekFlowsImpl } from './load';
 
 export const FLOWS_KEY = ['atropyle', 'flows'] as const;
@@ -14,7 +15,8 @@ export const FLOWS_KEY = ['atropyle', 'flows'] as const;
 export function useFlows(): UseQueryResult<FlowsImpl> {
   return useQuery({
     queryKey: FLOWS_KEY,
-    queryFn: loadFlowsImpl,
+    // In a task of its own, not in the commit that hydrates the page (7C-F1, src/lib/lazy-chunk.ts).
+    queryFn: inOwnTask(loadFlowsImpl),
     initialData: () => peekFlowsImpl() ?? undefined,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
