@@ -9,42 +9,51 @@ import { HOLD_MS } from '../../src/motion/tokens';
 import { renderWithProviders } from '../helpers/render';
 import { fixtureSnapshot, fixtureTimeline, PEOPLE } from './fixtures';
 
-const flow = vi.hoisted(() => ({ last: new Map<string, unknown>(), done: new Set<string>() }));
+const flow = vi.hoisted(() => ({ last: new Map<string, unknown>(), done: new Set<string>(), busy: false }));
 const spies = vi.hoisted(() => ({ setRange: vi.fn(), reset: vi.fn(), pulse: vi.fn() }));
 // The signing UI is not under test: a stand-in that keeps its props and draws what TxCard draws: the hold (with its
-// face) until the receipt; then, with holdPlacement="top", the hold's end in its place (HoldEnd: the face, the footer
-// where the bar stood) before the Receipt, else the Receipt with its footer.
-vi.mock('../../src/app/vault/lazy-action-flow', () => ({
-  actionFlowChunk: { preload: () => {}, peek: () => null, load: async () => ({}) },
-  LazyActionFlow: (p: ActionFlowProps) => {
-    flow.last.set(p.testId, p);
-    return (
-      <div>
-        <button type="button" data-testid={p.testId} data-auto={String(p.auto ?? false)}>
-          {p.label}
-        </button>
-        {flow.done.has(p.testId) ? (
-          p.holdPlacement === 'top' ? (
-            <>
-              <div data-testid={`${p.testId}-tx-end`}>
-                {p.hold?.face ?? null}
-                <div data-testid={`${p.testId}-tx-end-band`}>{p.receiptFooter}</div>
-              </div>
-              <div data-testid={`${p.testId}-tx-done`} />
-            </>
+// face, its bar saying the label, or while busy hold.busyLabel, else TxCard's own "Sending…") until the receipt; then,
+// with holdPlacement="top", the hold's end in its place (HoldEnd: the face, the footer where the bar stood) before the
+// Receipt, else the Receipt with its footer.
+vi.mock('../../src/app/vault/lazy-action-flow', async () => {
+  const { useT } = await import('../../src/i18n/provider');
+  const { messages: tx } = await import('../../src/messages/tx.messages');
+  return {
+    actionFlowChunk: { preload: () => {}, peek: () => null, load: async () => ({}) },
+    LazyActionFlow: (p: ActionFlowProps) => {
+      const t = useT(tx);
+      flow.last.set(p.testId, p);
+      return (
+        <div>
+          <button type="button" data-testid={p.testId} data-auto={String(p.auto ?? false)}>
+            {p.label}
+          </button>
+          {flow.done.has(p.testId) ? (
+            p.holdPlacement === 'top' ? (
+              <>
+                <div data-testid={`${p.testId}-tx-end`}>
+                  {p.hold?.face ?? null}
+                  <div data-testid={`${p.testId}-tx-end-band`}>{p.receiptFooter}</div>
+                </div>
+                <div data-testid={`${p.testId}-tx-done`} />
+              </>
+            ) : (
+              <div data-testid={`${p.testId}-tx-done`}>{p.receiptFooter}</div>
+            )
           ) : (
-            <div data-testid={`${p.testId}-tx-done`}>{p.receiptFooter}</div>
-          )
-        ) : (
-          <div data-testid={`${p.testId}-tx-hold`}>
-            {p.hold?.face ?? null}
-            <span data-testid={`${p.testId}-tx-hint`}>{p.hold?.hint}</span>
-          </div>
-        )}
-      </div>
-    );
-  },
-}));
+            <div data-testid={`${p.testId}-tx-hold`}>
+              {p.hold?.face ?? null}
+              <span data-testid={`${p.testId}-tx-send`}>
+                {flow.busy ? (p.hold?.busyLabel ?? t('sending')) : p.label}
+              </span>
+              <span data-testid={`${p.testId}-tx-hint`}>{p.hold?.hint}</span>
+            </div>
+          )}
+        </div>
+      );
+    },
+  };
+});
 // The reveal window's handle, as the ritual reaches it through Thread's revealRef; the window itself still draws.
 vi.mock('../../src/motion/reveal-window', async (orig) => {
   const real = await orig<typeof import('../../src/motion/reveal-window')>();
@@ -110,12 +119,18 @@ const phase = () => screen.getByTestId('owner-ritual').getAttribute('data-ritual
 const hint = () => screen.getByTestId('owner-checkin-tx-hint').textContent;
 const nowAt = () => screen.getByTestId('owner-ritual-face').querySelector<HTMLElement>('[data-part="now-at"]');
 const knots = () => screen.getByTestId('owner-ritual-face').querySelectorAll('[data-part="knot"]').length;
+const sendText = () => screen.getByTestId('owner-checkin-tx-send').textContent;
+/** The runner's progress, as ActionFlow reports it; the stand-in's bar reads `busy` as TxCard's does. */
 const progress = (p: Partial<{ committed: boolean; finished: boolean; busy: boolean; sent: boolean }>) =>
-  act(() => props().onProgress?.({ committed: false, finished: false, busy: false, sent: false, ...p }));
+  act(() => {
+    flow.busy = p.busy ?? false;
+    props().onProgress?.({ committed: false, finished: false, busy: false, sent: false, ...p });
+  });
 
 beforeEach(() => {
   flow.last.clear();
   flow.done.clear();
+  flow.busy = false;
   spies.setRange.mockClear();
   spies.reset.mockClear();
   spies.pulse.mockClear();
@@ -152,15 +167,23 @@ describe('the check-in ritual', () => {
     // The hollow knot waits where the solid one will tie (TIED_KNOT, 5 %): whole on screen, never clipped at 0.
     expect(nowAt()?.querySelector('[data-part="pending"]')).not.toBeNull();
     expect(nowAt()?.style.transform).toMatch(/^translate\(5%,/);
-    expect(hint()).toBe('Now sign in your wallet');
+    // The bar names the phase: nothing is sent until the owner signs, so no "Sending…" while the wallet asks. The
+    // line under it says only what the bar does not: what to check before signing.
+    expect(props().hold?.busyLabel).toBe('Now sign in your wallet');
+    expect(sendText()).toBe('Now sign in your wallet');
+    expect(hint()).toBe('Check it against the list below');
+    expect(props().hold?.doneLabel).toBe('Check it against the list below');
+    expect(document.body.textContent).not.toContain('Sending');
     expect(props().resetLabel).toBeUndefined();
     progress({ busy: true, committed: true, sent: true });
     expect(phase()).toBe('sent');
     expect(nowAt()?.querySelector('[data-part="pending"]')).not.toBeNull();
     expect(nowAt()?.style.transform).toMatch(/^translate\(5%,/);
-    // Under the disabled button, the wait and its seconds: no instruction the owner cannot follow.
-    expect(hint()).toMatch(/^Waiting for X Layer\u00a0·\u00a0\d+\.\d\u00a0s$/);
-    expect(hint()).not.toContain('Hold');
+    // The disabled bar names the wait; under it, only its seconds: no instruction the owner cannot follow.
+    expect(props().hold?.busyLabel).toBe('Waiting for X Layer');
+    expect(sendText()).toBe('Waiting for X Layer');
+    expect(hint()).toMatch(/^\d+\.\d\u00a0s$/);
+    expect(document.body.textContent).not.toContain('Sending');
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Waiting for X Layer');
     expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
     expect(props().resetLabel).toBeUndefined();
@@ -309,12 +332,19 @@ describe('the check-in ritual', () => {
     expect(screen.getByTestId('owner-due').getAttribute('data-kind')).toBe('dueActive');
   });
 
-  it('in Vietnamese: no "Đã xác nhận" and no knot before the receipt', () => {
+  it('in Vietnamese: no "Đã xác nhận" and no knot before the receipt, and the bar never says "Đang gửi"', () => {
     ritual(loadedWith(), 'vi');
+    progress({ busy: true });
+    // Short enough for one line on the bar of a 390 px phone, as the English one.
+    expect(sendText()).toBe('Giờ hãy ký trong ví');
+    expect(hint()).toBe('Đối\u00a0chiếu ví với danh\u00a0sách bên\u00a0dưới');
+    expect(document.body.textContent).not.toContain('Đang gửi');
     progress({ busy: true, committed: true, sent: true });
     expect(document.body.textContent).not.toContain('Đã xác nhận');
+    expect(document.body.textContent).not.toContain('Đang gửi');
     expect(knots()).toBe(0);
-    expect(hint()).toMatch(/^Đang chờ X\u00a0Layer\u00a0·\u00a0\d+,\d\u00a0s$/);
+    expect(sendText()).toBe('Đang chờ X\u00a0Layer');
+    expect(hint()).toMatch(/^\d+,\d\u00a0s$/);
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Đang chờ X\u00a0Layer');
   });
 

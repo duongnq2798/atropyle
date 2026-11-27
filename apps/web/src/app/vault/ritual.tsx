@@ -222,23 +222,25 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   // where it waited and the line says it in sight, the climax never under the ledger and the hash.
   const footer =
     block !== null ? (
-      <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-balance text-body text-ink">
+      // A span: it runs on from the check in front of it, in the hold's end (HoldEnd), which balances the lines.
+      <span data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-body text-ink">
         {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
-      </p>
+      </span>
     ) : null;
   const key = STATUS_KEY[phase];
   const date = (ts: bigint) => chainDate(ts, lang, view.drill);
-  // The words under the hold, by phase: how to hold, then where to sign, then the wait itself with its seconds. The
-  // status line below says each phase to a screen reader, so the wait here is for the eye only (aria-hidden): the
-  // ticking seconds are never read out.
+  // The bar names each busy phase itself (TxCard `busyLabel`), never "Sending…" while the wallet asks: "Now sign in
+  // your wallet", then "Waiting for X Layer". The line under the hold says only what the bar does not: how to hold,
+  // what to check before signing, then the wait's seconds. The status line below says each phase to a screen reader,
+  // so the seconds are for the eye only (aria-hidden): the ticking is never read out.
+  const busyLabel = phase === 'sent' ? t('ritualSent') : t('ritualSign');
   const hint =
     phase === 'sent' ? (
-      <span aria-hidden className="tabular-nums">
-        {t('ritualSent')}
-        <span className="voice-ledger">{` · ${elapsed(clock)}`}</span>
+      <span aria-hidden className="voice-ledger tabular-nums">
+        {elapsed(clock)}
       </span>
     ) : phase === 'wallet' ? (
-      t('ritualSign')
+      t('ritualSignHint')
     ) : (
       t('ritualHint')
     );
@@ -274,7 +276,10 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         auto
         hold={{
           hint,
-          doneLabel: phase === 'sent' ? hint : t('ritualSign'),
+          // Once held, before the wallet opens, the bar still says "Check in": the line says where to sign. From the
+          // wallet on, the bar says it, and the line keeps its own words.
+          doneLabel: phase === 'sent' || phase === 'wallet' ? hint : t('ritualSign'),
+          busyLabel,
           showKnot: false,
           face,
           onHoldStart,
