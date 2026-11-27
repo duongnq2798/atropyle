@@ -21,7 +21,8 @@ import { ErrorBox } from '@/tx/error-box';
 import { Address } from '@/ui/address';
 import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
-import { Skeleton, SkeletonText } from '@/ui/skeleton';
+import { FirstPaint } from '@/ui/first-paint';
+import { Skeleton } from '@/ui/skeleton';
 import { Tabs } from '@/ui/tabs';
 import { TextField } from '@/ui/text-field';
 import { useWallet } from '@/wallet/provider';
@@ -77,18 +78,46 @@ function Panel({ role, ...p }: PanelProps & { role: PanelRole }) {
 }
 
 const SHELL = 'mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-10 sm:px-6 sm:py-14';
+/** The standing sentence takes two lines at the text measure on a desktop. */
+const LEAD_LINES = ['w-full', 'w-2/3'] as const;
 
 function VaultLoading() {
   const t = useT(messages);
   return (
     <div data-testid="vault-loading" aria-busy="true" className={SHELL}>
-      <h1 className="font-display text-h1 text-ink">{t('pageTitle')}</h1>
       <p className="sr-only">{t('loading')}</p>
-      {/* The shape of what comes: the header and its thread, then the cards of the actions and the plan. */}
-      <div aria-hidden="true" className="flex w-full max-w-3xl flex-col gap-5">
-        <SkeletonText lines={2} />
-        <Skeleton className="h-11 w-64 max-w-full" />
-        <Skeleton className="aspect-[5/1] w-full rounded-2xl" />
+      {/* The shape of what comes, in the header's own boxes (vault-header.tsx), so nothing drops when it lands: the
+          title row, the sentence and the address at the text measure, the thread across the page column in the
+          Thread's 5:1 box, its two countdowns, the Verify and Refresh row; then the cards of the actions and the plan. */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-h1 text-ink">{t('pageTitle')}</h1>
+          <Skeleton className="h-7 w-16 rounded-full" />
+          <Skeleton className="h-7 w-24 rounded-full" />
+        </div>
+        <div aria-hidden="true" className="flex w-full max-w-3xl flex-col text-lead">
+          {LEAD_LINES.map((w) => (
+            <span key={w} className="flex h-[1lh] items-center">
+              <Skeleton className={`h-[0.6lh] ${w}`} />
+            </span>
+          ))}
+        </div>
+        {/* The address with its avatar and copy button: 54 px on one row. */}
+        <Skeleton className="h-[3.375rem] w-80 max-w-full" />
+        <div aria-hidden="true" className="flex w-full flex-col gap-3">
+          {/* A thin line where the thread runs (the middle of its box), not a slab. */}
+          <div data-testid="vault-loading-thread" className="flex aspect-[5/1] w-full items-center">
+            <Skeleton className="h-[3px] w-full rounded-full" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-10 w-28" />
+            <Skeleton className="h-10 w-28 justify-self-end" />
+          </div>
+        </div>
+        <div aria-hidden="true" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Skeleton className="h-8 w-40 rounded-full" />
+          <Skeleton className="h-8 w-24 rounded-full" />
+        </div>
       </div>
       <Skeleton className="h-40 w-full rounded-2xl" />
       <Skeleton className="h-64 w-full rounded-2xl" />
@@ -294,12 +323,25 @@ function VaultScreen({ vault }: { vault: Addr }) {
   );
 }
 
-/** `/vault/#<address>`: the hash is read after mount (it is '' at prerender), so the first paint is the skeleton. */
+/**
+ * `/vault/#<address>`: the hash is read after mount ('' at prerender). The static HTML holds both first paints, the
+ * empty state and the skeleton, and the boot script's mark shows the one the hash fits (first-paint.tsx); without
+ * JavaScript, the empty state.
+ */
 export function VaultPage() {
   const hash = useLocationHash();
   const mounted = useMounted();
-  if (!mounted) return <VaultLoading />;
-  const text = hash.slice(1).trim();
-  if (!isAddressText(text)) return <OpenVault key={text} initial={text} />;
-  return <VaultScreen key={text.toLowerCase()} vault={text as Addr} />;
+  const text = mounted ? hash.slice(1).trim() : '';
+  const address = mounted && isAddressText(text);
+  return (
+    <FirstPaint
+      mounted={mounted}
+      mark="address"
+      noScript="empty"
+      empty={address ? null : <OpenVault key={text} initial={text} />}
+      wait={
+        !mounted ? <VaultLoading /> : address ? <VaultScreen key={text.toLowerCase()} vault={text as Addr} /> : null
+      }
+    />
+  );
 }

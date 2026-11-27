@@ -97,7 +97,7 @@ export const messages = defineMessages(
       'Nếu bạn ngừng điểm\u00a0danh, theo luật người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}); các vòng chạy của keeper cộng thêm khoảng {keeper} phút. Nếu không ai xác\u00a0nhận, Drill này sẽ kết\u00a0thúc trước.',
     drillExpires: 'Drill này kết\u00a0thúc trước khi người\u00a0thừa\u00a0kế kịp nhận gì: nó hết\u00a0hạn vào {date}.',
     closedTitleReleased: 'Đến lượt người\u00a0thừa\u00a0kế',
-    closedTitleRecovered: 'Đến lượt ví khôi\u00a0phục',
+    closedTitleRecovered: 'Đến lượt ví\u00a0khôi\u00a0phục',
     coverageTitle: 'Độ\u00a0phủ',
     coverageHelp: 'Vault chỉ chuyển được một phần số bạn đang giữ. Hãy approve lại để người\u00a0thừa\u00a0kế nhận đủ.',
     coveragePercent: 'phủ {percent}%',

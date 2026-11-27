@@ -134,7 +134,7 @@ describe('IssueList', () => {
     expect(items).toEqual([
       // The field labels keep their compounds bound (create-vi-compounds.test.ts).
       'Điểm\u00a0danh mỗi: Hai lần điểm danh phải cách nhau ít nhất 1 phút.',
-      'Cần bao nhiêu người giám\u00a0hộ đồng\u00a0ý: Hãy chọn một số nguyên, không lớn hơn số người giám hộ.',
+      'Cần bao nhiêu người\u00a0giám\u00a0hộ đồng\u00a0ý: Hãy chọn một số nguyên, không lớn hơn số người giám hộ.',
     ]);
   });
 

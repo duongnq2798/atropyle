@@ -156,6 +156,73 @@ test('on a phone the answer and the next step wrap without a stranded word', asy
   await setStoredLang(page, 'en');
 });
 
+test('at 320 px a line keeps its chip with the title and its arrow by "OKLink" (7B-P1)', async ({ page, state }) => {
+  /** The vertical middle of the last line a node's text takes, and of a second node: on one line, they agree. */
+  const sameLine = (a: string, b: string) =>
+    page.evaluate(
+      ([sa, sb]) => {
+        const last = (el: Element) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+          const r = rects[rects.length - 1];
+          return r.top + r.height / 2;
+        };
+        const ea = document.querySelector(sa);
+        const eb = document.querySelector(sb);
+        if (!ea || !eb) return Number.POSITIVE_INFINITY;
+        const rb = eb.getBoundingClientRect();
+        return Math.abs(last(ea) - (rb.top + rb.height / 2));
+      },
+      [a, b] as const,
+    );
+  /** Where a line's chip sits against its title, in px: how far it passes the card's edge, and its gap to the title. */
+  const chipBox = (id: string) =>
+    page.evaluate((sel) => {
+      const chip = document.querySelector(`${sel} h2 + span`)?.getBoundingClientRect();
+      const title = document.querySelector(`${sel} h2`)?.getBoundingClientRect();
+      const box = document.querySelector(`${sel} h2`)?.parentElement?.getBoundingClientRect();
+      if (!chip || !title || !box) return null;
+      return { over: chip.right - box.right, above: title.top - chip.bottom, left: chip.left - title.left };
+    }, `[data-testid="verify-line-${id}"]`);
+  for (const lang of ['en', 'vi'] as const) {
+    await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
+    await setStoredLang(page, lang);
+    // At 390 px the chip follows the title's last word.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
+    await expect(page.getByTestId('verify-line-rules')).toHaveAttribute('data-state', 'checking');
+    for (const id of ['real', 'rules', 'operators']) {
+      const gap = await sameLine(`[data-testid="verify-line-${id}"] h2`, `[data-testid="verify-line-${id}"] h2 + span`);
+      expect(gap, `${lang} 390 ${id}: the chip and the title's last line`).toBeLessThan(8);
+      const at = await chipBox(id);
+      expect(at?.over, `${lang} 390 ${id}: the chip passes the card's edge`).toBeLessThanOrEqual(0.5);
+    }
+    // At 320 px "chứng minh Đang kiểm…" is wider than the card: every chip sits above its title, at its left edge,
+    // inside the card, never on a line of its own after it.
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
+    await expect(page.getByTestId('verify-line-rules')).toHaveAttribute('data-state', 'checking');
+    for (const id of ['real', 'rules', 'operators']) {
+      const at = await chipBox(id);
+      const where = `${lang} 320 ${id}: ${JSON.stringify(at)}`;
+      expect(at?.over, where).toBeLessThanOrEqual(0.5);
+      expect(at?.above, where).toBeGreaterThanOrEqual(0);
+      expect(at?.above, where).toBeLessThan(12);
+      expect(Math.abs(at?.left ?? 99), where).toBeLessThan(1);
+    }
+    await page.goto(new URL('e2e/verify/#pass', state.siteUrl).href);
+    await expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass');
+    for (const id of ['real', 'rules', 'operators']) {
+      const link = `[data-testid="verify-line-${id}-link"] a`;
+      const gap = await sameLine(`${link} > span.whitespace-nowrap`, `${link} svg`);
+      expect(gap, `${lang} ${id}: the arrow and the label's last word`).toBeLessThan(8);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  }
+  await setStoredLang(page, 'en');
+});
+
 test('screens: verify', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // A full-page shot keeps the sticky header where the page was scrolled to: every shot starts from the top.
@@ -173,8 +240,10 @@ test('screens: verify', async ({ page, state }, info) => {
   };
 
   await page.goto(new URL('e2e/verify/#pass', state.siteUrl).href);
-  // The answer judges see on X Layer: the whole design matrix (both themes, both languages, 390, 768 and 1440 px).
-  await captureScreens(page, 'verify-pass', { shots: FULL_MATRIX, ready: at('pass') });
+  // The answer judges see on X Layer: the whole design matrix (both themes, both languages, 390, 768 and 1440 px),
+  // and the narrowest phone, where a link's label wraps (7B-P1).
+  const narrowest = (['en', 'vi'] as const).map((lang) => ({ theme: 'light', lang, width: 320 }) as const);
+  await captureScreens(page, 'verify-pass', { shots: [...FULL_MATRIX, ...narrowest], ready: at('pass') });
   await captureScreens(page, 'verify-pass-details', {
     shots: phones.filter((s) => s.lang === 'en'),
     ready: async () => {
@@ -183,7 +252,10 @@ test('screens: verify', async ({ page, state }, info) => {
     },
   });
   await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
-  await captureScreens(page, 'verify-running', { shots: [...phones, ...nightPhone], ready: at('pending') });
+  await captureScreens(page, 'verify-running', {
+    shots: [...phones, ...nightPhone, ...narrowest],
+    ready: at('pending'),
+  });
   await page.goto(new URL('e2e/verify/#fail', state.siteUrl).href);
   // The narrowest phone too (320 px), where the failed answer has the least room.
   const narrow = (['en', 'vi'] as const).map((lang) => ({ theme: 'light', lang, width: 320 }) as const);

@@ -150,6 +150,8 @@ test('a stranger releases a late vault to the heir and delivers it; the history 
   await stateIs(page, 'grace');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-pending', 'releasedInherit');
   await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestDue');
+  // Due: the countdown speaks of the release, not of the Drill's expiry (7B-P1).
+  await expect(page.getByTestId('vault-next')).toHaveAttribute('data-kind', 'releaseDue');
   await connectFrom(page, page.getByTestId('vault-guest-connect'));
   await expect(page.getByTestId('vault-no-role')).toBeVisible();
 
@@ -163,6 +165,10 @@ test('a stranger releases a late vault to the heir and delivers it; the history 
   await page.getByTestId('vault-distribute-tx-send').click();
   await expect(page.getByTestId('vault-transfers-0')).toHaveAttribute('data-ok', 'true');
   expect(await balance()).toBeGreaterThan(before);
+  // Delivered: the header, the countdown and the card all say so (7B-P1).
+  await expect(page.getByTestId('vault-next')).toHaveAttribute('data-kind', 'released');
+  await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestReleasedInheritDone');
+  await expect(page.getByRole('heading', { level: 2, name: 'Delivered to the heirs' })).toBeVisible();
 
   await page.getByTestId('vault-history-load').click();
   await expect(page.getByTestId('vault-history-0')).toHaveAttribute('data-kind', 'transfers');
@@ -271,6 +277,70 @@ test('the thread and its countdowns end on the right edge of the cards at 1024, 
   }
 });
 
+test('the skeleton draws the thread where the loaded thread lands, at 1440 px (7B-P1)', async ({
+  page,
+  state,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop width');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const box = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top + window.scrollY, right: r.right };
+      });
+  // The chain does not answer yet: the skeleton stays. Registered last, this route wins.
+  const okx = (url: URL) => OKX_ORIGINS.includes(url.origin);
+  const hang = (route: Route) => {
+    void route;
+  };
+  await page.route(okx, hang);
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-loading-thread')).toBeVisible();
+  const skeleton = await box('[data-testid="vault-loading-thread"]');
+  await page.unroute(okx, hang);
+  await page.reload();
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  const loaded = await box('[data-testid="vault-course"] > :first-child');
+  expect(Math.round(skeleton.right)).toBe(Math.round(loaded.right));
+  expect(Math.abs(skeleton.top - loaded.top), `skeleton ${skeleton.top}, loaded ${loaded.top}`).toBeLessThanOrEqual(8);
+});
+
+test('the sticky header stays at the top while a reader scrolls, and clear of the thread at the top (7B-P1)', async ({
+  page,
+  state,
+}) => {
+  // Full-page screenshots drew the header in the middle of the page. In the live page it never leaves the top.
+  await page.goto(`${state.siteUrl}vault/#${state.seeded.guarded}`);
+  await expect(page.getByTestId('vault-plan')).toBeVisible();
+  const read = () =>
+    page.evaluate(() => {
+      const header = document.querySelector('header.site-header')?.getBoundingClientRect();
+      const thread = document.querySelector('[data-testid="vault-course"] > :first-child')?.getBoundingClientRect();
+      const proof = document.querySelector('[data-testid="proof-line"]')?.getBoundingClientRect();
+      return {
+        header: header && { top: header.top, bottom: header.bottom, height: header.height },
+        thread: thread?.top,
+        proof: proof?.bottom ?? 0,
+        y: window.scrollY,
+      };
+    });
+  const top = await read();
+  // At the top the proof line stands above the header; once scrolled past it, the header holds the top.
+  expect(top.header?.top).toBe(top.proof);
+  expect(top.thread ?? 0, 'the thread starts below the header').toBeGreaterThan(top.header?.bottom ?? Infinity);
+  const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  for (const y of [200, 600, Math.round(max / 2), max]) {
+    await page.evaluate((to) => window.scrollTo({ top: to, behavior: 'instant' }), y);
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+    const at = await read();
+    expect(at.header?.top, `header at scrollY ${at.y}`).toBe(0);
+    expect(at.header?.height, `header height at scrollY ${at.y}`).toBe(top.header?.height);
+  }
+});
+
 test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // Every screen in both themes, both languages, at 1440, 768 and 390 px: up to 108 reloads on a shared machine.
@@ -363,20 +433,40 @@ test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   await page.getByTestId('vault-poke-tx-send').click();
   await stateIs(page, 'releasedInherit');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-moment', 'moved');
+  // Released, not delivered yet: the owner still holds the assets, and anyone may deliver them (7B-P1).
+  const released = async () => {
+    await stateIs(page, 'releasedInherit');
+    await connected();
+    await expect(page.getByTestId('vault-distribute')).toBeVisible();
+    await openHistory();
+  };
+  await captureScreens(page, 'vault-released', { shots, ready: released });
   await page.getByTestId('vault-distribute').click();
   await page.getByTestId('vault-distribute-tx-send').click();
   await expect(page.getByTestId('vault-transfers-0')).toHaveAttribute('data-ok', 'true');
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await settle(page);
-    await page.screenshot({ path: `test-results/screens/vault-delivered/night-en-${width}.png`, fullPage: true });
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.screenshot({
+      path: `test-results/screens/vault-delivered-transfers/night-en-${width}.png`,
+      fullPage: true,
+    });
   }
-  const released = async () => {
+  // Delivered, after a reload: the header, its countdown and the card say where the assets went (7B-P1).
+  const delivered = async () => {
     await stateIs(page, 'releasedInherit');
     await connected();
+    await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestReleasedInheritDone');
     await openHistory();
   };
-  await captureScreens(page, 'vault-released', { shots, ready: released });
+  await captureScreens(page, 'vault-delivered', { shots, ready: delivered });
+
+  // No address at all: the empty state, as the static HTML paints it (7B-P1).
+  const empty = () => expect(page.getByTestId('vault-missing')).toBeVisible();
+  await page.goto(`${state.siteUrl}vault/`);
+  await empty();
+  await captureScreens(page, 'vault-empty', { shots, ready: empty });
 
   // The open form, after an address it rejects.
   const missing = () => expect(page.getByTestId('vault-missing')).toBeVisible();

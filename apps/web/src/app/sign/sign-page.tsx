@@ -23,6 +23,7 @@ import { ErrorBox } from '@/tx/error-box';
 import type { MirrorToken } from '@/tx/mirror';
 import { Address } from '@/ui/address';
 import { buttonClass } from '@/ui/button';
+import { FirstPaint } from '@/ui/first-paint';
 import { Skeleton, SkeletonText } from '@/ui/skeleton';
 import { Spinner } from '@/ui/spinner';
 import { networkName } from '@/wallet/network';
@@ -70,18 +71,26 @@ export function SignPage() {
           <span>{t('intro')}</span>
         </p>
       </header>
-      {!mounted ? (
-        <Checking />
-      ) : framed ? (
-        <Verdict id="sign-framed" icon={ShieldX} title={t('framed')} testId="sign-framed">
-          {t('framedHelp')}
-        </Verdict>
-      ) : !hasRequest(hash) ? (
-        <NoRequest />
-      ) : (
-        // Keyed by the fragment: another link never inherits what was typed, sent or refused for this one.
-        <SignRequest key={hash} hash={hash} />
-      )}
+      {/* Both first paints are in the static HTML, the empty card and the checks still running, and the boot
+          script's mark shows the one the fragment fits (first-paint.tsx), so the footer never moves on mount. */}
+      <FirstPaint
+        mounted={mounted}
+        mark="request"
+        noScript="wait"
+        empty={!mounted || (!framed && !hasRequest(hash)) ? <NoRequest /> : null}
+        wait={
+          !mounted ? (
+            <Checking />
+          ) : framed ? (
+            <Verdict id="sign-framed" icon={ShieldX} title={t('framed')} testId="sign-framed">
+              {t('framedHelp')}
+            </Verdict>
+          ) : hasRequest(hash) ? (
+            // Keyed by the fragment: another link never inherits what was typed, sent or refused for this one.
+            <SignRequest key={hash} hash={hash} />
+          ) : null
+        }
+      />
     </div>
   );
 }

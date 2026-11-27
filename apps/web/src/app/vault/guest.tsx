@@ -63,14 +63,27 @@ export interface PublicActionsProps extends PanelProps {
   held?: [boolean, (held: boolean) => void];
   /** The caller already said that anyone may act and where the assets go (GuestView's no-role line). */
   said?: boolean;
+  /** The transfers of this page's own delivery: the caller owns them when it titles its card by them (GuestView). */
+  delivery?: [TransferRow[] | null, (rows: TransferRow[] | null) => void];
 }
 
 /** Spec §16.4 of the ecosystem spec: anyone can poke or distribute; the assets never go to the caller. */
-export function PublicActions({ flows, sdk, loaded, view, account, onChanged, held, said }: PublicActionsProps) {
+export function PublicActions({
+  flows,
+  sdk,
+  loaded,
+  view,
+  account,
+  onChanged,
+  held,
+  said,
+  delivery,
+}: PublicActionsProps) {
   const t = useT(messages);
   const own = useState(false);
   const [pokeHeld, setPokeHeld] = held ?? own;
-  const [results, setResults] = useState<TransferRow[] | null>(null);
+  const ownResults = useState<TransferRow[] | null>(null);
+  const [results, setResults] = delivery ?? ownResults;
   const s = loaded.snap.status;
   const explorer = sdk.deployment.explorerUrl;
   const { ownerChecksIn, canPoke, canDeliver, recover } = publicOffers(view, s, pokeHeld);
@@ -168,15 +181,24 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
   const { openSheet } = useWallet();
   const title = useRef<HTMLHeadingElement>(null);
   const held = useState(false);
+  const delivery = useState<TransferRow[] | null>(null);
   const { account, view } = p;
   const offers = publicOffers(view, p.loaded.snap.status, held[0]);
+  // Released, and nothing left in the owner's wallet for the vault to move: the card says where the assets went, as
+  // the header's sentence does (7B-P1), not that this wallet is merely watching.
+  const delivered = delivery[0] !== null || (view.released && view.assets.every((a) => a.held === 0n));
+  const deliveredTitle = offers.recover ? t('deliveredTitleRecover') : t('deliveredTitle');
   const heading = !account
     ? t('guestTitle')
     : view.roles.includes('owner')
       ? t('ownerTitle')
-      : offers.canPoke || offers.canDeliver
-        ? t('guestTitleConnected')
-        : t('guestTitleIdle');
+      : delivery[0] !== null
+        ? deliveredTitle
+        : offers.canPoke || offers.canDeliver
+          ? t('guestTitleConnected')
+          : delivered
+            ? deliveredTitle
+            : t('guestTitleIdle');
   const noRole = view.roles.length === 0;
   return (
     <section
@@ -204,7 +226,7 @@ export function GuestView(p: Omit<PanelProps, 'account'> & { account: Addr | nul
               {t('roles', { roles: view.roles.map((r) => l(ROLE_KEY[r])).join(', ') })}
             </p>
           )}
-          <PublicActions {...p} account={account} held={held} said={noRole} />
+          <PublicActions {...p} account={account} held={held} said={noRole} delivery={delivery} />
         </>
       ) : (
         <>

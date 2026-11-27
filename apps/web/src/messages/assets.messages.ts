@@ -28,7 +28,7 @@ export const messages = defineMessages(
     assetsTitle: 'Vault trông\u00a0chừng những gì',
     assetsHelp:
       'Vault không bao giờ giữ token của bạn. Chúng ở yên trong ví, và vault chỉ được chuyển chúng khi người thừa kế nhận.',
-    quickTitle: 'Token trên X Layer',
+    quickTitle: 'Token trên X\u00a0Layer',
     testToken: 'Token thử {n}',
     youHold: 'Bạn đang có {amount}',
     holdUnknown: 'Chưa rõ số\u00a0dư',

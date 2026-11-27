@@ -80,15 +80,15 @@ export const messages = defineMessages(
     addrZero: 'Địa chỉ 0 đốt mọi thứ nó nhận. Hãy dùng một ví thật.',
     addrDuplicate: 'Địa chỉ này đã có trong danh sách.',
     addrGroupsLead: 'Đối chiếu từng cụm với ví của người đó:',
-    guardiansTitle: 'Người giám\u00a0hộ',
+    guardiansTitle: 'Người\u00a0giám\u00a0hộ',
     guardiansHelp:
       'Những người bạn tin. Khi bạn ngừng điểm danh và báo động đang chạy, đủ số người trong họ xác nhận thì người thừa kế nhận khi báo động kết thúc. Nếu họ im lặng, người thừa kế vẫn nhận, chỉ muộn hơn. Người giám hộ không bao giờ tự nhận gì.',
-    guardianAccount: 'Ví người giám\u00a0hộ {n}',
-    removeGuardian: 'Xoá người giám\u00a0hộ {n}',
-    addGuardian: 'Thêm người giám\u00a0hộ',
-    kLabel: 'Cần bao nhiêu người giám\u00a0hộ đồng\u00a0ý',
+    guardianAccount: 'Ví người\u00a0giám\u00a0hộ {n}',
+    removeGuardian: 'Xoá người\u00a0giám\u00a0hộ {n}',
+    addGuardian: 'Thêm người\u00a0giám\u00a0hộ',
+    kLabel: 'Cần bao nhiêu người\u00a0giám\u00a0hộ đồng\u00a0ý',
     kHelp: 'Để trống nghĩa là đa số: {majority} trên {n}.',
-    recovery: 'Cho\u00a0phép người giám\u00a0hộ chuyển vault này sang ví mới',
+    recovery: 'Cho\u00a0phép người\u00a0giám\u00a0hộ chuyển vault này sang ví mới',
     recoveryHelp:
       'Tắt, trừ khi bạn bật lên. Dành cho ngày bạn mất ví này: đủ số người giám hộ bầu ví mới của bạn, và tài sản chuyển sang ví đó khi hết thời gian báo động.',
     recoveryPowerSome:

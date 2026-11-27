@@ -385,7 +385,7 @@ describe('SubscribeForm on the DeWEB build', () => {
     target.vercel = false;
     renderWithProviders(<SubscribeForm vault={PEOPLE.vault} role={ROLE.heir} />, { lang: 'vi' });
     expect(mode()).toBe('hosted-only');
-    const link = await screen.findByRole('link', { name: /Đăng ký trên atropyle\.xyz/ });
+    const link = await screen.findByRole('link', { name: /Đăng\u00A0ký trên atropyle\.xyz/ });
     expect(link).toHaveAttribute('href', `https://atropyle.xyz/join/#${PEOPLE.vault}.heir`);
     expect(screen.getByText('Cảnh báo qua email cần một máy chủ, nên chỉ có trên trang chính.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).toBeNull();

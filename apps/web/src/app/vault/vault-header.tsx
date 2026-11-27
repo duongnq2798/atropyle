@@ -1,6 +1,6 @@
 'use client';
 
-import type { StateName, TimelineEventKind, VaultSnapshot } from '@atropyle/sdk';
+import type { StateName, VaultSnapshot } from '@atropyle/sdk';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useChainNow } from '@/chain/time';
@@ -25,14 +25,9 @@ import { Countdown } from '@/ui/countdown';
 import { ExternalLink } from '@/ui/external-link';
 import { headerThread } from './header-thread';
 import { type Moved, momentOf } from './moment';
+import { nextStep } from './next-step';
 
 type VaultKey = keyof typeof messages.en;
-
-const EVENT_KEY = {
-  alarm: 'nextAlarm',
-  release: 'nextRelease',
-  drillExpiry: 'nextDrillExpiry',
-} as const satisfies Record<TimelineEventKind, VaultKey>;
 
 const PREDICTED_KEY = {
   active: 'predictedActive',
@@ -89,8 +84,9 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
   const explorer = sdk.deployment.explorerUrl;
   const owner = view.roles.includes('owner');
   const target = s.state === 'recovery' ? s.recoveryTarget : null;
-  // The next moment still ahead: one that is already due is the moment line's ("The rules now allow …").
-  const next = loaded.timeline.events.find((e) => e.at > s.blockTimestamp) ?? null;
+  // The next moment still ahead: one that is already due is the moment line's ("The rules now allow …"). Once the
+  // release is due or done, the release itself and since when (next-step.ts).
+  const next = nextStep(s, loaded.timeline.events);
   const p = thread.input.posts;
   const posts = !s.expired && p && p.n > 0 && p.k > 0 ? p : null;
   const stateLabel = l(THREAD_STATE_KEY[thread.state]);
@@ -145,7 +141,7 @@ export function VaultHeader({ sdk, loaded, view, lead, moved, refreshing, onRefr
               data-testid="vault-next"
               data-kind={next.kind}
             >
-              <dt className="text-caption text-ink-muted">{t(EVENT_KEY[next.kind])}</dt>
+              <dt className="text-caption text-ink-muted">{t(next.key)}</dt>
               <dd>
                 <Countdown target={next.at} {...read} />
               </dd>

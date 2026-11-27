@@ -234,7 +234,7 @@ describe('SignPage: what the link asks', () => {
     window.history.replaceState(null, '', '/sign/');
     show({ lang: 'vi' });
     const box = await screen.findByTestId('sign-empty');
-    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('Ở đây chưa có yêu cầu ký nào');
+    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('Ở đây chưa có yêu\u00a0cầu ký nào');
     expect(within(box).getByRole('link', { name: 'Tạo vault' })).toBeTruthy();
   });
 
@@ -793,7 +793,7 @@ describe('SignPage Drill retype gate', () => {
   it('speaks Vietnamese', async () => {
     drillPage('vi');
     const gate = await screen.findByTestId('sign-confirm');
-    expect(gate.querySelector('h2')?.textContent).toBe('Gõ lại các địa chỉ trước khi ký');
+    expect(gate.querySelector('h2')?.textContent).toBe('Gõ lại các địa\u00a0chỉ trước khi ký');
     expect(screen.getByLabelText(/^Người thừa kế 2 \(30%\) của vault ở bước 1/)).toBe(
       screen.getByTestId('sign-confirm-1'),
     );
