@@ -185,6 +185,9 @@ describe('create wizard', () => {
     );
     expect(screen.queryByTestId('create-prepare')).toBeNull();
     expect(screen.queryByTestId('create-tx')).toBeNull();
+    // createVault ran: the page never says that nothing is signed, nor asks for a wallet the banner does not need.
+    expect(screen.queryByTestId('create-connect')).toBeNull();
+    expect(screen.getByTestId('create-review')).not.toHaveTextContent('Nothing is signed yet');
     // The payload does not decode: nothing was read or inspected.
     expect(inspect).not.toHaveBeenCalled();
     // The progress buttons are locked too: no way back to an editable step.
@@ -213,6 +216,9 @@ describe('create wizard', () => {
     expect(screen.queryByTestId('create-prepare')).toBeNull();
     expect(screen.queryByTestId('create-resume-failed')).toBeNull();
     expect(screen.queryByTestId('create-tx')).toBeNull();
+    // Until the chain answers, the page cannot say that nothing is signed.
+    expect(screen.queryByTestId('create-connect')).toBeNull();
+    expect(screen.getByTestId('create-review')).not.toHaveTextContent('Nothing is signed yet');
   }, 60_000);
 
   it('a reload before any signature brings the plan back, and an edit drops it with its banner', async () => {
@@ -282,6 +288,10 @@ describe('create wizard', () => {
     const banner = await screen.findByTestId('create-resume', {}, { timeout: 30_000 });
     expect(banner).toHaveTextContent('Your plan is still here, 0 of 2 steps done.');
     expect(screen.getByTestId('create-tx')).toBeInTheDocument();
+    // One way to connect, in the signing card, and no line that contradicts the banner's count of steps done.
+    expect(screen.queryByTestId('create-connect')).toBeNull();
+    expect(screen.getByTestId('create-tx-connect')).toBeInTheDocument();
+    expect(screen.getByTestId('create-review')).not.toHaveTextContent('Nothing is signed yet');
     expect(getCode).toHaveBeenCalledWith({ address: PEOPLE.vault });
     expect(inspect).toHaveBeenCalledTimes(1);
     expect(inspect.mock.calls[0]?.[0].steps).toEqual(steps);
@@ -302,6 +312,8 @@ describe('create wizard', () => {
     await screen.findByTestId('create-review', {}, { timeout: 30_000 });
     expect(screen.queryByTestId('create-resume')).toBeNull();
     expect(screen.queryByTestId('create-tx')).toBeNull();
+    // No plan any more: the review asks for the owner's wallet again, before anything is signed.
+    expect(screen.getByTestId('create-connect')).toBeInTheDocument();
     expect(inspect).toHaveBeenCalledTimes(1);
   }, 60_000);
 

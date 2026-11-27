@@ -497,22 +497,26 @@ export function ReviewStep(p: ReviewStepProps) {
       <PlanSummary wizard={wizard} explorer={explorer} />
       <PlanTimeMachine flows={flows} wizard={wizard} owner={owner} />
       {!owner ? (
-        <Banner
-          tone="info"
-          action={
-            <Button
-              variant="primary"
-              data-testid="create-connect"
-              onPointerEnter={connectSheet.preload}
-              onFocus={connectSheet.preload}
-              onClick={() => openSheet()}
-            >
-              {t('connect')}
-            </Button>
-          }
-        >
-          {t('connectFirst')}
-        </Banner>
+        // Only before any plan is saved: once one is (resumed, resuming or failed to resume), steps may be signed
+        // already, and the signing card or the resume banner gives the one way on.
+        s.payload !== null || p.prepared ? null : (
+          <Banner
+            tone="info"
+            action={
+              <Button
+                variant="primary"
+                data-testid="create-connect"
+                onPointerEnter={connectSheet.preload}
+                onFocus={connectSheet.preload}
+                onClick={() => openSheet()}
+              >
+                {t('connect')}
+              </Button>
+            }
+          >
+            {t('connectFirst')}
+          </Banner>
+        )
       ) : (
         <div className="space-y-3">
           <div className="space-y-1">

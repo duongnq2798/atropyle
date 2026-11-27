@@ -626,7 +626,7 @@ test('a reload after the vault exists only sends what is left', async ({ page, s
   await expect(page.locator('#create-sign')).toBeFocused();
   await expect(page.getByTestId('create-tx-step-0')).toBeInViewport();
 
-  await connectFrom(page, page.getByTestId('create-connect'));
+  await connectFrom(page, page.getByTestId('create-tx-connect'));
   await expect(page.getByTestId('create-tx-step-0')).toHaveAttribute('data-phase', 'ready');
   await page.getByTestId('create-tx-send').click();
   await expect(page.getByTestId('create-done')).toHaveAttribute('data-vault', plan.vault);
