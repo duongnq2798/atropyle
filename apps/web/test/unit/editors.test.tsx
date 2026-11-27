@@ -132,8 +132,9 @@ describe('IssueList', () => {
     );
     const items = [...screen.getByTestId('list').querySelectorAll('li')].map((li) => li.textContent);
     expect(items).toEqual([
-      'Điểm danh mỗi: Hai lần điểm danh phải cách nhau ít nhất 1 phút.',
-      'Cần bao nhiêu người giám hộ đồng ý: Hãy chọn một số nguyên, không lớn hơn số người giám hộ.',
+      // The field labels keep their compounds bound (create-vi-compounds.test.ts).
+      'Điểm\u00a0danh mỗi: Hai lần điểm danh phải cách nhau ít nhất 1 phút.',
+      'Cần bao nhiêu người giám\u00a0hộ đồng\u00a0ý: Hãy chọn một số nguyên, không lớn hơn số người giám hộ.',
     ]);
   });
 
