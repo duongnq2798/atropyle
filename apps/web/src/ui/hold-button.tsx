@@ -74,21 +74,23 @@ const TONE = {
 
 /**
  * The ritual's object (a hold with a face): its frame and the face's paper in the tone, and the bar in the primary
- * action's accent (button-class.ts `primary`), its fill a lighter sweep over it. Disabled (the wallet is open, the
- * transaction waits for its block), the face keeps its thread at full strength, since it shows the pending knot; only
- * the frame and the bar go quiet.
+ * action's accent (button-class.ts `primary`). Its fill sweeps the bar towards the ink, away from the label's own
+ * colour (deeper on vellum, brighter on night), so the label only gains contrast as the hold fills; a sweep in the
+ * label's colour left it at 3.9:1 on vellum halfway through. Disabled (the wallet is open, the transaction waits for
+ * its block), the face keeps its thread at full strength, since it shows the pending knot; only the frame and the bar
+ * go quiet.
  */
 const OBJECT = {
   thread: {
     frame: 'border-thread bg-thread/6',
     bar: 'bg-thread text-on-thread group-enabled:group-hover:bg-thread/90',
-    fill: 'bg-on-thread/20',
+    fill: 'bg-ink/25',
     knot: 'bg-on-thread',
   },
   danger: {
     frame: 'border-danger bg-danger/6',
     bar: 'bg-danger text-on-danger group-enabled:group-hover:bg-danger/90',
-    fill: 'bg-on-danger/20',
+    fill: 'bg-ink/25',
     knot: 'bg-on-danger',
   },
 } as const;

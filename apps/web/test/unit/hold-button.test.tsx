@@ -499,6 +499,10 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expect(button.className).not.toContain('rounded-full');
     expect(button.className).not.toContain('bg-surface-2');
     for (const c of ['min-h-14', 'text-lead', 'bg-thread', 'text-on-thread']) expect(bar.className).toContain(c);
+    // The fill sweeps the bar towards the ink, away from the label's colour: the label only gains contrast as it fills.
+    const fill = bar.querySelector<HTMLElement>('span.origin-left');
+    expect(fill?.className).toContain('bg-ink/25');
+    expect(fill?.className).not.toContain('bg-on-thread');
     // The pill's own line under the label stays out: the face is the thread.
     expect(button.querySelector('[data-part="underline"]')).toBeNull();
   });
