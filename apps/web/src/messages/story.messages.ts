@@ -30,7 +30,7 @@ export const messages = defineMessages(
     ),
     agentLine4: 'Ready. Nothing is sent until you sign.',
     agentCaption: 'An illustrated session. The tool names are real.',
-    agentInstall: 'Add Atropyle to Claude Code',
+    agentInstall: glue('Add Atropyle to Claude~Code'),
     agentMore: 'Other agents, the CLI and the SDK',
     closeTitle: 'Rehearse it before it is real.',
     closeLead: glue(
@@ -62,7 +62,7 @@ export const messages = defineMessages(
     ),
     agentLine4: glue('Xong. Chưa có gì được gửi cho~tới khi bạn ký.'),
     agentCaption: glue('Một phiên minh~hoạ. Tên công~cụ là thật.'),
-    agentInstall: 'Thêm Atropyle vào Claude Code',
+    agentInstall: glue('Thêm Atropyle vào Claude~Code'),
     agentMore: glue('Agent khác, CLI và SDK'),
     closeTitle: glue('Diễn~tập trước khi là thật.'),
     closeLead: glue(

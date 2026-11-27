@@ -105,10 +105,10 @@ describe('settings', () => {
   it('switches language with native radios and remembers it', async () => {
     const { kv } = renderWithProviders(<LangSwitch />);
     expect(screen.getByRole('group', { name: 'Language' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng Việt' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }));
     await waitFor(() => expect(document.documentElement.lang).toBe('vi'));
     expect(kv.get(KEYS.lang)).toBe('vi');
-    expect((screen.getByRole('radio', { name: 'Tiếng Việt' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('opens at night, then switches to vellum, to match device and back to night', async () => {
@@ -130,8 +130,8 @@ describe('settings', () => {
   it('names the three themes in Vietnamese', async () => {
     renderWithProviders(<ThemeSwitch />, { lang: 'vi' });
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Đêm' })).toBeTruthy());
-    expect(screen.getByRole('radio', { name: 'Giấy da' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Theo thiết bị' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Giấy\u00A0da' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Theo thiết\u00A0bị' })).toBeTruthy();
   });
 
   it('opens the navigation as a sheet on narrow screens', async () => {

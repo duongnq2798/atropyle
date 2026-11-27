@@ -103,7 +103,7 @@ export const messages = defineMessages(
     ),
     slider: glue('Ngày trong câu~chuyện'),
     valueText: glue('Ngày~{day}: {state}'),
-    gateHeirs: glue('Người thừa~kế · ngày~{day}'),
+    gateHeirs: glue('Người~thừa~kế · ngày~{day}'),
     gateWallet: glue('Ví họ chọn · ngày~{day}'),
     hint: glue('Kéo sợi~chỉ, hoặc dùng phím mũi~tên.'),
     hintKeys: glue('Page~Up và Page~Down nhảy tới ngày quan~trọng kế~tiếp.'),

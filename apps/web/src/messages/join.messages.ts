@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     eyebrow: 'An Atropyle invitation',
@@ -15,7 +22,7 @@ export const messages = defineMessages(
     nowHeirReleased:
       "The waiting time is over: the vault's rules now let its assets go to the heirs. Open the vault to receive your share.",
     nowExpired: 'This Drill has ended, as every Drill does. Nothing more will happen in it.',
-    vaultTitle: 'The vault, read from X Layer just now',
+    vaultTitle: glue('The vault, read from X~Layer just now'),
     vaultLabel: 'Vault',
     heirsLabel: 'Heirs',
     guardiansLabel: 'Guardians',
@@ -71,11 +78,11 @@ export const messages = defineMessages(
     home: 'Go to the home page',
   },
   {
-    eyebrow: 'Lời mời từ Atropyle',
-    loadingTitle: 'Đang mở lời mời của bạn',
+    eyebrow: glue('Lời~mời từ Atropyle'),
+    loadingTitle: glue('Đang mở lời~mời của bạn'),
     loading: 'Đang đọc vault trên X Layer…',
-    titleHeir: 'Bạn được chọn làm người thừa kế',
-    titleGuardian: 'Bạn được mời làm người giám hộ',
+    titleHeir: glue('Bạn được chọn làm người~thừa~kế'),
+    titleGuardian: glue('Bạn được mời làm người~giám~hộ'),
     leadHeir:
       'Một người quan tâm đến bạn đã lập kế hoạch cho tài sản crypto của họ. Nếu họ không còn tự lo được, một phần có thể đến với bạn, không cần luật sư và không qua người trung gian nào.',
     leadGuardian:
@@ -84,14 +91,14 @@ export const messages = defineMessages(
     nowHeirReleased:
       'Thời gian chờ đã hết: đã tới lúc vault trao tài sản cho người thừa kế. Hãy mở vault để nhận phần của bạn.',
     nowExpired: 'Drill này đã kết thúc, như mọi Drill. Sẽ không có gì xảy ra thêm trong vault này.',
-    vaultTitle: 'Vault, vừa đọc từ X Layer',
+    vaultTitle: glue('Vault, vừa đọc từ X~Layer'),
     vaultLabel: 'Vault',
-    heirsLabel: 'Người thừa kế',
-    guardiansLabel: 'Người giám hộ',
+    heirsLabel: glue('Người~thừa~kế'),
+    guardiansLabel: glue('Người~giám~hộ'),
     guardiansRule: '{n} người, cần {k} người đồng ý',
     guardiansNone: 'Không có',
     drillNote: 'Vault này là một Drill: một lần diễn tập trên X Layer, tự kết thúc sau một thời gian.',
-    openVault: 'Xem toàn bộ vault',
+    openVault: glue('Xem toàn~bộ vault'),
     walletAskHeir:
       'Có phải bạn không? Hãy kết nối ví bạn đã đưa cho chủ vault, trang này sẽ kiểm tra ví đó có được ghi là người thừa kế không.',
     walletAskGuardian:
@@ -117,7 +124,7 @@ export const messages = defineMessages(
     guardian3: 'Bạn không bao giờ giữ tiền của chủ vault, và không gì ở đây gửi được số tiền đó cho bạn.',
     guardianNone:
       'Vault này chưa ghi người giám hộ nào, nên người giám hộ không có việc gì trong đó. Hãy hỏi chủ vault xem họ có định thêm bạn không.',
-    safetyTitle: 'Giữ an toàn',
+    safetyTitle: glue('Giữ an~toàn'),
     safety1:
       'Atropyle không bao giờ hỏi cụm từ bí mật hay private key của bạn, và không bao giờ liên lạc với bạn trước.',
     safety2: 'Trang này không yêu cầu bạn ký gì cả.',
@@ -125,7 +132,7 @@ export const messages = defineMessages(
     alertsTitle: 'Nhận email khi cần',
     alertsLead: 'Không bắt buộc. Bạn chỉ nhận thư khi vault này cần đến bạn.',
     trust: 'Luật của Atropyle là một circuit trên X Layer, và ai cũng kiểm được.',
-    trustLink: 'Xem bằng chứng',
+    trustLink: glue('Xem bằng~chứng'),
     invalidTitle: 'Link mời này bị hỏng',
     invalidMissing: 'Link không có vault nào. Hãy nhờ chủ vault gửi lại đầy đủ.',
     invalidShape: 'Link bị cắt ngắn hoặc bị thêm thứ gì đó. Hãy nhờ chủ vault gửi lại.',
@@ -133,10 +140,10 @@ export const messages = defineMessages(
       'Địa chỉ vault trong link không hợp lệ: có thể một ký tự đã bị sửa. Đừng dùng link này; hãy xin lại chủ vault.',
     invalidRole: 'Link không nói bạn là người giám hộ hay người thừa kế. Hãy nhờ chủ vault gửi lại.',
     invalidSafe: 'Hãy hỏi trực tiếp, hoặc gọi vào số bạn đã có từ trước.',
-    notVaultTitle: 'Không có vault Atropyle nào ở địa chỉ này',
+    notVaultTitle: glue('Không có vault Atropyle nào ở địa~chỉ này'),
     notVaultBody:
       'Địa chỉ trong link không phải vault do Atropyle tạo trên X Layer. Đừng gửi gì vào đó, và hãy hỏi lại chủ vault.',
     errorTitle: 'Chưa đọc được vault',
-    home: 'Về trang chủ',
+    home: glue('Về trang~chủ'),
   },
 );

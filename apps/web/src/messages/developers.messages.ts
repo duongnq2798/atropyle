@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     stamp: 'Open source · zero keys',
@@ -15,7 +22,7 @@ export const messages = defineMessages(
     mcpTitle: 'MCP server',
     mcpHelp:
       'For any agent that speaks MCP over stdio. The first line adds it to Claude Code, the second runs it for any other client. It prepares transactions; your wallet signs them.',
-    pluginTitle: 'Claude Code plugin',
+    pluginTitle: glue('Claude~Code plugin'),
     pluginHelp: 'The two Agent Skills and the MCP server in one install.',
     skillsTitle: 'Agent Skills',
     skillsHelp: 'The estate-planning and guardian skills, for other agents.',
@@ -35,7 +42,7 @@ export const messages = defineMessages(
     circuitsTitle: 'Circuits anyone can reuse',
     circuitsLead:
       'Beside the Atropyle policy, the same X Layer processor holds two small circuits any contract can call by id. Each netlist is frozen: its keccak below is what the proof checks. These are X Layer mainnet facts.',
-    xlayerCpu: 'The X Layer processor that holds them',
+    xlayerCpu: glue('The X~Layer processor that holds them'),
     circuitPolicy: 'Atropyle policy',
     circuitKofn5: 'KofN5: are at least k of 5 inputs set?',
     circuitGe4: 'Ge4: is a at least b, for two 4-bit numbers?',
@@ -50,20 +57,20 @@ export const messages = defineMessages(
     siteVersion: 'This site is version {version}.',
   },
   {
-    stamp: 'Mã nguồn mở · không giữ khoá',
-    title: 'Nhà phát triển',
+    stamp: glue('Mã~nguồn mở · không giữ khoá'),
+    title: glue('Nhà~phát~triển'),
     lead: 'Đọc bất kỳ vault nào, mô phỏng luật của nó, chuẩn bị giao dịch để ví ký, hoặc tự chứng minh circuit. Không công cụ nào ở đây giữ khoá.',
     published: 'Bản {version} của mỗi gói đã có trên npm.',
-    installTitle: 'Cài đặt',
+    installTitle: glue('Cài~đặt'),
     sdkTitle: 'SDK',
     sdkHelp: 'TypeScript cho Node.js và trình duyệt: đọc, mô phỏng, kiểm chứng và chuẩn bị. Nó không bao giờ ký.',
-    verifyTitle: 'Chứng minh circuit',
+    verifyTitle: glue('Chứng~minh circuit'),
     verifyHelp:
       'Kiểm cả 67.108.864 trường hợp của policy so với chain, rồi hỏi chính step() của processor X Layer 64 trường hợp ngẫu nhiên ở mỗi nhà vận hành node (P9). Lệnh in ra seed; --p9-seed chạy lại đúng các trường hợp đó.',
     mcpTitle: 'MCP server',
     mcpHelp:
       'Cho mọi agent dùng MCP qua stdio. Dòng đầu thêm nó vào Claude Code, dòng thứ hai chạy nó cho mọi client khác. Nó chuẩn bị giao dịch; ví của bạn ký.',
-    pluginTitle: 'Plugin cho Claude Code',
+    pluginTitle: glue('Plugin cho Claude~Code'),
     pluginHelp: 'Hai Agent Skill và MCP server trong một lần cài.',
     skillsTitle: 'Agent Skills',
     skillsHelp: 'Skill lập kế hoạch thừa kế và skill người giám hộ, cho các agent khác.',
@@ -71,30 +78,30 @@ export const messages = defineMessages(
     snippetHelp: 'Đọc trạng thái, chuẩn bị một lần điểm danh và in ra link để chủ vault mở trong ví của chính họ.',
     copyCommand: 'Chép lệnh',
     copyCode: 'Chép mã',
-    contractsTitle: 'Hợp đồng',
+    contractsTitle: glue('Hợp~đồng'),
     contractsLead: 'Site này đọc các địa chỉ sau trên {network}.',
     factory: 'Factory',
     vaultImpl: 'Mã vault',
-    cpu: 'Bộ xử lý TapeOut',
-    treasury: 'Ngân quỹ',
+    cpu: glue('Bộ xử~lý TapeOut'),
+    treasury: glue('Ngân~quỹ'),
     feeToken: 'Token phí {n}',
     tapeoutFactory: 'Factory TapeOut',
     policy: 'Luật của các vault là circuit {id} trên bộ xử lý ở trên.',
     circuitsTitle: 'Circuit ai cũng dùng lại được',
     circuitsLead:
       'Bên cạnh policy của Atropyle, cùng bộ xử lý trên X Layer còn giữ hai circuit nhỏ mà hợp đồng nào cũng gọi được theo id. Mỗi netlist đã đóng băng: keccak bên dưới là thứ mà phép chứng minh kiểm. Đây là dữ kiện của X Layer mainnet.',
-    xlayerCpu: 'Bộ xử lý trên X Layer giữ chúng',
+    xlayerCpu: glue('Bộ xử~lý trên X~Layer giữ chúng'),
     circuitPolicy: 'Policy của Atropyle',
-    circuitKofn5: 'KofN5: có ít nhất k trong 5 đầu vào được bật không?',
+    circuitKofn5: glue('KofN5: có ít~nhất k trong 5 đầu~vào được bật không?'),
     circuitGe4: 'Ge4: a có lớn hơn hoặc bằng b không, với hai số 4 bit?',
     circuitId: 'Circuit {id}',
     netlist: 'Keccak của netlist',
     copyKeccak: 'Chép keccak',
-    linksTitle: 'Liên kết',
-    repo: 'Mã nguồn trên GitHub',
-    docs: 'Tài liệu',
+    linksTitle: glue('Liên~kết'),
+    repo: glue('Mã~nguồn trên GitHub'),
+    docs: glue('Tài~liệu'),
     npm: '{name} trên npm',
-    license: 'Giấy phép',
+    license: glue('Giấy~phép'),
     siteVersion: 'Site này là phiên bản {version}.',
   },
 );

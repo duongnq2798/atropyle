@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     skip: 'Skip to content',
@@ -11,7 +18,7 @@ export const messages = defineMessages(
     themeDark: 'Night',
     language: 'Language',
     langEn: 'English',
-    langVi: 'Tiếng Việt',
+    langVi: glue('Tiếng~Việt'),
     holdHint: 'Hold to confirm, or press Enter',
     holdKeep: 'Keep holding',
     holdDone: 'Confirmed',
@@ -28,7 +35,7 @@ export const messages = defineMessages(
     untrustedTitle: 'Text from a token contract. Anyone can write anything there.',
     hapticsOn: 'Vibrate on check-in',
     footerSource: 'Source code',
-    footerXLayer: 'Built on X Layer',
+    footerXLayer: glue('Built on X~Layer'),
     footerLicense: 'MIT licence',
     footerPrivacy: 'Privacy',
     footerVersion: 'Version {version}',
@@ -36,22 +43,22 @@ export const messages = defineMessages(
     loading: 'Loading…',
   },
   {
-    skip: 'Tới nội dung chính',
-    home: 'Trang chủ Atropyle',
+    skip: glue('Tới nội~dung chính'),
+    home: glue('Trang~chủ Atropyle'),
     menu: 'Menu',
-    theme: 'Giao diện',
-    themeSystem: 'Theo thiết bị',
-    themeLight: 'Giấy da',
+    theme: glue('Giao~diện'),
+    themeSystem: glue('Theo thiết~bị'),
+    themeLight: glue('Giấy~da'),
     themeDark: 'Đêm',
-    language: 'Ngôn ngữ',
+    language: glue('Ngôn~ngữ'),
     langEn: 'English',
-    langVi: 'Tiếng Việt',
+    langVi: glue('Tiếng~Việt'),
     holdHint: 'Nhấn giữ để xác nhận, hoặc bấm Enter',
     holdKeep: 'Giữ thêm chút nữa',
-    holdDone: 'Đã xác nhận',
-    copyAddress: 'Sao chép địa chỉ',
-    copyText: 'Sao chép {what}',
-    copyFailed: 'Không sao chép được',
+    holdDone: glue('Đã xác~nhận'),
+    copyAddress: glue('Sao~chép địa~chỉ'),
+    copyText: glue('Sao~chép {what}'),
+    copyFailed: glue('Không sao~chép được'),
     viewOn: 'Xem trên {name}',
     newTab: '(mở tab mới)',
     inTime: 'sau {time}',
@@ -60,12 +67,12 @@ export const messages = defineMessages(
     qrOf: 'Mã QR của {what}',
     threadOf: 'Sợi chỉ của vault: {state}',
     untrustedTitle: 'Chữ lấy từ contract token. Ai cũng có thể ghi bất cứ gì vào đó.',
-    hapticsOn: 'Rung khi điểm danh',
-    footerSource: 'Mã nguồn',
-    footerXLayer: 'Chạy trên X Layer',
-    footerLicense: 'Giấy phép MIT',
-    footerPrivacy: 'Quyền riêng tư',
-    footerVersion: 'Phiên bản {version}',
+    hapticsOn: glue('Rung khi điểm~danh'),
+    footerSource: glue('Mã~nguồn'),
+    footerXLayer: glue('Chạy trên X~Layer'),
+    footerLicense: glue('Giấy~phép MIT'),
+    footerPrivacy: glue('Quyền riêng~tư'),
+    footerVersion: glue('Phiên~bản {version}'),
     onchainBadge: '100% on-chain',
     loading: 'Đang tải…',
   },

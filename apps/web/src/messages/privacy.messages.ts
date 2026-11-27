@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     stamp: 'What we keep, and where',
@@ -26,7 +33,7 @@ export const messages = defineMessages(
       'Every email has a link to stop alerts. Stopping deletes your sign-up, with the record of which alerts were sent.',
     meTitle: 'Your vault list',
     me1: 'My vaults finds your vaults by reading the chain with your public address, through the same public nodes. It never asks the Atropyle backend.',
-    onchainTitle: 'The copy on X Layer',
+    onchainTitle: glue('The copy on X~Layer'),
     onchain1:
       'The copy of this site served from X Layer has no backend at all: no email alerts, no index, and no server of ours that sees you.',
     contactTitle: 'Questions',
@@ -34,8 +41,8 @@ export const messages = defineMessages(
     contactLink: 'Atropyle on GitHub',
   },
   {
-    stamp: 'Chúng tôi giữ gì, và ở đâu',
-    title: 'Quyền riêng tư',
+    stamp: glue('Chúng~tôi giữ gì, và ở đâu'),
+    title: glue('Quyền riêng~tư'),
     lead: 'Atropyle được làm để biết về bạn ít nhất có thể. Đây là mọi thứ nó giữ, và giữ ở đâu.',
     siteTitle: 'Website này',
     site1: 'Không cookie, không analytics, không tracker, không font hay script của công ty khác.',
@@ -46,7 +53,7 @@ export const messages = defineMessages(
     wallet1:
       'Kết nối ví chỉ chia sẻ địa chỉ công khai của ví với trang này. Atropyle không bao giờ hỏi, thấy hay lưu private key hay seed phrase.',
     wallet2: 'Mọi giao dịch đều được cho bạn xem trước và được ký trong chính ví của bạn.',
-    emailTitle: 'Cảnh báo email, chỉ trên site hosted',
+    emailTitle: glue('Cảnh~báo email, chỉ trên site hosted'),
     email1:
       'Nếu bạn đăng ký, chúng tôi giữ địa chỉ email, vault, vai trò, ngôn ngữ của bạn, việc bạn đã xác nhận chưa, và thời điểm.',
     email2: 'Link trong email mang mã. Chúng tôi chỉ giữ hash của mỗi mã, không bao giờ giữ chính mã đó.',
@@ -56,12 +63,12 @@ export const messages = defineMessages(
     email5: 'Dữ liệu được lưu ở Supabase vùng Đông Nam Á (Singapore), và email được gửi qua Resend.',
     email6:
       'Mỗi email đều có link để ngừng cảnh báo. Ngừng thì đăng ký của bạn bị xoá, cùng bản ghi những cảnh báo đã gửi.',
-    meTitle: 'Danh sách vault của bạn',
+    meTitle: glue('Danh~sách vault của bạn'),
     me1: 'Trang Vault của tôi tìm vault của bạn bằng cách đọc chain với địa chỉ công khai của bạn, qua cùng các node công khai. Nó không bao giờ hỏi backend của Atropyle.',
-    onchainTitle: 'Bản trên X Layer',
+    onchainTitle: glue('Bản trên X~Layer'),
     onchain1:
       'Bản site được phục vụ từ X Layer không có backend nào: không cảnh báo email, không chỉ mục, và không máy chủ nào của chúng tôi thấy bạn.',
-    contactTitle: 'Câu hỏi',
+    contactTitle: glue('Câu~hỏi'),
     contact1: 'Hãy mở một issue trên GitHub. Đừng đăng private key, seed phrase hay địa chỉ email ở đó.',
     contactLink: 'Atropyle trên GitHub',
   },

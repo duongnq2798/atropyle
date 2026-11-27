@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     confirmTitle: 'Confirming your email alerts',
@@ -36,34 +43,34 @@ export const messages = defineMessages(
     privacyLead: 'What Atropyle keeps, and for how long:',
   },
   {
-    confirmTitle: 'Đang xác nhận cảnh báo qua email',
-    confirmedTitle: 'Cảnh báo qua email đã bật',
+    confirmTitle: glue('Đang xác~nhận cảnh~báo qua email'),
+    confirmedTitle: glue('Cảnh~báo qua email đã bật'),
     confirmedStop: 'Mọi email đều có link để ngừng, chỉ bằng một lần bấm.',
-    confirmError: 'Chưa xác nhận được cảnh báo',
+    confirmError: glue('Chưa xác~nhận được cảnh~báo'),
     vaultLabel: 'Vault',
-    roleLabel: 'Vai trò của bạn',
+    roleLabel: glue('Vai~trò của bạn'),
     openVault: 'Mở vault',
     expiredTitle: 'Link này không còn dùng được',
     expiredBody:
       'Có thể link đã hết hạn, hoặc cảnh báo của nó đã bị ngừng. Hãy đăng ký lại từ trang vault hoặc từ link mời của bạn.',
     findVaults: 'Tìm vault của bạn',
-    invalidTitle: 'Link này không đầy đủ',
+    invalidTitle: glue('Link này không đầy~đủ'),
     invalidBody:
       'Một phần của link bị thiếu hoặc đã bị sửa, nên không có gì được gửi đi. Hãy mở lại link từ email, hoặc chép nguyên địa chỉ vào trình duyệt.',
-    hostedOnlyTitle: 'Cảnh báo qua email nằm ở site chính',
+    hostedOnlyTitle: glue('Cảnh~báo qua email nằm ở site chính'),
     hostedOnlyBody:
       'Bản Atropyle này nằm trên chain và không có máy chủ, nên không xác nhận hay ngừng cảnh báo được. Hãy mở link trong email đúng như nó được gửi: link đó trỏ tới site chính.',
-    unsubTitle: 'Ngừng cảnh báo qua email?',
+    unsubTitle: glue('Ngừng cảnh~báo qua email?'),
     unsubReady:
       'Địa chỉ email này sẽ không nhận thêm cảnh báo nào cho vault này. Bạn có thể đăng ký lại bất cứ lúc nào.',
-    unsubButton: 'Ngừng cảnh báo',
+    unsubButton: glue('Ngừng cảnh~báo'),
     unsubWorking: 'Đang ngừng…',
     unsubKeep: 'Không có gì thay đổi cho tới khi bạn bấm nút. Nếu bạn lỡ mở link này, cứ đóng trang lại.',
-    unsubDoneTitle: 'Đã ngừng cảnh báo',
+    unsubDoneTitle: glue('Đã ngừng cảnh~báo'),
     unsubDoneBody:
       'Chúng tôi đã xoá địa chỉ email này khỏi cảnh báo của vault này. Bạn sẽ không nhận thêm gì về nó nữa.',
     unsubAgain: 'Đổi ý? Hãy đăng ký lại từ trang vault hoặc từ link mời của bạn.',
-    unsubError: 'Chưa ngừng được cảnh báo',
+    unsubError: glue('Chưa ngừng được cảnh~báo'),
     saidReading: 'Đang đọc link của bạn…',
     saidConfirming: 'Đang xác nhận…',
     confirmWorking:

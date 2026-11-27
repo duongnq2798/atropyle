@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     stamp: 'Read live from {network}',
@@ -135,8 +142,8 @@ export const messages = defineMessages(
     diagShow: 'Show what will be copied',
   },
   {
-    stamp: 'Đọc trực tiếp từ {network}',
-    title: 'Trạng thái',
+    stamp: glue('Đọc trực~tiếp từ {network}'),
+    title: glue('Trạng~thái'),
     lead: 'Những gì các hợp đồng Atropyle đang giữ lúc này, đếm trên chain, rồi tới các phép kiểm đứng sau những con số đó: hợp đồng, các node mà trang này đọc qua, và backend của Atropyle trên site hosted. Mọi thứ ở đây chạy trong trình duyệt của bạn.',
     loading: 'Đang kiểm…',
     countersTitle: 'Đếm trên chain',
@@ -145,7 +152,7 @@ export const messages = defineMessages(
     ctDrills: 'Drill',
     ctPaid: 'Vault trả phí',
     ctReleases: 'Vault đã tới lượt trao',
-    ctStablecoins: 'Stablecoin được bảo vệ',
+    ctStablecoins: glue('Stablecoin được bảo~vệ'),
     outside: '{n} ngoài đội ngũ',
     atLeast: '{n} trở lên',
     orMore: 'trở lên',
@@ -155,8 +162,8 @@ export const messages = defineMessages(
     partialCap:
       'Vault đã tới lượt trao và stablecoin là mức tối thiểu: trang này đã đọc {read} trên {all} vault và chỉ đọc tối đa {max}, nên số thực có thể cao hơn.',
     teamPartial: 'Danh sách vault của đội ngũ quá dài để đọc hết, nên số ngoài đội ngũ có thể cao hơn thực tế.',
-    defTitle: 'Cách đếm từng con số',
-    defTeamTerm: 'Ngoài đội ngũ',
+    defTitle: glue('Cách đếm từng con~số'),
+    defTeamTerm: glue('Ngoài đội~ngũ'),
     defVaults:
       'Mọi vault mà factory đã tạo, gồm cả Drill miễn phí, đọc bằng nonce tài khoản của factory trừ một. Nonce của một hợp đồng bắt đầu từ 1 và tăng một cho mỗi hợp đồng nó tạo, và factory chỉ tạo vault. Chính xác.',
     defDrills: 'Vault tập miễn phí: bằng số vault ở trên trừ số vault trả phí. Chính xác.',
@@ -167,12 +174,12 @@ export const messages = defineMessages(
       'Số mà các vault trả phí còn hiệu lực có thể chuyển ngay lúc này (phần nhỏ hơn giữa số dư và hạn mức cho phép của chủ vault), bằng các stablecoin dùng trả phí, theo mệnh giá, mỗi chủ và mỗi token tính một lần.',
     defTeam: 'Các vault có chủ không thuộc {n} địa chỉ trong deployments/team.json.',
     defTeamNone: 'Mạng này không có địa chỉ đội ngũ nào, nên mọi vault đều tính là ngoài đội ngũ.',
-    statsTitle: 'Đếm từ các sự kiện',
+    statsTitle: glue('Đếm từ các sự~kiện'),
     statsLead:
       'Mọi sự kiện mà factory và các vault đã phát ra, đếm trong trình duyệt của bạn và lưu trên thiết bị này. Việc đếm cần nhiều yêu cầu tới node công khai, nên nó chờ bạn bấm.',
     statVaults: 'Vault',
     statDrills: 'Drill',
-    statCheckIns: 'Lần điểm danh',
+    statCheckIns: glue('Lần điểm~danh'),
     statsFromApi: 'Từ chỉ mục của Atropyle, tới block {block}.',
     statsFromDevice: 'Đếm trên thiết bị này, tới block {block}.',
     statsNone: 'Thiết bị này chưa đếm lần nào.',
@@ -180,15 +187,15 @@ export const messages = defineMessages(
     statsAgain: 'Đếm các block mới',
     statsProgress: 'Đang đọc chain: {done} trên {total}…',
     glanceLabel: 'Nhìn nhanh',
-    glanceContracts: 'Hợp đồng',
+    glanceContracts: glue('Hợp~đồng'),
     glanceNodes: 'Node',
     glanceBackend: 'Backend',
     toneOk: 'Ổn',
-    toneWarn: 'Cần chú ý',
-    toneBad: 'Có vấn đề',
+    toneWarn: glue('Cần chú~ý'),
+    toneBad: glue('Có vấn~đề'),
     toneUnknown: 'Chưa rõ',
     toneOff: 'Không dùng ở đây',
-    integrityTitle: 'Hợp đồng trên chain',
+    integrityTitle: glue('Hợp~đồng trên chain'),
     integrityLead: 'Factory, mã vault và liên kết circuit, so với bản ghi deployment mà site này được build cùng.',
     integrityOk: 'Mọi thứ đều khớp',
     integrityBad: 'Có chỗ không khớp',
@@ -197,8 +204,8 @@ export const messages = defineMessages(
     integrityCount: '{ok} trên {all} mục kiểm đạt.',
     pass: 'Đạt',
     fail: 'Hỏng',
-    expected: 'Mong đợi',
-    found: 'Thực tế',
+    expected: glue('Mong~đợi'),
+    found: glue('Thực~tế'),
     chkFactoryCode: 'Hợp đồng factory đã được triển khai',
     chkFactoryCpu: 'Factory dùng đúng bộ xử lý đã ghi',
     chkFactoryPolicyId: 'Factory dùng đúng circuit policy đã ghi',
@@ -221,13 +228,13 @@ export const messages = defineMessages(
     chkDeploymentCircuits: 'Bản ghi deployment có danh sách circuit',
     rpcTitle: 'Node',
     rpcLead: 'Mỗi node mà trang này đọc qua, được hỏi một lần block mới nhất.',
-    reachable: 'Kết nối được',
+    reachable: glue('Kết~nối được'),
     unreachable: 'Không trả lời ({code})',
     atBlock: 'Block {block}',
     ms: '{ms} ms',
     recheck: 'Kiểm lại',
-    crossTitle: 'Kiểm chéo',
-    crossLabel: 'Xác nhận thêm mọi lần đọc với node của các nhà vận hành khác',
+    crossTitle: glue('Kiểm~chéo'),
+    crossLabel: glue('Xác~nhận thêm mọi lần đọc với node của các nhà~vận~hành khác'),
     crossWarning:
       'Mặc định tắt: bản site này chỉ nói chuyện với các node X Layer mà nó được xuất bản cùng, nên vẫn 100% on-chain. Bật lên thì trang hỏi thêm các node bên dưới.',
     offchainList: 'Các node khác được dùng khi bật kiểm chéo:',
@@ -235,8 +242,8 @@ export const messages = defineMessages(
     backendOff:
       'Bản site này không có backend: không có cảnh báo email, không có chỉ mục, và không gì ở đây phụ thuộc vào backend.',
     backendNone: 'Bản build này chưa đặt địa chỉ backend.',
-    healthIndexer: 'Chỉ mục',
-    healthIntegrity: 'Kiểm hợp đồng',
+    healthIndexer: glue('Chỉ~mục'),
+    healthIntegrity: glue('Kiểm hợp~đồng'),
     healthKeeper: 'Keeper',
     indexerFresh: 'Đã cập nhật tới block {block}, chậm hơn chain {lag} block.',
     indexerFreshOne: 'Đã cập nhật tới block {block}, chậm hơn chain một block.',
@@ -250,12 +257,12 @@ export const messages = defineMessages(
     keeperDryRun: 'Đang chạy chế độ thử: kiểm các vault nhưng không gửi giao dịch nào.',
     keeperLowGas: 'Sắp hết gas: còn {okb} OKB.',
     healthNone: 'Chưa có báo cáo.',
-    diagTitle: 'Chẩn đoán',
+    diagTitle: glue('Chẩn~đoán'),
     diagLead:
       'Nếu có gì không chạy, hãy chép phần này và gửi kèm báo lỗi. Nó không chứa địa chỉ ví nào và không chứa gì đứng sau đường dẫn của trang.',
     walletsSeen: 'Các ví trình duyệt này đã báo:',
     walletsNone: 'không có',
-    copy: 'Chép chẩn đoán',
-    diagShow: 'Xem nội dung sẽ được chép',
+    copy: glue('Chép chẩn~đoán'),
+    diagShow: glue('Xem nội~dung sẽ được chép'),
   },
 );
