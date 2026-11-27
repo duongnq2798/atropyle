@@ -156,6 +156,48 @@ test('on a phone the answer and the next step wrap without a stranded word', asy
   await setStoredLang(page, 'en');
 });
 
+test('at 320 px a line keeps its chip by the title and its arrow by "OKLink" (7B-P1)', async ({ page, state }) => {
+  /** The vertical middle of the last line a node's text takes, and of a second node: on one line, they agree. */
+  const sameLine = (a: string, b: string) =>
+    page.evaluate(
+      ([sa, sb]) => {
+        const last = (el: Element) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+          const r = rects[rects.length - 1];
+          return r.top + r.height / 2;
+        };
+        const ea = document.querySelector(sa);
+        const eb = document.querySelector(sb);
+        if (!ea || !eb) return Number.POSITIVE_INFINITY;
+        const rb = eb.getBoundingClientRect();
+        return Math.abs(last(ea) - (rb.top + rb.height / 2));
+      },
+      [a, b] as const,
+    );
+  for (const lang of ['en', 'vi'] as const) {
+    await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
+    await setStoredLang(page, lang);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
+    await expect(page.getByTestId('verify-line-rules')).toHaveAttribute('data-state', 'checking');
+    for (const id of ['real', 'rules', 'operators']) {
+      const gap = await sameLine(`[data-testid="verify-line-${id}"] h2`, `[data-testid="verify-line-${id}"] h2 + span`);
+      expect(gap, `${lang} ${id}: the chip and the title's last line`).toBeLessThan(8);
+    }
+    await page.goto(new URL('e2e/verify/#pass', state.siteUrl).href);
+    await expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass');
+    for (const id of ['real', 'rules', 'operators']) {
+      const link = `[data-testid="verify-line-${id}-link"] a`;
+      const gap = await sameLine(`${link} > span.whitespace-nowrap`, `${link} svg`);
+      expect(gap, `${lang} ${id}: the arrow and the label's last word`).toBeLessThan(8);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  }
+  await setStoredLang(page, 'en');
+});
+
 test('screens: verify', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // A full-page shot keeps the sticky header where the page was scrolled to: every shot starts from the top.

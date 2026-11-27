@@ -273,13 +273,15 @@ function LineCard({
     >
       <StateMark state={state} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {/* On a phone the chip follows the last word of the title, so it never sits alone on a line of its own. */}
+        {/* On a phone the chip follows the last word of the title, so it never sits alone on a line of its own: an
+            inline chip with no space before it binds to that word (an inline-block left a break before it, and
+            "Đang kiểm…" fell to a line of its own at 320 px, 7B-P1). */}
         {/* On a phone the wrapper is the block whose lines hold both, so it is the one that balances them. */}
         <div className="[text-wrap:balance] sm:flex sm:items-center sm:justify-between sm:gap-3 sm:[text-wrap:wrap]">
           <h2 className="inline font-display text-ink text-title sm:block">{t(title)}</h2>
           <span
             className={cn(
-              'ml-2 inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 align-middle font-medium text-caption sm:ml-0 sm:shrink-0',
+              'ml-2 inline whitespace-nowrap rounded-full px-2.5 py-0.5 align-middle font-medium text-caption sm:ml-0 sm:shrink-0',
               CHIP[state],
             )}
           >
@@ -290,7 +292,10 @@ function LineCard({
         {children}
         {href && explorer ? (
           <span data-testid={`verify-line-${id}-link`} className="text-small">
-            <ExternalLink href={href}>{t('checkOn', { name: explorerName(explorer) })}</ExternalLink>
+            {/* flow: at 320 px the label wraps, and its arrow stays with "OKLink" (7B-P1). */}
+            <ExternalLink href={href} variant="flow">
+              {t('checkOn', { name: explorerName(explorer) })}
+            </ExternalLink>
           </span>
         ) : null}
       </div>
