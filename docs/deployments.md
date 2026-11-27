@@ -135,7 +135,7 @@ cast call 0xd6EFb7adCc9c83dC4924Ad56f6a8E4e969b9ADB6 "fallbackPath(address)(stri
 npm run deweb:publish -- --dry-run --rpc $FORK --site site-dist/deweb-fork.json
 ```
 
-Expected: `deweb:site` writes `name` = `<n>.2.<cpuIndex>.tape`; `bind` has `status 1 (success)`; `isLive` = `true`; `fallbackPath` = `"index.html"`; the dry run prints `Nothing to publish: the chain already has this site.`
+Expected: `deweb:site` writes `name` = `<n>.2.<cpuIndex>.tape`; `bind` has `status 1 (success)`; `isLive` = `true`; `fallbackPath` = `"404.html"`; the dry run prints `Nothing to publish: the chain already has this site.`
 
 Cleanup: press Ctrl+C in the terminal that runs anvil (only the anvil of this step), then delete the leftovers in the other terminal. If you started anvil in the background with `anvil ... & ANVIL_PID=$!`, stop it with `kill "$ANVIL_PID"` in that same shell session.
 
@@ -173,7 +173,7 @@ Pass 2 refuses to run if the circuit does not belong to `DEPLOYER` or its netlis
 
 After each pass, the user sends Claude the public values it printed (`DEWEB_TOKEN_ID`, `DEWEB_CONTAINER`) and the hash of each transaction (from the `forge` output, or from `contracts/broadcast/06_DewebSite.s.sol/196/run-latest.json`).
 
-#### 4. [CLAUDE] Record the site identity, change `webUrl`, plan the publish
+#### 4. [CLAUDE] Record the site identity, plan the publish
 
 With `DEWEB_TOKEN_ID` and `DEWEB_CONTAINER` from step 3:
 
@@ -189,7 +189,7 @@ export DEWEB_NAME=$(node -p "require('./deployments/deweb.json').name")
 BC=$(node -p "require('./deployments/xlayer.json').builderCode ?? ''")
 FACTORY=$(node -p "require('./deployments/xlayer.json').factory")
 FACTORY_BLOCK=$(node -p "require('./deployments/xlayer.json').factoryBlock")
-npm run deployment:write -- --web-url "$(node -p "require('./deployments/deweb.json').gatewayUrl")" ${BC:+--builder-code "$BC"} --factory "$FACTORY" --factory-block "$FACTORY_BLOCK"
+npm run deployment:write -- ${BC:+--builder-code "$BC"} --factory "$FACTORY" --factory-block "$FACTORY_BLOCK"
 npm run build
 npm run site:build -- --target deweb
 npm run deweb:publish -- --dry-run
@@ -198,15 +198,15 @@ npm run deweb:publish -- --dry-run
 Expected:
 
 - `deployments/deweb.json` parses; `chainId` 196, `container` = the container the user sent in step 3, `name` = `<DEWEB_TOKEN_ID>.2.<cpuIndex>.tape`, `gatewayUrl` = `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>.tapekit.org/`. Check it with `node`, not with Biome: `deployments/` is outside Biome's scope.
-- `deployments/xlayer.json` has `webUrl` = `gatewayUrl`; `builderCode` keeps its old value (if any); `factory` and `factoryBlock` do not change. `--factory` and `--factory-block` come from that same file, because the Plan 1 broadcast file may no longer be on the machine.
-- `site:build` prints `… ready for deweb (web only)` while there is no `apps/docs`. If the docs exist but are not clean, the command stops; run it again with `--no-docs` (the docs are only on Pages).
+- `deployments/xlayer.json` keeps `webUrl` = `https://atropyle.xyz/` (Vercel is the main site, spec §10; DeWEB is the 100% on-chain copy; `deployment:write` writes that value when `--web-url` is not given); `builderCode` keeps its old value (if any); `factory` and `factoryBlock` do not change. `--factory` and `--factory-block` come from that same file, because the Plan 1 broadcast file may no longer be on the machine.
+- `site:build` prints `… ready for deweb (web only)` while there is no `apps/docs`. If the docs exist but are not clean, the command stops; run it again with `--no-docs` (the docs wait for Plan 6).
 - The dry run prints every file as `new`, a total fee line and a recommended top-up line (estimate ×3). Claude sends this OKB amount to the user; the deployer must still hold that amount before step 5.
 
 Fill in the cells of the table above from `deployments/deweb.json` (id, container, name, the two URLs; the `-open` URL is `https://<DEWEB_TOKEN_ID>-2-<cpuIndex>-open.tapekit.org/`) and the tape-out and `open` transaction hashes. The name's transaction cell is filled in at step 6. Then:
 
 ```bash
 git add deployments/deweb.json deployments/xlayer.json packages/sdk/src/deployments/xlayer.ts docs/deployments.md
-git commit -m "feat(web): record the DeWEB site identity and point webUrl at the gateway"
+git commit -m "feat(web): record the DeWEB site identity"
 ```
 
 #### 5. [USER, with CLAUDE] Publish the site
@@ -262,7 +262,7 @@ curl -s -D - -o /dev/null "$(node -p "require('./deployments/deweb.json').gatewa
 
 Expected:
 
-- `isLive` = `true`; `fallbackPath` = `"index.html"`.
+- `isLive` = `true`; `fallbackPath` = `"404.html"`.
 - The dry run prints `Nothing to publish: the chain already has this site.`
 - `curl` prints a `200` status line with the headers `x-tape-status: ok`, `x-tape-name: <DEWEB_NAME>`, `x-tape-container: <DEWEB_CONTAINER>`.
 
@@ -272,15 +272,27 @@ Only when all three hold, fill in the `bind` hash in the table and replace the r
 
 Open `gatewayUrl` in Chrome with OKX Wallet, then:
 
-1. The home page shows, with the "Beta — unaudited" banner. Open `#/proof`, press run, and wait for the result.
+1. The home page shows, with the "Beta — unaudited" banner. Open `/proof/`, press "Run the proof", and wait for the verdict.
 2. Press "Connect wallet": OKX Wallet shows in the list (the extension can inject under the site's CSP). If no wallet shows, note the CSP error message in the DevTools Console.
 3. Open `/.tape/status` on the same host: it has the "100% on-chain" badge, and the external and off-chain lists are both empty.
-4. Open a vault page (a real vault address, for example the test Drill vault in the table at the top of this file): the page reads data from the chain.
+4. Open `/vault/#<vault address>` (a real vault address, for example the test Drill vault in the table at the top of this file): the page reads data from the chain.
 5. In the DevTools Console, run `await window.okxwallet.request({ method: 'wallet_getCapabilities', params: [(await window.okxwallet.request({ method: 'eth_requestAccounts' }))[0], ['0xc4']] })` and send the result to Claude (an open question about EIP-5792 on chain 196).
 6. Open the `-open` URL in the OKX App browser on a phone: the page shows and the App's wallet connects.
+7. Open `/prof/` on the same host: the 404 page shows (fallback `404.html`) and suggests `/proof/`.
 
 Report the result of each item to Claude. If item 2, 3 or 4 fails, Claude opens an issue and fixes it before the DeWEB link goes into the README or the submission.
 
 #### 9. Publish again once the docs exist (after Plan 6)
 
 Once `apps/docs` exists: [CLAUDE] runs `npm run site:build -- --target deweb`. If it reports the docs are not clean, record the list of errors for Plan 6 and keep the web-only build. If they are clean, redo step 5 (`--emit`, the `show()` check, the broadcast with the user's keystore) and step 7. There is no operator and no key to set up.
+
+## Vercel (production)
+
+[USER] The root `vercel.json` builds the site; nothing else is configured in code. In the Vercel project (repository root as the root directory):
+
+1. Environment variable `NEXT_PUBLIC_API_URL` (Production) = the Functions URL of the backend, `https://<project-ref>.supabase.co/functions/v1`. Without it the hosted features (email alerts, `/join/` sign-up) show their hosted-only state. It never goes into `vercel.json`.
+2. Domains: `atropyle.xyz`, with `www.atropyle.xyz` redirecting to it (308). `vercel.json` repeats the redirect.
+3. Web Analytics and Speed Insights stay off.
+4. A preview deployment of the cutover branch passes these checks before it is promoted: `/`, `/proof/`, `/verify/`, `/join/`, `/#/proof` (redirects to `/proof/`), `/proof` (308 to `/proof/`), `/docs/reference/errors.html#not_owner`, `/docs/schemas/error.json`, `/no-such-page/` (404 page), and the response headers of `/` include the `Content-Security-Policy` of `vercel.json`.
+
+Agents never change the Vercel project settings or the Supabase secrets.

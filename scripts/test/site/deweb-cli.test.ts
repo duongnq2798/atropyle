@@ -41,6 +41,7 @@ beforeAll(() => {
   siteDir = join(dir, 'site');
   mkdirSync(siteDir);
   writeFileSync(join(siteDir, 'index.html'), '<!doctype html><title>cli</title>');
+  writeFileSync(join(siteDir, '404.html'), '<!doctype html><title>missing</title>');
   noSite = join(dir, 'none.json');
 });
 afterAll(() => {
@@ -134,7 +135,8 @@ describe('against a local anvil that reports chain 196', () => {
     const lines = r.stdout.trim().split('\n');
     expect(lines[0]).toMatch(/^No .*none\.json yet: every file counts as new\.$/);
     expect(lines).toContain('new       index.html (33 B, 1 tx)');
-    expect(lines).toContain('fallback  index.html');
+    expect(lines).toContain('new       404.html (37 B, 1 tx)');
+    expect(lines).toContain('fallback  404.html');
     expect(lines.at(-1)).toBe(
       'Dry run: nothing was sent. To publish, run --emit contracts/deweb-calls/<name>.json and broadcast it with forge script (see docs/deployments.md).',
     );

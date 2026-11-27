@@ -1,7 +1,7 @@
 /**
- * The share card of the site: what X, and any Open Graph reader, shows for a link to it. One copy for both web apps,
- * so the v2 cutover changes no card. Plain values and no imports: apps/web-legacy/build/share.ts reads this file
- * from outside the Next app. Attribute text, so no `"`, `&`, `<` or `>` (test/unit/share.test.ts).
+ * The share card of the site: what X, and any Open Graph reader, shows for a link to it. Plain values and no imports,
+ * so scripts outside the Next app (scripts/test/tooling/daily-check.test.ts) can read it. Attribute text, so no `"`,
+ * `&`, `<` or `>` (test/unit/share.test.ts).
  */
 export const SHARE = {
   /** The production host, deployment.webUrl of X Layer (test/unit/share.test.ts keeps the two equal). */

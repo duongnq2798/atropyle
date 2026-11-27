@@ -1,13 +1,19 @@
 # @atropyle/web
 
-The Atropyle web app v2: Next.js 16, exported as a static site and built for two targets.
+The Atropyle web app: Next.js 16, exported as a static site and built for two targets. Vercel serves it at https://atropyle.xyz.
 
-| Target            | Hosting                             | Backend                                        | Build                                                 |
-| ----------------- | ----------------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
-| `deweb` (default) | DeWEB, 100% on-chain                | None: the build never contains the backend URL | `npm run build -w apps/web`                           |
-| `vercel`          | Vercel, configured by `vercel.json` | Supabase Functions at `NEXT_PUBLIC_API_URL`    | `NEXT_PUBLIC_TARGET=vercel npm run build -w apps/web` |
+| Target            | Hosting                                                   | Backend                                        | Build                                                            |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
+| `deweb` (default) | DeWEB, 100% on-chain                                      | None: the build never contains the backend URL | `npm run build -w apps/web`                                      |
+| `vercel`          | Vercel (production), configured by the root `vercel.json` | Supabase Functions at `NEXT_PUBLIC_API_URL`    | `npm run site:build -- --target vercel` (at the repository root) |
 
 Build the circuits and the SDK first (`npm run build` at the repository root): the app reads the SDK's `dist`.
+
+## Sites
+
+`npm run site:build -- --target vercel` (at the repository root) is what the root `vercel.json` runs: it builds the `vercel` target for mainnet, copies `out/` into `site-dist/vercel` and adds `docs/`, the error reference and the CLI schemas at the paths that `DOCS_BASE_URL` and the schema `$id`s name. `npm run site:check -- --target vercel` fails if one of those paths, the 404 page or any page of `ROUTES` (`src/routes.ts`) is missing. Vercel serves the folder with trailing slashes, sends `www` to the apex with a 308 and runs no analytics. `NEXT_PUBLIC_API_URL` comes only from the Vercel project settings.
+
+`npm run site:build -- --target deweb` builds the `deweb` target for mainnet into `site-dist/deweb`. It has no backend URL and no card image. `npm run site:check -- --target deweb` (every page of `ROUTES`, `404.html`, no external reference, every internal link served as written) and `npm run deweb:publish` read that folder. Unknown paths fall back to `404.html`. The runbook is `docs/deployments.md`.
 
 ## Commands
 
@@ -39,7 +45,7 @@ Set them in the environment of the build, not in a `.env` file: `npm run build` 
 
 ## Security
 
-- **CSP.** After `next build`, every page gets a `<meta>` policy with the SHA-256 of each of its inline scripts (`scripts/lib/csp.ts`). `connect-src` allows the RPC nodes of the deployment, plus the backend on `vercel`. `vercel.json` adds `frame-ancestors 'none'`, which a meta policy cannot carry, and repeats `object-src`, `base-uri` and `form-action` for responses without a meta tag.
+- **CSP.** After `next build`, every page gets a `<meta>` policy with the SHA-256 of each of its inline scripts (`scripts/lib/csp.ts`). `connect-src` allows the RPC nodes of the deployment, plus the backend on `vercel`. The root `vercel.json` adds `frame-ancestors 'none'`, which a meta policy cannot carry, and repeats `object-src`, `base-uri` and `form-action` for responses without a meta tag.
 - **No telemetry, no third parties.** The build sets `NEXT_TELEMETRY_DISABLED=1`. Fonts are self-hosted with their OFL licences in `public/licenses/fonts/`. Lighthouse runs on this machine against the local build.
 - **Zero keys.** The app never asks for a key or a seed phrase; people sign in their own wallet. The e2e wallet holds no key either: it sends from unlocked accounts of a local anvil.
 - **Untrusted text.** Token names, revert reasons and wallet names are shown through `UntrustedText`, never as HTML or as a link.
@@ -51,10 +57,10 @@ Spec §11 (ruling R23), checked in CI: first-load JS of `/` at most 200 kB gzip,
 
 ## Share card, icons and manifest
 
-A link to the site on X shows a large card. `src/config/share.ts` holds its text and its image, for this app and for `apps/web-legacy`, so the cutover changes no card.
+A link to the site on X shows a large card. `src/config/share.ts` holds its text and its image.
 
 - **vercel** carries every Open Graph and X tag, with absolute URLs on `https://atropyle.xyz/`, and copies the card image from `share/` (1200x630) to the root of `out/`. Home sets `og:url`; the other pages keep the card without one.
-- **deweb** carries the text alone (`og:title`, `og:description` and the small `summary` card): no URL and no image, so it links nothing off-chain and puts no image on chain. The `deweb` and `pages` builds of `apps/web-legacy` do the same.
+- **deweb** carries the text alone (`og:title`, `og:description` and the small `summary` card): no URL and no image, so it links nothing off-chain and puts no image on chain.
 - `npm run og:image -w apps/web` renders the card again in Chromium: the hero on vellum, with the site's own fonts, the colours of `tokens:light` in `globals.css`, the real policy circuit and its thread, and the woven title. It also renders the app icons from `src/app/icon.svg`: `public/icon-192.png` and `public/icon-512.png` for `public/manifest.webmanifest`, and `src/app/apple-icon.png`, which Next links as the Apple touch icon. Give a changed card a new name in `src/config/share.ts` (`image.path`, `og-v<n>.png`) first, since X keeps a card by its image URL, then commit the PNGs: the tests check their size, not their pixels, since rendering differs a little between systems.
 - Every build links `public/manifest.webmanifest`: vellum colours, the two icons, no service worker.
 

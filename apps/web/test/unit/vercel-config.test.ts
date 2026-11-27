@@ -20,13 +20,13 @@ const raw = readFileSync(VERCEL_JSON, 'utf8');
 const config = JSON.parse(raw) as VercelConfig;
 
 describe('vercel.json', () => {
-  it('installs and builds from the monorepo root, the SDK first, the vercel target into out/', () => {
+  it('is the root vercel.json: the SDK, then the vercel site and its docs, into site-dist/vercel', () => {
+    expect(VERCEL_JSON.replace(/\\/g, '/')).not.toContain('apps/web/vercel.json');
+    expect(VERCEL_JSON.replace(/\\/g, '/')).toMatch(/\/vercel\.json$/);
     expect(config.framework).toBeNull();
-    expect(config.installCommand).toBe('cd ../.. && npm ci');
-    expect(config.buildCommand).toBe(
-      'cd ../.. && npm run build && NEXT_PUBLIC_TARGET=vercel npm run build -w apps/web',
-    );
-    expect(config.outputDirectory).toBe('out');
+    expect(config.installCommand).toBe('npm ci');
+    expect(config.buildCommand).toBe('npm run build && npm run site:build -- --target vercel --no-docs');
+    expect(config.outputDirectory).toBe('site-dist/vercel');
     expect(config.trailingSlash).toBe(true);
   });
 

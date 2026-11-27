@@ -14,7 +14,7 @@ A good report names the component and where the problem is: a commit, an npm pac
 - **CLI**: [`packages/cli`](packages/cli).
 - **MCP server**: [`packages/mcp`](packages/mcp).
 - **npm packages**: `@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and `atropyle` (version 0.1.0), built from this repository.
-- **Web apps**: [`apps/web-legacy`](apps/web-legacy), which serves https://atropyle.xyz/, and [`apps/web`](apps/web).
+- **Web app**: [`apps/web`](apps/web), which serves https://atropyle.xyz/ and the DeWEB copy.
 - **Keeper**: [`apps/backend`](apps/backend), the keeper and the rest of the backend.
 
 The TapeOut processor's own contracts, X Layer itself, the RPC operators, wallets and the tokens a vault covers are not ours to fix. Tell us anyway if a problem there puts Atropyle vaults at risk.

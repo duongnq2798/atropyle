@@ -201,7 +201,18 @@ describe.skipIf(!FORK)('DeWEB on an X Layer fork', () => {
       join(site, 'assets/e.js'),
       Uint8Array.from({ length: 26_000 }, (_, i) => (i * 7) % 251),
     );
-    const common = ['--rpc', anvil.url, '--container', LIVE.container, '--dir', site, '--site', join(dir, 'none.json')];
+    const common = [
+      '--rpc',
+      anvil.url,
+      '--container',
+      LIVE.container,
+      '--dir',
+      site,
+      '--site',
+      join(dir, 'none.json'),
+      '--fallback',
+      'index.html',
+    ];
 
     const nonce = await c.getTransactionCount({ address: holder });
     const unlocked = publish(['--unlocked', holder, ...common]);

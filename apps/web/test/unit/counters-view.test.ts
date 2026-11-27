@@ -2,7 +2,7 @@ import type { ChainCounters } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { counterTiles, coverageOf, formatUsd } from '../../src/app/status/counters-view';
 
-/** The legacy fixture (apps/web-legacy/test/counters-fixture.ts on main 0909446). */
+/** The fixture of the previous web app (its test/counters-fixture.ts on main 0909446). */
 const C: ChainCounters = {
   chainId: 196,
   factory: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',

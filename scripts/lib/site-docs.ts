@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DOCS_BASE_URL, ERROR_INFO } from '../../packages/sdk/src/index';
+import { DOCS_BASE_URL, ERROR_CODES, ERROR_INFO, errorDocsUrl } from '../../packages/sdk/src/index';
 
 /** The CLI's JSON schemas; their $id points at DOCS_BASE_URL/schemas/<name>.json (packages/cli/scripts/gen-schemas.ts). */
 export const SCHEMAS_DIR = join(import.meta.dirname, '..', '..', 'packages', 'cli', 'schemas');
@@ -88,3 +88,29 @@ export function writeSiteDocs(out: string, schemasDir: string = SCHEMAS_DIR): st
 
 /** Where DOCS_BASE_URL lives; the vercel target serves it at the root of its domain. */
 export const DOCS_ORIGIN = new URL(DOCS_BASE_URL).origin;
+
+/**
+ * Every file under DOCS_BASE_URL that something outside the site links to, relative to the site root: the docs home
+ * (docsHome), the error reference (errorDocsUrl, the docsUrl of every SDK error) and the $id of every CLI schema. Read
+ * from those sources, so a new schema or a moved page fails site:check instead of a reader's link.
+ */
+export function referencedDocsPaths(schemasDir: string = SCHEMAS_DIR): string[] {
+  const base = `${DOCS_BASE_URL}/`;
+  const urls = [base, ...ERROR_CODES.map((code) => errorDocsUrl(code))];
+  const schemas = readdirSync(schemasDir)
+    .filter((f) => f.endsWith('.json'))
+    .sort();
+  for (const f of schemas) {
+    const id = (JSON.parse(readFileSync(join(schemasDir, f), 'utf8')) as { $id?: unknown }).$id;
+    if (typeof id !== 'string' || !id.startsWith(base)) throw new Error(`${f}: its $id is not under ${base}`);
+    urls.push(id);
+  }
+  const paths = urls.map((u) => {
+    const p = new URL(u).pathname.replace(/^\/+/, '');
+    return p.endsWith('/') ? `${p}index.html` : p;
+  });
+  return [...new Set(paths)];
+}
+
+/** The anchor of every SDK error on the error reference: the fragment of errorDocsUrl. */
+export const errorAnchors = (): string[] => ERROR_CODES.map((code) => new URL(errorDocsUrl(code)).hash.slice(1));

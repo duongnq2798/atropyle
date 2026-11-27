@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import {
   type Address,
   createPublicClient,
@@ -14,6 +12,7 @@ import {
   toHex,
 } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { SHARE } from '../../../apps/web/src/config/share';
 import { factoryAbi, vaultAbi } from '../../../packages/sdk/src/abi/index';
 import { chainOf } from '../../../packages/sdk/src/chain';
 import { getDeployment, getTeam } from '../../../packages/sdk/src/deployments/index';
@@ -161,7 +160,7 @@ const healthy: World = {
   index: { [DEPLOYER]: [OLD_DRILL, DRILL] },
 };
 
-/** The head of the built legacy app (apps/web-legacy/index.html). */
+/** A page whose title is the bare name. */
 const APP_PAGE = '<!doctype html><html><head><title>Atropyle</title></head><body><div id="app"></div></body></html>';
 /** A parked domain: 200, but some other page. */
 const PARKED_PAGE = '<!doctype html><html><head><title></title></head><body>This domain is parked.</body></html>';
@@ -407,10 +406,9 @@ describe('probeSite', () => {
     expect(loop.asked).toHaveLength(6);
   });
 
-  it('knows the title of both web apps, and not a parked domain named after the site', () => {
-    // The page the production site serves (apps/web-legacy, built by the root vercel.json).
-    const legacy = readFileSync(fileURLToPath(new URL('../../../apps/web-legacy/index.html', import.meta.url)), 'utf8');
-    expect(APP_TITLE.test(legacy)).toBe(true);
+  it('knows the title of the web app, and not a parked domain named after the site', () => {
+    // The home page of the production site: its <title> is SHARE.title (apps/web/src/app/layout.tsx).
+    expect(APP_TITLE.test(`<title>${SHARE.title}</title>`)).toBe(true);
     expect(APP_TITLE.test('<title>Atropyle</title>')).toBe(true);
     expect(APP_TITLE.test('<title>Atropyle: inheritance and wallet recovery on X Layer</title>')).toBe(true);
     expect(APP_TITLE.test('<title></title>')).toBe(false);

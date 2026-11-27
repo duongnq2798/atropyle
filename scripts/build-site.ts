@@ -1,10 +1,11 @@
-// npm run site:build -- --target deweb|pages|vercel [--no-docs] [--out <dir>]
-// Web at the root of site-dist/<target>; docs under docs/ when the apps/docs workspace exists.
+// npm run site:build -- --target deweb|vercel [--no-docs] [--out <dir>]
+// The static export of apps/web at the root of site-dist/<target>; vercel adds docs/ (error reference and CLI schemas),
+// and the docs app goes under docs/ when the apps/docs workspace exists.
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { docsEnv, hasDocsWorkspace, outDirProblem, parseSiteArgs, webEnv } from './lib/site-build';
+import { docsEnv, hasDocsWorkspace, outDirProblem, parseSiteArgs, webEnv, webOutOf } from './lib/site-build';
 import { siteProblems } from './lib/site-check';
 import { writeSiteDocs } from './lib/site-docs';
 
@@ -40,15 +41,14 @@ function main(): void {
   const docs = args.docs && hasDocsWorkspace(ROOT);
   if (args.docs && !docs) console.log('apps/docs does not exist yet: building the web app only.');
 
-  npm(['run', 'build', '-w', 'apps/web-legacy'], webEnv(args.target, docs, process.env));
+  npm(['run', 'build', '-w', 'apps/web'], webEnv(args.target, docs, process.env));
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  cpSync(join(ROOT, 'apps', 'web-legacy', 'dist'), out, { recursive: true });
+  cpSync(webOutOf(ROOT), out, { recursive: true });
   if (docs) {
     npm(['run', 'build', '-w', 'apps/docs'], docsEnv(args.target, process.env));
     cpSync(join(ROOT, 'apps', 'docs', 'dist'), join(out, 'docs'), { recursive: true });
   }
-  if (args.target === 'pages') writeFileSync(join(out, '.nojekyll'), '');
   // DOCS_BASE_URL (packages/sdk/src/links.ts) is on the production host: its error reference and schemas live there.
   if (args.target === 'vercel') writeSiteDocs(out);
 
@@ -56,9 +56,7 @@ function main(): void {
   if (problems.length > 0) {
     for (const p of problems) console.error(`- ${p}`);
     if (docs && args.target === 'deweb') {
-      console.error(
-        'The docs are not DeWEB-clean yet. Rebuild with --no-docs to publish the web app only; docs stay on Pages.',
-      );
+      console.error('The docs are not DeWEB-clean yet. Rebuild with --no-docs to publish the web app only.');
     }
     throw new Fail(`${problems.length} problem(s) in ${posix(out)}`, 1);
   }

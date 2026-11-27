@@ -52,8 +52,8 @@ export type BatchOutcome = { kind: 'sendCalls'; result: CallsResult } | { kind: 
 export type TxSender = (d: SendDeps, plan: TxPlan, o: SendHooks) => Promise<BatchOutcome>;
 
 /**
- * Bundles with EIP-5792 when the wallet says it can for this chain, else signs step by step (the reference behaviour
- * of apps/web-legacy/src/lib/sign.ts). A wallet that claims support and then refuses the method falls back too.
+ * Bundles with EIP-5792 when the wallet says it can for this chain, else signs step by step (as the previous web app
+ * did). A wallet that claims support and then refuses the method falls back too.
  */
 export const sendBatchOrSequential: TxSender = async (d, plan, o) => {
   const live = o.live ?? (() => true);

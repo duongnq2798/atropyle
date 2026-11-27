@@ -8,6 +8,8 @@ type Hex = `0x${string}`;
 export const CHUNK_MAX = 24_000;
 /** TapeKit limits: 350 chunks per file, 5,000 paths per site. */
 export const LIMITS = { fileBytes: 8_400_000, paths: 5_000 } as const;
+/** The page the gateway serves for an unknown path (the container's `fallbackPath`): the web app's 404 page. */
+export const DEFAULT_FALLBACK = '404.html';
 
 export const CONTENT_TYPES: Record<string, string> = {
   html: 'text/html; charset=utf-8',

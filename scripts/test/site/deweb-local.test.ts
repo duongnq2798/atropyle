@@ -122,7 +122,18 @@ beforeAll(async () => {
     Uint8Array.from({ length: 26_000 }, (_, i) => (i * 7) % 251),
   );
   writeFileSync(join(site, 'docs/a.html'), '<h1>a</h1>');
-  common = ['--rpc', anvil.url, '--container', CONTAINER, '--dir', site, '--site', join(dir, 'none.json')];
+  common = [
+    '--rpc',
+    anvil.url,
+    '--container',
+    CONTAINER,
+    '--dir',
+    site,
+    '--site',
+    join(dir, 'none.json'),
+    '--fallback',
+    'index.html',
+  ];
 }, 600_000);
 
 afterAll(async () => {
