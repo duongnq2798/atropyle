@@ -42,6 +42,11 @@ export interface ThreadProps extends ThreadInput {
    * where the heirs are being told apart. A `highlight` wins over it.
    */
   heirColors?: boolean;
+  /**
+   * Draw a dot at the end of each branch (the default). The wizard's strip leaves them out: at a few dozen pixels tall
+   * the ends of neighbouring heirs touch and read as a smudge.
+   */
+  branchEnds?: boolean;
   /** Size of the box: a width, and a height to change the 5:1 ratio. */
   className?: string;
 }
@@ -179,6 +184,7 @@ export function Thread({
   posts,
   exit,
   heirColors = false,
+  branchEnds = true,
   label,
   shared = false,
   revealRef,
@@ -365,7 +371,7 @@ export function Thread({
             style={at(k)}
           />
         ))}
-        {g.dots.map((dot, i) => {
+        {(branchEnds ? g.dots : []).map((dot, i) => {
           const own = heirTone(dot.tone);
           return (
             <span

@@ -70,6 +70,15 @@ describe('Thread', () => {
     expect(widths[0]).toBeGreaterThan(widths[2]);
   });
 
+  it('leaves the branch end dots out when asked (the wizard strip), and keeps the branches and the gate', () => {
+    const { container } = renderWithProviders(
+      <Thread state="releasedInherit" branches={[5000, 3000, 2000]} branchEnds={false} />,
+    );
+    expect(parts(container, 'branch')).toHaveLength(3);
+    expect(parts(container, 'gate')).toHaveLength(1);
+    expect(parts(container, 'dot')).toHaveLength(0);
+  });
+
   it('curls an expired Drill up and shows no "now"', () => {
     const { container } = renderWithProviders(<Thread state="expired" />);
     expect(parts(container, 'curl')).toHaveLength(1);

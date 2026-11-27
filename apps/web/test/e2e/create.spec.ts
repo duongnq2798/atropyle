@@ -186,6 +186,57 @@ test('the strip at 390 covers no input and hides while one has focus', async ({ 
   await expect(page.getByTestId('create-sheet-thread').locator('[data-thread]')).toHaveAttribute('role', 'img');
 });
 
+// The strip's Thread is a simpler drawing (no recovery exit, no posts, no branch ends, three heirs at most) in a box
+// large enough to read: at 112 x 22 px the exit's end crashed into the gate and the gate shrank to a glyph.
+test('the strip Thread reads at 390 and 768: tall enough, nothing on the gate', async ({ page, state }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${state.siteUrl}create/#real`);
+  await ready(page);
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-heir-0-account').fill(HEIR);
+  for (let i = 0; i < 3; i++) await page.getByTestId('create-add-heir').click();
+  await page.getByTestId('create-heir-1-account').fill(ANVIL[4]);
+  await page.getByTestId('create-heir-2-account').fill(ANVIL[5]);
+  await page.getByTestId('create-heir-3-account').fill(ANVIL[6]);
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-guardian-0').fill(GUARDIAN);
+  await page.getByTestId('create-add-guardian').click();
+  await page.getByTestId('create-guardian-1').fill(ANVIL[7]);
+  await pick(page, 'create-recovery');
+  await page.locator('#create-step-title').focus();
+  for (const width of [390, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    const strip = page.getByTestId('create-strip');
+    await expect(strip).toBeVisible();
+    const thread = strip.locator('[data-thread]');
+    const t = await box(thread);
+    const s = await box(strip);
+    expect(t.height, `${width}: the Thread's height`).toBeGreaterThanOrEqual(40);
+    // At least 4 px of air above and below, inside the strip's 1 px bottom border.
+    expect(t.y - s.y, `${width}: air above`).toBeGreaterThanOrEqual(4);
+    expect(s.y + s.height - 1 - (t.y + t.height), `${width}: air below`).toBeGreaterThanOrEqual(4);
+    // The words keep their room: the label ends before the chevron.
+    const words = await box(page.getByTestId('create-preview-open').locator('span.grow'));
+    expect(words.width, `${width}: room for the words`).toBeGreaterThanOrEqual(120);
+    // Four heirs, three branches; the gate an arch, not a glyph.
+    await expect(thread.locator('[data-part="branch"]')).toHaveCount(3);
+    const gate = await box(thread.locator('[data-part="gate"]'));
+    expect(gate.height, `${width}: the gate's height`).toBeGreaterThanOrEqual(18);
+    // No end of the recovery exit or of a heir's branch on the gate (the strip draws none of them).
+    const marks = await thread.locator('[data-part="exit-end"], [data-part="dot"]').all();
+    for (const mark of marks) {
+      const m = await box(mark);
+      const apart =
+        m.x + m.width <= gate.x ||
+        gate.x + gate.width <= m.x ||
+        m.y + m.height <= gate.y ||
+        gate.y + gate.height <= m.y;
+      expect(apart, `${width}: a mark on the gate`).toBe(true);
+    }
+    await expect(thread.locator('[data-part="exit"], [data-part="posts"], [data-part="dot"]')).toHaveCount(0);
+  }
+});
+
 // WCAG 2.2 2.4.11: below lg the fixed dock covers the bottom of the screen, and the browser leaves a field it covers
 // where it is unless scroll-padding reserves the dock (globals.css). Keyboard only, from the h1 to Next.
 test('at 390 the dock and the header never hide the field that has focus', async ({ page, state }) => {

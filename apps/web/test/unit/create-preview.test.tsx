@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { PlanThread, usePreviewModel } from '../../src/app/create/preview';
+import { PlanThread, PreviewStrip, usePreviewModel } from '../../src/app/create/preview';
 import * as impl from '../../src/flows/impl';
 import { renderWithProviders } from '../helpers/render';
 import { PEOPLE } from './fixtures';
@@ -8,6 +8,11 @@ import { PEOPLE } from './fixtures';
 function Probe(p: { form: impl.CreateForm; vault?: `0x${string}` | null; aspect?: 4 | 5 }) {
   const model = usePreviewModel(impl, p.form);
   return <PlanThread model={model} vault={p.vault ?? null} testId="probe" aspect={p.aspect} />;
+}
+
+function Strip(p: { form: impl.CreateForm }) {
+  const model = usePreviewModel(impl, p.form);
+  return <PreviewStrip model={model} step="guardians" vault={null} />;
 }
 
 const base = impl.initialForm(false);
@@ -101,5 +106,41 @@ describe('loom preview', () => {
     renderWithProviders(<Probe form={two} vault={PEOPLE.vault} />);
     expect(thread()).toHaveAttribute('data-signed', 'true');
     expect(screen.getByTestId('probe-signed')).toHaveTextContent("This is your vault's thread.");
+  });
+});
+
+describe('the strip below lg', () => {
+  const stripThread = () => screen.getByTestId('create-strip-thread').querySelector('[data-thread]');
+  const five = {
+    ...base,
+    heirs: [PEOPLE.heirA, PEOPLE.heirB, PEOPLE.g1, PEOPLE.g2, PEOPLE.stranger].map((account) => ({
+      account,
+      percent: '20',
+    })),
+    guardians: [PEOPLE.g1, PEOPLE.g2, PEOPLE.stranger],
+    k: '2',
+    recoveryEnabled: true,
+  };
+
+  it('draws a simpler Thread: no recovery exit, no posts, no branch end dots, at most three branches', () => {
+    const { container } = renderWithProviders(<Strip form={five} />);
+    const strip = screen.getByTestId('create-strip');
+    expect(strip.querySelectorAll('[data-part="branch"]')).toHaveLength(3);
+    expect(strip.querySelector('[data-part="exit"]')).toBeNull();
+    expect(strip.querySelector('[data-part="exit-end"]')).toBeNull();
+    expect(strip.querySelector('[data-part="posts"]')).toBeNull();
+    expect(strip.querySelectorAll('[data-part="dot"]')).toHaveLength(0);
+    // The gate stays: it is where the heirs' branches start.
+    expect(strip.querySelectorAll('[data-part="gate"]')).toHaveLength(1);
+    // Still each heir in its colour, dashed: a prediction.
+    expect(stripThread()).toHaveAttribute('data-predicted', 'true');
+    expect(container.querySelector('[data-part="branch"]')).toHaveAttribute('data-tone', 'heir');
+  });
+
+  it('a larger box: 3:1 on a phone, 4:1 from md, wider from md', () => {
+    renderWithProviders(<Strip form={two} />);
+    expect(screen.getByTestId('create-strip-thread')).toHaveClass('w-36', 'shrink-0', 'md:w-60');
+    const cls = stripThread()?.getAttribute('class')?.split(/\s+/) ?? [];
+    expect(cls).toEqual(expect.arrayContaining(['aspect-[3/1]!', 'md:aspect-[4/1]!']));
   });
 });

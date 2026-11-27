@@ -74,6 +74,24 @@ function threadProps(model: PreviewModel, vault: Addr | null) {
   } as const;
 }
 
+/** The strip draws at most this many heirs: more branches than that in a box a few dozen pixels tall are a smudge. */
+const STRIP_BRANCHES = 3;
+
+/**
+ * The strip's Thread: the plan's course, its gate and up to three heirs, without the recovery exit and the posts
+ * (the sheet and the rail draw those, at a size where they read). Its branch ends are left out too (branchEnds).
+ */
+function stripThreadProps(model: PreviewModel, vault: Addr | null) {
+  const props = threadProps(model, vault);
+  return {
+    ...props,
+    branches: props.branches.slice(0, STRIP_BRANCHES),
+    exit: undefined,
+    posts: undefined,
+    branchEnds: false,
+  } as const;
+}
+
 /**
  * Where the gate's foot stands, as a margin from the top of the Thread's box: a margin in percent reads the box's width,
  * and the box is `aspect`:1 (5:1 is the Thread's own, VIEW), so a y in view units is pctY(y) / aspect of the width. The
@@ -270,7 +288,7 @@ export const previewSheet = lazyChunk(() => import('./preview-sheet'));
 const NARROW = '(max-width: 63.99rem)';
 
 /**
- * Below lg: a 72 px strip in the dock, the Thread small and a line of words; a tap opens the sheet. It hides while a
+ * Below lg: a 72 px strip in the dock, a simpler Thread (stripThreadProps) and a line of words; a tap opens the sheet. It hides while a
  * text field or a slider has focus (the dock's group, wizard.tsx), so it never covers what is being typed; a radio
  * card with focus keeps it.
  */
@@ -302,8 +320,9 @@ export function PreviewStrip(p: { model: PreviewModel; step: WizardStep; vault: 
         {...trigger}
         className="flex size-full items-center gap-3 px-4 text-left aria-busy:cursor-progress"
       >
-        <span aria-hidden="true" className="w-28 shrink-0">
-          <Thread {...threadProps(p.model, p.vault)} className="w-full" />
+        {/* 48 px tall on a phone (3:1), 60 px from md (4:1): 5.5 px of air in the 71 px inside the strip's border. */}
+        <span aria-hidden="true" data-testid="create-strip-thread" className="w-36 shrink-0 md:w-60">
+          <Thread {...stripThreadProps(p.model, p.vault)} className="aspect-[3/1]! w-full md:aspect-[4/1]!" />
         </span>
         <span className="min-w-0 grow">
           <span className="block font-medium text-ink text-small">{t('previewOpen')}</span>
