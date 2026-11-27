@@ -24,23 +24,25 @@ export function ProofResult({ sdk, result }: { sdk: Sdk; result: PolicyVerificat
           {t(env.target === 'deweb' ? 'singleRpc' : 'singleRpcPages')}
         </Banner>
       ) : null}
-      <table class="table">
-        <tbody>
-          {s.properties.map((p) => (
-            <tr key={p.name} data-testid={`proof-prop-${p.name}`} data-ok={String(p.ok)}>
-              <td class="mono">{p.name}</td>
-              <td>{t(p.name)}</td>
-              <td>
-                {p.ok ? (
-                  <span class="badge badge-ok">{t('statePass')}</span>
-                ) : (
-                  <span class="badge badge-bad">{t('violations', { n: p.violations })}</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="table">
+          <tbody>
+            {s.properties.map((p) => (
+              <tr key={p.name} data-testid={`proof-prop-${p.name}`} data-ok={String(p.ok)}>
+                <td class="mono">{p.name}</td>
+                <td>{t(p.name)}</td>
+                <td>
+                  {p.ok ? (
+                    <span class="badge badge-ok">{t('statePass')}</span>
+                  ) : (
+                    <span class="badge badge-bad">{t('violations', { n: p.violations })}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {s.issues.map((i) => (
         <Banner kind="error" key={i}>
           <UntrustedText value={i} max={300} />
@@ -52,7 +54,7 @@ export function ProofResult({ sdk, result }: { sdk: Sdk; result: PolicyVerificat
       </p>
       <ul>
         {result.netlists.map((n) => (
-          <li key={String(n.id)} class="mono">
+          <li key={String(n.id)} class="mono wrap-anywhere">
             #{String(n.id)} {n.role} {t('gates', { n: n.gates })} {n.keccak}
           </li>
         ))}

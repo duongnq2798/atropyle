@@ -11,11 +11,12 @@ const escapeHtml = (s: string) =>
 /** Escaped, with `code` spans as <code>. The texts are the SDK's own, never chain data. */
 const inline = (s: string) => escapeHtml(s).replace(/`([^`]+)`/g, '<code>$1</code>');
 
-const STYLE = `body{margin:0 auto;max-width:44rem;padding:2rem 1rem;font:16px/1.55 system-ui,sans-serif;color:#1d1b17;background:#fbfaf7}
+// Light only, in the Vellum palette of the site (a decision of the maintainer on 26 Nov 2026).
+const STYLE = `:root{color-scheme:only light}
+body{margin:0 auto;max-width:44rem;padding:2rem 1rem;font:16px/1.55 system-ui,sans-serif;color:#16130f;background:#f6f1e7}
 h1{font-size:1.6rem;margin:0 0 .25rem}h2{font:600 1rem/1.4 ui-monospace,monospace;margin:1.75rem 0 .25rem}
-p{margin:.25rem 0}code{font:.9em ui-monospace,monospace;background:#efece4;padding:.05em .3em;border-radius:3px}
-a{color:#7a5a12}.hint{color:#55524b}
-@media (prefers-color-scheme:dark){body{color:#ecebe6;background:#141310}code{background:#2a2823}a{color:#e2b85a}.hint{color:#b4b0a6}}`;
+p{margin:.25rem 0}code{font:.9em ui-monospace,monospace;background:#e7dfd1;padding:.05em .3em;border-radius:3px}
+a{color:#86590e}.hint{color:#5e574c}`;
 
 /** No script, one hashed inline style, nothing from another origin. */
 function page(title: string, body: string): string {
@@ -26,6 +27,7 @@ function page(title: string, body: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="only light">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <title>${escapeHtml(title)}</title>
 <style>${STYLE}</style>

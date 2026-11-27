@@ -9,7 +9,7 @@ Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A c
 | Path               | What                                                                                                                              |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `contracts/`       | Solidity contracts (Foundry)                                                                                                      |
-| `circuits/`        | The policy circuit and its netlists                                                                                               |
+| `circuits/`        | `@atropyle/circuits`: the policy circuit and its netlists                                                                         |
 | `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                               |
 | `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                           |
 | `packages/cli/`    | `atropyle`: the CLI                                                                                                               |
@@ -103,9 +103,9 @@ cd packages/cli && npx vitest run -u test/unit/help.test.ts && cd ../..
 
 ## Claude Code plugin and default chain
 
-`.claude-plugin/` packages the two skills and the MCP server (`npx -y @atropyle/mcp@<version>`). The plugin sets no environment, so its MCP server reads X Layer mainnet, where the contracts are deployed (`deployments/xlayer.json`, `docs/deployments.md`). `npx` finds the server only after the npm publish of `@atropyle/mcp`, a step for the maintainer; until then, run the CLI or the MCP server from this checkout. For a local devnet, pass `--deployment deployments/local.json`, written by `npm run devnet` (tracked in git and regenerated each run; stage it only when the change is intended).
+`.claude-plugin/` packages the two skills and the MCP server (`npx -y @atropyle/mcp@<version>`). The plugin sets no environment, so its MCP server reads X Layer mainnet, where the contracts are deployed (`deployments/xlayer.json`, `docs/deployments.md`). `npx` runs the server published on npm. To try a change that is not published yet, run the CLI or the MCP server from this checkout (`node packages/cli/dist/bin.js`, `node packages/mcp/dist/bin.js`). For a local devnet, pass `--deployment deployments/local.json`, written by `npm run devnet` (tracked in git and regenerated each run; stage it only when the change is intended).
 
-The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/mcp/package.json` and `server.json` must match. A unit test fails when they differ.
+The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/mcp/package.json` and `server.json` must match. A unit test fails when they differ. Version 0.1.0 of the four packages (`@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and `atropyle`) is on npm. A published version never changes, so a change to a package's README, code or error text reaches npm users only with a new version, which the maintainer publishes. The developers page of the previous web app (`apps/web-legacy/src/pages/developers.tsx`) takes its "on npm" line and its `npx` pins from the SDK's `VERSION`. https://atropyle.xyz builds from `main`, so a version bump goes to `main` only together with, or right after, the npm publish of that version.
 
 ## Backend
 
@@ -122,7 +122,7 @@ npm run emails -w apps/backend
 cd apps/backend && npx vitest run -u test/unit/compose.test.ts && cd ../..
 ```
 
-Deploying is the maintainer's job (`apps/backend/README.md`). Agents never run `supabase db push`, `supabase functions deploy` or `supabase secrets set`.
+The deploy steps are in `apps/backend/README.md`. When the maintainer asks, an agent may run `supabase db push` and `supabase functions deploy` on the maintainer's machine, with the Supabase CLI the maintainer is logged in to. Secret values (`supabase secrets set`) stay with the maintainer.
 
 ## Rules
 

@@ -9,7 +9,7 @@ import { saveStats } from '../../src/lib/stats-view';
 import { type KV, memoryKV } from '../../src/lib/store';
 import type { WalletWindow } from '../../src/lib/wallet';
 import { AppProvider } from '../../src/ui/app-context';
-import { ChainCountersCard, type CountersLoad, HOME_MAX_VAULTS, STATUS_MAX_VAULTS } from '../../src/ui/chain-counters';
+import { ChainCountersCard, type CountersLoad, STATUS_MAX_VAULTS } from '../../src/ui/chain-counters';
 import { fixtureCounters } from './counters-fixture';
 import { fixtureDeployment, fixtureStats } from './fixtures';
 
@@ -78,7 +78,7 @@ test('passes the vaults of a cached full count to the SDK, so releases can be ex
       asked.push(o);
       return fixtureCounters();
     }),
-    { kv, maxVaults: HOME_MAX_VAULTS },
+    { kv, maxVaults: 50 },
   );
   await screen.findByTestId('counter-vaults');
   expect(asked).toEqual([{ vaults, maxVaults: 50 }]);
@@ -94,7 +94,7 @@ test('says which counts are lower bounds when not every vault was read', async (
   expect(screen.getByTestId('counter-vaults').textContent).toContain('Vaults, free Drills included');
   const partial = screen.getByTestId('counters-partial');
   expect(partial.textContent).toContain('the 5 of 1234 vaults');
-  expect(partial.textContent).toContain('Run the full count on the home page');
+  expect(partial.textContent).toContain('Run the full count below');
   expect(partial.getAttribute('data-capped')).toBe('false');
   expect(screen.getByTestId('counters-team-partial')).toBeTruthy();
 });
@@ -102,7 +102,7 @@ test('says which counts are lower bounds when not every vault was read', async (
 test('at its cap the card says so, instead of asking for a full count that changes nothing', async () => {
   show(
     sdkWith(async () => fixtureCounters({ complete: false, read: 50 })),
-    { maxVaults: HOME_MAX_VAULTS },
+    { maxVaults: 50 },
   );
   const partial = await screen.findByTestId('counters-partial');
   expect(partial.getAttribute('data-capped')).toBe('true');

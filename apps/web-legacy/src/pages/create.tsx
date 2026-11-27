@@ -85,42 +85,49 @@ function CheckResult(props: {
         <p class="muted">{t('noAssets')}</p>
       ) : (
         <>
-          <table class="table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{t('colAsset')}</th>
-                <th>{t('colHeld')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {check.tokens.map((x) => (
-                <tr key={x.index} data-testid={`create-token-${x.index}`}>
-                  <td>{x.index + 1}</td>
-                  <td class="stack">
-                    <AddressText address={x.token} explorer={explorer} />
-                    {x.info ? (
-                      <span>
-                        <UntrustedText value={x.info.name} max={32} /> (<UntrustedText value={x.info.symbol} max={16} />
-                        )
-                      </span>
-                    ) : (
-                      <span class="muted">{t('notContract')}</span>
-                    )}
-                  </td>
-                  <td>
-                    {x.held === null ? (
-                      c('unknown')
-                    ) : x.kind === 'erc20' && x.info ? (
-                      <TokenAmount raw={x.held} token={x.info} />
-                    ) : (
-                      <span class="mono">{x.held.toString()}</span>
-                    )}
-                  </td>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>{t('colAsset')}</th>
+                  <th>{t('colHeld')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {check.tokens.map((x) => (
+                  <tr key={x.index} data-testid={`create-token-${x.index}`}>
+                    <td>{x.index + 1}</td>
+                    {/* One block per line, so the address and the token name never run together. */}
+                    <td class="wrap-anywhere">
+                      <div data-testid={`create-token-${x.index}-address`}>
+                        <AddressText address={x.token} explorer={explorer} />
+                      </div>
+                      {x.info ? (
+                        <div data-testid={`create-token-${x.index}-name`}>
+                          <UntrustedText value={x.info.name} max={32} /> (
+                          <UntrustedText value={x.info.symbol} max={16} />)
+                        </div>
+                      ) : (
+                        <div class="muted" data-testid={`create-token-${x.index}-name`}>
+                          {t('notContract')}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {x.held === null ? (
+                        c('unknown')
+                      ) : x.kind === 'erc20' && x.info ? (
+                        <TokenAmount raw={x.held} token={x.info} />
+                      ) : (
+                        <span class="mono">{x.held.toString()}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p class="muted">{c('untrustedNote')}</p>
         </>
       )}
@@ -344,7 +351,12 @@ export function CreatePage({ sdk, drill }: { sdk: Sdk; drill: boolean }) {
       {created ? <Created vault={created} /> : null}
       <ol class="steps">
         {STEPS.map((s) => (
-          <li key={s} class={s === step ? 'step-active' : undefined} data-testid={`create-step-${s}`}>
+          <li
+            key={s}
+            class={s === step ? 'step-active' : undefined}
+            aria-current={s === step ? 'step' : undefined}
+            data-testid={`create-step-${s}`}
+          >
             {t(STEP_KEY[s])}
           </li>
         ))}
