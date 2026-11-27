@@ -122,7 +122,7 @@ npm run emails -w apps/backend
 cd apps/backend && npx vitest run -u test/unit/compose.test.ts && cd ../..
 ```
 
-Deploying is the maintainer's job (`apps/backend/README.md`). Agents never run `supabase db push`, `supabase functions deploy` or `supabase secrets set`.
+The deploy steps are in `apps/backend/README.md`. When the maintainer asks, an agent may run `supabase db push` and `supabase functions deploy` on the maintainer's machine, with the Supabase CLI the maintainer is logged in to. Secret values (`supabase secrets set`) stay with the maintainer.
 
 ## Rules
 
