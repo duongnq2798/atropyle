@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { type LazyChunk, lazyChunk } from '@/lib/lazy-chunk';
 import { ErrorBox } from '@/tx/error-box';
+import { HoldCardShape, holdShaped } from '@/tx/hold-card-shape';
 import { Button } from '@/ui/button';
 import { SkeletonText } from '@/ui/skeleton';
 import type * as Flow from './action-flow';
@@ -37,11 +38,22 @@ export function LazyActionFlow(props: ActionFlowProps) {
     return <ActionFlow {...props} pressed={pressed} />;
   }
   if (q.error) return <ErrorBox error={q.error} onRetry={() => void q.refetch()} testId={`${props.testId}-error`} />;
-  // An auto action has no button to press (the check-in ritual): it waits as ActionFlow's own preparing state does.
+  // An auto action has no button to press (the check-in ritual): it waits as ActionFlow's own preparing state does,
+  // a hold up front already standing where it will be (HoldCardShape).
   if (props.auto) {
     return (
       <div data-testid={`${props.testId}-preparing`} aria-busy="true" className="flex flex-col gap-2">
-        <SkeletonText lines={2} />
+        {holdShaped(props) ? (
+          <HoldCardShape
+            title={props.title}
+            nested={props.nested}
+            tone={props.tone}
+            face={props.hold?.face}
+            hint={props.hold?.hint}
+          />
+        ) : (
+          <SkeletonText lines={2} />
+        )}
       </div>
     );
   }

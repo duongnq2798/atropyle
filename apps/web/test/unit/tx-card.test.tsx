@@ -8,6 +8,7 @@ import type { MirrorContext } from '../../src/tx/mirror';
 import { TxCard } from '../../src/tx/tx-card';
 import { applyStep, txView } from '../../src/tx/tx-view';
 import type { TxRunner } from '../../src/tx/use-tx-runner';
+import type { HoldWords } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -460,6 +461,41 @@ describe('the hold up front (holdPlacement="top", the check-in ritual)', () => {
     expect(within(row).getByText('Waiting for the block')).toBeTruthy();
     expect(details.textContent).toContain(H);
     expect(row.textContent?.replace(details.textContent ?? '', '')).not.toContain(H);
+  });
+
+  const busy = (hold: HoldWords) => {
+    const view = applyStep(txView(CHECK_IN), { index: 0, phase: 'signing' });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, { view, busy: true, mirror: mirrorPlan(CHECK_IN, ctx), mode: 'steps' })}
+        label="Check in"
+        title="Your check-in"
+        confirm="hold"
+        hold={hold}
+        holdPlacement="top"
+      />,
+    );
+    const bar = sendButton().querySelector('[data-part="bar"]');
+    if (!bar) throw new Error('no bar');
+    return bar;
+  };
+
+  it('while busy, the hold says its own words (hold.busyLabel), never "Sending…" while the wallet asks', () => {
+    const bar = busy({ face: <span data-testid="face" />, showKnot: false, busyLabel: 'Now sign in your wallet' });
+    expect(bar.textContent).toBe('Now sign in your wallet');
+    expect(sendButton()).toHaveAccessibleName('Now sign in your wallet');
+    expect(screen.getByTestId('tx').textContent).not.toContain('Sending');
+    // The words are the card's, not an attribute of the button.
+    expect(
+      sendButton()
+        .getAttributeNames()
+        .filter((a) => a.toLowerCase().includes('busy')),
+    ).toEqual([]);
+  });
+
+  it('without its own words, a busy hold still says "Sending…"', () => {
+    const bar = busy({ face: <span data-testid="face" />, showKnot: false });
+    expect(bar.textContent).toBe('Sending…');
   });
 
   const recorded = (holdPlacement?: 'end' | 'top') => {

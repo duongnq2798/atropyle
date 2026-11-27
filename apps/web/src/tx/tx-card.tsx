@@ -24,6 +24,7 @@ import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { networkName } from '@/wallet/network';
+import { TX_ACTION_TOP, TX_CARD, TX_HEADER, txHeading, txSendArea } from './card-shape';
 import { ErrorBox } from './error-box';
 import { stepIsIrreversible } from './irreversible';
 import type { MirrorCall } from './mirror';
@@ -311,7 +312,10 @@ export interface TxCardProps {
   confirm?: 'click' | 'hold';
   /** `danger` for a plan that cannot be undone (planIsIrreversible). */
   tone?: 'thread' | 'danger';
-  /** With `confirm="hold"`: the hint, the words once held and whether a knot ties (R18.16). */
+  /**
+   * With `confirm="hold"`: the hint, the words once held and whether a knot ties (R18.16), and the hold's own words
+   * while busy (`busyLabel`, in place of "Sending…").
+   */
   hold?: HoldWords;
   /**
    * Where a hold stands (`confirm="hold"`). `end`, the default, closes the card after the steps. `top` is the check-in
@@ -411,8 +415,13 @@ export function TxCard({
   const sent = result && runner.receipt ? receiptGroups(runner.receipt).length : view.total;
   // After a failed load the button stops saying "Preparing…": the error box offers Retry (parked T13 163).
   const preparing = blocker === 'loading' && !runner.loadFailed;
-  const sendLabel = busy
-    ? t('sending')
+  // A hold may name its busy phase itself: the check-in ritual's bar says "Now sign in your wallet" while the wallet
+  // asks, where "Sending…" would claim what has not happened yet (§18.2.8, honest phases).
+  const { busyLabel, ...holdWords } = hold ?? {};
+  const sendLabel: ReactNode = busy
+    ? confirm === 'hold' && busyLabel !== undefined
+      ? busyLabel
+      : t('sending')
     : preparing
       ? t('preparing')
       : offset > 0
@@ -477,17 +486,14 @@ export function TxCard({
     );
   } else {
     action = (
-      <div
-        ref={sendArea}
-        className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}
-      >
+      <div ref={sendArea} className={txSendArea(confirm === 'hold')}>
         {confirm === 'hold' ? (
           <HoldButton
             data-testid={`${testId}-send`}
             tone={tone}
             disabled={busy || locked}
             onConfirm={runner.send}
-            {...hold}
+            {...holdWords}
           >
             {sendLabel}
           </HoldButton>
@@ -540,19 +546,11 @@ export function TxCard({
       data-testid={testId}
       data-hold={top ? 'top' : undefined}
       aria-labelledby={headingId}
-      className={cn('flex flex-col gap-5 rounded-3xl border border-line bg-surface-1 p-5 sm:p-6', className)}
+      className={cn(TX_CARD, className)}
     >
-      <header className="flex flex-col gap-1.5">
+      <header className={TX_HEADER}>
         {/* tabIndex -1: focus comes here when the plan is done and the button that had it is gone. */}
-        <h3
-          id={headingId}
-          ref={heading}
-          tabIndex={-1}
-          className={cn(
-            'flex items-center gap-2 font-display text-ink outline-none',
-            nested ? 'text-lead' : 'text-title',
-          )}
-        >
+        <h3 id={headingId} ref={heading} tabIndex={-1} className={txHeading(nested)}>
           {result ? (
             <CircleCheck aria-hidden="true" size={20} strokeWidth={1.5} className="shrink-0 text-thread" />
           ) : null}
@@ -574,7 +572,7 @@ export function TxCard({
       {top ? (
         <>
           {warningList}
-          <div data-testid={`${testId}-action`} className="flex flex-col gap-3">
+          <div data-testid={`${testId}-action`} className={TX_ACTION_TOP}>
             {action}
           </div>
           {errors}
