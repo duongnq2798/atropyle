@@ -14,7 +14,7 @@ const REPORT: IntegrityReport = {
     { name: `factory.evil${RLO}txt.exe`, ok: true },
     { name: 'factory.cpu', ok: false, expected: `0xexpected${RLO}one`, actual: `0xactual${RLO}two` },
   ],
-  warnings: [{ code: 'SINGLE_RPC', message: `one node${RLO} only` }],
+  warnings: [{ code: 'NO_EFFECT', message: `one node${RLO} only` }],
 };
 
 describe('the integrity checks on /status/', () => {
@@ -43,5 +43,21 @@ describe('the integrity checks on /status/', () => {
     vi.unmount();
     const two = renderWithProviders(<IntegrityChecks report={REPORT} />);
     expect(two.container.textContent).toContain('through 2 node operators.');
+  });
+
+  it('says a single node operator in the words of the reader, never in the English sentence of the SDK', () => {
+    const single = {
+      ...REPORT,
+      rpcs: 1,
+      warnings: [{ code: 'SINGLE_RPC' as const, message: 'Only one RPC operator.' }],
+    };
+    const vi = renderWithProviders(<IntegrityChecks report={single} />, { lang: 'vi' });
+    const banner = vi.getByTestId('status-warning-SINGLE_RPC');
+    expect(banner.textContent).toContain('Chỉ một nhà vận hành node trả lời');
+    expect(banner.textContent).not.toContain('Only one RPC operator.');
+    expect(banner.querySelector('[data-untrusted]')).toBeNull();
+    vi.unmount();
+    const en = renderWithProviders(<IntegrityChecks report={single} />);
+    expect(en.getByTestId('status-warning-SINGLE_RPC').textContent).toContain('Only one node operator answered');
   });
 });

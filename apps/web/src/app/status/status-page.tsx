@@ -337,7 +337,12 @@ export function IntegrityChecks({ report: r }: { report: IntegrityReport }) {
       </p>
       {uniqueWarnings([r.warnings]).map((w) => (
         <Banner key={warningKey(w)} tone="warn" testId={`status-warning-${w.code}`}>
-          <UntrustedText value={w.message} max={240} />
+          {/* The one warning the app words itself: the cross-check that answers it is on this page (DeWEB). */}
+          {w.code === 'SINGLE_RPC' ? (
+            t(ENV.target === 'deweb' ? 'singleRpcCross' : 'singleRpc')
+          ) : (
+            <UntrustedText value={w.message} max={240} />
+          )}
         </Banner>
       ))}
       <ul className="flex flex-col divide-y divide-line">

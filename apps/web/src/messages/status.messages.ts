@@ -75,6 +75,10 @@ export const messages = defineMessages(
     integrityAt: 'At block {block}, through {rpcs} node operators.',
     integrityAtOne: 'At block {block}, through one node operator.',
     integrityCount: '{ok} of {all} checks pass.',
+    singleRpc:
+      'Only one node operator answered, so a dishonest one could have shown you different data. A real check asks two independent operators.',
+    singleRpcCross:
+      'Only one node operator answered, so a dishonest one could have shown you different data. Turn on the cross-check below to ask a second one.',
     pass: 'Pass',
     fail: 'Fail',
     expected: 'Expected',
@@ -203,6 +207,10 @@ export const messages = defineMessages(
     integrityAt: 'Tại block {block}, qua {rpcs} nhà vận hành node.',
     integrityAtOne: 'Tại block {block}, qua một nhà vận hành node.',
     integrityCount: '{ok} trên {all} mục kiểm đạt.',
+    singleRpc:
+      'Chỉ một nhà vận hành node trả lời, nên một bên gian lận có thể đã cho bạn xem dữ liệu khác. Kiểm thật cần hai nhà vận hành độc lập.',
+    singleRpcCross:
+      'Chỉ một nhà vận hành node trả lời, nên một bên gian lận có thể đã cho bạn xem dữ liệu khác. Bật kiểm chéo bên dưới để hỏi thêm một bên.',
     pass: 'Đạt',
     fail: 'Hỏng',
     expected: glue('Mong~đợi'),
