@@ -175,6 +175,44 @@ async function holdTheWallet(page: Page): Promise<() => Promise<void>> {
   };
 }
 
+/**
+ * Where a mark of the ritual's face is (`pending`, the hollow knot; `knot`, the tied one): its centre's x in the
+ * viewport, its centre's y from the top of the check-in card (what stands above the card may change with the vault's
+ * new state; the card is the ritual's own), and its box in the viewport.
+ */
+async function faceMark(page: Page, part: 'pending' | 'knot') {
+  return page.evaluate((p) => {
+    const el = document.querySelector(`[data-testid="owner-ritual-face"] [data-part="${p}"]`);
+    const card = document.querySelector('[data-testid="owner-checkin-tx"]');
+    if (!el || !card) return null;
+    const r = el.getBoundingClientRect();
+    return {
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2 - card.getBoundingClientRect().top,
+      top: r.top,
+      bottom: r.bottom,
+    };
+  }, part);
+}
+
+/** The mark once it stands still: "now" springs to where the knot will tie as the wallet opens. */
+async function stillMark(page: Page, part: 'pending' | 'knot') {
+  let last = await faceMark(page, part);
+  await expect
+    .poll(
+      async () => {
+        const now = await faceMark(page, part);
+        const still = now !== null && last !== null && Math.abs(now.x - last.x) < 0.5 && Math.abs(now.y - last.y) < 0.5;
+        last = now;
+        return still;
+      },
+      { intervals: [250] },
+    )
+    .toBe(true);
+  if (!last) throw new Error(`no ${part} on the face`);
+  return last;
+}
+
 /** The order of the ritual's phases: a recorded run may skip some (a fast wallet), never go back. */
 const ORDER = ['idle', 'holding', 'wallet', 'sent', 'tied'];
 
@@ -233,8 +271,15 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   await expect(page.getByTestId('vault-last-alive')).not.toHaveAttribute('data-ts', before ?? '');
   const st = await atro.vault(vault).status();
   await expect(page.getByTestId('vault-last-alive')).toHaveAttribute('data-ts', st.lastAlive.toString());
-  // The thread rides in the receipt's footer: TxCard has put the Receipt in place of the hold.
-  await expect(page.getByTestId('owner-checkin-tx-done').getByTestId('owner-ritual-face')).toBeVisible();
+  // The hold is gone; its end stands in its place, the thread on its face and the tied line under it, before the
+  // Receipt's rows: TxCard holdPlacement="top" ends up front.
+  const end = page.getByTestId('owner-checkin-tx-end');
+  await expect(end.getByTestId('owner-ritual-face')).toBeVisible();
+  await expect(end.getByTestId('owner-tied')).toBeVisible();
+  await expect(page.getByTestId('owner-checkin-tx-done').getByTestId('owner-ritual-face')).toHaveCount(0);
+  const endBox = await end.boundingBox();
+  const doneBox = await page.getByTestId('owner-checkin-tx-done').boundingBox();
+  expect((endBox?.y ?? 0) + (endBox?.height ?? 0)).toBeLessThanOrEqual(doneBox?.y ?? 0);
   await expect(page.getByTestId('owner-checkin-tx-send')).toHaveCount(0);
 
   // The tied receipt in both themes (each reload checks in again).
@@ -256,7 +301,7 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   await expect(page.getByTestId('owner-checkin-tx-send')).toBeVisible();
 });
 
-test('on a phone the hold is in view with the ritual title, and the wallet mirror stays under it', async ({
+test('on a phone the hold is in view with the ritual title, the mirror under it, and the knot ties in place, in view', async ({
   page,
   state,
   wallet,
@@ -292,8 +337,34 @@ test('on a phone the hold is in view with the ritual title, and the wallet mirro
   await expect(page.getByTestId('owner-ritual')).toHaveAttribute('data-ritual', 'wallet');
   await expect(mirror).toBeVisible();
   await expect(page.getByTestId('owner-checkin-tx').getByTestId('owner-checkin-tx-mirror-0')).toHaveCount(1);
-  await letGo();
-  await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
+  // Sent: anvil holds the block back, and the hollow knot waits on the hold's face where the new knot will tie.
+  let pending: Awaited<ReturnType<typeof stillMark>>;
+  await rpcCall(state.rpcUrl, 'evm_setAutomine', [false]);
+  try {
+    await letGo();
+    await expect(page.getByTestId('owner-ritual')).toHaveAttribute('data-ritual', 'sent', { timeout: 30_000 });
+    pending = await stillMark(page, 'pending');
+    expect(pending.top).toBeGreaterThanOrEqual(below);
+    expect(pending.bottom).toBeLessThanOrEqual(844);
+  } finally {
+    await rpcCall(state.rpcUrl, 'evm_mine');
+    await rpcCall(state.rpcUrl, 'evm_setAutomine', [true]);
+  }
+  // Tied: the end of the ritual is where its start was. The solid knot fills the hollow one in place, and the tied line
+  // stands under it, both on screen, never pushed under the receipt's rows and its hash.
+  const tiedLine = page.getByTestId('owner-tied');
+  await expect(tiedLine).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('owner-ritual-face').locator('[data-part="knot"]')).toHaveCount(1);
+  const knot = await stillMark(page, 'knot');
+  expect(knot.top).toBeGreaterThanOrEqual(below);
+  expect(knot.bottom).toBeLessThanOrEqual(844);
+  expect(Math.abs(knot.x - pending.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(knot.y - pending.y)).toBeLessThanOrEqual(2);
+  const line = await tiedLine.boundingBox();
+  if (!line) throw new Error('no tied line');
+  expect(line.y).toBeGreaterThanOrEqual(below);
+  expect(line.y + line.height).toBeLessThanOrEqual(844);
+  expect(line.y).toBeGreaterThan(knot.bottom);
 });
 
 test('the keyboard keeps its place: Save, Send and Start over, then the check-in and its Start over', async ({
@@ -411,7 +482,8 @@ test('a released vault: no more check-ins, Deliver for anyone, Revoke still ther
  * so the hold has a thread to recharge), holding (stopped halfway through the hold, then let go early), sent (anvil
  * holds the block back) and tied, into
  * test-results/screens/owner-ritual-<phase>/<night|vellum>-<lang>-<width>.png. At 390 px, idle is also shot as a phone
- * shows it once the ritual's title is scrolled to the top: owner-ritual-fold/<scheme>-<lang>-390.png (844 px tall).
+ * shows it once the ritual's title is scrolled to the top: owner-ritual-fold/<scheme>-<lang>-390.png (844 px tall),
+ * and so are sent and tied (owner-ritual-sent-fold/, owner-ritual-tied-fold/).
  * The sticky header stays out of a shot of one card.
  */
 async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[]): Promise<void> {
@@ -515,6 +587,13 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
       await expect(ritual).toHaveAttribute('data-ritual', 'sent', { timeout: 30_000 });
       await page.waitForTimeout(1_300);
       await card.screenshot({ path: at('sent'), style, animations: 'allow' });
+      if (shot.width === 390) {
+        // The same phone fold while the block is awaited, to set beside the tied one: the knot does not move.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await ritualTitleAtTop(page);
+        await page.screenshot({ path: `test-results/screens/owner-ritual-sent-fold/${name}`, animations: 'allow' });
+        await page.setViewportSize({ width: 390, height: TALL });
+      }
     } finally {
       await rpcCall(state.rpcUrl, 'evm_mine');
       await rpcCall(state.rpcUrl, 'evm_setAutomine', [true]);
@@ -524,6 +603,12 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
     await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
     await settle(page);
     await card.screenshot({ path: at('tied'), style });
+    if (shot.width === 390) {
+      // What a phone shows as the knot ties, the ritual's title at the top: the knot and the tied line in sight.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await ritualTitleAtTop(page);
+      await page.screenshot({ path: `test-results/screens/owner-ritual-tied-fold/${name}` });
+    }
   }
   await setStoredLang(page, 'en');
   await setStoredTheme(page, 'dark');
