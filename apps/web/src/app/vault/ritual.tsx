@@ -8,6 +8,7 @@ import type { RitualDrill } from '@/flows/impl/ritual';
 import { usePolicyEngine } from '@/flows/time-machine/use-engine';
 import type { Params } from '@/i18n/core';
 import { useLang, useT } from '@/i18n/provider';
+import { formatCount } from '@/lib/count';
 import { chainDate } from '@/lib/when';
 import { messages } from '@/messages/owner.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
@@ -199,6 +200,8 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
     </m.div>
   );
 
+  // Grouped in the reader's way, as the Receipt's Block line above it ("1,234,567", "1.234.567"); data-block stays raw.
+  const blockText = block === null ? '' : formatCount(block, lang);
   const since = marks.sent ?? marks.wallet;
   const elapsed = (to: number | null) => formatSeconds(to !== null && since !== null ? to - since : 0, lang);
   // TxCard draws the HoldButton (and so hold.face) only until runner.result, then the Receipt in its place
@@ -209,7 +212,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
       {face}
       {block !== null ? (
         <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-small text-ink">
-          {t('ritualTied', { block: String(block), seconds: elapsed(marks.tied) })}
+          {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
         </p>
       ) : null}
     </>
@@ -277,7 +280,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
       />
       {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the receipt's footer. */}
       <p data-testid="owner-ritual-status" role="status" className="sr-only">
-        {key ? t(key, { block: block === null ? '' : String(block) }) : null}
+        {key ? t(key, { block: blockText }) : null}
       </p>
     </div>
   );

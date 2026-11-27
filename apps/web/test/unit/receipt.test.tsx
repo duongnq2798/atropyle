@@ -160,6 +160,9 @@ describe('Receipt', () => {
     expect(decided.textContent).toContain('Circuit đã quyết');
     expect(decided.textContent).toContain('thành');
     expect(screen.queryByRole('link')).toBeNull();
+    // The block in the reader's grouping, as every number the Vietnamese page writes (the ritual's tied line too).
+    expect(screen.getByText('12.345')).toBeTruthy();
+    expect(screen.queryByText('12,345')).toBeNull();
   });
 
   it('a block still being read says so; a time that could not be read shows a dash', () => {

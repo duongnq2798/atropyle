@@ -64,7 +64,8 @@ vi.mock('../../src/chain/load', async () => {
 vi.mock('next/navigation', () => ({ usePathname: () => '/vault/', useRouter: () => ({ push: vi.fn() }) }));
 
 const SDK = { atro: {}, deployment: { explorerUrl: null, factoryBlock: 0n } } as unknown as Sdk;
-const RESULT = { vault: PEOPLE.vault, steps: [{ blockNumber: 42n }] } as unknown as SendResult;
+/** A block in the millions, as on X Layer: its digits are grouped, as the receipt above the line groups them. */
+const RESULT = { vault: PEOPLE.vault, steps: [{ blockNumber: 1_234_567n }] } as unknown as SendResult;
 
 // fetchedAtMs is now: useChainNow adds the time since the read to blockTimestamp, so 0 would put "now" decades past lateAt.
 function loadedWith(
@@ -165,10 +166,14 @@ describe('the check-in ritual', () => {
     expect(phase()).toBe('tied');
     // The last words of a tied knot invite the next one; nothing reads as "something broke, start over".
     expect(props().resetLabel).toBe('Check in again');
-    expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('42');
+    // The attribute keeps the raw number; the words group its digits, as the Receipt's Block line does.
+    expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('1234567');
     // The receipt's footer says it: the status sentence stays for a screen reader only.
     expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
-    expect(screen.getByTestId('owner-tied').textContent).toMatch(/^Tied at block\u00a042\u00a0·\u00a0\d+\.\d\u00a0s$/);
+    expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Your check-in is in block 1,234,567.');
+    expect(screen.getByTestId('owner-tied').textContent).toMatch(
+      /^Tied at block\u00a01,234,567\u00a0·\u00a0\d+\.\d\u00a0s$/,
+    );
     // The hold is gone (TxCard shows the Receipt): the thread and its solid knot are in the receipt's footer.
     expect(screen.queryByTestId('owner-checkin-tx-hold')).toBeNull();
     expect(screen.getByTestId('owner-checkin-tx-done').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
@@ -292,5 +297,19 @@ describe('the check-in ritual', () => {
     expect(knots()).toBe(0);
     expect(hint()).toMatch(/^Đang chờ X\u00a0Layer\u00a0·\u00a0\d+,\d\u00a0s$/);
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Đang chờ X\u00a0Layer');
+  });
+
+  it('in Vietnamese, the block of a tied knot is grouped the Vietnamese way', () => {
+    ritual(loadedWith(), 'vi');
+    act(() => {
+      flow.done.add('owner-checkin');
+      props().onDone?.(RESULT);
+    });
+    progress({ committed: true, finished: true });
+    expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('1234567');
+    expect(screen.getByTestId('owner-tied').textContent).toMatch(
+      /^Đã thắt nút ở block\u00a01\.234\.567\u00a0·\u00a0\d+,\d\u00a0s$/,
+    );
+    expect(screen.getByTestId('owner-ritual-status').textContent).toContain('vào block 1.234.567.');
   });
 });
