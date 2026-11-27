@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useId, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useMemo, useRef, useState } from 'react';
 import { frameIndex, gateOf, momentRings, type ScrubAxis, scrubAxis, threadFrame } from '@/flows/time-machine/frame';
 import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
@@ -270,7 +270,9 @@ export function HomeStage() {
   const tw = useT(warnings);
   const { lang } = useLang();
   const mounted = useMounted();
-  const id = useId();
+  // One stage per page (its Scene's id is "stage"), so its ids are fixed: React hydrates it in a root of its own
+  // (stage-island.tsx), where useId would name them apart from the prerender's.
+  const id = 'home-stage';
   const hintId = `${id}-hint`;
   const listId = `${id}-list`;
   const scene = useRef<HTMLElement>(null);

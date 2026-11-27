@@ -886,10 +886,13 @@ test('after the stage the story reads in order, in the language of the page, and
   state,
 }) => {
   await page.goto(state.siteUrl);
+  // The stage stands in its island (src/home/stage-island.tsx), a box of `display: contents`: the story reads its scene.
   const ids = await page
     .locator('.story > *')
     .evaluateAll((els) =>
-      els.map((e) => (e.getAttribute('data-testid')?.startsWith('home-quiet') ? e.getAttribute('data-testid') : e.id)),
+      els
+        .map((e) => (e.id === 'stage-island' && e.firstElementChild ? e.firstElementChild : e))
+        .map((e) => (e.getAttribute('data-testid')?.startsWith('home-quiet') ? e.getAttribute('data-testid') : e.id)),
     );
   expect(ids).toEqual(STORY);
   for (const lang of ['en', 'vi'] as const) {
