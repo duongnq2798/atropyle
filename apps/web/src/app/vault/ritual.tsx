@@ -247,7 +247,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
       <p data-testid="owner-ritual-status" role="status" className={tied ? 'sr-only' : 'min-h-5 text-small text-ink'}>
         {key ? t(key, { block: block === null ? '' : String(block) }) : null}
         {phase === 'sent' ? (
-          <span aria-hidden className="voice-ledger tabular-nums">{` · ${elapsed(clock)}`}</span>
+          <span aria-hidden className="voice-ledger tabular-nums">{` · ${elapsed(clock)}`}</span>
         ) : null}
       </p>
     </div>

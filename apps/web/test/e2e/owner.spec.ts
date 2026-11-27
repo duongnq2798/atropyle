@@ -167,7 +167,7 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
 
   const block = Number(await page.getByTestId('owner-tied').getAttribute('data-block'));
   expect(block).toBeGreaterThan(0);
-  await expect(page.getByTestId('owner-tied')).toContainText(/Tied at block \d+ · \d+\.\d\u00a0s/);
+  await expect(page.getByTestId('owner-tied')).toContainText(/Tied at block\u00a0\d+\u00a0·\u00a0\d+\.\d\u00a0s/);
   await expect(page.getByTestId('vault-last-alive')).not.toHaveAttribute('data-ts', before ?? '');
   const st = await atro.vault(vault).status();
   await expect(page.getByTestId('vault-last-alive')).toHaveAttribute('data-ts', st.lastAlive.toString());

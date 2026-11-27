@@ -144,7 +144,7 @@ describe('the check-in ritual', () => {
     expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('42');
     // The receipt's footer says it: the status sentence stays for a screen reader only.
     expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
-    expect(screen.getByTestId('owner-tied').textContent).toMatch(/^Tied at block 42 · \d+\.\d\u00a0s$/);
+    expect(screen.getByTestId('owner-tied').textContent).toMatch(/^Tied at block\u00a042\u00a0·\u00a0\d+\.\d\u00a0s$/);
     // The hold is gone (TxCard shows the Receipt): the thread and its solid knot are in the receipt's footer.
     expect(screen.queryByTestId('owner-checkin-tx-hold')).toBeNull();
     expect(screen.getByTestId('owner-checkin-tx-done').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
