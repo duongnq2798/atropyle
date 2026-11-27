@@ -1,5 +1,5 @@
 /** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7B adds `/create/`, Plan 7C Task 3 adds `/proof/`. */
-export const LIGHTHOUSE_ROUTES: readonly string[] = ['/'];
+export const LIGHTHOUSE_ROUTES: readonly string[] = ['/', '/create/'];
 
 export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
 
