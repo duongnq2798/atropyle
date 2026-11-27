@@ -16,116 +16,14 @@ import { messages as status } from '../../src/messages/status.messages';
 import { messages as story } from '../../src/messages/story.messages';
 import { messages as subscribe } from '../../src/messages/subscribe.messages';
 import { messages as ui } from '../../src/messages/ui.messages';
+import { plainCompounds } from '../helpers/vi-compounds';
 
 /**
- * Words a Vietnamese reader takes as one, though they are written as two or three syllables with spaces between
- * them. A line break inside one reads as broken typesetting ("Ngừng cảnh / báo qua email?"), and text-wrap: balance
- * does not prevent it. In the headings, titles, buttons and short labels of the Plan 7C pages they are bound with
- * U+00A0. "X Layer" is a name, and a line that ends on a lone "X" reads as a typo in either language.
+ * The headings, titles, buttons and short labels of the Plan 7C pages bind every Vietnamese compound with U+00A0
+ * ("Ngừng cảnh / báo qua email?" reads as broken typesetting, and text-wrap: balance does not prevent it). The words
+ * are the one shared list of test/helpers/vi-compounds.ts, which the Plan 7B tests read too. "X Layer" is a name, and a
+ * line that ends on a lone "X" reads as a typo in either language.
  */
-const COMPOUNDS = [
-  // The words of the typesetting rule.
-  'tài sản',
-  'người thừa kế',
-  'thừa kế',
-  'người giám hộ',
-  'giám hộ',
-  'điểm danh',
-  'báo động',
-  'cảnh báo',
-  'lời mời',
-  'khôi phục',
-  'kế hoạch',
-  'chủ ví',
-  'chủ vault',
-  'giao dịch',
-  'xác nhận',
-  'hết hạn',
-  'hợp đồng',
-  // The other words of these headings.
-  'an toàn',
-  'ban đầu',
-  'bảo mật',
-  'bảo vệ',
-  'bằng chứng',
-  'bắt đầu',
-  'biến mất',
-  'cài đặt',
-  'câu chuyện',
-  'câu hỏi',
-  'chẩn đoán',
-  'chỉ mục',
-  'chính sách',
-  'chú ý',
-  'chứng minh',
-  'chứng nhận',
-  'chúng tôi',
-  'con dấu',
-  'con số',
-  'danh sách',
-  'diễn tập',
-  'đăng ký',
-  'địa chỉ',
-  'đóng băng',
-  'đội ngũ',
-  'đầy đủ',
-  'ghi chú',
-  'giao diện',
-  'giấy da',
-  'giấy phép',
-  'giới hạn',
-  'hộp thư',
-  'hợp lệ',
-  'kết luận',
-  'kết nối',
-  'kiểm chứng',
-  'kiểm toán',
-  'ký hiệu',
-  'liên kết',
-  'mã nguồn',
-  'mong đợi',
-  'ngân quỹ',
-  'ngôn ngữ',
-  'nhà phát triển',
-  'nhà vận hành',
-  'nội dung',
-  'phiên bản',
-  'quyết định',
-  'riêng tư',
-  'sao chép',
-  'sự kiện',
-  'tài liệu',
-  'thất bại',
-  'thiết bị',
-  'thực tế',
-  'tiếng việt',
-  'tìm thấy',
-  'toàn bộ',
-  'trang chủ',
-  'trạng thái',
-  'trường hợp',
-  'vai trò',
-  'vấn đề',
-  'xảy ra',
-  'xử lý',
-  'im lặng',
-  'nói dối',
-  'đầu tiên',
-  'đồng ý',
-  'bỏ phiếu',
-  'công cụ',
-  'trình duyệt',
-  'bản đồ',
-  'phân tích',
-  'tuỳ chọn',
-  'trực tiếp',
-  'kiểm chéo',
-  'đầu vào',
-  'ít nhất',
-  'claude code',
-  'x layer',
-] as const;
-
 type Dict = Messages<string>;
 
 /**
@@ -345,16 +243,6 @@ const PAGES: readonly (readonly [string, Dict, readonly string[]])[] = [
 ];
 
 const TITLE = /^title|Title$/;
-
-/** Every syllable of a compound, at word edges, with any run of spaces between them: bound or not. */
-const finder = (compound: string): RegExp =>
-  new RegExp(`(?<!\\p{L})${compound.split(' ').join('\\s+')}(?!\\p{L})`, 'giu');
-
-/** The places where a compound is written with a breakable space between its syllables. */
-function plainCompounds(text: string): string[] {
-  const s = text.normalize('NFC').toLowerCase();
-  return COMPOUNDS.flatMap((c) => [...s.matchAll(finder(c))].filter(([m]) => /[^\S\u00A0]/u.test(m)).map(() => c));
-}
 
 const headings = (lang: 'en' | 'vi') =>
   PAGES.flatMap(([file, dict, keys]) => {

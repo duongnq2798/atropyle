@@ -30,10 +30,10 @@ export const messages = defineMessages(
   {
     beta: glue('Beta — chưa kiểm~toán'),
     loading: 'Đang tải…',
-    retry: 'Thử lại',
+    retry: glue('Thử~lại'),
     copy: glue('Sao~chép'),
     copied: glue('Đã sao~chép'),
-    back: 'Quay lại',
+    back: glue('Quay~lại'),
     next: 'Tiếp',
     cancel: 'Huỷ',
     close: 'Đóng',

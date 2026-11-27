@@ -115,6 +115,6 @@ export const messages = defineMessages(
       'Trình~duyệt của bạn vừa tự tính mọi ngày ở trên, bằng SDK của Atropyle trên circuit chính~sách trong repository này.',
     ),
     footFailed: glue('Trình~duyệt của bạn không nạp được bộ mô~phỏng, nên đây là các ngày được tính lúc build trang.'),
-    retry: glue('Thử lại'),
+    retry: glue('Thử~lại'),
   },
 );
