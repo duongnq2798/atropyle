@@ -26,7 +26,7 @@ export function Stamp({
 }
 
 /**
- * A block's piece of the story's spine (spec §18.4.3 Task 7a, R18.5; globals.css `.spine-*`): a 2 px line the full
+ * A block's piece of the story's spine (spec §18.4.3 Task 7a, R18.5; home.css `.spine-*`): a 2 px line the full
  * height of its block, or down to its node only (`end`, the closing scene). Shown from 78rem, inside `.story` only.
  */
 export function SpineSeg({ end = false }: { end?: boolean }) {
@@ -39,7 +39,7 @@ export function SpineSeg({ end = false }: { end?: boolean }) {
 
 /**
  * The spine's node, centred on the first line of its anchor. The anchor must be `relative` and start at its block's
- * content edge (the box's 1.5rem padding): globals.css places the node from there.
+ * content edge (the box's 1.5rem padding): home.css places the node from there.
  */
 export function SpineNode() {
   return (

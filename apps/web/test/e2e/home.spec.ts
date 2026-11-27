@@ -194,7 +194,7 @@ test('only the checked chip wears the thread, as a filled ring and a tint; a hov
   await page.goto(state.siteUrl);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   const clear = 'rgba(0, 0, 0, 0)';
-  // Touch screens have no hover (globals.css keeps it in @media (hover: hover)): there the hovered chip is a plain one.
+  // Touch screens have no hover (src/home/home.css keeps it in @media (hover: hover)): there the hovered chip is a plain one.
   const hovers = info.project.name === 'desktop';
   for (const theme of ['dark', 'light'] as const) {
     if (theme === 'light') await setStoredTheme(page, 'light');
@@ -281,7 +281,7 @@ for (const width of [1440, 1024]) {
     for (const k of ['x', 'y', 'width', 'height'] as const) expect(weave[k], k).toBeCloseTo(hero[k], 0);
     expect(await page.locator('.weave').evaluate((el) => getComputedStyle(el).zIndex)).toBe('-1');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    // The mask holds 12 % up to --wv-text (globals.css), which must end where the text column ends. A probe inside the
+    // The mask holds 12 % up to --wv-text (src/home/home.css), which must end where the text column ends. A probe inside the
     // layer inherits the custom property, and its 100 % resolves against the layer as the gradient's does.
     const { edge, column } = await page.evaluate(() => {
       const layer = document.querySelector('[data-weave="warp"]') as HTMLElement;

@@ -18,14 +18,14 @@ import { AGENT_INSTALL, AGENT_LINES, type AgentLine, HEIR_SHARES } from './story
 
 // The home page after the stage (spec §18.4.3 Task 7a). Server components only: their words are in the HTML in both
 // languages (Say) and in no script, since / has no JavaScript to spare (7C-T6 report: 0.19 kB under R23's 200 kB).
-// Every block shares the scenes' box, so the spine (globals.css) runs down one line, and every link skips prefetch:
+// Every block shares the scenes' box, so the spine (home.css) runs down one line, and every link skips prefetch:
 // nothing loads in Lighthouse's window, and /status/ and /developers/ are built by 7C T10 in a sibling branch.
 
 /** The scenes' box (scene.tsx): one column edge for every block, so each piece of the spine lines up. */
 const BOX = 'relative mx-auto w-full max-w-6xl px-4 sm:px-6';
 
 /**
- * The arrow of a door, drawn by globals.css (`.story-arrow`) as lucide's ArrowRight is drawn on the hero (ARROW of
+ * The arrow of a door, drawn by home.css (`.story-arrow`) as lucide's ArrowRight is drawn on the hero (ARROW of
  * look.ts): an empty span, so the closing scene's HTML stays inside its budget (T7A_GZIP; the SVG cost about 0.2 kB
  * gzip for three arrows, in the DOM and again in Next's payload).
  */
@@ -110,7 +110,7 @@ function agentParams(lang: Lang): Params {
 /**
  * One line of the transcript. A person speaks in the display face (the Letter voice's italic never loads on /,
  * R18.10), the agent in the body face, a tool call in the Ledger voice, in the thread's colour after the knot glyph.
- * The bubbles and the tool line are drawn by globals.css (`.agent-say`, `.agent-tool`), not by utility classes: the
+ * The bubbles and the tool line are drawn by home.css (`.agent-say`, `.agent-tool`), not by utility classes: the
  * transcript's markup is in the HTML twice (the DOM and Next's payload), inside T7A_GZIP.
  */
 function Line({ line }: { line: AgentLine }) {

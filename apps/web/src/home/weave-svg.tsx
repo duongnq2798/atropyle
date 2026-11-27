@@ -22,7 +22,7 @@ const PLATE = {
 } as CSSProperties;
 /**
  * The release output, where the thread ends (its last node before the right edge). It turns last, at the deepest
- * delay, and violet for the questions that open the gate (globals.css).
+ * delay, and violet for the questions that open the gate (home.css).
  */
 const PIN = {
   left: pct((THREAD[THREAD.length - 4] / VIEW.w) * 100),
@@ -35,7 +35,7 @@ const OPEN = HERO_CASES.filter((c) => RELEASE[c])
   .join(' ');
 
 /**
- * One drawing of the weave, uncovered from the left by its sweep and cropped on a phone (globals.css, `.weave`). The
+ * One drawing of the weave, uncovered from the left by its sweep and cropped on a phone (home.css, `.weave`). The
  * two sweep boxes are the size of the strip and the plate rides inside the inner one, so the sweep crosses the strip
  * at the same pace at every width; inside the plate it would cross a phone's strip in a flash.
  */
@@ -53,7 +53,7 @@ function Layer({ name, style, children }: { name: 'warp' | 'thread'; style?: CSS
   );
 }
 
-/** The whole view, stretched to the box: strokes keep their width (`vector-effect` in globals.css). */
+/** The whole view, stretched to the box: strokes keep their width (`vector-effect` in home.css). */
 function Drawing({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <svg viewBox={BOX} preserveAspectRatio="none" aria-hidden="true" className={className}>

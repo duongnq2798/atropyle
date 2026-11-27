@@ -22,7 +22,7 @@ const FACTORY_URL = explorerAddress(XLAYER_EXPLORER, MAINNET_FACTORY);
 /**
  * Scene 1 of the home page (spec §5.1, §18.4.3 Task 4): the question and its answer, the two ways in, the circuit
  * asked, three facts, and the weave of the real circuit. `art` is the weave, rendered on the server by app/page.tsx, so
- * its numbers are in the HTML and in no script. From 64rem globals.css lays it behind the whole section, faded under
+ * its numbers are in the HTML and in no script. From 64rem home.css lays it behind the whole section, faded under
  * this text column (the left 7/12); on a phone it is a strip, and CSS `order` shows it between the ways in and the
  * chips, so the chips and the wires they light share the screen. It comes last in the column's markup: its paths are
  * in the HTML twice (the DOM and Next's payload), and gzip finds the second copy only within 32 KB of the first (ruling
@@ -36,7 +36,7 @@ export function HomeHero({ art }: { art: ReactNode }) {
   const { lang } = useLang();
   const noteId = useId();
   // The question the chips ask (Task 5′). CSS lights it through :has(); data-ask serves browsers without :has()
-  // (globals.css) and "Ask X Layer" asks it.
+  // (home.css) and "Ask X Layer" asks it.
   const [choice, setChoice] = useState<HeroCase>('alive');
   return (
     <section className="hero relative isolate overflow-hidden" data-ask={LETTER[choice]}>
@@ -65,7 +65,7 @@ export function HomeHero({ art }: { art: ReactNode }) {
               {t('heroDrillNote')}
             </p>
           </div>
-          {/* order-2 and order-3: on a phone the weave's strip (order 1, globals.css) comes before the chips. From 64rem a
+          {/* order-2 and order-3: on a phone the weave's strip (order 1, home.css) comes before the chips. From 64rem a
               wider gap sets the chips apart from the Drill offer's note. */}
           <AskCircuit choice={choice} onChoice={setChoice} className="order-2 lg:mt-4" />
           <ul

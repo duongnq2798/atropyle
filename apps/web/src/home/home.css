@@ -1,0 +1,553 @@
+/*
+ * The home page's own rules (Plan 7C: the weave, Ask the circuit, the stage, the story), a module apart from
+ * globals.css and imported by the layout right after it. Turbopack never merges a CSS chunk over 100 kB with another,
+ * and globals.css with these rules came to 107 kB once Plans 7B and 7C met: the fonts' rules then shipped as a second
+ * render-blocking stylesheet on every page. Two modules under the cap merge into one chunk again, so every page still
+ * loads a single stylesheet (test/build/home.test.ts). Unlayered, after globals.css, as they stood at its end.
+ */
+
+/* The hero's weave (7C-T4, src/home/weave-svg.tsx): the real policy circuit behind the question. On a phone it is a
+   strip above the chips that shows the middle columns: the plate is wider than the strip and starts left of it, by the
+   numbers of src/home/netlist-geometry.ts (CROP). From 64rem it fills the hero and fades to 12 % behind the text
+   column. Only the two boxes of each sweep move, by transform, and only without a reduced-motion preference (R18.4):
+   no path animates. Paths keep a 1 px stroke and round dots however far the view stretches. */
+.weave {
+  position: relative;
+  /* Last in the hero column's markup (src/home/hero.tsx, R-T5p-1). On a phone it shows after the ways in and before the
+     chips (order-2) and the facts (order-3); from 64rem it is out of the flow and `order` changes nothing. */
+  order: 1;
+  height: 9rem;
+  margin-inline: -1rem;
+  overflow: clip;
+  pointer-events: none;
+}
+.weave-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+}
+.weave-plate {
+  position: absolute;
+  inset-block: 0;
+  left: var(--wv-plate-x);
+  width: var(--wv-plate-w);
+}
+.weave-sweep,
+.weave-sweep-in,
+.weave svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.weave-sweep {
+  overflow: clip;
+}
+.weave svg {
+  overflow: visible;
+}
+.weave path {
+  vector-effect: non-scaling-stroke;
+}
+@media (min-width: 40rem) {
+  .weave {
+    margin-inline: -1.5rem;
+  }
+}
+@media (min-width: 64rem) {
+  .weave {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    height: auto;
+    margin: 0;
+  }
+  /* The text column of the hero: its box is max-w-6xl with px-6, and the column is the left 7/12 of it. */
+  .weave-layer {
+    --wv-box: min(100%, 72rem);
+    --wv-text: calc((100% - var(--wv-box)) / 2 + 1.5rem + (var(--wv-box) - 3rem) * 7 / 12);
+    mask-image: linear-gradient(to right, rgb(0 0 0 / 0.12) var(--wv-text), #000 calc(var(--wv-text) + 10rem));
+  }
+  .weave-plate {
+    left: 0;
+    width: 100%;
+  }
+}
+/* Two boxes per layer move opposite ways and uncover the drawing from the left while it stays in place: the circuit
+   first (DURATION.story after DURATION.instant), then the thread is drawn across it at an even pace (story, after
+   slow). Done in 1.14 s; src/motion/tokens.ts has the durations. Both boxes are the size of the strip and the plate
+   rides inside the inner one: a box as wide as a phone's plate would cross the strip in a flash. */
+@media (prefers-reduced-motion: no-preference) {
+  .weave-sweep {
+    animation: weave-open 720ms var(--ease-out-expo) 90ms both;
+  }
+  .weave-sweep-in {
+    animation: weave-hold 720ms var(--ease-out-expo) 90ms both;
+  }
+  [data-weave="thread"] :is(.weave-sweep, .weave-sweep-in) {
+    animation-timing-function: var(--ease-in-out-sine);
+    animation-delay: 420ms;
+  }
+}
+@keyframes weave-open {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes weave-hold {
+  from {
+    transform: translateX(100%);
+  }
+}
+/* Ask the circuit (7C-T5′, src/home/ask-circuit.tsx). A chip is a native radio: the hero lights the wires that carry
+   1 for its question (data-v, from WIRE_V), shows its answer, and turns the release pin violet where the gate opens.
+   :has() does it without JavaScript. [data-ask], which HomeHero keeps in step, does it only where :has() is missing,
+   so a chip pressed before hydration never lights two questions (ruling R12). An unlit wire is its colour at 55 %; a
+   lit one is the thread's colour at full strength, so the answer shows in the wires and not only in the text (the
+   group carries no opacity: fix round 1 of 7C-T5′). */
+.weave-col path {
+  stroke: color-mix(in oklab, currentColor 55%, transparent);
+}
+/* A chip's face is the span after its radio; `:checked + span` needs no :has(), so it marks the choice in every
+   browser. Every face has a ring, so the choice reads by shape as well as by hue (§4.1): only the checked chip fills
+   it and wears the thread, border and tint, like the answer's ring and the release pin. Hover lightens an unchecked
+   chip and never borrows the thread, so the mouse never seems to give a second answer (fix round 2 of 7C-T5′). */
+.ask-chip > span::before,
+.stage-chip > span::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.375rem;
+  border: 1.5px solid currentColor;
+  border-radius: 9999px;
+}
+.ask-chip > :checked + span,
+.stage-chip > :checked + span {
+  border-color: var(--atro-thread);
+  background-color: color-mix(in oklab, var(--atro-thread) 12%, transparent);
+  color: var(--atro-ink);
+}
+.ask-chip > :checked + span::before,
+.stage-chip > :checked + span::before {
+  border-color: var(--atro-thread);
+  background-color: var(--atro-thread);
+}
+@media (hover: hover) {
+  .ask-chip > :not(:checked) + span:hover,
+  .stage-chip > :not(:checked):not(:disabled) + span:hover {
+    border-color: var(--atro-ink-muted);
+    color: var(--atro-ink);
+  }
+}
+.ask-chip > :focus-visible + span,
+.stage-chip > :focus-visible + span {
+  outline: 2px solid var(--atro-thread);
+  outline-offset: 2px;
+}
+/* High contrast drops the tint and the fill, so the filled ring is drawn in the system's ink. */
+@media (forced-colors: active) {
+  .ask-chip > :checked + span::before,
+  .stage-chip > :checked + span::before {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background-color: CanvasText;
+  }
+}
+/* The stage's chips (src/home/stage.tsx) are disabled until the page runs; they keep the face they will have, so the
+   first paint is the final layout (§18.2, 6). */
+.stage-chip > :disabled + span {
+  cursor: default;
+}
+/* The stage's dated rows (src/home/stage.tsx), written once here and not in each row's classes (as R-T5p-12): a row
+   the playhead has not reached reads in the muted ink, the current one sits on the raised surface. */
+.stage-beat {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  color: var(--atro-ink);
+}
+.stage-beat[data-ahead] {
+  color: var(--atro-ink-muted);
+}
+.stage-beat[aria-current="step"] {
+  background-color: var(--atro-surface-2);
+}
+@media (hover: hover) {
+  .stage-beat:not(:disabled):hover {
+    background-color: var(--atro-surface-2);
+  }
+}
+.stage-beat:focus-visible {
+  outline: 2px solid var(--atro-thread);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stage-beat {
+    transition:
+      background-color 150ms,
+      color 150ms;
+  }
+}
+/* The stage's panel is a size container (src/home/stage.tsx), and its width alone lays out what follows, never the
+   frame's state: the header's height and the thread's place never change while the thumb moves (fix round 2 of
+   7C-T6; e2e "every frame of every story fits its panel"). Here, not in classes, so / carries no JS for them.
+   The header: the badge, then the day counter. One row from a 26rem panel (from 482 px, and every md and lg panel),
+   where the widest pair ("Released to the recovery wallet", "Day 26": about 22rem) fits; in a phone's panel the
+   counter stands on its own line above the badge. */
+.stage-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 0.5rem;
+}
+.stage-head > :last-child {
+  order: -1;
+}
+@container (min-width: 26rem) {
+  .stage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .stage-head > :last-child {
+    order: 0;
+  }
+}
+/* In a panel under 17rem (a 320 px phone: 15.9rem) the badge takes the caption's size and inset at its own height:
+   "Released to the recovery wallet" is 16.1rem wide at the small size, and would cross the panel's padding. */
+@container not (min-width: 17rem) {
+  .stage-head > :first-child {
+    padding-inline: 0.5rem;
+    font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
+  }
+}
+/* Room above the thread for the Scrubber's pill ("Day 116"), which rides above the thumb: its top stands 3rem + 2px
+   above the thumb's centre (scrubber.tsx: its bottom 1.75rem above it, 1.25rem + 2px high), and the thumb rides the
+   wave, highest mid-track, 0.075 of the Thread's height H above the centre line. So the pill's top can stand
+   3rem + 2px − 0.425 H above the thread, where the panel's 1rem gap is all there is under the header. On a phone H is
+   small (70 px at 320 px) and the pill met the badge: the thread keeps 0.5rem more than the pill needs, and no margin
+   where H is tall enough (from about 400 px). H = (100cqw − 2.75rem) / --tm-r, in cqw of the panel, whose content box
+   is the Scrubber's width, with the Scrubber's ratio (3, then 5 from 32rem). */
+.stage-room {
+  margin-top: max(0px, 2.5rem + 2px - 0.425 * (100cqw - 2.75rem) / 3);
+}
+@container (min-width: 32rem) {
+  .stage-room {
+    margin-top: max(0px, 2.5rem + 2px - 0.425 * (100cqw - 2.75rem) / 5);
+  }
+}
+/* At rest the header's day counter says the day; the pill says it only next to the finger or the keyboard's focus
+   (Radix focuses the thumb on a press), or under a hovering pointer. opacity keeps its box, so its room above stays
+   and the e2e checks of the pill still measure it. */
+.stage-room [data-part="playhead"] {
+  opacity: 0;
+}
+.stage-room [role="slider"]:is(:focus, :active) [data-part="playhead"] {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .stage-room [role="slider"]:hover [data-part="playhead"] {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stage-room [data-part="playhead"] {
+    transition: opacity 150ms;
+  }
+}
+.hero:has(.ask-chip input[value="a"]:checked) .weave-col [data-v~="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .weave-col [data-v~="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .weave-col [data-v~="l"] {
+  stroke: var(--atro-thread);
+}
+.ask-answer > [data-for] {
+  visibility: hidden;
+}
+.hero:has(.ask-chip input[value="a"]:checked) .ask-answer > [data-for="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .ask-answer > [data-for="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .ask-answer > [data-for="l"] {
+  visibility: visible;
+}
+.hero:has(.ask-chip input[value="a"]:checked) .weave-pin[data-open~="a"],
+.hero:has(.ask-chip input[value="s"]:checked) .weave-pin[data-open~="s"],
+.hero:has(.ask-chip input[value="l"]:checked) .weave-pin[data-open~="l"] {
+  border-color: var(--atro-release);
+  background-color: color-mix(in oklab, var(--atro-release) 35%, var(--color-bg));
+}
+@supports not selector(:has(*)) {
+  .hero[data-ask="a"] .weave-col [data-v~="a"],
+  .hero[data-ask="s"] .weave-col [data-v~="s"],
+  .hero[data-ask="l"] .weave-col [data-v~="l"] {
+    stroke: var(--atro-thread);
+  }
+  .hero[data-ask="a"] .ask-answer > [data-for="a"],
+  .hero[data-ask="s"] .ask-answer > [data-for="s"],
+  .hero[data-ask="l"] .ask-answer > [data-for="l"] {
+    visibility: visible;
+  }
+  .hero[data-ask="a"] .weave-pin[data-open~="a"],
+  .hero[data-ask="s"] .weave-pin[data-open~="s"],
+  .hero[data-ask="l"] .weave-pin[data-open~="l"] {
+    border-color: var(--atro-release);
+    background-color: color-mix(in oklab, var(--atro-release) 35%, var(--color-bg));
+  }
+}
+/* The release output, where the thread ends: gold while the gate stays closed, violet where it opens. From 64rem
+   only: a phone's strip crops it away, and the ring before the answer stands for it there (ruling R16). */
+.weave-pin {
+  display: none;
+  position: absolute;
+  width: 0.875rem;
+  height: 0.875rem;
+  translate: -50% -50%;
+  border: 2px solid var(--atro-thread);
+  border-radius: 9999px;
+  background-color: var(--color-bg);
+}
+@media (min-width: 64rem) {
+  .weave-pin {
+    display: block;
+  }
+}
+/* The sweep, the one exception to R18.4 (R18.20): after a chip changes, each layer takes its new colour --d × 28 ms
+   later, inputs first, and the pin last at --d = DEPTHS: 39 × 28 + 160 = 1 252 ms. Never on load (a first style has
+   no transition) and never with a reduced-motion preference. */
+@media (prefers-reduced-motion: no-preference) {
+  .weave-col path {
+    transition: stroke 160ms linear calc(var(--d) * 28ms);
+  }
+  .weave-pin {
+    transition:
+      border-color 160ms linear calc(var(--d) * 28ms),
+      background-color 160ms linear calc(var(--d) * 28ms);
+  }
+}
+/* A theme change recolours every wire and the pin as well: <html> carries data-theme-swap while the new theme is
+   styled (src/theme/theme.ts), so they change at once and the sweep stays the chip's alone (R18.20). */
+:root[data-theme-swap] .weave :is(.weave-col path, .weave-pin) {
+  transition: none;
+}
+
+/* The woven title (7C-T5′, src/home/title-weave.tsx), inside an H1 that isolates: a frame from the bottom of line 1
+   to the bottom of the heading. The copy behind (z-index −1) shows between the letters. The copy in front shows only
+   in the frame's top 0.12em, the leading under line 1, so the thread surfaces there and dives back. Set
+   `--weave-over: 0` (for one language, say) to keep only the copy behind, with no code change (ruling R24). */
+.title-weave {
+  position: absolute;
+  inset-inline: 0;
+  top: 1lh;
+  height: calc(100% - 1lh);
+  pointer-events: none;
+}
+@supports not (top: 1lh) {
+  .title-weave {
+    top: 1em;
+    height: calc(100% - 1em);
+  }
+}
+.title-weave svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.title-weave path {
+  fill: none;
+  stroke: var(--atro-thread);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.title-weave-under {
+  z-index: -1;
+  /* The tail tapers off under the last line instead of stopping on a round cap. */
+  mask-image: linear-gradient(to right, #000 70%, transparent 88%);
+}
+.title-weave-over {
+  z-index: 1;
+  opacity: var(--weave-over, 1);
+  mask-image: linear-gradient(to bottom, #000 0.12em, transparent 0.12em);
+}
+
+/* The story after the hero (7C-T7a, src/home/bands.tsx). A server component writes its text in both languages
+   (src/i18n/say.tsx), and the one <html lang> names shows: the other is display: none, so no screen reader, no
+   find-in-page and no font subset ever meets it. LangProvider sets <html lang> after mount, as it does for every other
+   text, so the static HTML reads English (Quyết định 15). */
+.say-vi {
+  display: none;
+}
+:root:lang(vi) .say-en {
+  display: none;
+}
+:root:lang(vi) .say-vi {
+  display: inline;
+}
+
+/* The trust band's number, in the Proclaim voice at a size that keeps 67,108,864 on one line inside its column from
+   320 px, in the real face and in its wider fallback (about 5.7 em with the fallback's 127 % size-adjust: 1 007 px at
+   11rem, under the 1 104 px column at 1440). Not text-monument, which is for one or two words (spec §18.4.2 Task 1). */
+.trust-cases {
+  font-size: clamp(3rem, 14vw, 11rem);
+  line-height: 0.92;
+}
+
+/* The spine (spec §18.4.3 Task 7a, R18.5): not a Thread but a 2 px line down every block of .story, one piece per
+   block, with an HTML node on each block's first line. It runs in the gutter, 1.5rem left of the 72rem box, and so
+   shows only from 78rem, where that gutter keeps it the page's own 1.5rem from the screen's edge. Narrower it would
+   sit at the edge like a stray border, crowding the text (7C-T7a fix round 1, the same ruling as on phones).
+   A node sits in an anchor that starts at the box's padding, hence the 1.5rem taken off its left. */
+.story {
+  --spine-x: -1.5rem;
+}
+.spine-seg,
+.spine-node {
+  display: none;
+}
+@media (min-width: 78rem) {
+  .story .spine-seg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--spine-x);
+    display: block;
+    width: 2px;
+    translate: -50% 0;
+    background-color: var(--atro-line);
+    pointer-events: none;
+    view-timeline-name: --seg;
+  }
+  /* The closing scene's piece ends at its node: md:pt-28 (7rem) and half its 3.5rem mark (src/home/bands.tsx). */
+  .story .spine-seg[data-end] {
+    bottom: auto;
+    height: 8.75rem;
+  }
+  .spine-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: top;
+    background-color: var(--atro-thread);
+  }
+  .story .spine-node {
+    position: absolute;
+    top: var(--node-y, 0.5lh);
+    left: calc(var(--spine-x) - 1.5rem);
+    display: block;
+    width: 0.75rem;
+    height: 0.75rem;
+    translate: -50% -50%;
+    border: 2px solid var(--atro-thread);
+    border-radius: 9999px;
+    background-color: var(--atro-bg);
+    pointer-events: none;
+  }
+  .spine-node > span {
+    position: absolute;
+    inset: 2px;
+    border-radius: 9999px;
+    background-color: var(--atro-thread);
+  }
+}
+@supports not (top: 1lh) {
+  .story .spine-node {
+    top: var(--node-y, 0.6em);
+  }
+}
+/* As the reader scrolls (R18.4: transform only, never opacity, so axe never meets half-faded text): a piece fills
+   while its block passes the middle of the screen, a node ties as it reaches it, a quiet paragraph and the trust
+   number rise 1.5rem as they enter. Without scroll timelines (Firefox, older Safari) or with a reduced-motion
+   preference, all of it stands still and full. settle() of the e2e ignores scroll timelines. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .spine-fill {
+      animation: spine-fill linear both;
+      animation-timeline: --seg;
+      animation-range: cover 50vh cover calc(100% - 50vh);
+    }
+    .spine-node > span {
+      animation: spine-tie linear both;
+      animation-timeline: view();
+      animation-range: cover calc(50vh - 2rem) cover 50vh;
+    }
+    .story-rise {
+      animation: story-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+}
+@keyframes spine-fill {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes spine-tie {
+  from {
+    transform: scale(0);
+  }
+}
+@keyframes story-rise {
+  from {
+    transform: translateY(1.5rem);
+  }
+}
+/* A door's arrow in the story's bands: lucide's ArrowRight (stroke 2), as ARROW of src/home/look.ts sets it on the
+   hero, painted in the text's colour through a mask. An empty span costs the HTML nothing next to an inline SVG. */
+.story-arrow {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: 0.5ch;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  /* In forced colours a background is painted over: keep the arrow in the link's colour. */
+  forced-color-adjust: none;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* The agent band's transcript (src/home/bands.tsx): a bubble for the person and for the agent, the person's on the
+   right, each with the corner nearest its speaker cut; a tool call in the thread's colour after the knot glyph
+   (src/thread/glyphs.tsx, stroke 1.5), painted through a mask as the doors' arrow is. */
+.agent-say {
+  display: flex;
+  max-width: 88%;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-self: flex-start;
+  border-radius: 1rem 1rem 1rem 0.375rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--atro-surface-2);
+}
+.agent-say[data-who="you"] {
+  align-self: flex-end;
+  border-radius: 1rem 1rem 0.375rem 1rem;
+  background-color: var(--atro-surface-3);
+}
+.agent-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  padding-inline-start: 0.5rem;
+  color: var(--atro-thread);
+}
+.agent-tool::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  forced-color-adjust: none;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h6M16 12h6M8 12c0-3 2-4.5 4-4.5s4 1.5 4 4.5-2 4.5-4 4.5-4-1.5-4-4.5ZM9.5 9l5 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}

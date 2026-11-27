@@ -17,7 +17,7 @@ const CHIP_KEY = { alive: 'askAlive', silent: 'askSilent', liar: 'askLiar' } as 
 const ANSWER_KEY = { alive: 'answerAlive', silent: 'answerSilent', liar: 'answerLiar' } as const;
 
 /**
- * Ask the circuit (spec §18.4.3 Task 5′): three native radios. CSS (globals.css) lights the wires that carry 1 for
+ * Ask the circuit (spec §18.4.3 Task 5′): three native radios. CSS (home.css) lights the wires that carry 1 for
  * the checked question, shows its answer and rings the release pin, through :has(), so it works without JavaScript;
  * HomeHero mirrors the choice in `data-ask` for browsers without :has() and for "Ask X Layer". All three answers share
  * one grid cell, so a chip never moves the page.

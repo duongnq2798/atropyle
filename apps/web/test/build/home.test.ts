@@ -89,7 +89,8 @@ for (const target of ['vercel', 'deweb'] as const) {
         expect(js, file).not.toContain(MARKER);
         for (const m of DATA) expect(js, file).not.toContain(m);
       }
-      // The weave's CSS is in globals.css: still one render-blocking stylesheet.
+      // The weave's CSS is in the layout's stylesheets (globals.css, src/home/home.css): still one render-blocking
+      // stylesheet, as the two modules stay under Turbopack's 100 kB cap on merging a CSS chunk.
       expect(page.match(/<link[^>]*rel="stylesheet"/g)).toHaveLength(1);
       const gz = gzipSync(page).length;
       const first = page.indexOf(MARKER);

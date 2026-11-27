@@ -8,7 +8,7 @@ export const ARROW = 'ml-[0.5ch] inline-block size-[1em] align-[-0.125em]';
 
 /**
  * A chip's face, the span after its radio, on the hero (ask-circuit.tsx) and on the stage (stage.tsx): its states (the
- * ring, checked, hover, focus) are in globals.css under `.ask-chip` and `.stage-chip`, written once there (R-T5p-12).
+ * ring, checked, hover, focus) are in home.css under `.ask-chip` and `.stage-chip`, written once there (R-T5p-12).
  * The ring's width comes out of the padding (pl-3 pr-3.5): the three English chips of the hero still share one row
  * of the 644 px text column (634.8 px).
  */

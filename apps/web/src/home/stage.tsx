@@ -372,7 +372,7 @@ export function HomeStage() {
             sentence that wraps never moves the thread under a finger. Sticky beside the rows from 64rem. */}
         <div ref={panel} data-part="stage" className={PANEL}>
           <span aria-hidden="true" className={cn(GLOW, THREAD_COLOR[state])} />
-          {/* The panel's width lays out the header and the thread's room for the pill, never the state (globals.css:
+          {/* The panel's width lays out the header and the thread's room for the pill, never the state (home.css:
               .stage-head, .stage-room), so the thread never moves while the thumb does. */}
           <div className="stage-head">
             <StateBadge state={state} />

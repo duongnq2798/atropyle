@@ -8,6 +8,7 @@ import { Frame } from '@/shell/frame';
 import { Providers } from '@/shell/providers';
 import { BootScript } from '@/theme/boot-script';
 import './globals.css';
+import '@/home/home.css';
 
 export const metadata: Metadata = {
   title: { default: SHARE.title, template: '%s · Atropyle' },

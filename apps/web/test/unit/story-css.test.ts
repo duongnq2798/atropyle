@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const CSS = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
+// The home page's rules: src/home/home.css, a module apart from globals.css, imported by the layout after it.
+const CSS = readFileSync(fileURLToPath(new URL('../../src/home/home.css', import.meta.url)), 'utf8');
 
 describe('the story after the hero (7C-T7a, R18.4)', () => {
   it('moves the spine and the rise by transform alone, on a scroll timeline, only without a reduced-motion preference', () => {

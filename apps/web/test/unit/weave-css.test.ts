@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { DEPTHS } from '../../src/home/netlist-geometry';
 import { THEME_SWAP_ATTR } from '../../src/theme/theme';
 
-const CSS = readFileSync(fileURLToPath(new URL('../../src/app/globals.css', import.meta.url)), 'utf8');
+// The home page's rules: src/home/home.css, a module apart from globals.css, imported by the layout after it.
+const CSS = readFileSync(fileURLToPath(new URL('../../src/home/home.css', import.meta.url)), 'utf8');
 const SVG = readFileSync(fileURLToPath(new URL('../../src/home/weave-svg.tsx', import.meta.url)), 'utf8');
 
 describe('the weave of the home hero (R18.4, R18.20)', () => {

@@ -130,7 +130,7 @@ h1 {
   font-family: 'Atropyle Fraunces', serif; font-weight: 500; font-size: 84px; line-height: 1.02; letter-spacing: -0.015em;
 }
 h1 em { font-style: normal; color: ${VELLUM.thread}; }
-/* .title-weave of globals.css, in the card's own frame: the copy behind shows between the letters, the copy in front
+/* .title-weave of src/home/home.css, in the card's own frame: the copy behind shows between the letters, the copy in front
    only in the top 0.12em of the frame, the leading under line 1. */
 .title-weave { position: absolute; inset-inline: 0; top: 1lh; height: calc(100% - 1lh); pointer-events: none; }
 .title-weave svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }

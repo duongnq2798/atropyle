@@ -5,7 +5,7 @@ import { type Lang, type Messages, type Params, translate } from './core';
 const LANGS: readonly Lang[] = ['en', 'vi'];
 
 /**
- * Text of a server component in both languages, each in a span with its own `lang`; globals.css shows the one that
+ * Text of a server component in both languages, each in a span with its own `lang`; src/home/home.css shows the one that
  * <html lang> names and keeps the other at display: none, so neither a screen reader nor find-in-page meets it. No
  * hook and no script: the words are in the HTML only (test/build/home.test.ts), which is how the home page's bands
  * stay out of a first load with no JavaScript to spare (7C-T7a).
