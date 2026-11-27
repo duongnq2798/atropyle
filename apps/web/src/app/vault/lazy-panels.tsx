@@ -9,14 +9,17 @@ import { ErrorBox } from '@/tx/error-box';
 import { Skeleton, SkeletonText } from '@/ui/skeleton';
 import type * as GuardianModule from './guardian-tab';
 import type * as HeirModule from './heir-letter';
+import type * as OwnerModule from './owner-tab';
 import type { PanelProps } from './vault-page';
 
 /** The role panels, out of the first load of /vault/ (R23: the page stays under 240 kB). A visitor never loads them. */
+export const ownerTabChunk: LazyChunk<typeof OwnerModule> = lazyChunk(() => import('./owner-tab'));
 export const guardianTabChunk: LazyChunk<typeof GuardianModule> = lazyChunk(() => import('./guardian-tab'));
 export const heirLetterChunk: LazyChunk<typeof HeirModule> = lazyChunk(() => import('./heir-letter'));
 
 /** For the pointerenter and focus of the Connect button (GuestView's warm()): the panel is there when the wallet is. */
 export function preloadPanels(): void {
+  ownerTabChunk.preload();
   guardianTabChunk.preload();
   heirLetterChunk.preload();
 }
@@ -62,8 +65,13 @@ export function LazyPanel<M>({ name, chunk, pick, ...props }: LazyPanelProps<M>)
   return <PanelLoading name={name} />;
 }
 
+const pickOwner = (m: typeof OwnerModule) => m.OwnerTab;
 const pickGuardian = (m: typeof GuardianModule) => m.GuardianTab;
 const pickHeir = (m: typeof HeirModule) => m.HeirLetter;
+
+export function OwnerPanel(props: PanelProps) {
+  return <LazyPanel name="owner" chunk={ownerTabChunk} pick={pickOwner} {...props} />;
+}
 
 export function GuardianPanel(props: PanelProps) {
   return <LazyPanel name="guardian" chunk={guardianTabChunk} pick={pickGuardian} {...props} />;

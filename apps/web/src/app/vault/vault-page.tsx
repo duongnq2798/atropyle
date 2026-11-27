@@ -29,7 +29,7 @@ import { AssetsList } from './assets-list';
 import { vaultRefetchMs } from './boundary';
 import { GuestView } from './guest';
 import { HistoryThread } from './history-thread';
-import { GuardianPanel, HeirPanel } from './lazy-panels';
+import { GuardianPanel, HeirPanel, OwnerPanel } from './lazy-panels';
 import { betweenReads, forgetBefore, type Moved, movedOf } from './moment';
 import { StandingLine } from './standing-line';
 import { VaultHeader, VaultPlan } from './vault-header';
@@ -54,11 +54,11 @@ const PANEL_ORDER: readonly PanelRole[] = ['owner', 'guardian', 'heir'];
 
 /**
  * One panel per role, a constant of this page (not a registry changed at run time). A role without a panel sees the
- * guest view, with its roles named, and can still poke or distribute like anyone. The guardian and heir panels load
- * lazily (lazy-panels.tsx).
+ * guest view, with its roles named, and can still poke or distribute like anyone. Every panel loads lazily
+ * (lazy-panels.tsx).
  */
 const PANELS: Partial<Record<PanelRole, ComponentType<PanelProps>>> = {
-  // owner: OwnerTab — Task 10 (src/app/vault/owner-tab.tsx): the check-in ritual, coverage, edit, revoke, time machine.
+  owner: OwnerPanel,
   guardian: GuardianPanel,
   heir: HeirPanel,
 };
