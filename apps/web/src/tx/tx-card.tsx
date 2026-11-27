@@ -19,7 +19,7 @@ import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
 import { CopyButton } from '@/ui/copy-button';
 import { ExternalLink } from '@/ui/external-link';
-import { HoldButton, type HoldWords } from '@/ui/hold-button';
+import { HoldButton, HoldEnd, type HoldWords } from '@/ui/hold-button';
 import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
@@ -322,7 +322,11 @@ export interface TxCardProps {
   holdPlacement?: 'end' | 'top';
   /** The page's own gate is closed (on /sign/, a vote not typed again): Send stays disabled. */
   disabled?: boolean;
-  /** The Receipt's footer slot: the page's next step, for example a link to the vault. */
+  /**
+   * The Receipt's footer slot: the page's next step, for example a link to the vault. With `holdPlacement="top"` and a
+   * hold with a face it is the ritual's end instead: it stands first, where the hold's bar stood, under the hold's face
+   * in the hold's own box (HoldEnd), and the Receipt follows it.
+   */
   receiptFooter?: ReactNode;
   /**
    * The card stands under a heading of the page that already names its action (the owner tab's "Check in"): its own
@@ -417,17 +421,33 @@ export function TxCard({
   const locked = blocker !== null || disabled;
   const top = confirm === 'hold' && holdPlacement === 'top';
 
+  // The hold up front ends up front: once recorded, the hold's face stays where it stood, in the hold's own box
+  // (HoldEnd), with the footer where the bar was, so the knot ties in sight; the ledger rows and the hash follow.
+  const holdEnd = top && hold?.face !== undefined;
   let action: ReactNode;
   if (result) {
-    action = (
+    const receipt = (
       <Receipt
         steps={runner.receipt ?? []}
         titles={titles}
         explorer={runner.explorer}
         reading={runner.receiptReading}
         testId={testId}
-        footer={receiptFooter}
+        footer={holdEnd ? undefined : receiptFooter}
       />
+    );
+    action = holdEnd ? (
+      <>
+        {/* Centred as the send area centres the hold: the face keeps its x. */}
+        <div className="flex flex-col items-center">
+          <HoldEnd face={hold?.face} tone={tone} testId={`${testId}-end`}>
+            {receiptFooter}
+          </HoldEnd>
+        </div>
+        {receipt}
+      </>
+    ) : (
+      receipt
     );
   } else if (blocker === 'unsettled') {
     action = <Unsettled runner={runner} testId={testId} recheckRef={recheckButton} />;
@@ -549,7 +569,8 @@ export function TxCard({
         )}
       </header>
 
-      {/* The hold up front: what to read before it (a warning), the hold, what went wrong with it, then the review. */}
+      {/* The hold up front: what to read before it (a warning), the hold, what went wrong with it, then the review.
+          Done, the hold's end and then the Receipt stand here. */}
       {top ? (
         <>
           {warningList}

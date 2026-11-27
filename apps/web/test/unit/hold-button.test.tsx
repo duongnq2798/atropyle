@@ -10,7 +10,7 @@ import { memoryKV } from '../../src/lib/store';
 import { MotionProvider } from '../../src/motion/provider';
 import { DURATION, REDUCED_MS } from '../../src/motion/tokens';
 import { type HoldBind, useHold } from '../../src/motion/use-hold';
-import { HoldButton, type HoldButtonProps, type HoldWords } from '../../src/ui/hold-button';
+import { HoldButton, type HoldButtonProps, HoldEnd, type HoldWords } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
 function setup(props: { disabled?: boolean } = {}) {
@@ -516,6 +516,43 @@ describe('the hold callbacks and the face (Task 10)', () => {
     const button = screen.getByRole('button', { name: 'Sending…' });
     expect(button.className).not.toContain('disabled:opacity-50');
     expect(button.querySelector('[data-part="bar"]')?.className).toContain('group-disabled:');
+  });
+
+  it("its end (HoldEnd) keeps the face where the hold had it: the hold's column, frame and face box, the outcome where the bar stood", () => {
+    const tokens = (el: Element | null | undefined) => new Set((el?.className ?? '').split(/\s+/).filter(Boolean));
+    const view = renderWithProviders(
+      <HoldButton onConfirm={() => {}} face={<span data-testid="face" />}>
+        Check in
+      </HoldButton>,
+    );
+    const heldBox = screen.getByTestId('face').parentElement;
+    const held = {
+      box: tokens(heldBox),
+      frame: tokens(heldBox?.parentElement),
+      column: tokens(heldBox?.parentElement?.parentElement),
+    };
+    view.unmount();
+    renderWithProviders(
+      <HoldEnd face={<span data-testid="face" />}>
+        <p data-testid="tied">Tied at block 7</p>
+      </HoldEnd>,
+    );
+    const box = screen.getByTestId('face').parentElement;
+    const frame = box?.parentElement;
+    const column = frame?.parentElement;
+    // The same box, in the same frame, in the same column: the knot a hold left pending ties where it stood.
+    expect(box?.getAttribute('data-part')).toBe('face');
+    expect(tokens(box)).toEqual(held.box);
+    for (const c of tokens(frame)) expect(held.frame, `frame ${c}`).toContain(c);
+    for (const c of ['w-full', 'border', 'rounded-3xl', 'border-thread']) expect(tokens(frame)).toContain(c);
+    for (const c of tokens(column)) expect(held.column, `column ${c}`).toContain(c);
+    expect(tokens(column)).toContain('max-w-md');
+    // The outcome where the bar stood, under the face, as tall as the bar; nothing to press any more.
+    const end = frame?.querySelector<HTMLElement>('[data-part="end"]');
+    expect(end?.contains(screen.getByTestId('tied'))).toBe(true);
+    expect((box?.compareDocumentPosition(end as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(end?.className).toContain('min-h-14');
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('without a face it stays the pill, its thread under the label', () => {

@@ -462,6 +462,54 @@ describe('the hold up front (holdPlacement="top", the check-in ritual)', () => {
     expect(row.textContent?.replace(details.textContent ?? '', '')).not.toContain(H);
   });
 
+  const recorded = (holdPlacement?: 'end' | 'top') => {
+    const view = applyStep(txView(CHECK_IN), { index: 0, phase: 'confirmed', hash: H });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, {
+          view,
+          confirmed: 1,
+          committed: true,
+          result: { vault: V, steps: [] },
+          receipt: [{ index: 0, action: 'checkIn', hash: H, blockNumber: 7n, time: null, events: [] }],
+        })}
+        label="Check in"
+        title="Your check-in"
+        confirm="hold"
+        hold={{ face: <span data-testid="face" />, showKnot: false }}
+        holdPlacement={holdPlacement}
+        receiptFooter={<p data-testid="tied">Tied at block 7</p>}
+      />,
+    );
+  };
+
+  it("once recorded, the hold's end stands where the hold stood: its face, the footer where the bar was, then the Receipt", () => {
+    recorded('top');
+    const action = screen.getByTestId('tx-action');
+    const end = screen.getByTestId('tx-end');
+    const done = screen.getByTestId('tx-done');
+    const face = screen.getByTestId('face');
+    const tied = screen.getByTestId('tied');
+    // First under the heading, as the hold was: the knot ties in sight, before the ledger rows and the hash.
+    expect(action.firstElementChild?.contains(end)).toBe(true);
+    expect(end.contains(face)).toBe(true);
+    expect(end.contains(tied)).toBe(true);
+    expect(follows(face, tied)).toBe(true);
+    expect(follows(end, done)).toBe(true);
+    expect(done.contains(tied)).toBe(false);
+    expect(done.contains(face)).toBe(false);
+    // The hold's own box, out of the button: nothing to press once the transaction is recorded.
+    expect(face.parentElement?.getAttribute('data-part')).toBe('face');
+    expect(screen.queryByTestId('tx-send')).toBeNull();
+    expect(action.firstElementChild?.className).toContain('items-center');
+  });
+
+  it("by default the footer stays the Receipt's own, after its rows", () => {
+    recorded();
+    expect(screen.queryByTestId('tx-end')).toBeNull();
+    expect(screen.getByTestId('tx-done').contains(screen.getByTestId('tied'))).toBe(true);
+  });
+
   it('by default the hold closes the card, after the steps, with the signer in the header', () => {
     card();
     const row = screen.getByTestId('tx-step-0');

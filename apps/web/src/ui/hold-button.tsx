@@ -86,14 +86,27 @@ const OBJECT = {
     bar: 'bg-thread text-on-thread group-enabled:group-hover:bg-thread/90',
     fill: 'bg-ink/25',
     knot: 'bg-on-thread',
+    end: 'border-thread/30 bg-thread/10',
   },
   danger: {
     frame: 'border-danger bg-danger/6',
     bar: 'bg-danger text-on-danger group-enabled:group-hover:bg-danger/90',
     fill: 'bg-ink/25',
     knot: 'bg-on-danger',
+    end: 'border-danger/30 bg-danger/10',
   },
 } as const;
+
+/**
+ * The geometry of the ritual's object, shared by a hold with a face and its end (HoldEnd), so the face stands at the
+ * same place in both: its column (the full width up to 28rem, centred by the caller), its frame, and the face's box
+ * in it. The knot a hold left pending then ties where it stood.
+ */
+const OBJECT_COLUMN = 'flex w-full max-w-md flex-col items-center gap-2';
+const OBJECT_FRAME = 'flex w-full flex-col overflow-hidden rounded-3xl border';
+const FACE_BOX = 'block w-full px-4 pt-4 pb-3 sm:px-6';
+/** The bar's height: the end's outcome stands in as much room as the label had. */
+const BAR_BOX = 'min-h-14 w-full items-center justify-center';
 
 /**
  * The check-in ritual (spec §4.6): hold to tie a knot on the thread. A thread runs under the label and tightens
@@ -246,20 +259,22 @@ export function HoldButton({
     <button
       {...press}
       className={cn(
-        'group relative isolate flex w-full select-none flex-col overflow-hidden rounded-3xl border font-medium',
+        'group relative isolate select-none font-medium',
+        OBJECT_FRAME,
         'touch-manipulation transition-[border-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
         'disabled:cursor-not-allowed disabled:border-line-strong',
         o.frame,
         className,
       )}
     >
-      <span data-part="face" className="block w-full px-4 pt-4 pb-3 sm:px-6">
+      <span data-part="face" className={FACE_BOX}>
         {face}
       </span>
       <span
         data-part="bar"
         className={cn(
-          'relative isolate flex min-h-14 w-full items-center justify-center gap-3 px-6 py-3 text-lead',
+          'relative isolate flex gap-3 px-6 py-3 text-lead',
+          BAR_BOX,
           'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] transition-colors duration-150 ease-out-expo',
           'group-disabled:bg-surface-3 group-disabled:text-ink-muted group-disabled:shadow-none',
           o.bar,
@@ -312,7 +327,7 @@ export function HoldButton({
   );
 
   return (
-    <span className={cn('flex-col items-center gap-2', face ? 'flex w-full max-w-md' : 'inline-flex')}>
+    <span className={face ? OBJECT_COLUMN : 'inline-flex flex-col items-center gap-2'}>
       {button}
       <span id={hintId} aria-live="polite" className="text-center text-caption text-ink-muted">
         {phase === 'done'
@@ -324,5 +339,36 @@ export function HoldButton({
             : (hint ?? t('holdHint'))}
       </span>
     </span>
+  );
+}
+
+export interface HoldEndProps {
+  /** The hold's face, as it is once the hold is over: the check-in ritual's thread with its tied knot. */
+  face: ReactNode;
+  /** The outcome, where the bar stood: the ritual's "Tied at block 1,234,567 · 4.1 s". */
+  children?: ReactNode;
+  tone?: 'thread' | 'danger';
+  testId?: string;
+}
+
+/**
+ * A hold with a face, once its transaction is recorded (TxCard `holdPlacement="top"`): the same object without the
+ * button. Its column, frame and face box are the hold's own (OBJECT_COLUMN, OBJECT_FRAME, FACE_BOX), so the thread on
+ * the face does not move and its pending knot fills in place; the frame is lit again in the tone, and the outcome
+ * stands where the bar stood, in as much room. Nothing in it can be pressed: what comes next is the caller's.
+ */
+export function HoldEnd({ face, children, tone = 'thread', testId }: HoldEndProps) {
+  const o = OBJECT[tone];
+  return (
+    <div data-testid={testId} className={OBJECT_COLUMN}>
+      <div className={cn(OBJECT_FRAME, o.frame)}>
+        <span data-part="face" className={FACE_BOX}>
+          {face}
+        </span>
+        <div data-part="end" className={cn('flex border-t px-4 py-3 text-center sm:px-6', BAR_BOX, o.end)}>
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }
