@@ -2,12 +2,13 @@
 
 import type { AssetKind, PlanCheck, TxPlan, Warning } from '@atropyle/sdk';
 import { skipToken, useMutation, useQuery } from '@tanstack/react-query';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import type { Address as Addr } from 'viem';
 import { CHAIN_ID } from '@/chain/hooks';
 import { useSdk } from '@/chain/use-sdk';
 import { IssueList } from '@/flows/editors/issue-list';
 import type { AssetRow } from '@/flows/impl/create-form';
+import type { Resumed } from '@/flows/impl/resume';
 import type { FlowsImpl } from '@/flows/load';
 import { sharesOf } from '@/flows/shares';
 import { useLang, useT } from '@/i18n/provider';
@@ -36,7 +37,7 @@ import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
 import { useWallet } from '@/wallet/provider';
 import { DRILL_LIFETIME_SECONDS } from './kind';
-import { planTokens } from './plan-tokens';
+import { formTokens, planTokens } from './plan-tokens';
 import { STEP_KEY } from './progress';
 import { PlanTimeMachine } from './steps';
 import type { Wizard } from './use-wizard';
@@ -303,6 +304,8 @@ export interface Prepared {
   plan: TxPlan;
   /** Steps of the saved payload confirmed before `plan` starts (0 for a plan prepared on this page). */
   base: number;
+  /** Set when the plan was rebuilt from the saved payload after a reload (Task 8): what the resume banner says. */
+  resumed?: { created: boolean; total: number };
 }
 
 function CreateTx(p: {
@@ -336,12 +339,14 @@ export interface ReviewStepProps {
 }
 
 export function ReviewStep(p: ReviewStepProps) {
-  const { flows, wizard, owner } = p;
+  const { flows, wizard, owner, onPrepared } = p;
   const t = useT(messages);
-  const sdk = useSdk().data ?? null;
+  const sdkQuery = useSdk();
+  const sdk = sdkQuery.data ?? null;
   const { openSheet } = useWallet();
   const s = wizard.state;
   const f = s.form;
+  const { patch } = wizard;
   const explorer = sdk?.deployment.explorerUrl ?? null;
   const check = useQuery({
     queryKey: ['atropyle', CHAIN_ID, 'checkPlan', owner?.toLowerCase() ?? '', jsonStringify(f)],
@@ -370,11 +375,40 @@ export function ReviewStep(p: ReviewStepProps) {
       });
     },
     onSuccess: (plan) => {
-      wizard.patch({ ...flows.savedPlan(plan), feeToken });
-      p.onPrepared({ plan, base: 0 });
+      patch({ ...flows.savedPlan(plan), feeToken });
+      onPrepared({ plan, base: 0 });
     },
   });
-  const createdOnChain = s.vault !== null && s.createStep >= 0 && s.offset > s.createStep;
+
+  // A saved plan and none on the page: the tab was reloaded (Decision 4). The chain says whether createVault ran;
+  // only the steps still to send are inspected again, with the same calldata and salt, so no second vault can follow.
+  // No wallet is needed for this; the wallet signs what is left.
+  const saved =
+    s.payload !== null && s.vault !== null && !p.prepared
+      ? { payload: s.payload, vault: s.vault, createStep: s.createStep, offset: s.offset }
+      : null;
+  const resume = useQuery({
+    queryKey: ['atropyle', CHAIN_ID, 'resume', s.vault?.toLowerCase() ?? ''],
+    queryFn: sdk && saved ? () => flows.resumePlan(sdk.atro, saved, f) : skipToken,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    structuralSharing: false,
+  });
+  // Each answer is applied once: the plan goes to the page with what the banner says, and the session learns the
+  // offset the chain proved (every step on chain: the done screen).
+  const applied = useRef<Resumed | null>(null);
+  useEffect(() => {
+    const r = resume.data;
+    if (!r || applied.current === r) return;
+    applied.current = r;
+    if (r.plan) onPrepared({ plan: r.plan, base: r.offset, resumed: { created: r.created, total: r.total } });
+    patch(r.plan ? { offset: r.offset } : { offset: r.offset, step: 'done' });
+  }, [resume.data, onPrepared, patch]);
+  const resumeError = saved ? (resume.error ?? sdkQuery.error ?? null) : null;
+  // A payload without its vault was written by hand: it can only be dropped.
+  const orphan = s.payload !== null && s.vault === null && !p.prepared;
+  const createdOnChain = s.createStep >= 0 && s.offset > s.createStep;
   return (
     <div data-testid="create-review" className="space-y-10">
       <p className="text-body text-ink-muted">{t('reviewIntro')}</p>
@@ -433,7 +467,7 @@ export function ReviewStep(p: ReviewStepProps) {
           locked={p.prepared !== null}
           explorer={explorer}
           showWarnings={p.prepared === null}
-          onFee={(a) => wizard.patch({ feeToken: a })}
+          onFee={(a) => patch({ feeToken: a })}
         />
       ) : null}
       {checked && !p.prepared && s.payload === null ? (
@@ -447,37 +481,66 @@ export function ReviewStep(p: ReviewStepProps) {
           {t('prepare')}
         </Button>
       ) : null}
-      {s.payload !== null && !p.prepared ? (
-        // T7's stopgap after a reload that kept the payload but lost the plan (Ruling 10); T8 resumes for real.
-        <Banner
-          tone="warn"
-          testId="create-resume-failed"
-          action={
-            createdOnChain && s.vault ? (
-              <NavLink href={vaultHref(s.vault)} className={buttonClass({ variant: 'secondary' })}>
-                {t('resumeVault')}
-              </NavLink>
-            ) : (
-              <Button
-                variant="secondary"
-                data-testid="create-resume-discard"
-                onClick={() => wizard.patch({ payload: null, vault: null, createStep: -1, offset: 0 })}
-              >
-                {t('resumeDiscard')}
-              </Button>
-            )
-          }
-        >
-          {t('resumeFailed')}
+      {saved && !resumeError ? (
+        <div data-testid="create-resuming" aria-busy="true" className="space-y-2">
+          <p className="text-ink-muted text-small">{t('resuming')}</p>
+          <SkeletonText lines={3} />
+        </div>
+      ) : null}
+      {resumeError || orphan ? (
+        <div className="space-y-3">
+          <Banner
+            tone="warn"
+            testId="create-resume-failed"
+            action={
+              <div className="flex flex-wrap gap-3">
+                {createdOnChain ? null : (
+                  // Same salt: if the vault exists after all, the SDK refuses the new prepare; never a second vault.
+                  <Button
+                    variant="secondary"
+                    data-testid="create-resume-discard"
+                    onClick={() => patch({ payload: null, vault: null, createStep: -1, offset: 0 })}
+                  >
+                    {t('resumeDiscard')}
+                  </Button>
+                )}
+                {s.vault ? (
+                  // The vault may exist even when the saved offset says not: its page finishes the approvals.
+                  <NavLink
+                    href={vaultHref(s.vault)}
+                    className={buttonClass({ variant: createdOnChain ? 'secondary' : 'ghost' })}
+                  >
+                    {t('resumeVault')}
+                  </NavLink>
+                ) : null}
+              </div>
+            }
+          >
+            {t('resumeFailed')}
+          </Banner>
+          {resumeError ? (
+            <ErrorBox
+              error={resumeError}
+              testId="create-resume-error"
+              onRetry={() => (resume.error ? resume.refetch() : sdkQuery.refetch())}
+            />
+          ) : null}
+        </div>
+      ) : null}
+      {p.prepared?.resumed ? (
+        <Banner tone="info" testId="create-resume">
+          {p.prepared.resumed.created
+            ? t('resumeCreated', { done: p.prepared.base, total: p.prepared.resumed.total })
+            : t('resumeSame', { done: p.prepared.base, total: p.prepared.resumed.total })}
         </Banner>
       ) : null}
       {p.prepared ? (
         <CreateTx
           prepared={p.prepared}
-          tokens={checked ? planTokens(checked) : []}
+          tokens={checked ? planTokens(checked) : formTokens(f.assets, s.feeToken)}
           onLock={p.onLock}
-          onOffset={(offset) => wizard.patch({ offset })}
-          onDone={(vault) => wizard.patch({ vault, step: 'done' })}
+          onOffset={(offset) => patch({ offset })}
+          onDone={(vault) => patch({ vault, step: 'done' })}
         />
       ) : null}
       {p.frozen ? <p className="text-ink-muted text-small">{t('frozen')}</p> : null}

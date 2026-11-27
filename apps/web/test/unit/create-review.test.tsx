@@ -1,7 +1,7 @@
 import type { PlanCheck, Warning } from '@atropyle/sdk';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { planTokens } from '../../src/app/create/plan-tokens';
+import { formTokens, planTokens } from '../../src/app/create/plan-tokens';
 import { AssetsSummary, CheckResult, CheckWarnings } from '../../src/app/create/review';
 import { untrusted } from '../../src/lib/untrusted';
 import { renderWithProviders } from '../helpers/render';
@@ -111,6 +111,18 @@ describe('planTokens', () => {
     expect(out[0]?.symbol).toEqual(untrusted('USDT0', 16));
     expect(out[1]).toMatchObject({ kind: 'erc721', symbol: null, decimals: null });
     expect(out[2]).toMatchObject({ kind: 'erc20', symbol: untrusted('USDC', 16), decimals: 6 });
+  });
+
+  it('after a reload, takes each kind from the form and the fee token as an ERC-20, names unknown', () => {
+    const rows = [
+      { kind: 'erc721' as const, token: ` ${PEOPLE.nft} `, id: '2', heir: '1' },
+      { kind: 'erc20' as const, token: PEOPLE.token, id: '', heir: '0' },
+      { kind: 'erc20' as const, token: 'not an address', id: '', heir: '0' },
+    ];
+    expect(formTokens(rows, PEOPLE.token)).toEqual([
+      { address: PEOPLE.nft, kind: 'erc721', symbol: null, decimals: null },
+      { address: PEOPLE.token, kind: 'erc20', symbol: null, decimals: null },
+    ]);
   });
 });
 

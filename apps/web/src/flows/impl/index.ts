@@ -23,6 +23,7 @@ export * from './guardian';
 export * from './heir';
 export * from './history';
 export * from './loom';
+export * from './resume';
 export * from './session';
 export * from './sign';
 export * from './sign-gate';

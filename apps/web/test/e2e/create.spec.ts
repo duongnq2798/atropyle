@@ -1,9 +1,11 @@
+import { type AtropyleClient, encodePayload, planTemplate, type TxPlan, toPayload } from '@atropyle/sdk';
 import type { Locator, Page } from '@playwright/test';
-import type { Address } from 'viem';
+import { type Address, type Hex, toHex } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom } from './flows.ts';
 import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme, settle } from './helpers.ts';
-import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
+import { captureScreens, FULL_MATRIX, type Shot, shouldCapture, VELLUM_MATRIX } from './screens.ts';
+import { type E2EState, rpcCall } from './state.ts';
 
 const OWNER = ANVIL[1];
 const HEIR = ANVIL[2];
@@ -550,4 +552,110 @@ test('preview screens of every step', async ({ page, state }, info) => {
   await capturePreview(page, 'assets');
   await page.getByTestId('create-next').click();
   await capturePreview(page, 'review');
+});
+
+/**
+ * A Drill whose createVault the wallet confirmed (sent here from Node through anvil's unlocked account), then the tab
+ * reloaded before the page saved its progress: the session still says offset 0. Returns the plan and that session.
+ */
+async function vaultOnChain(state: E2EState, atro: AtropyleClient): Promise<{ plan: TxPlan; session: string }> {
+  const token = atro.deployment.feeTokens[0] as Address;
+  const salt: Hex = `0x${'5a'.repeat(32)}`;
+  const plan = await atro.prepare.createVault(
+    planTemplate('simple', { drill: true, heirs: [{ account: HEIR }], assets: [{ kind: 'erc20', token }] }),
+    { owner: OWNER, drill: true, salt, allowance: 'exact' },
+  );
+  expect(plan.steps.map((s) => s.action)).toEqual(['createVault', 'approve']);
+  const first = plan.steps[0];
+  if (!first) throw new Error('empty plan');
+  const hash = (await rpcCall(state.rpcUrl, 'eth_sendTransaction', [
+    { from: OWNER, to: first.to, data: first.data, value: toHex(first.value) },
+  ])) as Hex;
+  // anvil can answer eth_sendTransaction before the block with it is mined (wallet.ts, onchain.ts): the vault's code
+  // is read only once the receipt is in.
+  const receipt = await atro.publicClient.waitForTransactionReceipt({ hash });
+  expect(receipt.status).toBe('success');
+  expect(await atro.publicClient.getCode({ address: plan.vault })).not.toBeUndefined();
+  const session = JSON.stringify({
+    v: 1,
+    step: 'review',
+    form: {
+      drill: true,
+      template: 'simple',
+      heirs: [{ account: HEIR, percent: '' }],
+      guardians: [],
+      k: '',
+      recoveryEnabled: false,
+      timing: { preset: 'drill', period: '', threshold: '', window: '' },
+      assets: [{ kind: 'erc20', token, id: '', heir: '0' }],
+    },
+    salt,
+    feeToken: null,
+    payload: encodePayload(toPayload(plan)),
+    vault: plan.vault,
+    createStep: 0,
+    offset: 0,
+  });
+  return { plan, session };
+}
+
+/** The session as the reloaded tab finds it; the page's own writes win on every later reload. */
+const seedSession = (page: Page, value: string) =>
+  page.addInitScript((v) => {
+    if (window.sessionStorage.getItem('atropyle:create') === null) window.sessionStorage.setItem('atropyle:create', v);
+  }, value);
+
+test('a reload after the vault exists only sends what is left', async ({ page, state, atro, wallet }) => {
+  const token = atro.deployment.feeTokens[0] as Address;
+  const { plan, session } = await vaultOnChain(state, atro);
+  await seedSession(page, session);
+  const w = await wallet({ account: OWNER });
+  await page.goto(`${state.siteUrl}create/`);
+  const banner = page.getByTestId('create-resume');
+  await expect(banner).toContainText('Your vault is already on X Layer, 1 of 2 steps done.');
+  await expect(page.getByTestId('create-tx-step-0')).toBeVisible();
+  await expect(page.getByTestId('create-tx-step-1')).toHaveCount(0);
+  await expect(page.getByTestId('create-back')).toBeDisabled();
+  await expect(page.getByTestId('create-prepare')).toHaveCount(0);
+  // The chain proved createVault ran: the session now says so, and a second reload resumes the same way.
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('atropyle:create') ?? '{}').offset)).toBe(1);
+  await expectAccessibleInBothThemes(page, banner);
+
+  await connectFrom(page, page.getByTestId('create-connect'));
+  await expect(page.getByTestId('create-tx-step-0')).toHaveAttribute('data-phase', 'ready');
+  await page.getByTestId('create-tx-send').click();
+  await expect(page.getByTestId('create-done')).toHaveAttribute('data-vault', plan.vault);
+
+  const sent = w.calls.filter((c) => c.method === 'eth_sendTransaction');
+  expect(sent).toHaveLength(1);
+  expect((sent[0]?.params[0] as { to: string } | undefined)?.to.toLowerCase()).toBe(token.toLowerCase());
+  const status = await atro.vault(plan.vault).status();
+  expect(status.assets[0]?.coverage).toBe(status.assets[0]?.held);
+});
+
+test('screens of the resumed wizard', async ({ page, state, atro }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
+  test.setTimeout(15 * 60_000);
+  const { session } = await vaultOnChain(state, atro);
+  await seedSession(page, session);
+  await page.goto(`${state.siteUrl}create/`);
+  const resumed = async () => {
+    await expect(page.getByTestId('create-resume')).toBeVisible();
+    await expect(page.getByTestId('create-tx-step-0')).toBeVisible();
+  };
+  await resumed();
+  await captureScreens(page, 'create-resume', { shots: VELLUM_MATRIX, ready: resumed });
+
+  // A saved plan that cannot be read, saved before createVault was: both ways out show.
+  await page.evaluate(() => {
+    const s = JSON.parse(sessionStorage.getItem('atropyle:create') ?? '{}');
+    sessionStorage.setItem('atropyle:create', JSON.stringify({ ...s, payload: 'x', offset: 0 }));
+  });
+  await page.reload();
+  const failed = async () => {
+    await expect(page.getByTestId('create-resume-failed')).toBeVisible();
+    await expect(page.getByTestId('create-resume-discard')).toBeVisible();
+  };
+  await failed();
+  await captureScreens(page, 'create-resume-failed', { shots: VELLUM_MATRIX, ready: failed });
 });
