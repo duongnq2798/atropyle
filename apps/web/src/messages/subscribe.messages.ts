@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     title: 'Email alerts',
@@ -31,23 +38,23 @@ export const messages = defineMessages(
     hostedLink: 'Sign up on {host}',
   },
   {
-    title: 'Cảnh báo qua email',
+    title: glue('Cảnh~báo qua email'),
     roleOwner:
       'Lời nhắc trước mỗi lần cần điểm danh, và cảnh báo khi có người báo động hoặc một người giám hộ bỏ phiếu chọn ví khôi phục.',
     roleGuardian: 'Cảnh báo khi có người báo động, để bạn kịp liên lạc với chủ vault.',
     roleHeir: 'Email khi có người báo động, và các bước để nhận phần của bạn khi tới lúc.',
-    email: 'Địa chỉ email',
+    email: glue('Địa~chỉ email'),
     emailInvalid: 'Nhập một địa chỉ email, ví dụ ten@example.com.',
-    mailLang: 'Ngôn ngữ của email',
-    send: 'Gửi email xác nhận cho tôi',
+    mailLang: glue('Ngôn~ngữ của email'),
+    send: glue('Gửi email xác~nhận cho tôi'),
     sending: 'Đang gửi…',
     privacy:
       'Chúng tôi chỉ giữ email này, vault, vai trò của bạn và ngôn ngữ. Mọi email chúng tôi gửi đều có một link xoá chúng chỉ bằng một lần bấm.',
-    checkInbox: 'Hãy xem hộp thư của bạn',
+    checkInbox: glue('Hãy xem hộp~thư của bạn'),
     checkInboxHelp:
       'Nếu {email} nhận được cảnh báo cho vault này, một email xác nhận đang được gửi tới. Sẽ không có email nào khác cho tới khi bạn mở link trong email đó.',
     checkSpam: 'Vài phút rồi vẫn chưa thấy? Hãy xem thư mục spam.',
-    again: 'Dùng địa chỉ email khác',
+    again: glue('Dùng địa~chỉ email khác'),
     errorRateLimited: 'Có quá nhiều lượt đăng ký trong một giờ qua. Hãy thử lại sau.',
     errorInvalid: 'Email hoặc vault này không được chấp nhận. Hãy kiểm tra lại email rồi thử lại.',
     errorNotVault: 'X Layer chưa cho thấy vault nào ở địa chỉ này. Nếu vault vừa được tạo, hãy thử lại sau một phút.',
@@ -56,6 +63,6 @@ export const messages = defineMessages(
       'Lúc này chưa kết nối được dịch vụ cảnh báo. Hãy thử lại sau; vault vẫn hoạt động mà không cần nó.',
     hostedOnly: 'Cảnh báo qua email cần một máy chủ, nên chỉ có trên trang chính.',
     hostedOnlyWhy: 'Bản Atropyle này nằm trên chain và chỉ nói chuyện với chain.',
-    hostedLink: 'Đăng ký trên {host}',
+    hostedLink: glue('Đăng~ký trên {host}'),
   },
 );
