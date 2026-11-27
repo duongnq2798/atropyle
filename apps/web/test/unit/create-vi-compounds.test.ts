@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { messages as assets } from '../../src/messages/assets.messages';
 import { messages as create } from '../../src/messages/create.messages';
 import { messages as editors } from '../../src/messages/editors.messages';
+import { messages as sign } from '../../src/messages/sign.messages';
 
 /**
  * Words a Vietnamese reader takes as one: a line break between their syllables reads as broken typesetting
@@ -60,6 +61,9 @@ const COMPOUNDS = [
   'số lần',
   'đọc lại',
   'nối lại',
+  'cho phép',
+  'có thể',
+  'sớm nhất',
 ];
 
 /** The h1 of each step, the step names, the section titles and the invitation headings: whatever their length. */
@@ -77,11 +81,20 @@ function isLabel(key: string, text: string): boolean {
 
 const FILES = { create, editors, assets } as const;
 
-const labels = Object.entries(FILES).flatMap(([file, m]) =>
-  Object.entries(m.vi as Record<string, string>)
-    .filter(([key, text]) => isLabel(key, text))
-    .map(([key, text]) => ({ name: `${file}.${key}`, text: text.normalize('NFC').toLowerCase() })),
-);
+/**
+ * The labels of /sign/ that the wizard's preview renders in its rail and its sheet (preview.tsx). The rest of
+ * sign.messages belongs to /sign/ and is not read here.
+ */
+const SIGN_KEYS = ['earliestLabel', 'earliestAfter'] as const;
+
+const labels = [
+  ...Object.entries(FILES).flatMap(([file, m]) =>
+    Object.entries(m.vi as Record<string, string>)
+      .filter(([key, text]) => isLabel(key, text))
+      .map(([key, text]) => ({ name: `${file}.${key}`, text: text.normalize('NFC').toLowerCase() })),
+  ),
+  ...SIGN_KEYS.map((key) => ({ name: `sign.${key}`, text: sign.vi[key].normalize('NFC').toLowerCase() })),
+];
 
 /** A compound anywhere in the text, its syllables apart by a plain or a no-break space, as a whole word. */
 const pattern = (compound: string) =>
@@ -112,6 +125,9 @@ describe('the Vietnamese labels of /create/ never break inside a word', () => {
         'assets.assetsTitle',
         'assets.pickHeir',
         'assets.tokenAddress',
+        'create.previewRecovery',
+        'sign.earliestLabel',
+        'sign.earliestAfter',
       ]),
     );
     // Prose stays prose: a help paragraph is not a label.
@@ -129,6 +145,9 @@ describe('the Vietnamese labels of /create/ never break inside a word', () => {
   });
 
   it('the bound words still read as the words', () => {
+    expect(editors.vi.recovery).toBe('Cho phép người giám hộ chuyển vault này sang ví mới');
+    expect(create.vi.previewRecovery).toBe('Giám hộ có thể chuyển sang ví mới');
+    expect(sign.vi.earliestLabel).toBe('Sớm nhất tài sản có thể rời ví của bạn');
     expect(create.vi.askHeirs).toBe('Ai nhận tài sản của bạn?');
     expect(create.vi.stepKind).toBe('Drill hay vault thật');
     expect(create.vi.stepHeirs).toBe('Người thừa kế');

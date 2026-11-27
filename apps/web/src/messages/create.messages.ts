@@ -159,7 +159,7 @@ export const messages = defineMessages(
     previewHeir: 'Người\u00a0thừa\u00a0kế {n} nhận {share}',
     previewNoGuardians: 'Không giám\u00a0hộ',
     previewGuardians: 'Cần {k} trên {n} người giám\u00a0hộ đồng\u00a0ý',
-    previewRecovery: 'Giám\u00a0hộ có thể chuyển sang ví mới',
+    previewRecovery: 'Giám\u00a0hộ có\u00a0thể chuyển sang ví mới',
     previewAxis: 'Điểm\u00a0danh mỗi {period}',
     previewAssets: 'Tài\u00a0sản trông\u00a0chừng: {n}',
     previewNoAssets: 'Chưa có tài\u00a0sản',

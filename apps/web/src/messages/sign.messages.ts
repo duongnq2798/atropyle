@@ -163,7 +163,7 @@ export const messages = defineMessages(
     voteOk: 'Trùng với ví mà link này bầu.',
     termsTitle: 'Bước {n} thiết lập những gì',
     termsDrill: 'Đây là Drill (bản diễn tập): nó trao tài sản chỉ sau vài phút, và hết hạn {time} sau khi được tạo.',
-    earliestLabel: 'Sớm nhất tài sản có thể rời ví của bạn',
+    earliestLabel: 'Sớm\u00a0nhất tài\u00a0sản có\u00a0thể rời ví của bạn',
     earliestAfter: '{time} sau khi vault được tạo',
     earliestNotBefore: 'Không trước',
     earliestNone: 'Không tài sản nào rời ví được: Drill này hết hạn trước khi có thể trao.',

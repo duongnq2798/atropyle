@@ -686,7 +686,7 @@ describe('SignPage createVault terms', () => {
     expect(screen.getByTestId('sign-terms-0-guardians').textContent).toBe('Không có người giám hộ.');
     expect(screen.getByTestId('sign-terms-0-routes').textContent).toContain('không cần ai ký');
     expect([...screen.getByTestId('sign-terms-0-earliest').querySelectorAll('p')].map((p) => p.textContent)).toEqual([
-      'Sớm nhất tài sản có thể rời ví của bạn',
+      'Sớm\u00a0nhất tài\u00a0sản có\u00a0thể rời ví của bạn',
       '4 phút sau khi vault được tạo',
       'Không trước 2027-01-15 08:02 UTC',
     ]);

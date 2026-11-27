@@ -88,7 +88,7 @@ export const messages = defineMessages(
     addGuardian: 'Thêm người giám\u00a0hộ',
     kLabel: 'Cần bao nhiêu người giám\u00a0hộ đồng\u00a0ý',
     kHelp: 'Để trống nghĩa là đa số: {majority} trên {n}.',
-    recovery: 'Cho phép người giám\u00a0hộ chuyển vault này sang ví mới',
+    recovery: 'Cho\u00a0phép người giám\u00a0hộ chuyển vault này sang ví mới',
     recoveryHelp:
       'Tắt, trừ khi bạn bật lên. Dành cho ngày bạn mất ví này: đủ số người giám hộ bầu ví mới của bạn, và tài sản chuyển sang ví đó khi hết thời gian báo động.',
     recoveryPowerSome:
