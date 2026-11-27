@@ -11,8 +11,9 @@ import { fixtureSnapshot, fixtureTimeline, PEOPLE } from './fixtures';
 
 const flow = vi.hoisted(() => ({ last: new Map<string, unknown>(), done: new Set<string>() }));
 const spies = vi.hoisted(() => ({ setRange: vi.fn(), reset: vi.fn(), pulse: vi.fn() }));
-// The signing UI is not under test: a stand-in that keeps its props and draws what TxCard draws (tx-card.tsx 371–381):
-// the hold (with its face) until the receipt, then only the Receipt with its footer.
+// The signing UI is not under test: a stand-in that keeps its props and draws what TxCard draws: the hold (with its
+// face) until the receipt; then, with holdPlacement="top", the hold's end in its place (HoldEnd: the face, the footer
+// where the bar stood) before the Receipt, else the Receipt with its footer.
 vi.mock('../../src/app/vault/lazy-action-flow', () => ({
   actionFlowChunk: { preload: () => {}, peek: () => null, load: async () => ({}) },
   LazyActionFlow: (p: ActionFlowProps) => {
@@ -23,7 +24,17 @@ vi.mock('../../src/app/vault/lazy-action-flow', () => ({
           {p.label}
         </button>
         {flow.done.has(p.testId) ? (
-          <div data-testid={`${p.testId}-tx-done`}>{p.receiptFooter}</div>
+          p.holdPlacement === 'top' ? (
+            <>
+              <div data-testid={`${p.testId}-tx-end`}>
+                {p.hold?.face ?? null}
+                <div data-testid={`${p.testId}-tx-end-band`}>{p.receiptFooter}</div>
+              </div>
+              <div data-testid={`${p.testId}-tx-done`} />
+            </>
+          ) : (
+            <div data-testid={`${p.testId}-tx-done`}>{p.receiptFooter}</div>
+          )
         ) : (
           <div data-testid={`${p.testId}-tx-hold`}>
             {p.hold?.face ?? null}
@@ -170,15 +181,20 @@ describe('the check-in ritual', () => {
     expect(props().resetLabel).toBe('Check in again');
     // The attribute keeps the raw number; the words group its digits, as the Receipt's Block line does.
     expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('1234567');
-    // The receipt's footer says it: the status sentence stays for a screen reader only.
+    // The hold's end says it, where the bar stood: the status sentence stays for a screen reader only.
     expect(screen.getByTestId('owner-ritual-status').className).toContain('sr-only');
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('Your check-in is in block 1,234,567.');
     expect(screen.getByTestId('owner-tied').textContent).toMatch(
       /^Tied at block\u00a01,234,567\u00a0·\u00a0\d+\.\d\u00a0s$/,
     );
-    // The hold is gone (TxCard shows the Receipt): the thread and its solid knot are in the receipt's footer.
+    // The hold is gone: in its place the hold's end, the thread and its solid knot on its face (hold.face), the tied
+    // line alone where the bar stood (the footer), before the Receipt's rows. One face, so the knot ties in place.
     expect(screen.queryByTestId('owner-checkin-tx-hold')).toBeNull();
-    expect(screen.getByTestId('owner-checkin-tx-done').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
+    expect(screen.getAllByTestId('owner-ritual-face')).toHaveLength(1);
+    expect(screen.getByTestId('owner-checkin-tx-end').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
+    const band = screen.getByTestId('owner-checkin-tx-end-band');
+    expect(band.contains(screen.getByTestId('owner-tied'))).toBe(true);
+    expect(band.contains(screen.getByTestId('owner-ritual-face'))).toBe(false);
     expect(knots()).toBe(1);
     expect(screen.getByTestId('owner-ritual-face').querySelector('[data-part="pending"]')).toBeNull();
     // The tied knot is the focal mark: solid, on the lit thread's first point ("now" stands on it), drawn above "now".
@@ -311,7 +327,7 @@ describe('the check-in ritual', () => {
     progress({ committed: true, finished: true });
     expect(screen.getByTestId('owner-tied').getAttribute('data-block')).toBe('1234567');
     expect(screen.getByTestId('owner-tied').textContent).toMatch(
-      /^Đã thắt nút ở block\u00a01\.234\.567\u00a0·\u00a0\d+,\d\u00a0s$/,
+      /^Đã thắt nút ở block\u00a01\.234\.567\u00a0·\u00a0\d+,\d\u00a0s$/,
     );
     expect(screen.getByTestId('owner-ritual-status').textContent).toContain('vào block 1.234.567.');
   });

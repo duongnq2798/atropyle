@@ -188,7 +188,8 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   // (setRange) is not cut by a prop change.
   const restarting = phase === 'wallet' || phase === 'sent' || tied;
   // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one. A
-  // span: until the receipt it is the face of the hold, inside the button (HoldButton `face`).
+  // span: until the receipt it is the face of the hold, inside the button (HoldButton `face`); then the face of the
+  // hold's end, in the same box at the same place (TxCard `holdPlacement="top"`, HoldEnd).
   const face = (
     <m.span
       key={tied ? 'tied' : 'open'}
@@ -216,19 +217,19 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   const blockText = block === null ? '' : formatCount(block, lang);
   const since = marks.sent ?? marks.wallet;
   const elapsed = (to: number | null) => formatSeconds(to !== null && since !== null ? to - since : 0, lang);
-  // TxCard draws the HoldButton (and so hold.face) only until runner.result, then the Receipt in its place
-  // (tx-card.tsx: `if (result) action = <Receipt … footer={receiptFooter} />`). The same face rides in both slots, so the
-  // vault's thread stays on screen and the solid knot ties in the receipt; only one of the two is ever mounted.
-  const footer = (
-    <>
-      {face}
-      {block !== null ? (
-        <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-small text-ink">
-          {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
-        </p>
-      ) : null}
-    </>
-  );
+  // TxCard draws the HoldButton until runner.result, then, the hold being up front, the hold's end in its place: the
+  // same face (hold.face) in the same box, and this line where the bar stood, before the Receipt's rows. The knot fills
+  // where it waited and the line says it in sight, the climax never under the ledger and the hash.
+  const footer =
+    block !== null ? (
+      <p
+        data-testid="owner-tied"
+        data-block={String(block)}
+        className="voice-ledger text-balance text-ink text-small sm:text-body"
+      >
+        {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
+      </p>
+    ) : null;
   const key = STATUS_KEY[phase];
   const date = (ts: bigint) => chainDate(ts, lang, view.drill);
   // The words under the hold, by phase: how to hold, then where to sign, then the wait itself with its seconds. The
@@ -293,7 +294,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         // Once tied, the last words invite the next check-in; a stuck wallet or wait still starts over.
         resetLabel={tied ? t('ritualAgain') : undefined}
       />
-      {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the receipt's footer. */}
+      {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the hold's end. */}
       <p data-testid="owner-ritual-status" role="status" className="sr-only">
         {key ? t(key, { block: blockText }) : null}
       </p>

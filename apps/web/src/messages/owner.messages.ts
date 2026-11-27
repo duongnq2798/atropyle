@@ -83,7 +83,7 @@ export const messages = defineMessages(
     ritualWallet: 'Ví của bạn đang chờ bạn ký lần điểm\u00a0danh này.',
     ritualSent: 'Đang chờ X\u00a0Layer',
     ritualTiedStatus: 'Lần điểm\u00a0danh đã vào block {block}. Sợi\u00a0chỉ bắt\u00a0đầu lại từ nút này.',
-    ritualTied: 'Đã thắt nút ở block\u00a0{block}\u00a0·\u00a0{seconds}',
+    ritualTied: 'Đã thắt nút ở block\u00a0{block}\u00a0·\u00a0{seconds}',
     ritualAgain: 'Điểm\u00a0danh lại',
     dueActive: 'Hãy điểm\u00a0danh trước {date}.',
     dueGrace: 'Đã có báo\u00a0động. Hãy điểm\u00a0danh trước {date} để huỷ.',
