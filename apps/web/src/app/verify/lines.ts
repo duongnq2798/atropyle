@@ -48,10 +48,7 @@ export function overallOf(rows: readonly VerifyRow[], proofRunning: boolean): Ov
 }
 
 /** Where to check each line by hand: the vault itself, the processor its rules run on, the block that was read. */
-export function lineLink(
-  id: LineId,
-  o: { explorer: string; vault: string; cpu: string; block: bigint },
-): string {
+export function lineLink(id: LineId, o: { explorer: string; vault: string; cpu: string; block: bigint }): string {
   if (id === 'real') return explorerAddress(o.explorer, o.vault);
   if (id === 'rules') return explorerAddress(o.explorer, o.cpu);
   return explorerBlock(o.explorer, o.block);
