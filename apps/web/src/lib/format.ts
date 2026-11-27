@@ -26,8 +26,12 @@ export function formatTimestamp(ts: bigint): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
 }
 
+/**
+ * Time to, or since, a chain timestamp. The moment itself has come: it reads "0s ago", not "in 0s" (a check-in or a
+ * release in the block just read, 7B-P1).
+ */
 export function formatRemaining(target: bigint, now: bigint): { past: boolean; text: string } {
-  const past = target < now;
+  const past = target <= now;
   return { past, text: formatDuration(past ? now - target : target - now) };
 }
 

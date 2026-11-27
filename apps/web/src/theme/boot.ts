@@ -1,3 +1,4 @@
+import { markHash } from '@/lib/hash-mark';
 import { KEYS } from '@/lib/store';
 
 /**
@@ -52,4 +53,4 @@ export function boot(themeKey: string, legacy: (pathname: string, hash: string) 
  * that reaches this module through routes.ts (legacyTarget) does not build the string it never uses.
  */
 export const BOOT_SCRIPT = /* @__PURE__ */ (() =>
-  `(${boot.toString()})(${JSON.stringify(KEYS.theme)},${legacyTarget.toString()});`)();
+  `(${boot.toString()})(${JSON.stringify(KEYS.theme)},${legacyTarget.toString()});(${markHash.toString()})();`)();

@@ -20,7 +20,7 @@ import type { LoadedVault, Sdk } from './types';
 export const CHAIN_ID: number = chainIdOf(ENV);
 
 /**
- * The query behind useSdk. Code that needs the SDK only on demand (the wallet, when it switches chain) calls
+ * The query behind useSdk (use-sdk.ts). Code that needs the SDK only on demand (the wallet, when it switches chain) calls
  * `queryClient.query(sdkQuery(crossCheck))`, so a page that never connects never loads the SDK chunk.
  */
 export function sdkQuery(crossCheck: boolean) {
@@ -42,12 +42,6 @@ export function sdkQuery(crossCheck: boolean) {
   });
 }
 
-/** The SDK client of this build's deployment, created once per cross-check setting. */
-export function useSdk(): UseQueryResult<Sdk> {
-  const { crossCheck } = useChainSettings();
-  return useQuery(sdkQuery(crossCheck));
-}
-
 /**
  * The SDK for a read, inside the read's own query: a chunk that failed to load or a broken deployment becomes the
  * read's error, which the page shows with its Retry. No retry of its own here, so the read's policy is the only one.
@@ -66,14 +60,24 @@ export function failedEmpty(q: { state: { data: unknown; status: string } }): bo
   return q.state.data === undefined && q.state.status === 'error';
 }
 
+export interface VaultQueryOptions {
+  /**
+   * When to read again, in milliseconds, from the last read and the wall clock. Without it, every 30 s. The vault page
+   * reads again just after the next moment the rules change (src/app/vault/boundary.ts).
+   */
+  refetchMs?(loaded: LoadedVault, nowMs: number): number;
+}
+
 /**
- * One vault, refreshed every 30 s and when the tab comes back, once it has data: a read that failed before it had
- * any waits for the page's Retry (failedEmpty). No placeholder: while another address loads, `data` is undefined, so
- * a page never shows the previous vault under the new address (Quyết định 18).
+ * One vault, refreshed every 30 s (or when `refetchMs` says) and when the tab comes back, once it has data: a read
+ * that failed before it had any waits for the page's Retry (failedEmpty). TanStack computes the interval again after
+ * every read, so a new read brings a new delay. No placeholder: while another address loads, `data` is undefined,
+ * so a page never shows the previous vault under the new address (Quyết định 18).
  */
-export function useVault(vault: Address | null): UseQueryResult<LoadedVault> {
+export function useVault(vault: Address | null, o: VaultQueryOptions = {}): UseQueryResult<LoadedVault> {
   const client = useQueryClient();
   const { crossCheck } = useChainSettings();
+  const { refetchMs } = o;
   return useQuery({
     queryKey: chainKeys.vault(CHAIN_ID, vault ?? ''),
     queryFn: vault
@@ -83,7 +87,11 @@ export function useVault(vault: Address | null): UseQueryResult<LoadedVault> {
           return impl.loadVault(sdk, vault);
         }
       : skipToken,
-    refetchInterval: (q) => (failedEmpty(q) ? false : 30_000),
+    refetchInterval: (q) => {
+      if (failedEmpty(q)) return false;
+      const data = q.state.data;
+      return data && refetchMs ? refetchMs(data, Date.now()) : 30_000;
+    },
     refetchOnWindowFocus: (q) => !failedEmpty(q),
     structuralSharing: false,
   });

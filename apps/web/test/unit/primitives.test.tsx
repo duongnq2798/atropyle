@@ -38,9 +38,10 @@ function renderInMotion(ui: ReactElement) {
       <m.span data-motion-probe="" initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
     </MotionProvider>,
   );
-  // Animations are skipped in unit tests, so the probe jumps to 1 as soon as an m.* element can animate at all.
+  // Animations are skipped in unit tests, so the probe jumps to 1 as soon as an m.* element can animate at all. The
+  // features come in a lazy chunk, which took over vi.waitFor's 1 s default under load (parked 7B-T1).
   const probe = () => r.container.querySelector<HTMLElement>('[data-motion-probe]')?.style.opacity;
-  return { ...r, ready: () => vi.waitFor(() => expect(probe()).toBe('1')) };
+  return { ...r, ready: () => vi.waitFor(() => expect(probe()).toBe('1'), { timeout: 5_000 }) };
 }
 
 /**
@@ -372,6 +373,19 @@ describe('Amount', () => {
   it('says "base units" when the token has no decimals', () => {
     renderWithProviders(<Amount raw={5n} decimals={null} symbol="NFT" />);
     expect(screen.getByRole('button').textContent).toContain('base units');
+  });
+
+  it('shows the base-unit value on a tap, in a status present from the first paint, and hides it on Escape', () => {
+    renderWithProviders(<Amount raw={1_234_567_890n} decimals={6} symbol={untrusted('USDC')} />);
+    const b = screen.getByRole('button', { name: '1,234.56789 USDC' });
+    const status = b.parentElement?.querySelector('[role="status"]');
+    expect(status?.textContent).toBe('');
+    expect(b.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(b);
+    expect(b.getAttribute('aria-expanded')).toBe('true');
+    expect(status?.textContent).toBe('1234567890 base units');
+    fireEvent.keyDown(b, { key: 'Escape' });
+    expect(status?.textContent).toBe('');
   });
 });
 

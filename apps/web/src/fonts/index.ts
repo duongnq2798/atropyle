@@ -3,12 +3,14 @@ import localFont from 'next/font/local';
 // Decision 8: three subsets per family share one family name, each with its own unicode-range, so a page loads
 // only the files it needs. next/font reads options statically, so every value is a literal; test/unit/fonts.test.ts
 // compares the ranges with src/fonts/ranges.ts. Only the Latin subsets of Fraunces and Inter preload.
+// Fraunces ships its standard files (wght and opsz): the full ones add the SOFT and WONK axes, which Atropyle does
+// not animate (spec §18.5), at almost twice the bytes of the LCP preload.
 // Turbopack names next/font families after the JS identifier, not after `declarations`, so its generated family and
 // fallback stacks would name no face that exists. globals.css therefore names the families ('Atropyle Fraunces', ...)
 // and owns the metric-adjusted fallback faces, and every call sets adjustFontFallback: false and no fallback array.
 
 const frauncesVi = localFont({
-  src: './files/fraunces-vietnamese-full-normal.woff2',
+  src: './files/fraunces-vietnamese-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',
@@ -26,7 +28,7 @@ const frauncesVi = localFont({
 });
 
 const frauncesExt = localFont({
-  src: './files/fraunces-latin-ext-full-normal.woff2',
+  src: './files/fraunces-latin-ext-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',
@@ -44,7 +46,7 @@ const frauncesExt = localFont({
 });
 
 const fraunces = localFont({
-  src: './files/fraunces-latin-full-normal.woff2',
+  src: './files/fraunces-latin-standard-normal.woff2',
   weight: '100 900',
   style: 'normal',
   display: 'swap',
@@ -169,10 +171,61 @@ const mono = localFont({
   ],
 });
 
+// The Letter voice, Fraunces italic (spec §18.4.2 T11): same family name, style italic, never preloaded. Only the heir
+// letter sets it (voice-letter), so the browser fetches these files on /vault/ for a heir and never on the first paint
+// of /, /create/ or /proof/ (test/build/fonts.test.ts).
+const frauncesItalicVi = localFont({
+  src: './files/fraunces-vietnamese-standard-italic.woff2',
+  weight: '100 900',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-italic-vi',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+    },
+  ],
+});
+
+const frauncesItalic = localFont({
+  src: './files/fraunces-latin-standard-italic.woff2',
+  weight: '100 900',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-italic',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+    },
+  ],
+});
+
 /**
  * Every call's variable class goes on <html>, so each `localFont` call stays referenced and its @font-face ships.
  * The tokens in globals.css name the families ('Atropyle Fraunces', ...) directly, not these variables.
  */
-export const fontVariables = [frauncesVi, frauncesExt, fraunces, interVi, interExt, inter, monoVi, monoExt, mono]
+export const fontVariables = [
+  frauncesVi,
+  frauncesExt,
+  fraunces,
+  interVi,
+  interExt,
+  inter,
+  monoVi,
+  monoExt,
+  mono,
+  frauncesItalicVi,
+  frauncesItalic,
+]
   .map((f) => f.variable)
   .join(' ');

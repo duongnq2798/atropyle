@@ -15,7 +15,9 @@ const NOT_FOUND_SEGMENT = '/_not-found';
 
 /**
  * The main navigation. `bar`: one row in the header, a thread under the current page that slides to the next one.
- * `sheet`: large rows in the mobile menu. Quyết định 22: no prefetch until every target route exists.
+ * `sheet`: large rows in the mobile menu. Quyết định 22: no prefetch until every target route exists. A bar link never
+ * wraps, and from md to lg its padding is tighter: the header row holds the wordmark, the four links, the wallet and
+ * the settings at 768 px in Vietnamese too (parked 7B-T1, e2e wallet.spec).
  */
 export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNavigate?(): void }) {
   const t = useT(shell);
@@ -38,7 +40,7 @@ export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNav
               className={cn(
                 'transition-colors duration-150',
                 layout === 'bar'
-                  ? 'relative block rounded-full px-3 py-2 text-small'
+                  ? 'relative block whitespace-nowrap rounded-full px-2 py-2 text-small lg:px-3'
                   : 'flex h-12 items-center justify-between rounded-xl px-3 font-display text-title hover:bg-surface-2',
                 current ? 'text-ink' : 'text-ink-muted hover:text-ink',
               )}
@@ -49,7 +51,7 @@ export function NavList({ layout, onNavigate }: { layout: 'bar' | 'sheet'; onNav
                   layoutId="nav-thread"
                   transition={SPRING}
                   aria-hidden="true"
-                  className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-thread"
+                  className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-thread lg:inset-x-3"
                 />
               ) : null}
               {layout === 'sheet' ? (

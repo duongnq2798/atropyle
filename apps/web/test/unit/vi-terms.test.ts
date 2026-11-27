@@ -62,10 +62,14 @@ const LOOKALIKES = [
 const HANDED_OVER = /đã[\s\u00A0]+trao/iu;
 
 /**
- * Paths of strings shown only after a Distributed receipt, which may say "đã trao" (ruling R22). None today. Each
+ * Paths of strings shown only after a Distributed receipt, which may say "đã trao" (ruling R22). Each
  * entry is a path as the failure message prints it, such as `heir.messages.ts vi.sent`.
  */
-const AFTER_DISTRIBUTE_PATHS: readonly string[] = [];
+const AFTER_DISTRIBUTE_PATHS: readonly string[] = [
+  // The heir letter once a transfer of the vault reached the reader (7B T11 fix round 1): the assets were handed over.
+  'heir.messages.ts vi.openDelivered',
+  'heir.messages.ts vi.openRecoverDelivered',
+];
 
 /**
  * Ruling R20 (approved 24 Nov 2026): Vietnamese copy says "điểm danh" for check-in and "trao" for release.
@@ -111,7 +115,8 @@ describe('Vietnamese words for check-in and release (ruling R20)', () => {
   it('the released state labels say whom the vault now belongs to', () => {
     const labels = vi.filter(([path]) => /^labels\.messages\.ts vi\.stateReleased(Inherit|Recover)$/u.test(path));
     expect(labels.map(([path]) => path)).toHaveLength(2);
-    const notOwned = labels.filter(([, s]) => !/^Thuộc về /u.test(s)).map(([path, s]) => `${path}: ${s}`);
+    // The two words are bound with a no-break space, as every compound of a short label is (7B-P1).
+    const notOwned = labels.filter(([, s]) => !/^Thuộc[ \u00A0]về /u.test(s)).map(([path, s]) => `${path}: ${s}`);
     expect(notOwned, 'released state labels that do not say "Thuộc về"').toEqual([]);
   });
 
@@ -129,7 +134,7 @@ describe('Vietnamese words for check-in and release (ruling R20)', () => {
   });
 
   it('names the owner role "Chủ vault", as the vault page and the emails do', () => {
-    expect(vi.find(([path]) => path === 'labels.messages.ts vi.roleOwner')?.[1]).toBe('Chủ vault');
+    expect(vi.find(([path]) => path === 'labels.messages.ts vi.roleOwner')?.[1]).toBe('Chủ\u00A0vault');
   });
 
   it('says "điểm danh" and "trao" somewhere, so the checks above cannot pass on an empty dictionary', () => {

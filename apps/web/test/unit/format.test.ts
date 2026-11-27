@@ -33,6 +33,8 @@ describe('format', () => {
   it('formats remaining time with the SDK duration format', () => {
     expect(formatRemaining(100n, 40n)).toEqual({ past: false, text: formatDuration(60) });
     expect(formatRemaining(40n, 100n)).toEqual({ past: true, text: formatDuration(60) });
+    // A moment in the block just read has come: "0s ago", never "in 0s" (7B-P1).
+    expect(formatRemaining(100n, 100n)).toEqual({ past: true, text: formatDuration(0) });
   });
 
   it('computes allowance coverage', () => {

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { VERSION } from '@atropyle/sdk';
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 
@@ -51,8 +52,30 @@ async function expectHome(page: Page): Promise<void> {
   await expectSeen(main.locator('a[href="/proof/"]').first());
 }
 
-/** Every page that must read without JavaScript. Plan 7B Task 12 adds 'verify/', Plan 7C Task 3 adds 'proof/'. */
-const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [{ path: '', content: expectHome }];
+/** `/verify/` (7B T12): the question and, without JavaScript, the command that runs the same check; no skeleton. */
+async function expectVerify(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'Is this vault real?' }));
+  const main = page.getByRole('main');
+  const noScript = main.getByTestId('verify-noscript');
+  await expectSeen(noScript.getByText('This check runs in your browser and needs JavaScript.', { exact: false }));
+  await expectSeen(noScript.getByText(`npx -y atropyle@${VERSION} verify --vault <address>`));
+  await expect(main.getByTestId('verify-loading')).toBeHidden();
+}
+
+/** `/vault/` with no address (7B-P1): its empty state is in the static HTML, and no skeleton waits for a script. */
+async function expectVaultEmpty(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'Open a vault' }));
+  const main = page.getByRole('main');
+  await expectSeen(main.getByText('Paste the address of a vault', { exact: false }));
+  await expect(main.getByTestId('vault-loading')).toBeHidden();
+}
+
+/** Every page that must read without JavaScript. Plan 7C Task 3 adds 'proof/'. */
+const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [
+  { path: '', content: expectHome },
+  { path: 'verify/', content: expectVerify },
+  { path: 'vault/', content: expectVaultEmpty },
+];
 if (PAGES.length === 0) throw new Error('nojs.spec.ts checks no page');
 
 for (const { path, content } of PAGES) {

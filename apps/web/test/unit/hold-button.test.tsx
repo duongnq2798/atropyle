@@ -1,4 +1,4 @@
-import { act, fireEvent, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { MotionGlobalConfig, processFrame } from 'motion/react';
 import type { PointerEvent, SyntheticEvent } from 'react';
 import { hydrateRoot, type Root } from 'react-dom/client';
@@ -8,9 +8,9 @@ import { LangProvider } from '../../src/i18n/provider';
 import { KVProvider } from '../../src/lib/kv';
 import { memoryKV } from '../../src/lib/store';
 import { MotionProvider } from '../../src/motion/provider';
-import { DURATION } from '../../src/motion/tokens';
+import { DURATION, REDUCED_MS } from '../../src/motion/tokens';
 import { type HoldBind, useHold } from '../../src/motion/use-hold';
-import { HoldButton, type HoldButtonProps } from '../../src/ui/hold-button';
+import { HoldButton, type HoldButtonProps, type HoldWords } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
 function setup(props: { disabled?: boolean } = {}) {
@@ -401,4 +401,192 @@ describe('HoldButton', () => {
       container.remove();
     }
   }, 20_000);
+});
+
+describe('hold words (R18.16)', () => {
+  it('says the caller words once held, never "Confirmed", and ties no knot when showKnot is false', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <HoldButton onConfirm={onConfirm} doneLabel="Now confirm in your wallet" showKnot={false}>
+        Receive
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Receive' });
+    expect(button.querySelector('[data-part="knot"]')).toBeNull();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(button.getAttribute('data-phase')).toBe('done');
+    expect(screen.queryByText('Confirmed')).toBeNull();
+    expect(screen.getByText('Now confirm in your wallet')).toBeTruthy();
+  });
+
+  it('null says nothing once held', () => {
+    renderWithProviders(
+      <HoldButton onConfirm={() => {}} doneLabel={null}>
+        Receive
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Receive' });
+    fireEvent.keyDown(button, { key: 'Enter' });
+    const hint = document.getElementById(button.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toBe('');
+  });
+
+  it('keeps "Confirmed" and the knot by default', () => {
+    renderWithProviders(<HoldButton onConfirm={() => {}}>Check in</HoldButton>);
+    const button = screen.getByRole('button', { name: 'Check in' });
+    expect(button.querySelector('[data-part="knot"]')).not.toBeNull();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(screen.getByText('Confirmed')).toBeTruthy();
+  });
+});
+
+describe('the hold callbacks and the face (Task 10)', () => {
+  it('says when a hold starts and how it ends, and Enter confirms without a start', () => {
+    const onConfirm = vi.fn();
+    const onHoldStart = vi.fn();
+    const onHoldEnd = vi.fn();
+    renderWithProviders(
+      <HoldButton onConfirm={onConfirm} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd}>
+        Check in
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Check in' });
+    press(button);
+    expect(onHoldStart).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(button);
+    expect(onHoldEnd).toHaveBeenLastCalledWith(false);
+    expect(onConfirm).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(2_000));
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onHoldEnd).toHaveBeenLastCalledWith(true);
+    expect(onHoldStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms a full hold, then says it ended confirmed', () => {
+    const onConfirm = vi.fn();
+    const onHoldEnd = vi.fn();
+    renderWithProviders(
+      <HoldButton onConfirm={onConfirm} onHoldEnd={onHoldEnd}>
+        Check in
+      </HoldButton>,
+    );
+    press(screen.getByRole('button', { name: 'Check in' }));
+    act(() => vi.advanceTimersByTime(600));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onHoldEnd).toHaveBeenCalledWith(true);
+  });
+
+  it('draws the face above the button, at full width', () => {
+    renderWithProviders(
+      <HoldButton onConfirm={() => {}} face={<span data-testid="face" />}>
+        Check in
+      </HoldButton>,
+    );
+    const face = screen.getByTestId('face');
+    const button = screen.getByRole('button', { name: 'Check in' });
+    expect(face.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.parentElement?.className).toContain('w-full');
+  });
+
+  it('shakes again on a second early release (parked item 59)', () => {
+    renderWithProviders(<HoldButton onConfirm={() => {}}>Check in</HoldButton>);
+    const button = screen.getByRole('button', { name: 'Check in' });
+    press(button);
+    fireEvent.pointerUp(button);
+    expect(button.hasAttribute('data-shake')).toBe(true);
+    press(button);
+    fireEvent.pointerUp(button);
+    expect(button.hasAttribute('data-shake')).toBe(false);
+    act(() => vi.advanceTimersByTime(1));
+    expect(button.hasAttribute('data-shake')).toBe(true);
+  });
+
+  it('says the hold ended confirmed even when onConfirm throws', () => {
+    const onHoldEnd = vi.fn();
+    renderWithProviders(
+      <HoldButton
+        onConfirm={() => {
+          throw new Error('refused');
+        }}
+        onHoldEnd={onHoldEnd}
+      >
+        Check in
+      </HoldButton>,
+    );
+    press(screen.getByRole('button', { name: 'Check in' }));
+    expect(() => act(() => vi.advanceTimersByTime(600))).toThrow('refused');
+    expect(onHoldEnd).toHaveBeenCalledTimes(1);
+    expect(onHoldEnd).toHaveBeenCalledWith(true);
+  });
+
+  it('under reduced motion the knot fades in at full size over REDUCED_MS, never from scale 0 (parked item 59)', async () => {
+    // motion's features load lazily and its frames need real time, as in the hydrated reduced-motion test above.
+    vi.useRealTimers();
+    const settled = { timeout: 5000 };
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (q: string) =>
+        ({
+          matches: q.includes('reduce'),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+    const view = render(
+      <KVProvider kv={memoryKV()}>
+        <LangProvider>
+          <MotionProvider>
+            <HoldButton onConfirm={() => {}} duration={10_000}>
+              Check in
+            </HoldButton>
+          </MotionProvider>
+        </LangProvider>
+      </KVProvider>,
+    );
+    try {
+      const button = screen.getByRole('button', { name: 'Check in' });
+      const knot = button.querySelector<HTMLElement>('[data-part="knot"]');
+      if (!knot) throw new Error('no knot');
+      const [fill] = Array.from(button.querySelectorAll<HTMLElement>('span.origin-left'));
+      // At rest: full size, out of sight.
+      expect(knot.style.opacity).toBe('0');
+      expect(knot.style.transform).not.toContain('scale(0)');
+      // The features are in once a hold fades the fill in; let go early (a 10 s hold) and wait for the fade out.
+      act(() => {
+        press(button);
+      });
+      await vi.waitFor(() => expect(fill.style.opacity).toBe('1'), settled);
+      act(() => {
+        fireEvent.pointerUp(button);
+      });
+      await vi.waitFor(() => expect(fill.style.opacity).toBe('0'), settled);
+
+      // Enter confirms; a hand-driven frame samples the knot halfway through REDUCED_MS.
+      MotionGlobalConfig.skipAnimations = false;
+      MotionGlobalConfig.useManualTiming = true;
+      const t0 = performance.now();
+      processFrame(t0);
+      act(() => {
+        fireEvent.keyDown(button, { key: 'Enter' });
+      });
+      processFrame(t0 + REDUCED_MS / 2);
+      expect(Number(knot.style.opacity), 'mid-fade').toBeGreaterThan(0);
+      expect(Number(knot.style.opacity), 'mid-fade').toBeLessThan(1);
+      expect(knot.style.transform, 'full size while fading').not.toMatch(/scale\(0(\.\d+)?\)/);
+      processFrame(t0 + REDUCED_MS + DURATION.instant);
+      expect(knot.style.opacity).toBe('1');
+      expect(knot.style.transform).not.toMatch(/scale\(0(\.\d+)?\)/);
+    } finally {
+      MotionGlobalConfig.useManualTiming = false;
+      MotionGlobalConfig.skipAnimations = true;
+      view.unmount();
+    }
+  }, 20_000);
+
+  it('passes the face and the hold callbacks through HoldWords', () => {
+    expectTypeOf<HoldWords>().toHaveProperty('face');
+    expectTypeOf<HoldWords>().toHaveProperty('onHoldStart');
+    expectTypeOf<HoldWords>().toHaveProperty('onHoldEnd');
+  });
 });

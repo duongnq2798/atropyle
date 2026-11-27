@@ -108,4 +108,38 @@ describe('theme stylesheet', () => {
       ),
     ).toEqual({ 'animation-duration': '120ms', 'animation-timing-function': 'linear' });
   });
+
+  it('defines the Proclaim, Ledger and Letter voices, and no SOFT or WONK axis is left (spec §18.4.2 Task 1)', () => {
+    expect(decls('@utility voice-proclaim')).toEqual({
+      'font-family': 'var(--font-display)',
+      'font-optical-sizing': 'auto',
+      'font-weight': '380',
+      '--tw-tracking': '-0.02em',
+      'letter-spacing': '-0.02em',
+    });
+    expect(decls('@utility voice-ledger')).toEqual({
+      'font-family': 'var(--font-mono)',
+      'font-variant-numeric': 'tabular-nums',
+      'font-variant-ligatures': 'none',
+    });
+    expect(decls('@utility voice-letter')).toEqual({
+      'font-family': 'var(--font-display)',
+      'font-style': 'italic',
+      'font-optical-sizing': 'auto',
+      'font-weight': '380',
+      'font-synthesis': 'none',
+    });
+    // Scoped tokens: --color-* resolves on :root and would paint the night surface inside a vellum letter.
+    expect(decls('@utility letter-paper')['background-color']).toBe('var(--atro-surface-1)');
+    expect(CSS).not.toMatch(/@utility letter-paper\s*\{[^}]*var\(--color-/);
+    // The standard Fraunces files have no SOFT or WONK axis; a setting for one would do nothing.
+    expect(CSS).not.toMatch(/"SOFT"|"WONK"|--soft|--wonk/);
+  });
+
+  it('the monument step keeps Vietnamese diacritics clear: line-height 1.08 or more under :lang(vi)', () => {
+    const theme = decls('@theme');
+    expect(theme['--text-monument']).toBe('clamp(4.5rem, 2rem + 12vw, 13rem)');
+    expect(theme['--text-monument--letter-spacing']).toBe('-0.02em');
+    expect(Number(decls(':root:lang(vi)')['--text-monument--line-height'])).toBeGreaterThanOrEqual(1.08);
+  });
 });

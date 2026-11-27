@@ -4,13 +4,19 @@ import { type ReactNode, type Ref, useMemo } from 'react';
 import { cn } from '@/lib/cn';
 import { RevealWindow, type RevealWindowHandle, useMoveWith } from '@/motion/reveal-window';
 import { THREAD_VT_NAME } from '@/motion/view-transition';
+import { BRANCH_BG, BRANCH_STROKE } from './branches';
 import {
   MAIN_WIDTH,
+  POST_HEIGHT,
+  POST_STUB,
+  POST_WIDTH,
   type Point,
+  PREDICTED_DASH,
   pctX,
   pctY,
   type ThreadBeat,
   type ThreadInput,
+  type ThreadPosts,
   type ThreadTone,
   threadGeometry,
   VIEW,
@@ -31,6 +37,21 @@ export interface ThreadProps extends ThreadInput {
    * the window: "now", the pending knot and every mark are props, and the caller re-renders them to move them.
    */
   revealRef?: Ref<RevealWindowHandle>;
+  /**
+   * Paint each branch and its end in its heir's colour (the share splitter's, BRANCH_STROKE): the wizard's preview,
+   * where the heirs are being told apart. A `highlight` wins over it.
+   */
+  heirColors?: boolean;
+  /**
+   * Draw a dot at the end of each branch (the default). The wizard's strip leaves them out: at a few dozen pixels tall
+   * the ends of neighbouring heirs touch and read as a smudge.
+   */
+  branchEnds?: boolean;
+  /**
+   * The knots were just tied (the check-in ritual's receipt): each is drawn solid, larger than "now" and above it, so a
+   * knot on the "now" point is the focal mark of the thread, lit in its halo. By default a knot is a hollow ring.
+   */
+  tiedKnots?: boolean;
   /** Size of the box: a width, and a height to change the 5:1 ratio. */
   className?: string;
 }
@@ -42,7 +63,8 @@ const BEAT_CLASS: Record<ThreadBeat, string> = {
   mid: 'motion-safe:animate-thread-pulse-mid',
   fast: 'motion-safe:animate-thread-pulse-fast',
 };
-const BRANCH_TONE: Record<ThreadTone, { stroke?: string; className?: string; opacity?: number }> = {
+type BranchTone = { stroke?: string; className?: string; opacity?: number };
+const BRANCH_TONE: Record<ThreadTone, BranchTone> = {
   plain: { stroke: 'currentColor' },
   highlight: { className: 'stroke-thread' },
   muted: { className: 'stroke-ink-muted', opacity: 0.35 },
@@ -77,6 +99,52 @@ function NowAt({ at: [x, y], pending }: { at: Point; pending: boolean }) {
       <span data-part="now" className={cn(MARK, 'top-0 left-0 size-3 bg-current')} />
       {pending ? (
         <span data-part="pending" className={cn(MARK, 'top-0 left-0 size-5 border-2 border-current border-dashed')} />
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * The guardians' posts at the gate (spec §18.4.2 T6): one per guardian, and a bar over the k who must confirm. A
+ * guardian who confirmed stands, filled, at full height; one who has not is a grey stub (POST_STUB), so lit and unlit
+ * differ in shape, not only in colour (§4.1: in vellum the two are nearly one brown). The posts stand inside the
+ * arch's 2 px walls, every gap wider than a post. The bar is a lintel at standing height, 3 px clear, half a post past
+ * each end (BAR_OVERHANG): over stubs it floats, and once k stand it rests on them as a Π. HTML in percent
+ * (POST_WIDTH, POST_HEIGHT), so nothing stretches (R18.4); nothing here ever moves.
+ */
+function Posts({ posts: p }: { posts: ThreadPosts }) {
+  const met = p.k > 0 && p.lit >= p.k;
+  return (
+    <span
+      data-part="posts"
+      data-n={p.n}
+      data-k={p.k}
+      data-lit={p.lit}
+      data-met={met ? 'true' : 'false'}
+      className="absolute inset-x-[2px] bottom-0"
+      style={{ height: `${POST_HEIGHT}%` }}
+    >
+      {p.left.map((left, i) => {
+        const lit = i < p.lit;
+        return (
+          <span
+            key={left}
+            data-part="post"
+            data-lit={lit ? 'true' : 'false'}
+            className={cn('absolute bottom-0 min-w-px rounded-full', lit ? 'bg-current' : 'bg-line-strong')}
+            style={{ left: `${left}%`, width: `${POST_WIDTH}%`, height: lit ? '100%' : `${POST_STUB}%` }}
+          />
+        );
+      })}
+      {p.bar ? (
+        <span
+          data-part="quorum"
+          className={cn(
+            'absolute top-0 h-0.5 -translate-y-[calc(100%+3px)] rounded-full',
+            met ? 'bg-current' : 'bg-ink-muted',
+          )}
+          style={{ left: `${p.bar.left}%`, width: `${p.bar.width}%` }}
+        />
       ) : null}
     </span>
   );
@@ -117,15 +185,52 @@ export function Thread({
   predicted,
   pendingKnot,
   highlight,
+  signature,
+  posts,
+  exit,
+  heirColors = false,
+  branchEnds = true,
+  tiedKnots = false,
   label,
   shared = false,
   revealRef,
   className,
 }: ThreadProps) {
+  const postsN = posts?.n;
+  const postsK = posts?.k;
+  const postsLit = posts?.lit;
   const g = useMemo(
-    () => threadGeometry(state, { remaining, knots, branches, axis, predicted, pendingKnot, highlight }),
-    [state, remaining, knots, branches, axis, predicted, pendingKnot, highlight],
+    () =>
+      threadGeometry(state, {
+        remaining,
+        knots,
+        branches,
+        axis,
+        predicted,
+        pendingKnot,
+        highlight,
+        signature,
+        posts: postsN === undefined ? undefined : { n: postsN, k: postsK ?? 0, lit: postsLit ?? 0 },
+        exit,
+      }),
+    [
+      state,
+      remaining,
+      knots,
+      branches,
+      axis,
+      predicted,
+      pendingKnot,
+      highlight,
+      signature,
+      postsN,
+      postsK,
+      postsLit,
+      exit,
+    ],
   );
+  /** A plain branch in its heir's colour, when asked: the i-th stroke and end of the palette. */
+  const heirTone = (tone: ThreadTone) => heirColors && tone === 'plain';
   const dash = g.dash ?? undefined;
   // Set whenever the prop is, in every state; only the branch styling needs an index that names a branch.
   const highlighted = highlight !== undefined ? String(highlight) : undefined;
@@ -136,6 +241,7 @@ export function Thread({
     'data-predicted': predicted ? 'true' : undefined,
     'data-pending-knot': pendingKnot ? 'true' : undefined,
     'data-highlight': highlighted,
+    'data-signed': g.signed ? 'true' : undefined,
     className: cn('pointer-events-none relative aspect-[5/1] overflow-clip', THREAD_COLOR[state], className),
     // Named on the element itself, so it is named in every transition, also the ones NavLink starts. React's
     // <ViewTransition name> names an element only inside a transition React starts (Task 15, outcome B).
@@ -176,8 +282,9 @@ export function Thread({
             data-part="ghost"
           />
         ) : null}
-        {g.branches.map((b) => {
-          const tone = BRANCH_TONE[b.tone];
+        {g.branches.map((b, i) => {
+          const own = heirTone(b.tone);
+          const tone: BranchTone = own ? { className: BRANCH_STROKE[i % BRANCH_STROKE.length] } : BRANCH_TONE[b.tone];
           return (
             <path
               key={b.d}
@@ -189,10 +296,20 @@ export function Thread({
               strokeDasharray={dash}
               vectorEffect="non-scaling-stroke"
               data-part="branch"
-              data-tone={b.tone}
+              data-tone={own ? 'heir' : b.tone}
             />
           );
         })}
+        {g.exit ? (
+          <path
+            d={g.exit.d}
+            className="stroke-recovery"
+            strokeWidth={1.5}
+            strokeDasharray={PREDICTED_DASH}
+            vectorEffect="non-scaling-stroke"
+            data-part="exit"
+          />
+        ) : null}
         {g.curl ? (
           <path
             d={g.curl}
@@ -236,33 +353,60 @@ export function Thread({
 
       <div data-layer="marks" data-highlight={highlighted} className="absolute inset-0">
         {g.gate ? (
-          // The slot of the guardians' posts (Plan 7B): they go inside this box, next to the arch.
+          // The guardians' posts stand inside this box, under the arch. With posts the gate is at least 48 px tall
+          // (23 px wide), so five posts on a phone are 1.5 px wide with 1.9 px between them and between the outer
+          // ones and the walls; never more than 80 % of the box, so in a low box the arch stays inside it (the wave
+          // keeps the gate's centre between 42.5 % and 57.5 %). Without posts the gate keeps its 42 %.
           <span
             data-part="gate"
-            className="absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2"
+            className={cn(
+              'absolute block aspect-[12/25] h-[42%] -translate-x-1/2 -translate-y-1/2',
+              g.posts && 'min-h-[min(3rem,80%)]',
+            )}
             style={at(g.gate)}
           >
             <span data-part="arch" className="absolute inset-0 rounded-t-full border-2 border-ink-muted border-b-0" />
+            {g.posts ? <Posts posts={g.posts} /> : null}
           </span>
         ) : null}
-        {g.knots.map((k) => (
-          <span
-            key={`${k[0]}-${k[1]}`}
-            data-part="knot"
-            className={cn(MARK, 'size-2.5 border-2 border-current bg-bg')}
-            style={at(k)}
-          />
-        ))}
-        {g.dots.map((dot) => (
-          <span
-            key={`${dot.at[0]}-${dot.at[1]}`}
-            data-part="dot"
-            data-tone={dot.tone}
-            className={cn(MARK, 'size-2', DOT_TONE[dot.tone])}
-            style={at(dot.at)}
-          />
-        ))}
+        {tiedKnots
+          ? null
+          : g.knots.map((k) => (
+              <span
+                key={`${k[0]}-${k[1]}`}
+                data-part="knot"
+                className={cn(MARK, 'size-2.5 border-2 border-current bg-bg')}
+                style={at(k)}
+              />
+            ))}
+        {(branchEnds ? g.dots : []).map((dot, i) => {
+          const own = heirTone(dot.tone);
+          return (
+            <span
+              key={`${dot.at[0]}-${dot.at[1]}`}
+              data-part="dot"
+              data-tone={own ? 'heir' : dot.tone}
+              className={cn(MARK, 'size-2', own ? BRANCH_BG[i % BRANCH_BG.length] : DOT_TONE[dot.tone])}
+              style={at(dot.at)}
+            />
+          );
+        })}
+        {g.exit ? (
+          <span data-part="exit-end" className={cn(MARK, 'size-2 bg-recovery')} style={at(g.exit.end)} />
+        ) : null}
         {g.now ? <NowAt at={g.now} pending={g.pending !== null} /> : null}
+        {/* After "now": a tied knot covers its dot and keeps its halo. */}
+        {tiedKnots
+          ? g.knots.map((k) => (
+              <span
+                key={`${k[0]}-${k[1]}`}
+                data-part="knot"
+                data-tone="tied"
+                className={cn(MARK, 'size-3.5 bg-current ring-2 ring-current/30')}
+                style={at(k)}
+              />
+            ))
+          : null}
       </div>
     </>
   );
