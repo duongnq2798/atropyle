@@ -2,9 +2,9 @@ import { act, renderHook } from '@testing-library/react';
 import type { Address } from 'viem';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextBoundary, refetchDelay, vaultRefetchMs } from '../../src/app/vault/boundary';
-import { useVault } from '../../src/chain/hooks';
 import { makeQueryClient } from '../../src/chain/query-client';
 import type { LoadedVault } from '../../src/chain/types';
+import { useVault } from '../../src/chain/use-vault';
 import { makeWrapper } from '../helpers/render';
 import { fixtureDeployment, PEOPLE } from './fixtures';
 
