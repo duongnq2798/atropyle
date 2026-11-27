@@ -1,10 +1,11 @@
 import type { AtropyleClient } from '@atropyle/sdk';
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { type Address, createPublicClient, erc20Abi, http } from 'viem';
 import { anvil } from 'viem/chains';
 import { HOLD_MS } from '../../src/motion/tokens.ts';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { expectAccessible, setStoredLang, setStoredTheme, settle } from './helpers.ts';
+import { OKX_ORIGINS } from './network.ts';
 import { mint, walletFor } from './onchain.ts';
 import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
 import { type E2EState, rpcCall, warp } from './state.ts';
@@ -176,6 +177,39 @@ async function holdTheWallet(page: Page): Promise<() => Promise<void>> {
 }
 
 /**
+ * Every chain request that estimates gas waits until the test lets it: the check-in's prepare (the SDK's simulate.ts,
+ * one estimateGas) stays on its way, as on a slow node, and the ritual on its preparing state. Returns the call that
+ * lets them go.
+ */
+async function holdTheEstimate(page: Page): Promise<() => Promise<void>> {
+  const gate: { open?: () => void } = {};
+  const held = new Promise<void>((resolve) => {
+    gate.open = resolve;
+  });
+  const nodes = (url: URL) => OKX_ORIGINS.includes(url.origin);
+  const hold = async (route: Route) => {
+    if ((route.request().postData() ?? '').includes('"eth_estimateGas"')) await held;
+    // A request of a page already reloaded away has nobody left to answer.
+    await route.fallback().catch(() => undefined);
+  };
+  await page.route(nodes, hold);
+  return async () => {
+    gate.open?.();
+    await page.unroute(nodes, hold);
+  };
+}
+
+/** The top of the ritual's hold (the button its face is on: the silhouette's, then the hold's) under the ritual's title. */
+async function holdTop(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const title = document.getElementById('owner-ritual-title');
+    const hold = document.querySelector('[data-testid="owner-ritual-face"]')?.closest('button');
+    if (!title || !hold) throw new Error('no ritual title or hold');
+    return hold.getBoundingClientRect().top - title.getBoundingClientRect().top;
+  });
+}
+
+/**
  * Where a mark of the ritual's face is (`pending`, the hollow knot; `knot`, the tied one): its centre's x in the
  * viewport, its centre's y from the top of the check-in card (what stands above the card may change with the vault's
  * new state; the card is the ritual's own), and its box in the viewport.
@@ -332,17 +366,26 @@ test('on a phone the hold is in view with the ritual title, the mirror under it,
   const mirror = page.getByTestId('owner-checkin-tx-mirror-0');
   await expect(mirror).toBeVisible();
   expect((await mirror.boundingBox())?.y ?? 0).toBeGreaterThan(hold.y + hold.height);
+  const bar = send.locator('[data-part="bar"]');
+  const barAtRest = (await bar.boundingBox())?.height ?? 0;
   const letGo = await holdTheWallet(page);
   await send.press('Enter');
   await expect(page.getByTestId('owner-ritual')).toHaveAttribute('data-ritual', 'wallet');
   await expect(mirror).toBeVisible();
   await expect(page.getByTestId('owner-checkin-tx').getByTestId('owner-checkin-tx-mirror-0')).toHaveCount(1);
+  // The bar names the phase: nothing is sent until the owner signs (§18.2.8, honest phases). On one line, as at rest:
+  // the mirror under it does not move.
+  await expect(bar).toHaveText('Now sign in your wallet');
+  await expect(page.getByTestId('owner-checkin-tx')).not.toContainText('Sending');
+  expect(Math.abs(((await bar.boundingBox())?.height ?? 0) - barAtRest)).toBeLessThanOrEqual(1);
   // Sent: anvil holds the block back, and the hollow knot waits on the hold's face where the new knot will tie.
   let pending: Awaited<ReturnType<typeof stillMark>>;
   await rpcCall(state.rpcUrl, 'evm_setAutomine', [false]);
   try {
     await letGo();
     await expect(page.getByTestId('owner-ritual')).toHaveAttribute('data-ritual', 'sent', { timeout: 30_000 });
+    await expect(bar).toHaveText('Waiting for X Layer');
+    await expect(page.getByTestId('owner-checkin-tx')).not.toContainText('Sending');
     pending = await stillMark(page, 'pending');
     expect(pending.top).toBeGreaterThanOrEqual(below);
     expect(pending.bottom).toBeLessThanOrEqual(844);
@@ -365,6 +408,38 @@ test('on a phone the hold is in view with the ritual title, the mirror under it,
   expect(line.y).toBeGreaterThanOrEqual(below);
   expect(line.y + line.height).toBeLessThanOrEqual(844);
   expect(line.y).toBeGreaterThan(knot.bottom);
+});
+
+test('while the check-in prepares, its hold stands where it will: only the steps and the mirror come in under it', async ({
+  page,
+  state,
+  wallet,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const letGo = await holdTheEstimate(page);
+  await openAsOwner(page, state, wallet, state.seeded.guarded);
+  // What stands above the hold is on the page: the Drill's minutes wait for the vault's engine.
+  await expect(page.getByTestId('owner-drill')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('owner-due')).toBeVisible();
+  // The card the hold will stand on, its heading, and the hold with the vault's thread on its face, disabled.
+  const preparing = page.getByTestId('owner-checkin-preparing');
+  await expect(preparing).toBeVisible({ timeout: 30_000 });
+  await expect(preparing.getByRole('heading', { name: 'Your check-in' })).toBeVisible();
+  await expect(preparing.getByTestId('owner-ritual-face')).toBeVisible();
+  await expect(preparing.locator('[data-part="bar"]')).toHaveText('Preparing…');
+  await expect(preparing.getByRole('button')).toBeDisabled();
+  await expect(page.getByTestId('owner-checkin-tx-mirror-0')).toHaveCount(0);
+  const before = await holdTop(page);
+  await letGo();
+  await ritualIdle(page);
+  await expect(page.getByTestId('owner-checkin-tx-send')).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByTestId('owner-checkin-tx-mirror-0')).toBeVisible();
+  await expect(preparing).toHaveCount(0);
+  // The hold did not move: the plan only appended the step and what the wallet should show under it.
+  expect(Math.abs((await holdTop(page)) - before)).toBeLessThanOrEqual(1);
+  const hold = await page.getByTestId('owner-checkin-tx-send').boundingBox();
+  const mirror = await page.getByTestId('owner-checkin-tx-mirror-0').boundingBox();
+  expect(mirror?.y ?? 0).toBeGreaterThan((hold?.y ?? 0) + (hold?.height ?? 0));
 });
 
 test('the keyboard keeps its place: Save, Send and Start over, then the check-in and its Start over', async ({
@@ -478,12 +553,13 @@ test('a released vault: no more check-ins, Deliver for anyone, Revoke still ther
 });
 
 /**
- * The check-in ritual's card alone, in each of its phases, for the design review: idle (30 s after the last check-in,
- * so the hold has a thread to recharge), holding (stopped halfway through the hold, then let go early), sent (anvil
+ * The check-in ritual's card alone, in each of its phases, for the design review: preparing (the check-in's
+ * estimateGas held back), idle (30 s after the last check-in, so the hold has a thread to recharge), holding (stopped
+ * halfway through the hold, then let go early), wallet (the test wallet holds eth_sendTransaction back), sent (anvil
  * holds the block back) and tied, into
  * test-results/screens/owner-ritual-<phase>/<night|vellum>-<lang>-<width>.png. At 390 px, idle is also shot as a phone
  * shows it once the ritual's title is scrolled to the top: owner-ritual-fold/<scheme>-<lang>-390.png (844 px tall),
- * and so are sent and tied (owner-ritual-sent-fold/, owner-ritual-tied-fold/).
+ * and so are preparing, wallet, sent and tied (owner-ritual-<phase>-fold/).
  * The sticky header stays out of a shot of one card.
  */
 async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[]): Promise<void> {
@@ -508,20 +584,39 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
     await page.setViewportSize({ width: shot.width, height: TALL });
     // Each width starts at rest, 30 s on: a reload forgets the last width's receipt.
     await warp(state, 30);
-    await page.reload();
-    await connected(page);
-    await ritualIdle(page);
     const name = `${shot.theme === 'dark' ? 'night' : 'vellum'}-${shot.lang}-${shot.width}.png`;
     const at = (phase: string) => `test-results/screens/owner-ritual-${phase}/${name}`;
-    await settle(page);
-    await card.screenshot({ path: at('idle'), style });
-
-    if (shot.width === 390) {
+    /** At 390 px, the phase also as a phone shows it, the ritual's title at the top. */
+    const fold = async (phase: string | null, animations?: 'allow') => {
+      if (shot.width !== 390) return;
       await page.setViewportSize({ width: 390, height: 844 });
       await ritualTitleAtTop(page);
-      await page.screenshot({ path: `test-results/screens/owner-ritual-fold/${name}` });
+      const dir = phase === null ? 'owner-ritual-fold' : `owner-ritual-${phase}-fold`;
+      await page.screenshot({ path: `test-results/screens/${dir}/${name}`, animations });
       await page.setViewportSize({ width: 390, height: TALL });
+    };
+
+    // Preparing: the check-in's estimateGas waits, so the silhouette of the card and its hold stands in.
+    const letEstimatesGo = await holdTheEstimate(page);
+    try {
+      await page.reload();
+      await connected(page);
+      await expect(page.getByTestId('owner-drill')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('owner-checkin-preparing').getByTestId('owner-ritual-face')).toBeVisible({
+        timeout: 30_000,
+      });
+      await settle(page);
+      await card.screenshot({ path: at('preparing'), style });
+      await fold('preparing');
+    } finally {
+      await letEstimatesGo();
     }
+
+    await ritualIdle(page);
+    await expect(send).toBeEnabled({ timeout: 30_000 });
+    await settle(page);
+    await card.screenshot({ path: at('idle'), style });
+    await fold(null);
 
     // Holding: the hold's own timer (HOLD_MS, useHold) stretched to a minute for this one press, so the shot, however
     // slow, catches a hold and never a check-in. Halfway through the hold, counted from the press itself, the two
@@ -580,20 +675,23 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
     await page.waitForTimeout(1_500);
     await settle(page);
 
+    // Wallet: the test wallet holds eth_sendTransaction back, as a real one while its prompt is open.
+    const letWalletGo = await holdTheWallet(page);
+    await send.press('Enter');
+    await expect(ritual).toHaveAttribute('data-ritual', 'wallet');
+    await settle(page);
+    await card.screenshot({ path: at('wallet'), style });
+    await fold('wallet');
+
     // Sent: the wallet has sent it and anvil holds the block back, so the wait and its seconds are on screen.
     await rpcCall(state.rpcUrl, 'evm_setAutomine', [false]);
     try {
-      await send.press('Enter');
+      await letWalletGo();
       await expect(ritual).toHaveAttribute('data-ritual', 'sent', { timeout: 30_000 });
       await page.waitForTimeout(1_300);
       await card.screenshot({ path: at('sent'), style, animations: 'allow' });
-      if (shot.width === 390) {
-        // The same phone fold while the block is awaited, to set beside the tied one: the knot does not move.
-        await page.setViewportSize({ width: 390, height: 844 });
-        await ritualTitleAtTop(page);
-        await page.screenshot({ path: `test-results/screens/owner-ritual-sent-fold/${name}`, animations: 'allow' });
-        await page.setViewportSize({ width: 390, height: TALL });
-      }
+      // The same phone fold while the block is awaited, to set beside the tied one: the knot does not move.
+      await fold('sent', 'allow');
     } finally {
       await rpcCall(state.rpcUrl, 'evm_mine');
       await rpcCall(state.rpcUrl, 'evm_setAutomine', [true]);
@@ -603,12 +701,8 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
     await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
     await settle(page);
     await card.screenshot({ path: at('tied'), style });
-    if (shot.width === 390) {
-      // What a phone shows as the knot ties, the ritual's title at the top: the knot and the tied line in sight.
-      await page.setViewportSize({ width: 390, height: 844 });
-      await ritualTitleAtTop(page);
-      await page.screenshot({ path: `test-results/screens/owner-ritual-tied-fold/${name}` });
-    }
+    // What a phone shows as the knot ties, the ritual's title at the top: the knot and the tied line in sight.
+    await fold('tied');
   }
   await setStoredLang(page, 'en');
   await setStoredTheme(page, 'dark');
