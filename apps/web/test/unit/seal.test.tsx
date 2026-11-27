@@ -28,7 +28,7 @@ describe('Seal', () => {
     const chain = [...seal.querySelectorAll('[data-row="chain"]')].map((e) => e.textContent);
     expect(chain).toEqual(Array.from({ length: HASH_GROUPS }, () => UNREAD));
     expect(screen.getByTestId('proof-seal-words').textContent).toBe(
-      `Top: built from this repository's source: ${POLICY_NETLIST_KECCAK}. Bottom: read from X Layer when you run the proof.`,
+      `Top: built from this repository's source: ${POLICY_NETLIST_KECCAK}. Bottom: read from X\u00A0Layer when you run the proof.`,
     );
   });
 
@@ -49,6 +49,6 @@ describe('Seal', () => {
     const words = screen.getByTestId('proof-seal-words');
     expect(words.closest('[aria-hidden="true"]')).toBeNull();
     expect(words.textContent).toContain(POLICY_NETLIST_KECCAK);
-    expect(words.textContent).toContain(`Bottom: read from X Layer at block 76600000: ${other}`);
+    expect(words.textContent).toContain(`Bottom: read from X\u00A0Layer at block 76600000: ${other}`);
   });
 });

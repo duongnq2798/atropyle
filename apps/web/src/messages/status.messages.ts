@@ -110,8 +110,9 @@ export const messages = defineMessages(
     // Cross-check (deweb)
     crossTitle: 'Cross-check',
     crossLabel: 'Also confirm every read with nodes run by other operators',
-    crossWarning:
-      'Off by default: this copy of the site talks only to the X Layer nodes it was published with, so it stays 100% on-chain. Turning it on also asks the nodes below.',
+    crossWarning: glue(
+      'Off by default: this copy of the site talks only to the X~Layer nodes it was published with, so it stays 100% on-chain. Turning it on also asks the nodes below.',
+    ),
     offchainList: 'Other nodes used when cross-check is on:',
     // Backend
     backendTitle: 'Atropyle backend',
@@ -235,8 +236,9 @@ export const messages = defineMessages(
     recheck: 'Kiểm lại',
     crossTitle: glue('Kiểm~chéo'),
     crossLabel: glue('Xác~nhận thêm mọi lần đọc với node của các nhà~vận~hành khác'),
-    crossWarning:
-      'Mặc định tắt: bản site này chỉ nói chuyện với các node X Layer mà nó được xuất bản cùng, nên vẫn 100% on-chain. Bật lên thì trang hỏi thêm các node bên dưới.',
+    crossWarning: glue(
+      'Mặc định tắt: bản site này chỉ nói chuyện với các node X~Layer mà nó được xuất bản cùng, nên vẫn 100% on-chain. Bật lên thì trang hỏi thêm các node bên dưới.',
+    ),
     offchainList: 'Các node khác được dùng khi bật kiểm chéo:',
     backendTitle: 'Backend của Atropyle',
     backendOff:

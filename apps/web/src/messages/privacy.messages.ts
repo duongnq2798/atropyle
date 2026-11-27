@@ -15,8 +15,9 @@ export const messages = defineMessages(
     siteTitle: 'This website',
     site1: 'No cookies, no analytics, no trackers, and no fonts or scripts from other companies.',
     site2: 'Your language, theme and settings stay in this browser’s storage, on your device only.',
-    site3:
-      'Pages read the blockchain through public X Layer nodes. Like any website, those nodes see your IP address and which vaults are read.',
+    site3: glue(
+      'Pages read the blockchain through public X~Layer nodes. Like any website, those nodes see your IP address and which vaults are read.',
+    ),
     walletTitle: 'Your wallet',
     wallet1:
       'Connecting a wallet shares only its public address with this page. Atropyle never asks for, sees or stores a private key or seed phrase.',
@@ -34,8 +35,9 @@ export const messages = defineMessages(
     meTitle: 'Your vault list',
     me1: 'My vaults finds your vaults by reading the chain with your public address, through the same public nodes. It never asks the Atropyle backend.',
     onchainTitle: glue('The copy on X~Layer'),
-    onchain1:
-      'The copy of this site served from X Layer has no backend at all: no email alerts, no index, and no server of ours that sees you.',
+    onchain1: glue(
+      'The copy of this site served from X~Layer has no backend at all: no email alerts, no index, and no server of ours that sees you.',
+    ),
     contactTitle: 'Questions',
     contact1: 'Open an issue on GitHub. Do not post a private key, a seed phrase or an email address there.',
     contactLink: 'Atropyle on GitHub',
@@ -47,8 +49,9 @@ export const messages = defineMessages(
     siteTitle: 'Website này',
     site1: 'Không cookie, không analytics, không tracker, không font hay script của công ty khác.',
     site2: 'Ngôn ngữ, giao diện và cài đặt của bạn nằm trong bộ nhớ của trình duyệt này, chỉ trên thiết bị của bạn.',
-    site3:
-      'Các trang đọc blockchain qua node X Layer công khai. Như mọi website, các node đó thấy địa chỉ IP của bạn và vault nào được đọc.',
+    site3: glue(
+      'Các trang đọc blockchain qua node X~Layer công khai. Như mọi website, các node đó thấy địa chỉ IP của bạn và vault nào được đọc.',
+    ),
     walletTitle: 'Ví của bạn',
     wallet1:
       'Kết nối ví chỉ chia sẻ địa chỉ công khai của ví với trang này. Atropyle không bao giờ hỏi, thấy hay lưu private key hay seed phrase.',
@@ -66,8 +69,9 @@ export const messages = defineMessages(
     meTitle: glue('Danh~sách vault của bạn'),
     me1: 'Trang Vault của tôi tìm vault của bạn bằng cách đọc chain với địa chỉ công khai của bạn, qua cùng các node công khai. Nó không bao giờ hỏi backend của Atropyle.',
     onchainTitle: glue('Bản trên X~Layer'),
-    onchain1:
-      'Bản site được phục vụ từ X Layer không có backend nào: không cảnh báo email, không chỉ mục, và không máy chủ nào của chúng tôi thấy bạn.',
+    onchain1: glue(
+      'Bản site được phục vụ từ X~Layer không có backend nào: không cảnh báo email, không chỉ mục, và không máy chủ nào của chúng tôi thấy bạn.',
+    ),
     contactTitle: glue('Câu~hỏi'),
     contact1: 'Hãy mở một issue trên GitHub. Đừng đăng private key, seed phrase hay địa chỉ email ở đó.',
     contactLink: 'Atropyle trên GitHub',

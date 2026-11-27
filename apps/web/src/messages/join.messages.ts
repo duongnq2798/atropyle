@@ -11,7 +11,7 @@ export const messages = defineMessages(
   {
     eyebrow: 'An Atropyle invitation',
     loadingTitle: 'Opening your invitation',
-    loading: 'Reading the vault on X Layer…',
+    loading: glue('Reading the vault on X~Layer…'),
     titleHeir: 'You have been named as an heir',
     titleGuardian: 'You have been asked to be a guardian',
     leadHeir:
@@ -28,7 +28,7 @@ export const messages = defineMessages(
     guardiansLabel: 'Guardians',
     guardiansRule: '{n}, and {k} of them must agree',
     guardiansNone: 'None',
-    drillNote: 'This vault is a Drill: a rehearsal on X Layer that ends by itself.',
+    drillNote: glue('This vault is a Drill: a rehearsal on X~Layer that ends by itself.'),
     openVault: 'See the whole vault',
     walletAskHeir:
       'Is this you? Connect the wallet you gave the owner, and this page checks that it is named as an heir.',
@@ -62,7 +62,7 @@ export const messages = defineMessages(
     safety3: 'Check that the vault address above is the one the owner told you about.',
     alertsTitle: 'Get an email when it matters',
     alertsLead: 'Optional. You hear from us only when this vault needs you.',
-    trust: "Atropyle's rules are a circuit on X Layer, and anyone can check them.",
+    trust: glue("Atropyle's rules are a circuit on X~Layer, and anyone can check them."),
     trustLink: 'See the proof',
     invalidTitle: 'This invitation link is broken',
     invalidMissing: 'The link has no vault in it. Ask the owner to send you the whole link again.',
@@ -72,15 +72,16 @@ export const messages = defineMessages(
     invalidRole: 'The link does not say whether you are a guardian or an heir. Ask the owner to send it again.',
     invalidSafe: 'Ask in person, or on a call to a number you already had.',
     notVaultTitle: 'There is no Atropyle vault at this address',
-    notVaultBody:
-      'The address in the link is not a vault made by Atropyle on X Layer. Do not send anything to it, and check the link with the owner.',
+    notVaultBody: glue(
+      'The address in the link is not a vault made by Atropyle on X~Layer. Do not send anything to it, and check the link with the owner.',
+    ),
     errorTitle: 'The vault could not be read',
     home: 'Go to the home page',
   },
   {
     eyebrow: glue('Lời~mời từ Atropyle'),
     loadingTitle: glue('Đang mở lời~mời của bạn'),
-    loading: 'Đang đọc vault trên X Layer…',
+    loading: glue('Đang đọc vault trên X~Layer…'),
     titleHeir: glue('Bạn được chọn làm người~thừa~kế'),
     titleGuardian: glue('Bạn được mời làm người~giám~hộ'),
     leadHeir:
@@ -97,7 +98,7 @@ export const messages = defineMessages(
     guardiansLabel: glue('Người~giám~hộ'),
     guardiansRule: '{n} người, cần {k} người đồng ý',
     guardiansNone: 'Không có',
-    drillNote: 'Vault này là một Drill: một lần diễn tập trên X Layer, tự kết thúc sau một thời gian.',
+    drillNote: glue('Vault này là một Drill: một lần diễn tập trên X~Layer, tự kết thúc sau một thời gian.'),
     openVault: glue('Xem toàn~bộ vault'),
     walletAskHeir:
       'Có phải bạn không? Hãy kết nối ví bạn đã đưa cho chủ vault, trang này sẽ kiểm tra ví đó có được ghi là người thừa kế không.',
@@ -131,7 +132,7 @@ export const messages = defineMessages(
     safety3: 'Hãy kiểm tra địa chỉ vault ở trên đúng là địa chỉ chủ vault đã nói với bạn.',
     alertsTitle: 'Nhận email khi cần',
     alertsLead: 'Không bắt buộc. Bạn chỉ nhận thư khi vault này cần đến bạn.',
-    trust: 'Luật của Atropyle là một circuit trên X Layer, và ai cũng kiểm được.',
+    trust: glue('Luật của Atropyle là một circuit trên X~Layer, và ai cũng kiểm được.'),
     trustLink: glue('Xem bằng~chứng'),
     invalidTitle: 'Link mời này bị hỏng',
     invalidMissing: 'Link không có vault nào. Hãy nhờ chủ vault gửi lại đầy đủ.',
@@ -141,8 +142,9 @@ export const messages = defineMessages(
     invalidRole: 'Link không nói bạn là người giám hộ hay người thừa kế. Hãy nhờ chủ vault gửi lại.',
     invalidSafe: 'Hãy hỏi trực tiếp, hoặc gọi vào số bạn đã có từ trước.',
     notVaultTitle: glue('Không có vault Atropyle nào ở địa~chỉ này'),
-    notVaultBody:
-      'Địa chỉ trong link không phải vault do Atropyle tạo trên X Layer. Đừng gửi gì vào đó, và hãy hỏi lại chủ vault.',
+    notVaultBody: glue(
+      'Địa chỉ trong link không phải vault do Atropyle tạo trên X~Layer. Đừng gửi gì vào đó, và hãy hỏi lại chủ vault.',
+    ),
     errorTitle: 'Chưa đọc được vault',
     home: glue('Về trang~chủ'),
   },

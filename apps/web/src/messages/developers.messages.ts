@@ -17,8 +17,9 @@ export const messages = defineMessages(
     sdkTitle: 'SDK',
     sdkHelp: 'TypeScript for Node.js and browsers: read, simulate, verify and prepare. It never signs.',
     verifyTitle: 'Prove the circuit',
-    verifyHelp:
-      "Checks all 67,108,864 cases of the policy against the chain, then asks the X Layer processor's own step() 64 random cases on every node operator (P9). It prints the seed; --p9-seed runs the same cases again.",
+    verifyHelp: glue(
+      "Checks all 67,108,864 cases of the policy against the chain, then asks the X~Layer processor's own step() 64 random cases on every node operator (P9). It prints the seed; --p9-seed runs the same cases again.",
+    ),
     mcpTitle: 'MCP server',
     mcpHelp:
       'For any agent that speaks MCP over stdio. The first line adds it to Claude Code, the second runs it for any other client. It prepares transactions; your wallet signs them.',
@@ -40,8 +41,9 @@ export const messages = defineMessages(
     tapeoutFactory: 'TapeOut factory',
     policy: 'The vaults’ rules are circuit {id} on the processor above.',
     circuitsTitle: 'Circuits anyone can reuse',
-    circuitsLead:
-      'Beside the Atropyle policy, the same X Layer processor holds two small circuits any contract can call by id. Each netlist is frozen: its keccak below is what the proof checks. These are X Layer mainnet facts.',
+    circuitsLead: glue(
+      'Beside the Atropyle policy, the same X~Layer processor holds two small circuits any contract can call by id. Each netlist is frozen: its keccak below is what the proof checks. These are X~Layer mainnet facts.',
+    ),
     xlayerCpu: glue('The X~Layer processor that holds them'),
     circuitPolicy: 'Atropyle policy',
     circuitKofn5: 'KofN5: are at least k of 5 inputs set?',
@@ -65,8 +67,9 @@ export const messages = defineMessages(
     sdkTitle: 'SDK',
     sdkHelp: 'TypeScript cho Node.js và trình duyệt: đọc, mô phỏng, kiểm chứng và chuẩn bị. Nó không bao giờ ký.',
     verifyTitle: glue('Chứng~minh circuit'),
-    verifyHelp:
-      'Kiểm cả 67.108.864 trường hợp của policy so với chain, rồi hỏi chính step() của processor X Layer 64 trường hợp ngẫu nhiên ở mỗi nhà vận hành node (P9). Lệnh in ra seed; --p9-seed chạy lại đúng các trường hợp đó.',
+    verifyHelp: glue(
+      'Kiểm cả 67.108.864 trường hợp của policy so với chain, rồi hỏi chính step() của processor X~Layer 64 trường hợp ngẫu nhiên ở mỗi nhà vận hành node (P9). Lệnh in ra seed; --p9-seed chạy lại đúng các trường hợp đó.',
+    ),
     mcpTitle: 'MCP server',
     mcpHelp:
       'Cho mọi agent dùng MCP qua stdio. Dòng đầu thêm nó vào Claude Code, dòng thứ hai chạy nó cho mọi client khác. Nó chuẩn bị giao dịch; ví của bạn ký.',
@@ -88,8 +91,9 @@ export const messages = defineMessages(
     tapeoutFactory: 'Factory TapeOut',
     policy: 'Luật của các vault là circuit {id} trên bộ xử lý ở trên.',
     circuitsTitle: 'Circuit ai cũng dùng lại được',
-    circuitsLead:
-      'Bên cạnh policy của Atropyle, cùng bộ xử lý trên X Layer còn giữ hai circuit nhỏ mà hợp đồng nào cũng gọi được theo id. Mỗi netlist đã đóng băng: keccak bên dưới là thứ mà phép chứng minh kiểm. Đây là dữ kiện của X Layer mainnet.',
+    circuitsLead: glue(
+      'Bên cạnh policy của Atropyle, cùng bộ xử lý trên X~Layer còn giữ hai circuit nhỏ mà hợp đồng nào cũng gọi được theo id. Mỗi netlist đã đóng băng: keccak bên dưới là thứ mà phép chứng minh kiểm. Đây là dữ kiện của X~Layer mainnet.',
+    ),
     xlayerCpu: glue('Bộ xử~lý trên X~Layer giữ chúng'),
     circuitPolicy: 'Policy của Atropyle',
     circuitKofn5: glue('KofN5: có ít~nhất k trong 5 đầu~vào được bật không?'),

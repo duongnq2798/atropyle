@@ -28,8 +28,9 @@ export const messages = defineMessages(
     again: 'Use another email address',
     errorRateLimited: 'Too many sign-ups in the last hour. Try again later.',
     errorInvalid: 'This email or this vault was not accepted. Check the email and try again.',
-    errorNotVault:
-      'X Layer does not show a vault at this address yet. If it was created a moment ago, try again in a minute.',
+    errorNotVault: glue(
+      'X~Layer does not show a vault at this address yet. If it was created a moment ago, try again in a minute.',
+    ),
     errorTimeout:
       'The alert service did not answer in time. If no confirmation email arrives in a few minutes, try again.',
     errorUnavailable: 'The alert service cannot be reached right now. Try again later; the vault works without it.',
@@ -57,7 +58,9 @@ export const messages = defineMessages(
     again: glue('Dùng địa~chỉ email khác'),
     errorRateLimited: 'Có quá nhiều lượt đăng ký trong một giờ qua. Hãy thử lại sau.',
     errorInvalid: 'Email hoặc vault này không được chấp nhận. Hãy kiểm tra lại email rồi thử lại.',
-    errorNotVault: 'X Layer chưa cho thấy vault nào ở địa chỉ này. Nếu vault vừa được tạo, hãy thử lại sau một phút.',
+    errorNotVault: glue(
+      'X~Layer chưa cho thấy vault nào ở địa chỉ này. Nếu vault vừa được tạo, hãy thử lại sau một phút.',
+    ),
     errorTimeout: 'Dịch vụ cảnh báo không trả lời kịp. Nếu vài phút nữa vẫn chưa có email xác nhận, hãy thử lại.',
     errorUnavailable:
       'Lúc này chưa kết nối được dịch vụ cảnh báo. Hãy thử lại sau; vault vẫn hoạt động mà không cần nó.',

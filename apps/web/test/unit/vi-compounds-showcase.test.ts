@@ -398,6 +398,20 @@ describe('the headings of the Plan 7C pages never break inside a word', () => {
     expect(plain).toEqual([]);
   });
 
+  it('keeps "X Layer" whole in every text of these pages, body copy included', () => {
+    // At 1440 px the lead of /proof/ ended a line on a lone "X" (7C-P1 screens). The certificate lines of /proof/
+    // are copied and pasted elsewhere, so they keep plain spaces.
+    const COPIED = /^proof\.cert\d$/;
+    const plain = PAGES.flatMap(([file, dict]) =>
+      (['en', 'vi'] as const).flatMap((lang) =>
+        Object.entries(dict[lang])
+          .filter(([key, text]) => !COPIED.test(`${file}.${key}`) && plainCompounds(text).includes('x layer'))
+          .map(([key]) => `${file}.${lang}.${key}`),
+      ),
+    );
+    expect(plain).toEqual([]);
+  });
+
   it('finds a compound written with a plain space, and passes the bound one', () => {
     expect(plainCompounds('Ngừng cảnh báo qua email?')).toEqual(['cảnh báo']);
     expect(plainCompounds('Ngừng cảnh\u00A0báo qua email?')).toEqual([]);

@@ -52,7 +52,8 @@ describe('proof messages', () => {
         expect(messages[lang][key], `${lang}.${key}`).not.toMatch(/eight rules|tám luật|đã chuyển/i);
       }
     }
-    expect(messages.en.P8).toBe(P8);
+    // The spec's words; "X Layer" is bound with a no-break space on the page (vi-compounds-showcase.test.ts).
+    expect(messages.en.P8.replaceAll('\u00A0', ' ')).toBe(P8);
   });
 
   it('gives search engines the numbers of the page, from the same constants', () => {
