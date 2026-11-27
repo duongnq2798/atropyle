@@ -150,6 +150,8 @@ test('a stranger releases a late vault to the heir and delivers it; the history 
   await stateIs(page, 'grace');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-pending', 'releasedInherit');
   await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestDue');
+  // Due: the countdown speaks of the release, not of the Drill's expiry (7B-P1).
+  await expect(page.getByTestId('vault-next')).toHaveAttribute('data-kind', 'releaseDue');
   await connectFrom(page, page.getByTestId('vault-guest-connect'));
   await expect(page.getByTestId('vault-no-role')).toBeVisible();
 
@@ -163,6 +165,10 @@ test('a stranger releases a late vault to the heir and delivers it; the history 
   await page.getByTestId('vault-distribute-tx-send').click();
   await expect(page.getByTestId('vault-transfers-0')).toHaveAttribute('data-ok', 'true');
   expect(await balance()).toBeGreaterThan(before);
+  // Delivered: the header, the countdown and the card all say so (7B-P1).
+  await expect(page.getByTestId('vault-next')).toHaveAttribute('data-kind', 'released');
+  await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestReleasedInheritDone');
+  await expect(page.getByRole('heading', { level: 2, name: 'Delivered to the heirs' })).toBeVisible();
 
   await page.getByTestId('vault-history-load').click();
   await expect(page.getByTestId('vault-history-0')).toHaveAttribute('data-kind', 'transfers');

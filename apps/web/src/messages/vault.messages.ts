@@ -18,6 +18,10 @@ export const messages = defineMessages(
     nextAlarm: 'An alarm can be raised',
     nextRelease: 'The assets can be released',
     nextDrillExpiry: 'The Drill expires',
+    nextReleaseDue: 'Release to the heirs allowed',
+    nextReleaseDueRecover: 'Release to the recovery wallet allowed',
+    nextReleased: 'Released to the heirs',
+    nextReleasedRecover: 'Released to the recovery wallet',
     expired: 'This Drill has expired. Nothing more can happen in it.',
     recoveryPending:
       'A recovery is pending. If it is not stopped, everything in the vault goes to this wallet, chosen by the guardians:',
@@ -132,6 +136,10 @@ export const messages = defineMessages(
     nextAlarm: 'Có thể báo động',
     nextRelease: 'Có thể trao tài sản',
     nextDrillExpiry: 'Drill hết hạn',
+    nextReleaseDue: 'Được trao cho người\u00a0thừa\u00a0kế',
+    nextReleaseDueRecover: 'Được trao cho ví khôi\u00a0phục',
+    nextReleased: 'Đã trao cho người\u00a0thừa\u00a0kế',
+    nextReleasedRecover: 'Đã trao cho ví khôi\u00a0phục',
     expired: 'Drill này đã hết hạn. Không còn gì xảy ra được nữa.',
     recoveryPending:
       'Đang chờ khôi phục. Nếu không bị ngăn lại, toàn bộ tài sản trong vault sẽ chuyển tới ví này, do các người giám hộ chọn:',
