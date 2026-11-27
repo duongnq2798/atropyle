@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import type { Address } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom } from './flows.ts';
-import { expectAccessible, expectAccessibleInBothThemes, settle } from './helpers.ts';
+import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme, settle } from './helpers.ts';
 import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
 
 const OWNER = ANVIL[1];
@@ -471,4 +471,83 @@ test('screens of the wizard', async ({ page, state, wallet }, info) => {
       await page.evaluate(() => window.scrollTo(0, 0));
     },
   });
+});
+
+/** The preview's shots (7B-T7f): Vellum in English and Vietnamese, Night in English, at 390, 768 and 1440 px. */
+const PREVIEW_SHOTS: readonly Shot[] = (
+  [
+    ['light', 'en'],
+    ['light', 'vi'],
+    ['dark', 'en'],
+  ] as const
+).flatMap(([theme, lang]) => [390, 768, 1440].map((width): Shot => ({ theme, lang, width })));
+
+/**
+ * The preview of the step on screen, into test-results/screens/create-preview-<step>/: below lg the dock (the strip
+ * over Back and Next) and its open sheet, from lg the rail. Ends in night and English, at the viewport it started with.
+ */
+async function capturePreview(page: Page, step: string): Promise<void> {
+  const start = page.viewportSize();
+  let theme: Shot['theme'] | null = null;
+  let lang: Shot['lang'] | null = null;
+  for (const shot of PREVIEW_SHOTS) {
+    if (shot.theme !== theme) {
+      await setStoredTheme(page, shot.theme);
+      theme = shot.theme;
+    }
+    if (shot.lang !== lang) {
+      await setStoredLang(page, shot.lang);
+      lang = shot.lang;
+    }
+    await page.setViewportSize({ width: shot.width, height: 900 });
+    await ready(page);
+    await expect(page.getByTestId('create')).toHaveAttribute('data-step', step);
+    await settle(page);
+    const path = `test-results/screens/create-preview-${step}/${shot.theme === 'dark' ? 'night' : 'vellum'}-${shot.lang}-${shot.width}`;
+    if (shot.width < 1024) {
+      // A field with focus hides the strip: the shot is of a person who has just arrived on the step.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await expect(page.getByTestId('create-strip')).toBeVisible();
+      await page.getByTestId('create-dock').screenshot({ path: `${path}-strip.png` });
+      await page.getByTestId('create-preview-open').click();
+      await expect(page.getByTestId('create-preview-sheet')).toBeVisible();
+      await settle(page);
+      await page.screenshot({ path: `${path}-sheet.png` });
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('create-preview-sheet')).toBeHidden();
+    } else {
+      await page.getByTestId('create-preview').screenshot({ path: `${path}-rail.png` });
+    }
+  }
+  await setStoredLang(page, 'en');
+  await setStoredTheme(page, 'dark');
+  if (start) await page.setViewportSize(start);
+}
+
+test('preview screens of every step', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
+  test.setTimeout(20 * 60_000);
+  await page.goto(`${state.siteUrl}create/#real`);
+  await ready(page);
+  await capturePreview(page, 'kind');
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-heir-0-account').fill(HEIR);
+  for (let i = 0; i < 3; i++) await page.getByTestId('create-add-heir').click();
+  await page.getByTestId('create-heir-1-account').fill(ANVIL[4]);
+  await page.getByTestId('create-heir-2-account').fill(ANVIL[5]);
+  await page.getByTestId('create-heir-3-account').fill(ANVIL[6]);
+  await capturePreview(page, 'heirs');
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-guardian-0').fill(GUARDIAN);
+  await page.getByTestId('create-add-guardian').click();
+  await page.getByTestId('create-guardian-1').fill(ANVIL[7]);
+  await pick(page, 'create-recovery');
+  await capturePreview(page, 'guardians');
+  await page.getByTestId('create-next').click();
+  await capturePreview(page, 'timing');
+  await page.getByTestId('create-next').click();
+  await page.getByTestId('create-token-0').click();
+  await capturePreview(page, 'assets');
+  await page.getByTestId('create-next').click();
+  await capturePreview(page, 'review');
 });
