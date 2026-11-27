@@ -153,10 +153,18 @@ describe('the check-in ritual', () => {
     expect(screen.getByTestId('owner-checkin-tx-done').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
     expect(knots()).toBe(1);
     expect(screen.getByTestId('owner-ritual-face').querySelector('[data-part="pending"]')).toBeNull();
-    // The knot at the thread's start, "now" just past it: the dot never hides the knot.
+    // The tied knot is the focal mark: solid, on the lit thread's first point ("now" stands on it), drawn above "now".
     const face = screen.getByTestId('owner-ritual-face');
-    expect(face.querySelector<HTMLElement>('[data-part="knot"]')?.style.left).toBe('2.5%');
-    expect(face.querySelector<HTMLElement>('[data-part="now-at"]')?.style.transform).not.toMatch(/^translate\(0%/);
+    const knot = face.querySelector<HTMLElement>('[data-part="knot"]');
+    expect(knot?.getAttribute('data-tone')).toBe('tied');
+    expect(knot?.className).toContain('bg-current');
+    expect(knot?.className).not.toContain('bg-bg');
+    expect(knot?.style.left).toBe('5%');
+    expect(face.querySelector<HTMLElement>('[data-part="now-at"]')?.style.transform).toMatch(/^translate\(5%,/);
+    const marks = [...face.querySelectorAll('[data-layer="marks"] > [data-part]')].map((e) =>
+      e.getAttribute('data-part'),
+    );
+    expect(marks.indexOf('knot')).toBeGreaterThan(marks.indexOf('now-at'));
     expect(onChanged).toHaveBeenCalledWith(RESULT);
     // The runner's own 12 ms pulse marks the receipt (useTxRunner.finish): the ritual adds none.
     expect(spies.pulse).not.toHaveBeenCalled();
@@ -236,15 +244,19 @@ describe('the check-in ritual', () => {
     ritual();
     const drill = await screen.findByTestId('owner-drill');
     expect(drill.getAttribute('data-kind')).toBe('guarded');
-    expect(drill.textContent).toContain('about 6 minutes later once enough guardians confirm (2 of 3)');
-    expect(drill.textContent).toContain('about 17 minutes later if nobody does');
+    // The rules' minutes, as the time machine says them, and the keeper's rounds named apart.
+    expect(drill.textContent).toContain('after 4 minutes once enough guardians confirm (2 of 3)');
+    expect(drill.textContent).toContain('or after 15 minutes if nobody does');
+    expect(drill.textContent).toContain("The keeper's rounds add up to about 2 minutes more.");
   });
 
   it('says one time for a Drill without guardians', async () => {
     ritual(loadedWith((s) => ({ ...s, config: { ...s.config, guardians: [], k: 0, recoveryEnabled: false } })));
     const drill = await screen.findByTestId('owner-drill');
     expect(drill.getAttribute('data-kind')).toBe('simple');
-    expect(drill.textContent).toBe('Stop checking in and your heirs can receive about 6 minutes later.');
+    expect(drill.textContent).toBe(
+      "Stop checking in and the rules let your heirs receive after 4 minutes. The keeper's rounds add up to about 2 minutes more.",
+    );
   });
 
   it('says when the next check-in is due', () => {

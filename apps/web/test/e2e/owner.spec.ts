@@ -120,6 +120,22 @@ async function pokeAs(atro: AtropyleClient, state: E2EState, vault: Address, as:
   await atro.send(plan, walletFor(state, as));
 }
 
+/**
+ * Where the focus is: BODY when it fell out of the page, else whether the point at the centre of the focused element
+ * is the element itself, not the sticky header over it (WCAG 2.2 2.4.11).
+ */
+async function focusState(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    if (!a || a === document.body) return 'BODY';
+    const r = a.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit !== null && a.contains(hit)
+      ? 'clear'
+      : `covered by ${hit?.closest('header') ? 'the header' : hit?.tagName}`;
+  });
+}
+
 /** The order of the ritual's phases: a recorded run may skip some (a fast wallet), never go back. */
 const ORDER = ['idle', 'holding', 'wallet', 'sent', 'tied'];
 
@@ -157,6 +173,9 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   await page.getByTestId('owner-checkin-tx-send').press('Enter');
   await expect(page.getByTestId('owner-tied')).toBeVisible();
   await expect(ritual).toHaveAttribute('data-ritual', 'tied');
+  // The receipt's heading takes the focus, in sight: on a phone the tall ritual card once left it under the header.
+  await expect(page.getByTestId('owner-checkin-tx').locator('h3')).toBeFocused();
+  await expect.poll(() => focusState(page)).toBe('clear');
   const seen = await page.evaluate(() => (window as unknown as { __ritual: string[] }).__ritual);
   expect(seen.at(-1)).toBe('tied');
   expect(seen.filter((p) => p === 'tied')).toHaveLength(1);
@@ -182,6 +201,44 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   await page.getByTestId('owner-checkin-reset').click();
   await expect(ritual).toHaveAttribute('data-ritual', 'idle');
   await expect(page.getByTestId('owner-checkin-tx-send')).toBeVisible();
+});
+
+test('the keyboard keeps its place: Save, Send and Start over, then the check-in and its Start over', async ({
+  page,
+  state,
+  wallet,
+}) => {
+  const vault = state.seeded.guarded;
+  await openAsOwner(page, state, wallet, vault);
+  await heirChanged(page);
+  await page.getByTestId('owner-edit-remap-ack').check();
+
+  // Save: the button goes with the plan's arrival, and Send takes the focus.
+  await page.getByTestId('owner-edit-save').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('owner-edit-save-tx-send')).toBeFocused({ timeout: 30_000 });
+  await expect.poll(() => focusState(page)).toBe('clear');
+  // Send: the Receipt replaces it, and its heading takes the focus.
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('owner-edit-save-tx-done')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('owner-edit-save-tx').locator('h3')).toBeFocused();
+  await expect.poll(() => focusState(page)).toBe('clear');
+  // Start over: the forms start again from the saved plan (a new key); nothing to save, so the part keeps the focus.
+  await page.getByTestId('owner-edit-save-reset').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('owner-edit-unchanged')).toBeVisible();
+  await expect(page.getByTestId('owner-edit-heirs')).toBeFocused();
+  await expect.poll(() => focusState(page)).toBe('clear');
+
+  // The check-in: Enter on the hold, then Start over prepares the next one and its hold takes the focus.
+  await page.getByTestId('owner-checkin-tx-send').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('owner-checkin-tx').locator('h3')).toBeFocused();
+  await page.getByTestId('owner-checkin-reset').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('owner-checkin-tx-send')).toBeFocused({ timeout: 30_000 });
+  await expect.poll(() => focusState(page)).toBe('clear');
 });
 
 test('a low coverage is fixed from the owner tab, and the receipt stays', async ({ page, state, atro, wallet }) => {

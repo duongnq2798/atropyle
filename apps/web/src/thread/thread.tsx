@@ -47,6 +47,11 @@ export interface ThreadProps extends ThreadInput {
    * the ends of neighbouring heirs touch and read as a smudge.
    */
   branchEnds?: boolean;
+  /**
+   * The knots were just tied (the check-in ritual's receipt): each is drawn solid, larger than "now" and above it, so a
+   * knot on the "now" point is the focal mark of the thread, lit in its halo. By default a knot is a hollow ring.
+   */
+  tiedKnots?: boolean;
   /** Size of the box: a width, and a height to change the 5:1 ratio. */
   className?: string;
 }
@@ -185,6 +190,7 @@ export function Thread({
   exit,
   heirColors = false,
   branchEnds = true,
+  tiedKnots = false,
   label,
   shared = false,
   revealRef,
@@ -363,14 +369,16 @@ export function Thread({
             {g.posts ? <Posts posts={g.posts} /> : null}
           </span>
         ) : null}
-        {g.knots.map((k) => (
-          <span
-            key={`${k[0]}-${k[1]}`}
-            data-part="knot"
-            className={cn(MARK, 'size-2.5 border-2 border-current bg-bg')}
-            style={at(k)}
-          />
-        ))}
+        {tiedKnots
+          ? null
+          : g.knots.map((k) => (
+              <span
+                key={`${k[0]}-${k[1]}`}
+                data-part="knot"
+                className={cn(MARK, 'size-2.5 border-2 border-current bg-bg')}
+                style={at(k)}
+              />
+            ))}
         {(branchEnds ? g.dots : []).map((dot, i) => {
           const own = heirTone(dot.tone);
           return (
@@ -387,6 +395,18 @@ export function Thread({
           <span data-part="exit-end" className={cn(MARK, 'size-2 bg-recovery')} style={at(g.exit.end)} />
         ) : null}
         {g.now ? <NowAt at={g.now} pending={g.pending !== null} /> : null}
+        {/* After "now": a tied knot covers its dot and keeps its halo. */}
+        {tiedKnots
+          ? g.knots.map((k) => (
+              <span
+                key={`${k[0]}-${k[1]}`}
+                data-part="knot"
+                data-tone="tied"
+                className={cn(MARK, 'size-3.5 bg-current ring-2 ring-current/30')}
+                style={at(k)}
+              />
+            ))
+          : null}
       </div>
     </>
   );

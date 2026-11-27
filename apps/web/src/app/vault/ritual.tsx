@@ -23,16 +23,16 @@ import type { PanelProps } from './vault-page';
 const CHECK_IN: VaultAction = { type: 'checkIn' };
 
 /**
- * The new knot, at the start of a full thread: the period starts again from it. A step in from the very start, since
- * the Thread clips what crosses its box and a knot at 0 would show only its right half.
+ * The new knot, near the start of a full thread: the period starts again from it. A step in from the very start, since
+ * the Thread clips what crosses its box: 5 % clears the tied knot and its ring (18 px) even on a 390 px phone.
  */
-const TIED_KNOT = [0.025] as const;
+const TIED_KNOT = [0.05] as const;
 
 /**
- * Once tied, "now" stands just past the new knot (the period has begun from it), so its dot never covers the knot: drawn
- * at the same point, the knot would be hidden under it. 8 % of the thread clears the knot even on a phone.
+ * Once tied, the lit thread starts at the new knot: "now" stands on it, and the knot (Thread `tiedKnots`: solid, larger
+ * than "now", drawn above it) is the focal mark, in the halo of "now".
  */
-const TIED_REMAINING = 0.92;
+const TIED_REMAINING = 1 - TIED_KNOT[0];
 
 /** When the wallet opened, the transaction left and the receipt came, on this machine's clock (performance.now). */
 type Marks = Record<'wallet' | 'sent' | 'tied', number | null>;
@@ -54,11 +54,11 @@ type T = (key: keyof typeof messages.en, params?: Params) => string;
 function drillSentence(t: T, d: RitualDrill, expires: string): string {
   switch (d.kind) {
     case 'simple':
-      return t('drillSimple', { a: d.a });
+      return t('drillSimple', { a: d.a, keeper: d.keeper });
     case 'guarded':
-      return t('drillGuarded', { a: d.a, b: d.b, k: d.k, n: d.n });
+      return t('drillGuarded', { a: d.a, b: d.b, k: d.k, n: d.n, keeper: d.keeper });
     case 'guardedOnly':
-      return t('drillGuardedOnly', { a: d.a, k: d.k, n: d.n });
+      return t('drillGuardedOnly', { a: d.a, k: d.k, n: d.n, keeper: d.keeper });
     case 'expires':
       return t('drillExpires', { date: expires });
   }
@@ -189,6 +189,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         state={tied ? 'active' : threadStateOf(s)}
         remaining={tied ? TIED_REMAINING : restarting ? 1 : threadRemaining(s, now)}
         knots={tied ? TIED_KNOT : undefined}
+        tiedKnots={tied}
         pendingKnot={phase === 'wallet' || phase === 'sent'}
         signature={view.vault}
         revealRef={reveal}
@@ -237,6 +238,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         as={account}
         label={t('checkIn')}
         title={t('ritualTxTitle')}
+        nested
         testId="owner-checkin"
         confirm="hold"
         auto

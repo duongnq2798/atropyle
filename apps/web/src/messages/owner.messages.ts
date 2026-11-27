@@ -4,7 +4,7 @@ export const messages = defineMessages(
   {
     title: 'You own this vault',
     lead: 'Check in before each period ends. Everything below changes the vault only with a transaction you sign.',
-    leadClosed: 'This vault takes no more check-ins. What you can still do is below, each with a transaction you sign.',
+    leadClosed: 'What you can still do is below, each with a transaction you sign.',
     ritualTitle: 'Check in',
     ritualLead:
       'Hold the button to tie a knot on your thread, then sign in your wallet. A check-in resets the missed check-ins, cancels an alarm and stops a pending recovery.',
@@ -21,15 +21,15 @@ export const messages = defineMessages(
     dueGrace: 'An alarm is raised. Check in by {date} to cancel it.',
     dueRecovery: 'A recovery is pending. Check in by {date} to stop it.',
     dueLate: 'You are late, but a check-in still counts until someone moves the vault on.',
-    drillSimple: 'Stop checking in and your heirs can receive about {a} minutes later.',
+    drillSimple:
+      "Stop checking in and the rules let your heirs receive after {a} minutes. The keeper's rounds add up to about {keeper} minutes more.",
     drillGuarded:
-      'Stop checking in and your heirs can receive about {a} minutes later once enough guardians confirm ({k} of {n}), or about {b} minutes later if nobody does.',
+      "Stop checking in and the rules let your heirs receive after {a} minutes once enough guardians confirm ({k} of {n}), or after {b} minutes if nobody does. The keeper's rounds add up to about {keeper} minutes more.",
     drillGuardedOnly:
-      'Stop checking in and your heirs can receive about {a} minutes later once enough guardians confirm ({k} of {n}). If nobody does, this Drill ends first.',
+      "Stop checking in and the rules let your heirs receive after {a} minutes once enough guardians confirm ({k} of {n}); the keeper's rounds add up to about {keeper} minutes more. If nobody confirms, this Drill ends first.",
     drillExpires: 'This Drill ends before your heirs could receive anything: it expires on {date}.',
-    closedReleased: 'The vault has passed on: no more check-ins.',
-    closedExpired: 'This Drill has expired: no more check-ins.',
     closedTitle: 'No more check-ins',
+    closedTitleReleased: "Your heirs' turn",
     coverageTitle: 'Coverage',
     coverageHelp: 'The vault can move only part of what you hold. Approve again so your heirs receive all of it.',
     coveragePercent: '{percent}% covered',
@@ -61,9 +61,8 @@ export const messages = defineMessages(
     revokeTitle: 'Revoke all',
     revokeHelp:
       'Removes every allowance the vault has over your assets. Your heirs then receive nothing until you approve again.',
-    revokeHelpReleased:
-      'The vault has passed on. If that is not what you meant, revoking stops every transfer that has not happened yet.',
-    revokeHelpExpired: 'This Drill has expired. Revoke all to remove the allowances it still holds.',
+    revokeHelpReleased: 'If this is not what you meant, revoking stops every transfer that has not happened yet.',
+    revokeHelpExpired: 'Revoke all removes the allowances the vault still holds.',
     revoke: 'Revoke all',
     revokeIdle: 'The vault can move nothing you hold right now. Revoke all still removes any allowance it keeps.',
     revokeNone: 'This plan lists no assets, so there is nothing to revoke.',
@@ -71,8 +70,7 @@ export const messages = defineMessages(
   {
     title: 'Bạn là chủ\u00a0vault này',
     lead: 'Hãy điểm\u00a0danh trước khi mỗi kỳ kết\u00a0thúc. Mọi thay đổi bên dưới chỉ xảy\u00a0ra bằng một giao\u00a0dịch do bạn ký.',
-    leadClosed:
-      'Vault này không còn nhận điểm\u00a0danh. Những\u00a0gì bạn vẫn làm được nằm bên dưới, mỗi việc bằng một giao\u00a0dịch do bạn ký.',
+    leadClosed: 'Những\u00a0gì bạn vẫn làm được nằm bên dưới, mỗi việc bằng một giao\u00a0dịch do bạn ký.',
     ritualTitle: 'Điểm\u00a0danh',
     ritualLead:
       'Giữ nút để thắt một nút trên sợi\u00a0chỉ của bạn, rồi ký trong ví. Mỗi lần điểm\u00a0danh xoá số\u00a0lần bỏ lỡ, huỷ báo\u00a0động và ngăn việc khôi\u00a0phục đang chờ.',
@@ -90,15 +88,14 @@ export const messages = defineMessages(
     dueRecovery: 'Đang chờ khôi\u00a0phục. Hãy điểm\u00a0danh trước {date} để ngăn\u00a0lại.',
     dueLate: 'Bạn đã trễ hạn, nhưng điểm\u00a0danh vẫn còn hiệu lực cho tới khi có người đưa vault sang bước tiếp.',
     drillSimple:
-      'Nếu bạn ngừng điểm\u00a0danh, người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau khoảng {a} phút.',
+      'Nếu bạn ngừng điểm\u00a0danh, theo luật người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau {a} phút. Các vòng chạy của keeper cộng thêm khoảng {keeper} phút.',
     drillGuarded:
-      'Nếu bạn ngừng điểm\u00a0danh, người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau khoảng {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}), hoặc sau khoảng {b} phút nếu không ai xác\u00a0nhận.',
+      'Nếu bạn ngừng điểm\u00a0danh, theo luật người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}), hoặc sau {b} phút nếu không ai xác\u00a0nhận. Các vòng chạy của keeper cộng thêm khoảng {keeper} phút.',
     drillGuardedOnly:
-      'Nếu bạn ngừng điểm\u00a0danh, người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau khoảng {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}). Nếu không ai xác\u00a0nhận, Drill này sẽ kết\u00a0thúc trước.',
+      'Nếu bạn ngừng điểm\u00a0danh, theo luật người\u00a0thừa\u00a0kế có\u00a0thể nhận tài\u00a0sản sau {a} phút khi đủ người\u00a0giám\u00a0hộ xác\u00a0nhận ({k} trên {n}); các vòng chạy của keeper cộng thêm khoảng {keeper} phút. Nếu không ai xác\u00a0nhận, Drill này sẽ kết\u00a0thúc trước.',
     drillExpires: 'Drill này kết\u00a0thúc trước khi người\u00a0thừa\u00a0kế kịp nhận gì: nó hết\u00a0hạn vào {date}.',
-    closedReleased: 'Vault đã tới lúc trao tài\u00a0sản: không còn điểm\u00a0danh được nữa.',
-    closedExpired: 'Drill này đã hết\u00a0hạn: không còn điểm\u00a0danh được nữa.',
     closedTitle: 'Không còn điểm\u00a0danh',
+    closedTitleReleased: 'Đến lượt người\u00a0thừa\u00a0kế',
     coverageTitle: 'Độ\u00a0phủ',
     coverageHelp: 'Vault chỉ chuyển được một phần số bạn đang giữ. Hãy approve lại để người\u00a0thừa\u00a0kế nhận đủ.',
     coveragePercent: 'phủ {percent}%',
@@ -130,9 +127,8 @@ export const messages = defineMessages(
     revokeTitle: 'Thu\u00a0hồi tất cả',
     revokeHelp:
       'Xoá mọi allowance của vault trên tài\u00a0sản của bạn. Khi đó người\u00a0thừa\u00a0kế không nhận được gì cho tới khi bạn approve lại.',
-    revokeHelpReleased:
-      'Vault đã tới lúc trao tài\u00a0sản. Nếu đó không phải ý bạn, thu\u00a0hồi sẽ chặn mọi lần chuyển chưa diễn ra.',
-    revokeHelpExpired: 'Drill này đã hết\u00a0hạn. Thu\u00a0hồi tất cả để xoá các allowance vault còn giữ.',
+    revokeHelpReleased: 'Nếu đây không phải ý bạn, thu\u00a0hồi sẽ chặn mọi lần chuyển chưa diễn ra.',
+    revokeHelpExpired: 'Thu\u00a0hồi tất cả xoá các allowance mà vault còn giữ.',
     revoke: 'Thu\u00a0hồi tất cả',
     revokeIdle:
       'Lúc\u00a0này vault không chuyển được gì trong số tài\u00a0sản bạn đang giữ. Thu\u00a0hồi tất cả vẫn xoá mọi allowance vault còn giữ.',

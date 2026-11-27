@@ -95,16 +95,20 @@ describe('the owner tab', () => {
     expect(screen.queryByTestId('owner-coverage')).toBeNull();
   });
 
-  it('released: no ritual, the closing line, Deliver for anyone, Revoke with its released help', () => {
+  it('released: no ritual, a title that says what happened, Deliver for anyone, Revoke with its released help', () => {
     tab(loadedWith({ state: 'releasedInherit', stateCode: 5, pending: 'releasedInherit', releasedAt: 1000n }));
     expect(screen.queryByTestId('owner-ritual')).toBeNull();
     expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('released');
-    expect(screen.getByRole('heading', { name: 'No more check-ins' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: "Your heirs' turn" })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Check in' })).toBeNull();
-    expect(document.body.textContent).toContain('This vault takes no more check-ins.');
+    expect(document.body.textContent).toContain('What you can still do is below, each with a transaction you sign.');
     expect(document.body.textContent).not.toContain('Check in before each period ends.');
     expect(screen.getByTestId('vault-distribute')).toBeTruthy();
-    expect(screen.getByTestId('owner-revoke-card').textContent).toContain('The vault has passed on.');
+    expect(screen.getByTestId('owner-revoke-card').textContent).toContain('If this is not what you meant, revoking');
+    // Each fact once (review fix round 1): "passed on" and "no more check-ins" are said by no block of the tab.
+    const text = screen.getByTestId('owner-tab').textContent ?? '';
+    expect(text).not.toMatch(/passed on/);
+    expect(text).not.toMatch(/no more check-ins/i);
     expect(screen.queryByTestId('owner-edit')).toBeNull();
     expect(screen.queryByTestId('owner-alerts')).toBeNull();
   });
@@ -112,7 +116,10 @@ describe('the owner tab', () => {
   it('expired: the closing line and the expired revoke help', () => {
     tab(loadedWith({ expired: true }));
     expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('expired');
-    expect(screen.getByTestId('owner-revoke-card').textContent).toContain('This Drill has expired.');
+    expect(screen.getByRole('heading', { name: 'No more check-ins' })).toBeTruthy();
+    expect(screen.getByTestId('owner-revoke-card').textContent).toContain(
+      'Revoke all removes the allowances the vault still holds.',
+    );
     expect(screen.queryByTestId('vault-distribute')).toBeNull();
   });
 

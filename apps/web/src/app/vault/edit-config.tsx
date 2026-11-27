@@ -2,7 +2,7 @@
 
 import type { PlanIssue } from '@atropyle/sdk';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Address as Addr } from 'viem';
 import { CHAIN_ID } from '@/chain/hooks';
 import type { Sdk } from '@/chain/types';
@@ -16,6 +16,7 @@ import type { FlowsImpl } from '@/flows/load';
 import { evenSplit, withShares } from '@/flows/shares';
 import { useT } from '@/i18n/provider';
 import { isAddressText } from '@/lib/address';
+import { focusInView } from '@/lib/focus';
 import { jsonStringify } from '@/lib/store';
 import { messages } from '@/messages/owner.messages';
 import { Address } from '@/ui/address';
@@ -43,6 +44,8 @@ export interface EditConfigProps extends PanelProps {
   part: EditPart | null;
   /** A save is prepared, in flight or done: the part buttons hold still. */
   onLocked(locked: boolean): void;
+  /** Start over was pressed (EditFields): EditConfig keeps the focus in the editor once the forms start again. */
+  onStartOver?(): void;
 }
 
 /**
@@ -57,14 +60,45 @@ export function EditConfig(p: EditConfigProps) {
   useEffect(() => {
     if (!locked && key !== formKey) setFormKey(key);
   }, [locked, key, formKey]);
-  const { onLocked } = p;
+  const { onLocked, part } = p;
   useEffect(() => {
     onLocked(locked);
   }, [locked, onLocked]);
-  return <EditFields key={formKey} {...p} onLocked={setLocked} />;
+  // The new key mounts new forms, and the Start over button that had focus goes with the old ones: focus moves to Save
+  // when it can be pressed, else to this part's button, never to <body>. After every render until then, since the part
+  // buttons open a render later (onLocked), and a key the press saw is not yet the new one.
+  const wrap = useRef<HTMLDivElement>(null);
+  const refocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (refocus.current === null || refocus.current === formKey) return;
+    const at = document.activeElement;
+    if (!(at === null || at === document.body || wrap.current?.contains(at))) {
+      refocus.current = null;
+      return;
+    }
+    const save = wrap.current?.querySelector<HTMLButtonElement>('[data-testid="owner-edit-save"]');
+    const partButton = part ? document.querySelector<HTMLButtonElement>(`[data-testid="owner-edit-${part}"]`) : null;
+    const target = save && !save.disabled ? save : partButton && !partButton.disabled ? partButton : null;
+    if (!target) return;
+    refocus.current = null;
+    focusInView(target);
+  });
+  return (
+    <div ref={wrap} className="contents">
+      <EditFields
+        key={formKey}
+        {...p}
+        onLocked={setLocked}
+        onStartOver={() => {
+          // Still on the Start over button: the press runs before the forms go.
+          refocus.current = wrap.current?.contains(document.activeElement) === true ? formKey : null;
+        }}
+      />
+    </div>
+  );
 }
 
-function EditFields({ flows, sdk, loaded, view, account, onChanged, part, onLocked }: EditConfigProps) {
+function EditFields({ flows, sdk, loaded, view, account, onChanged, part, onLocked, onStartOver }: EditConfigProps) {
   const t = useT(messages);
   const snap = loaded.snap;
   const c = snap.config;
@@ -174,7 +208,10 @@ function EditFields({ flows, sdk, loaded, view, account, onChanged, part, onLock
           setDone(true);
           onChanged(r);
         }}
-        onReset={() => setDone(false)}
+        onReset={() => {
+          onStartOver?.();
+          setDone(false);
+        }}
       />
     </div>
   );

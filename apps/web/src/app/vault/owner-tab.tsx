@@ -30,6 +30,9 @@ const ALERTS_ROLE = 'owner' as const;
 
 const CARD = 'flex flex-col gap-4 rounded-2xl border border-line bg-surface-1 p-4 sm:p-6';
 
+/** Every section of the tab in one voice, the time machine's (its own title is set the same way). */
+const SECTION_TITLE = 'voice-proclaim text-title text-ink';
+
 const PART_KEY = {
   heirs: 'partHeirs',
   guardians: 'partGuardians',
@@ -57,8 +60,8 @@ export function OwnerTab(p: PanelProps) {
       </header>
 
       <section aria-labelledby="owner-ritual-title" className={CARD}>
-        <h3 id="owner-ritual-title" className="voice-proclaim text-title text-ink">
-          {t(open ? 'ritualTitle' : 'closedTitle')}
+        <h3 id="owner-ritual-title" className={SECTION_TITLE}>
+          {t(open ? 'ritualTitle' : view.released && !view.expired ? 'closedTitleReleased' : 'closedTitle')}
         </h3>
         {open ? <Ritual {...p} /> : <Closed {...p} />}
       </section>
@@ -78,19 +81,14 @@ export function OwnerTab(p: PanelProps) {
   );
 }
 
-/** No more check-ins. Released and not expired, anyone may deliver (T9 R7: never a poke from the owner before). */
+/**
+ * No more check-ins. Released and not expired, anyone may deliver (T9 R7: never a poke from the owner before); the
+ * title says what happened and Deliver's own help how it pays, so the card adds no sentence of its own (each fact once).
+ */
 function Closed(p: PanelProps) {
-  const t = useT(messages);
   const { view } = p;
   return (
-    <div className="flex flex-col gap-4">
-      <p
-        data-testid="owner-closed"
-        data-kind={view.expired ? 'expired' : 'released'}
-        className="text-body text-ink-muted"
-      >
-        {t(view.expired ? 'closedExpired' : 'closedReleased')}
-      </p>
+    <div data-testid="owner-closed" data-kind={view.expired ? 'expired' : 'released'} className="flex flex-col gap-4">
       {view.released && !view.expired ? <PublicActions {...p} /> : null}
     </div>
   );
@@ -107,7 +105,7 @@ function CoverageSection({ flows, sdk, loaded, view, account, onChanged, tokens 
   if (low.length === 0 && !held && !done) return null;
   return (
     <section aria-labelledby="owner-coverage-title" data-testid="owner-coverage" className={CARD}>
-      <h3 id="owner-coverage-title" className="text-lead text-ink">
+      <h3 id="owner-coverage-title" className={SECTION_TITLE}>
         {t('coverageTitle')}
       </h3>
       <p className="text-small text-ink-muted">{t('coverageHelp')}</p>
@@ -179,7 +177,7 @@ function EditSection(p: PanelProps) {
   const Edit = q.data?.EditConfig;
   return (
     <section aria-labelledby="owner-edit-title" data-testid="owner-edit" data-part={part ?? ''} className={CARD}>
-      <h3 id="owner-edit-title" className="text-lead text-ink">
+      <h3 id="owner-edit-title" className={SECTION_TITLE}>
         {t('editTitle')}
       </h3>
       <p className="text-small text-ink-muted">{t('editHelp')}</p>
@@ -232,7 +230,7 @@ function RevokeSection({ flows, sdk, loaded, view, account, onChanged, tokens }:
   const help = view.expired ? 'revokeHelpExpired' : view.released ? 'revokeHelpReleased' : 'revokeHelp';
   return (
     <section aria-labelledby="owner-revoke-title" data-testid="owner-revoke-card" className={CARD}>
-      <h3 id="owner-revoke-title" className="text-lead text-ink">
+      <h3 id="owner-revoke-title" className={SECTION_TITLE}>
         {t('revokeTitle')}
       </h3>
       {!listed && !held && !done ? (

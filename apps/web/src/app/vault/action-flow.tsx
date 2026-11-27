@@ -1,12 +1,13 @@
 'use client';
 
 import type { SendResult, TxPlan, VaultAction } from '@atropyle/sdk';
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type MutableRefObject, type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
 import type { Address } from 'viem';
 import type { Sdk } from '@/chain/types';
 import { IssueList } from '@/flows/editors/issue-list';
 import type { FlowsImpl } from '@/flows/load';
 import { useT } from '@/i18n/provider';
+import { focusInView } from '@/lib/focus';
 import { messages } from '@/messages/action-runner.messages';
 import { ErrorBox } from '@/tx/error-box';
 import type { MirrorToken } from '@/tx/mirror';
@@ -43,6 +44,8 @@ export interface ActionFlowProps {
   tokens?: readonly MirrorToken[];
   /** The Receipt's footer: the page's next step. */
   receiptFooter?: ReactNode;
+  /** The TxCard stands under a heading that already names the action: its own heading one step smaller (TxCard). */
+  nested?: boolean;
   /** Offer "Start over" while a plan is held (default). False once a one-shot send is done: nothing to start over. */
   resettable?: boolean;
   onDone?(r: SendResult): void;
@@ -62,10 +65,36 @@ function ActionTx(p: {
   hold?: HoldWords;
   tokens?: readonly MirrorToken[];
   receiptFooter?: ReactNode;
+  nested?: boolean;
+  /** The flow's root and its pending focus move (ActionFlow): the card takes it once it is on the page. */
+  root: MutableRefObject<HTMLDivElement | null>;
+  want: MutableRefObject<boolean>;
   onDone(r: SendResult): void;
   onProgress(p: FlowProgress): void;
 }) {
   const runner = useTxRunner({ plan: p.plan, onDone: p.onDone, tokens: p.tokens });
+  const { root, want, testId } = p;
+  // Prepare or Start over was pressed with focus in the flow, and the button went with the plan's arrival: Send takes
+  // focus as soon as it can be pressed, the heading until then. After every render, since Send comes with the runner
+  // (it waits for the mirror); a reader who moved elsewhere keeps their place.
+  useLayoutEffect(() => {
+    if (!want.current) return;
+    const r = root.current;
+    if (!r) return;
+    const heading = r.querySelector<HTMLElement>(`[data-testid="${testId}"] h3`);
+    const a = document.activeElement;
+    if (!(a === null || a === document.body || a === r || (heading !== null && a === heading))) {
+      want.current = false;
+      return;
+    }
+    const send = r.querySelector<HTMLButtonElement>(`[data-testid="${testId}-send"]`);
+    if (send && !send.disabled) {
+      want.current = false;
+      focusInView(send);
+    } else if (heading && a !== heading) {
+      focusInView(heading);
+    }
+  });
   const report = useRef(p.onProgress);
   report.current = p.onProgress;
   const finished = runner.result !== null;
@@ -82,6 +111,7 @@ function ActionTx(p: {
       tone={p.tone}
       hold={p.hold}
       receiptFooter={p.receiptFooter}
+      nested={p.nested}
       testId={p.testId}
     />
   );
@@ -99,6 +129,11 @@ export function ActionFlow(p: ActionFlowProps) {
   useEffect(() => {
     onPlan.current?.(a.held);
   }, [a.held]);
+  const root = useRef<HTMLDivElement>(null);
+  // A press that takes its own button away (Prepare, Start over) with focus in the flow: the focus follows to what
+  // comes next instead of falling to <body>. A press kept by LazyActionFlow had focus on the button that is gone.
+  const want = useRef(p.pressed === true);
+  const focusWasHere = () => root.current?.contains(document.activeElement) === true;
   const pressed = useRef(p.pressed);
   const prepare = a.prepare;
   useEffect(() => {
@@ -106,12 +141,34 @@ export function ActionFlow(p: ActionFlowProps) {
     pressed.current = false;
     prepare();
   }, [prepare]);
+  // No plan on screen: while it prepares the flow itself holds focus; at rest, its button does (or, disabled, the flow).
+  // A plan on screen places it itself (ActionTx).
+  useLayoutEffect(() => {
+    if (!want.current || a.plan) return;
+    const r = root.current;
+    if (!r) return;
+    const at = document.activeElement;
+    const free = at === null || at === document.body || at === r;
+    if (!free) {
+      if (!r.contains(at)) want.current = false;
+      return;
+    }
+    if (a.busy || (p.auto && !a.error)) {
+      if (at !== r) r.focus({ preventScroll: true });
+      return;
+    }
+    want.current = false;
+    const b = r.querySelector<HTMLButtonElement>(`[data-testid="${p.testId}"]`);
+    if (b && !b.disabled) focusInView(b);
+    else if (at !== r) r.focus({ preventScroll: true });
+  }, [a.plan, a.busy, a.error, p.auto, p.testId]);
   const onProgress = (x: FlowProgress) => {
     a.report(x);
     p.onProgress?.(x);
   };
   return (
-    <div className="flex flex-col gap-4 [&>[role=alert]:empty]:hidden">
+    // tabIndex -1: the flow holds focus while a press it took away waits for what comes next (no tab stop).
+    <div ref={root} tabIndex={-1} className="flex flex-col gap-4 outline-none [&>[role=alert]:empty]:hidden">
       {a.plan ? (
         <>
           <ActionTx
@@ -125,6 +182,9 @@ export function ActionFlow(p: ActionFlowProps) {
             hold={p.hold}
             tokens={p.tokens}
             receiptFooter={p.receiptFooter}
+            nested={p.nested}
+            root={root}
+            want={want}
             onDone={(r) => p.onDone?.(r)}
             onProgress={onProgress}
           />
@@ -135,6 +195,7 @@ export function ActionFlow(p: ActionFlowProps) {
               className="self-start"
               data-testid={`${p.testId}-reset`}
               onClick={() => {
+                want.current = focusWasHere();
                 a.again();
                 p.onReset?.();
               }}
@@ -158,7 +219,10 @@ export function ActionFlow(p: ActionFlowProps) {
           loading={a.busy}
           loadingLabel={t('preparing')}
           disabled={p.disabled}
-          onClick={a.prepare}
+          onClick={() => {
+            want.current = focusWasHere();
+            a.prepare();
+          }}
         >
           {p.auto ? t('retry') : p.label}
         </Button>
