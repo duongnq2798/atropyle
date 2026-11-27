@@ -402,3 +402,41 @@ describe('HoldButton', () => {
     }
   }, 20_000);
 });
+
+describe('hold words (R18.16)', () => {
+  it('says the caller words once held, never "Confirmed", and ties no knot when showKnot is false', () => {
+    const onConfirm = vi.fn();
+    renderWithProviders(
+      <HoldButton onConfirm={onConfirm} doneLabel="Now confirm in your wallet" showKnot={false}>
+        Receive
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Receive' });
+    expect(button.querySelector('[data-part="knot"]')).toBeNull();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(button.getAttribute('data-phase')).toBe('done');
+    expect(screen.queryByText('Confirmed')).toBeNull();
+    expect(screen.getByText('Now confirm in your wallet')).toBeTruthy();
+  });
+
+  it('null says nothing once held', () => {
+    renderWithProviders(
+      <HoldButton onConfirm={() => {}} doneLabel={null}>
+        Receive
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Receive' });
+    fireEvent.keyDown(button, { key: 'Enter' });
+    const hint = document.getElementById(button.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toBe('');
+  });
+
+  it('keeps "Confirmed" and the knot by default', () => {
+    renderWithProviders(<HoldButton onConfirm={() => {}}>Check in</HoldButton>);
+    const button = screen.getByRole('button', { name: 'Check in' });
+    expect(button.querySelector('[data-part="knot"]')).not.toBeNull();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    expect(screen.getByText('Confirmed')).toBeTruthy();
+  });
+});

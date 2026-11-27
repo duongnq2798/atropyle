@@ -21,6 +21,7 @@ export * from './balances';
 export * from './create-form';
 export * from './guardian';
 export * from './heir';
+export * from './history';
 export * from './loom';
 export * from './session';
 export * from './sign';

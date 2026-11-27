@@ -17,7 +17,7 @@ import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
 import { CopyButton } from '@/ui/copy-button';
 import { ExternalLink } from '@/ui/external-link';
-import { HoldButton } from '@/ui/hold-button';
+import { HoldButton, type HoldWords } from '@/ui/hold-button';
 import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
@@ -277,6 +277,8 @@ export interface TxCardProps {
   confirm?: 'click' | 'hold';
   /** `danger` for a plan that cannot be undone (planIsIrreversible). */
   tone?: 'thread' | 'danger';
+  /** With `confirm="hold"`: the hint, the words once held and whether a knot ties (R18.16). */
+  hold?: HoldWords;
   /** The page's own gate is closed (on /sign/, a vote not typed again): Send stays disabled. */
   disabled?: boolean;
   /** The Receipt's footer slot: the page's next step, for example a link to the vault. */
@@ -292,6 +294,7 @@ export function TxCard({
   title,
   confirm = 'click',
   tone = 'thread',
+  hold,
   disabled = false,
   receiptFooter,
   testId = 'tx',
@@ -409,7 +412,13 @@ export function TxCard({
         className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}
       >
         {confirm === 'hold' ? (
-          <HoldButton data-testid={`${testId}-send`} tone={tone} disabled={busy || locked} onConfirm={runner.send}>
+          <HoldButton
+            data-testid={`${testId}-send`}
+            tone={tone}
+            disabled={busy || locked}
+            onConfirm={runner.send}
+            {...hold}
+          >
             {sendLabel}
           </HoldButton>
         ) : (

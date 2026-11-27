@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { FONT_FILES, RANGES, SUBSETS } from '../../src/fonts/ranges';
+import { FONT_FILES, ITALIC_FILES, ITALIC_SUBSETS, RANGES, SUBSETS } from '../../src/fonts/ranges';
 
 const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -42,8 +42,20 @@ const FRAUNCES: Record<string, { bytes: number; sha256: string }> = {
   },
 };
 
+/** Spec §18.4.2 T11: the Letter voice, Fraunces italic, standard files of Fontsource 5.3.0, Latin and Vietnamese. */
+const FRAUNCES_ITALIC: Record<string, { bytes: number; sha256: string }> = {
+  'fraunces-vietnamese-standard-italic.woff2': {
+    bytes: 22_128,
+    sha256: '23af38108404d4b05ea87498afc5a104a3fe878b6339d162472e914a2c8bfa93',
+  },
+  'fraunces-latin-standard-italic.woff2': {
+    bytes: 81_520,
+    sha256: '066710ce7ed235a339d3d6cdcc8b55c0bea5632232662d83aacea25852108271',
+  },
+};
+
 /** Each `localFont({ ... })` call of src/fonts/index.ts, read as text so that line breaks do not matter. */
-function calls(): { file: string; preload: boolean; range: string }[] {
+function calls(): { file: string; preload: boolean; range: string; style: string }[] {
   const src = readFileSync(at('../../src/fonts/index.ts'), 'utf8');
   return src
     .split('localFont({')
@@ -52,6 +64,7 @@ function calls(): { file: string; preload: boolean; range: string }[] {
       file: /src:\s*'\.\/files\/([^']+)'/.exec(chunk)?.[1] ?? '',
       preload: /preload:\s*true/.test(chunk),
       range: /prop:\s*'unicode-range',\s*value:\s*'([^']+)'/.exec(chunk)?.[1] ?? '',
+      style: /style:\s*'(\w+)'/.exec(chunk)?.[1] ?? '',
     }));
 }
 
@@ -80,6 +93,18 @@ describe('self-hosted fonts', () => {
     expect(readdirSync(at('../../src/fonts/files/')).filter((f) => f.includes('-full-'))).toEqual([]);
   });
 
+  it('ships the italic Fraunces files of the Letter voice: sizes, SHA-256, wght and opsz only', () => {
+    expect(ITALIC_FILES.map((f) => f.file)).toEqual(Object.keys(FRAUNCES_ITALIC));
+    for (const [file, pin] of Object.entries(FRAUNCES_ITALIC)) {
+      const ours = at(`../../src/fonts/files/${file}`);
+      const buffer = readFileSync(ours);
+      expect(buffer.byteLength, file).toBe(pin.bytes);
+      expect(sha(ours), file).toBe(pin.sha256);
+      expect(sha(ours), file).toBe(sha(at(`../../../../node_modules/@fontsource-variable/fraunces/files/${file}`)));
+      expect(Object.keys(openFont(buffer).variationAxes).sort(), file).toEqual(['opsz', 'wght']);
+    }
+  });
+
   it('draws JetBrains Mono at one advance over its whole wght axis, 100 to 800, so the 650 capitals of Address move nothing', () => {
     const f = openFont(readFileSync(at('../../src/fonts/files/jetbrains-mono-latin-wght-normal.woff2')));
     // 650 is a real instance of the variable file, not a faux bold.
@@ -104,9 +129,14 @@ describe('self-hosted fonts', () => {
   });
 
   it('writes the same literal unicode ranges into every next/font call as ranges.ts', () => {
-    const literals = calls().map((c) => c.range);
-    expect(literals).toHaveLength(9);
-    for (let i = 0; i < 9; i++) expect(literals[i], `call ${i}`).toBe(RANGES[SUBSETS[i % 3]]);
+    const all = calls();
+    expect(all).toHaveLength(11);
+    const upright = all.filter((c) => c.style === 'normal');
+    expect(upright).toHaveLength(9);
+    for (let i = 0; i < 9; i++) expect(upright[i].range, `call ${i}`).toBe(RANGES[SUBSETS[i % 3]]);
+    const italic = all.filter((c) => c.style === 'italic');
+    expect(italic.map((c) => c.file)).toEqual(ITALIC_FILES.map((f) => f.file));
+    expect(italic.map((c) => c.range)).toEqual(ITALIC_SUBSETS.map((s) => RANGES[s]));
   });
 
   it('preloads only the Latin files of Fraunces and Inter', () => {

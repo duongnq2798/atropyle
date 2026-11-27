@@ -62,10 +62,14 @@ const LOOKALIKES = [
 const HANDED_OVER = /đã[\s\u00A0]+trao/iu;
 
 /**
- * Paths of strings shown only after a Distributed receipt, which may say "đã trao" (ruling R22). None today. Each
+ * Paths of strings shown only after a Distributed receipt, which may say "đã trao" (ruling R22). Each
  * entry is a path as the failure message prints it, such as `heir.messages.ts vi.sent`.
  */
-const AFTER_DISTRIBUTE_PATHS: readonly string[] = [];
+const AFTER_DISTRIBUTE_PATHS: readonly string[] = [
+  // The heir letter once a transfer of the vault reached the reader (7B T11 fix round 1): the assets were handed over.
+  'heir.messages.ts vi.openDelivered',
+  'heir.messages.ts vi.openRecoverDelivered',
+];
 
 /**
  * Ruling R20 (approved 24 Nov 2026): Vietnamese copy says "điểm danh" for check-in and "trao" for release.

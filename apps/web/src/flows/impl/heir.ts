@@ -1,4 +1,4 @@
-import type { VaultEvent } from '@atropyle/sdk';
+import type { AtropyleClient, VaultEvent } from '@atropyle/sdk';
 import { type Address, getAddress, type Hex, isAddress } from 'viem';
 
 export interface TransferRow {
@@ -38,4 +38,26 @@ export function transferRows(events: readonly VaultEvent[]): TransferRow[] {
     });
   }
   return rows;
+}
+
+/** The transfers that reached `reader`: sent, to that address in any letter case. */
+export function receivedBy(rows: readonly TransferRow[], reader: Address): TransferRow[] {
+  const me = reader.toLowerCase();
+  return rows.filter((r) => r.ok && r.to.toLowerCase() === me);
+}
+
+/**
+ * What the vault delivered to `reader` in the window of HISTORY_BLOCKS blocks ending at `toBlock`, never before
+ * `floor` (the heir letter after a reload, spec §18.4.2 T11): the cost of one history window, read only once the
+ * vault has passed to the reader and nothing is left to deliver to them.
+ */
+export async function deliveriesTo(
+  atro: Pick<AtropyleClient, 'vault'>,
+  vault: Address,
+  reader: Address,
+  toBlock: bigint,
+  floor: bigint,
+): Promise<TransferRow[]> {
+  const fromBlock = historyFromBlock(toBlock, floor);
+  return receivedBy(transferRows(await atro.vault(vault).events({ fromBlock, toBlock })), reader);
 }

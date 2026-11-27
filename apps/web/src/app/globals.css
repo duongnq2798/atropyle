@@ -288,7 +288,7 @@
  * its -0.02em wins whichever of the two utilities the stylesheet puts later.
  * Ledger: JetBrains Mono, tabular figures, no ligatures (its calt would draw "->" or "!=" as one glyph). Text read from
  * the chain is shown only in this voice.
- * Letter, the italic voice, comes with Task 11, and never in the first paint of /, /create/ or /proof/.
+ * Letter, the italic voice of the heir letter (`voice-letter`), never in the first paint of /, /create/ or /proof/.
  */
 @utility voice-proclaim {
   font-family: var(--font-display);
@@ -302,6 +302,32 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-variant-ligatures: none;
+}
+
+@utility voice-letter {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-optical-sizing: auto;
+  font-weight: 380;
+  font-synthesis: none;
+}
+
+/*
+ * The heir letter's paper: the surface with ruled lines at 3 % ink, one rule per body line height. The rules are
+ * decorative: headings, gaps and the lead size break the grid, so they are not aligned to the text. The scoped
+ * --atro-* tokens, not --color-*: the built CSS declares --color-surface-1: var(--atro-surface-1) once on :root, and a
+ * custom property's var() resolves where it is declared, so inside a data-theme="light" letter on a night page
+ * var(--color-surface-1) would still be the night surface (dark paper under vellum ink).
+ */
+@utility letter-paper {
+  background-color: var(--atro-surface-1);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--text-body--line-height) * 1em - 1px),
+    color-mix(in oklab, var(--atro-ink) 3%, transparent) calc(var(--text-body--line-height) * 1em - 1px),
+    color-mix(in oklab, var(--atro-ink) 3%, transparent) calc(var(--text-body--line-height) * 1em)
+  );
 }
 
 @layer base {

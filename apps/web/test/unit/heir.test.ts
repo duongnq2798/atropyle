@@ -1,6 +1,6 @@
 import type { VaultEvent } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
-import { HISTORY_BLOCKS, historyFromBlock, transferRows } from '../../src/flows/impl/heir';
+import { deliveriesTo, HISTORY_BLOCKS, historyFromBlock, receivedBy, transferRows } from '../../src/flows/impl/heir';
 import { PEOPLE } from './fixtures';
 
 const H = `0x${'ab'.repeat(32)}` as const;
@@ -42,5 +42,33 @@ describe('historyFromBlock', () => {
     expect(historyFromBlock(50_000n, 1n)).toBe(40_000n);
     expect(historyFromBlock(100n, 0n)).toBe(0n);
     expect(historyFromBlock(5_000n, 4_000n)).toBe(4_000n);
+  });
+});
+
+describe('what reached a reader', () => {
+  const events = [
+    ev('Distributed', { assetIndex: 0n, to: PEOPLE.heirA, amountOrId: 700_000n }, 1),
+    ev('Distributed', { assetIndex: 0n, to: PEOPLE.heirB, amountOrId: 300_000n }, 2),
+    ev('TransferFailed', { assetIndex: 1n, to: PEOPLE.heirA }, 3),
+  ];
+
+  it('keeps only the transfers that reached the reader, in any letter case', () => {
+    const rows = receivedBy(transferRows(events), PEOPLE.heirA.toLowerCase() as typeof PEOPLE.heirA);
+    expect(rows.map((r) => [r.to, r.amount])).toEqual([[PEOPLE.heirA, 700_000n]]);
+  });
+
+  it('reads one window of the vault events, ending at the block it is given', async () => {
+    const asked: unknown[] = [];
+    const atro = {
+      vault: (v: string) => ({
+        events: async (range: unknown) => {
+          asked.push([v, range]);
+          return events;
+        },
+      }),
+    };
+    const rows = await deliveriesTo(atro as never, PEOPLE.vault, PEOPLE.heirB, 50_000n, 1n);
+    expect(asked).toEqual([[PEOPLE.vault, { fromBlock: 40_000n, toBlock: 50_000n }]]);
+    expect(rows.map((r) => [r.to, r.amount])).toEqual([[PEOPLE.heirB, 300_000n]]);
   });
 });

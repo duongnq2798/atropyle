@@ -171,10 +171,61 @@ const mono = localFont({
   ],
 });
 
+// The Letter voice, Fraunces italic (spec §18.4.2 T11): same family name, style italic, never preloaded. Only the heir
+// letter sets it (voice-letter), so the browser fetches these files on /vault/ for a heir and never on the first paint
+// of /, /create/ or /proof/ (test/build/fonts.test.ts).
+const frauncesItalicVi = localFont({
+  src: './files/fraunces-vietnamese-standard-italic.woff2',
+  weight: '100 900',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-italic-vi',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB',
+    },
+  ],
+});
+
+const frauncesItalic = localFont({
+  src: './files/fraunces-latin-standard-italic.woff2',
+  weight: '100 900',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-fraunces-italic',
+  declarations: [
+    { prop: 'font-family', value: "'Atropyle Fraunces'" },
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+    },
+  ],
+});
+
 /**
  * Every call's variable class goes on <html>, so each `localFont` call stays referenced and its @font-face ships.
  * The tokens in globals.css name the families ('Atropyle Fraunces', ...) directly, not these variables.
  */
-export const fontVariables = [frauncesVi, frauncesExt, fraunces, interVi, interExt, inter, monoVi, monoExt, mono]
+export const fontVariables = [
+  frauncesVi,
+  frauncesExt,
+  fraunces,
+  interVi,
+  interExt,
+  inter,
+  monoVi,
+  monoExt,
+  mono,
+  frauncesItalicVi,
+  frauncesItalic,
+]
   .map((f) => f.variable)
   .join(' ');

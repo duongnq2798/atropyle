@@ -1,7 +1,8 @@
-import type { Warning } from '@atropyle/sdk';
+import { GUARDIAN_WARNING, type Warning } from '@atropyle/sdk';
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { durationWords } from '../../src/lib/duration';
+import { messages } from '../../src/messages/warnings.messages';
 import { WarningText } from '../../src/tx/warning-text';
 import { renderWithProviders } from '../helpers/render';
 
@@ -86,5 +87,14 @@ describe('durationWords', () => {
     expect(durationWords(5_400, 'vi')).toBe('90 phút');
     expect(durationWords(45, 'en')).toBe('45 seconds');
     expect(durationWords(0, 'en')).toBe('0 seconds');
+  });
+  it('says the guardian warning in Vietnamese, as app text, not as untrusted chain text', () => {
+    renderWithProviders(<WarningText warning={GUARDIAN_WARNING} />, { lang: 'vi' });
+    expect(screen.getByText(/Trước khi ký, hãy xác nhận yêu cầu/)).toBeTruthy();
+    expect(document.querySelector('[lang="en"]')).toBeNull();
+  });
+
+  it("keeps the English words equal to the SDK's, so a change in the SDK fails here", () => {
+    expect(messages.en.guardianOutOfBand).toBe(GUARDIAN_WARNING.message);
   });
 });

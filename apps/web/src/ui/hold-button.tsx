@@ -24,7 +24,17 @@ export interface HoldButtonProps
   duration?: number;
   /** Replaces the default "Hold to confirm, or press Enter". */
   hint?: string;
+  /**
+   * Said once the hold is done, in place of "Confirmed"; null says nothing. A hold that only opens the wallet is not
+   * a confirmation (R18.16): such a caller passes its own words ("Now confirm in your wallet").
+   */
+  doneLabel?: string | null;
+  /** The knot that snaps in when the hold is done. False for a hold that only opens the wallet (R18.16). */
+  showKnot?: boolean;
 }
+
+/** The words and the knot of a hold, as TxCard and ActionFlow pass them through. */
+export type HoldWords = Pick<HoldButtonProps, 'hint' | 'doneLabel' | 'showKnot'>;
 
 const SIZE = {
   md: 'h-12 px-6 text-body gap-2',
@@ -62,6 +72,8 @@ export function HoldButton({
   size = 'lg',
   duration = HOLD_MS,
   hint,
+  doneLabel,
+  showKnot = true,
   disabled,
   className,
   onPointerDown,
@@ -163,16 +175,25 @@ export function HoldButton({
           animate={fill}
           transition={grow}
         />
-        <m.span
-          aria-hidden
-          className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
-          initial={false}
-          animate={phase === 'done' ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-          transition={phase === 'done' ? SPRING : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO }}
-        />
+        {showKnot ? (
+          <m.span
+            aria-hidden
+            data-part="knot"
+            className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
+            initial={false}
+            animate={phase === 'done' ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+            transition={phase === 'done' ? SPRING : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO }}
+          />
+        ) : null}
       </button>
       <span id={hintId} aria-live="polite" className="text-caption text-ink-muted">
-        {phase === 'done' ? t('holdDone') : keep ? t('holdKeep') : (hint ?? t('holdHint'))}
+        {phase === 'done'
+          ? doneLabel === undefined
+            ? t('holdDone')
+            : (doneLabel ?? '')
+          : keep
+            ? t('holdKeep')
+            : (hint ?? t('holdHint'))}
       </span>
     </span>
   );
