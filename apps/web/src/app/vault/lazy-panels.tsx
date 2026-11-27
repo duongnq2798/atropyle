@@ -7,21 +7,19 @@ import { type LazyChunk, lazyChunk } from '@/lib/lazy-chunk';
 import { messages } from '@/messages/vault.messages';
 import { ErrorBox } from '@/tx/error-box';
 import { Skeleton, SkeletonText } from '@/ui/skeleton';
-import type * as GuardianModule from './guardian-tab';
-import type * as HeirModule from './heir-letter';
-import type * as OwnerModule from './owner-tab';
+import type * as PanelsModule from './panels';
 import type { PanelProps } from './vault-page';
 
-/** The role panels, out of the first load of /vault/ (R23: the page stays under 240 kB). A visitor never loads them. */
-export const ownerTabChunk: LazyChunk<typeof OwnerModule> = lazyChunk(() => import('./owner-tab'));
-export const guardianTabChunk: LazyChunk<typeof GuardianModule> = lazyChunk(() => import('./guardian-tab'));
-export const heirLetterChunk: LazyChunk<typeof HeirModule> = lazyChunk(() => import('./heir-letter'));
+/**
+ * The role panels, out of the first load of /vault/ (R23: the page stays under 240 kB). A visitor never loads them.
+ * One chunk for the three (panels.ts): Connect preloads them all, and apart each carried its own copy of what they
+ * share, which put the site's JS over its 900 kB budget.
+ */
+export const panelsChunk: LazyChunk<typeof PanelsModule> = lazyChunk(() => import('./panels'));
 
 /** For the pointerenter and focus of the Connect button (GuestView's warm()): the panel is there when the wallet is. */
 export function preloadPanels(): void {
-  ownerTabChunk.preload();
-  guardianTabChunk.preload();
-  heirLetterChunk.preload();
+  panelsChunk.preload();
 }
 
 function PanelLoading({ name }: { name: string }) {
@@ -65,18 +63,18 @@ export function LazyPanel<M>({ name, chunk, pick, ...props }: LazyPanelProps<M>)
   return <PanelLoading name={name} />;
 }
 
-const pickOwner = (m: typeof OwnerModule) => m.OwnerTab;
-const pickGuardian = (m: typeof GuardianModule) => m.GuardianTab;
-const pickHeir = (m: typeof HeirModule) => m.HeirLetter;
+const pickOwner = (m: typeof PanelsModule) => m.OwnerTab;
+const pickGuardian = (m: typeof PanelsModule) => m.GuardianTab;
+const pickHeir = (m: typeof PanelsModule) => m.HeirLetter;
 
 export function OwnerPanel(props: PanelProps) {
-  return <LazyPanel name="owner" chunk={ownerTabChunk} pick={pickOwner} {...props} />;
+  return <LazyPanel name="owner" chunk={panelsChunk} pick={pickOwner} {...props} />;
 }
 
 export function GuardianPanel(props: PanelProps) {
-  return <LazyPanel name="guardian" chunk={guardianTabChunk} pick={pickGuardian} {...props} />;
+  return <LazyPanel name="guardian" chunk={panelsChunk} pick={pickGuardian} {...props} />;
 }
 
 export function HeirPanel(props: PanelProps) {
-  return <LazyPanel name="heir" chunk={heirLetterChunk} pick={pickHeir} {...props} />;
+  return <LazyPanel name="heir" chunk={panelsChunk} pick={pickHeir} {...props} />;
 }
