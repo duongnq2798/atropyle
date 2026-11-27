@@ -373,11 +373,14 @@
 /*
  * Shared looks as one class each, in the components layer, so any utility a caller adds still wins (7C-F1): written
  * out on every element, they cost the HTML of a page, twice where a server component draws them (the DOM and Next's
- * payload). `ext-arrow`: Lucide's ArrowUpRight at 14 px, stroke 1.5, through a mask, for ExternalLink
- * (src/ui/external-link.tsx); it is painted as a background, which forced colours would turn into the page's own and
- * hide, so `forced-color-adjust: none` keeps it the link's colour.
+ * payload). `btn`: the base of buttonClass (src/ui/button-class.ts). `ext-arrow`: Lucide's ArrowUpRight at 14 px,
+ * stroke 1.5, through a mask, for ExternalLink (src/ui/external-link.tsx); it is painted as a background, which forced
+ * colours would turn into the page's own and hide, so `forced-color-adjust: none` keeps it the link's colour.
  */
 @layer components {
+  .btn {
+    @apply relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium transition-[background-color,border-color,color,translate,scale] duration-150 ease-out-expo motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50;
+  }
   .ext-arrow {
     display: inline-block;
     flex-shrink: 0;
