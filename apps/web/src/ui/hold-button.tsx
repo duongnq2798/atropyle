@@ -78,7 +78,9 @@ const TONE = {
  * colour (deeper on vellum, brighter on night), so the label only gains contrast as the hold fills; a sweep in the
  * label's colour left it at 3.9:1 on vellum halfway through. Disabled (the wallet is open, the transaction waits for
  * its block), the face keeps its thread at full strength, since it shows the pending knot; only the frame and the bar
- * go quiet.
+ * go quiet. `end` tints the band of a HoldEnd where the bar stood: quiet, since nothing is left to press. Its tints are
+ * ones the site already ships: the layout's stylesheet sits just under the 100 kB above which Turbopack stops merging
+ * it with the fonts' (test/build/home.test.ts), and every new utility adds to it.
  */
 const OBJECT = {
   thread: {
@@ -86,14 +88,14 @@ const OBJECT = {
     bar: 'bg-thread text-on-thread group-enabled:group-hover:bg-thread/90',
     fill: 'bg-ink/25',
     knot: 'bg-on-thread',
-    end: 'border-thread/30 bg-thread/10',
+    end: 'border-thread/40 bg-thread/12',
   },
   danger: {
     frame: 'border-danger bg-danger/6',
     bar: 'bg-danger text-on-danger group-enabled:group-hover:bg-danger/90',
     fill: 'bg-ink/25',
     knot: 'bg-on-danger',
-    end: 'border-danger/30 bg-danger/10',
+    end: 'border-danger/45 bg-danger/8',
   },
 } as const;
 

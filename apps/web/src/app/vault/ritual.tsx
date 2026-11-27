@@ -222,11 +222,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   // where it waited and the line says it in sight, the climax never under the ledger and the hash.
   const footer =
     block !== null ? (
-      <p
-        data-testid="owner-tied"
-        data-block={String(block)}
-        className="voice-ledger text-balance text-ink text-small sm:text-body"
-      >
+      <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-balance text-body text-ink">
         {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
       </p>
     ) : null;
