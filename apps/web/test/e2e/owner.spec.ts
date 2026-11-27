@@ -679,6 +679,9 @@ async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[])
     const letWalletGo = await holdTheWallet(page);
     await send.press('Enter');
     await expect(ritual).toHaveAttribute('data-ritual', 'wallet');
+    // The hold settles first (useHold's SETTLE_MS): its full fill of the moment it was confirmed sweeps back, and the
+    // shot is the wallet phase as it stays while the prompt is open.
+    await expect(send).toHaveAttribute('data-phase', 'idle');
     await settle(page);
     await card.screenshot({ path: at('wallet'), style });
     await fold('wallet');
