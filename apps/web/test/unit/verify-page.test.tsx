@@ -1,4 +1,5 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { AtropyleError } from '@atropyle/sdk';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { Address } from 'viem';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VerifyPage, VerifyScreen } from '../../src/app/verify/verify-page';
@@ -219,6 +220,8 @@ describe('/verify/', () => {
     expect(screen.getByTestId('verify-proof-P9')).toHaveAttribute('data-ok', 'true');
     expect(screen.getByTestId('verify-proof-p9')).toHaveTextContent('64 random inputs, on each of 2 RPC operators');
     expect(screen.getByTestId('verify-proof-code')).toHaveAttribute('data-ok', 'true');
+    // The help names the flag as code, so it never breaks at a hyphen.
+    expect(screen.getByText('--p9-seed', { selector: 'code' })).toHaveClass('whitespace-nowrap');
   });
 
   it('turns the rules line red when the processor answers otherwise than this device (P9)', async () => {
@@ -272,11 +275,29 @@ describe('/verify/', () => {
     );
   });
 
+  it('says on the rules line why it is not checked, without an alarm', async () => {
+    const error = new AtropyleError('POLICY_UNAVAILABLE').toJSON();
+    impl.runVaultVerify.mockResolvedValue(verification({ policy: { status: 'unavailable', error } }));
+    show();
+    await waitFor(() => expect(screen.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'partial'));
+    const rules = screen.getByTestId('verify-line-rules');
+    expect(rules).toHaveAttribute('data-state', 'unknown');
+    await waitFor(() => expect(within(rules).getByTestId('error')).toHaveAttribute('data-code', 'POLICY_UNAVAILABLE'));
+    expect(within(rules).getByTestId('error')).toHaveTextContent(error.message);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('asks for the address in the words of the letter', async () => {
     renderWithProviders(<VerifyPage site={SITE} />, { lang: 'en' });
     expect(await screen.findByTestId('verify-missing')).toHaveTextContent(
       'Paste the vault address from your letter or invitation.',
     );
+    // What the check will say, before there is anything to check: the three lines, in order.
+    const what = [...screen.getByTestId('verify-what').querySelectorAll('li')];
+    expect(what).toHaveLength(3);
+    expect(what[0]).toHaveTextContent('This is a real Atropyle vault');
+    expect(what[1]).toHaveTextContent('Its rules are the circuit that was proven');
+    expect(what[2]).toHaveTextContent('Two independent providers agree');
   });
 
   it('keeps a hash that is not an address in the field, marked wrong', async () => {

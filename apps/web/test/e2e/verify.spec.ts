@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { expectAccessibleInBothThemes } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
-import { captureScreens, SCREEN_MATRIX, shouldCapture, VELLUM_MATRIX } from './screens.ts';
+import { captureScreens, FULL_MATRIX, SCREEN_MATRIX, shouldCapture, VELLUM_MATRIX } from './screens.ts';
 
 const X = getDeployment('xlayer');
 /** The same values as src/app/e2e/verify/page.e2e.tsx. */
@@ -112,29 +112,46 @@ test('while the proof runs the rules line is checking, and a failed row is red a
 
 test('screens: verify', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
-  const at = (overall: string) => () =>
-    expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', overall);
+  // A full-page shot keeps the sticky header where the page was scrolled to: every shot starts from the top.
+  const top = () => page.evaluate(() => window.scrollTo(0, 0));
+  const at = (overall: string) => async () => {
+    await expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', overall);
+    await top();
+  };
   const phones = VELLUM_MATRIX.filter((s) => s.width === 390);
+  const nightPhone = SCREEN_MATRIX.filter((s) => s.width === 390 && s.lang === 'en');
+  const openDetails = async () => {
+    const details = page.getByTestId('verify-details');
+    if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await details.locator('summary').click();
+    await top();
+  };
 
   await page.goto(new URL('e2e/verify/#pass', state.siteUrl).href);
-  await captureScreens(page, 'verify-pass', { shots: [...VELLUM_MATRIX, SCREEN_MATRIX[0]], ready: at('pass') });
+  // The answer judges see on X Layer: the whole design matrix (both themes, both languages, 390, 768 and 1440 px).
+  await captureScreens(page, 'verify-pass', { shots: FULL_MATRIX, ready: at('pass') });
   await captureScreens(page, 'verify-pass-details', {
     shots: phones.filter((s) => s.lang === 'en'),
     ready: async () => {
       await at('pass')();
-      const details = page.getByTestId('verify-details');
-      if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await details.locator('summary').click();
+      await openDetails();
     },
   });
   await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
-  await captureScreens(page, 'verify-running', { shots: phones, ready: at('pending') });
+  await captureScreens(page, 'verify-running', { shots: [...phones, ...nightPhone], ready: at('pending') });
   await page.goto(new URL('e2e/verify/#fail', state.siteUrl).href);
-  await captureScreens(page, 'verify-fail', { shots: VELLUM_MATRIX, ready: at('fail') });
+  await captureScreens(page, 'verify-fail', { shots: [...VELLUM_MATRIX, SCREEN_MATRIX[0]], ready: at('fail') });
+  await captureScreens(page, 'verify-fail-details', {
+    shots: phones.filter((s) => s.lang === 'en'),
+    ready: async () => {
+      await at('fail')();
+      await openDetails();
+    },
+  });
   await page.goto(`${state.siteUrl}verify/#${state.seeded.guarded}`);
   await captureScreens(page, 'verify-devnet', { shots: VELLUM_MATRIX, ready: at('partial') });
   await page.goto(`${state.siteUrl}verify/`);
   await captureScreens(page, 'verify-missing', {
-    shots: phones,
+    shots: VELLUM_MATRIX,
     ready: () => expect(page.getByTestId('verify-missing')).toBeVisible(),
   });
 });

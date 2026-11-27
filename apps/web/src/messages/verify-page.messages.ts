@@ -66,6 +66,7 @@ export const messages = defineMessages(
     openLabel: 'Vault address',
     open: 'Check',
     openInvalid: 'That is not an address. It starts with 0x and has 42 characters.',
+    missingWhat: 'What this page checks',
   },
   {
     title: 'Vault này có thật không?',
@@ -132,5 +133,6 @@ export const messages = defineMessages(
     openLabel: 'Địa chỉ vault',
     open: 'Kiểm',
     openInvalid: 'Đây không phải một địa chỉ. Địa chỉ bắt đầu bằng 0x và dài 42 ký tự.',
+    missingWhat: 'Trang này kiểm những gì',
   },
 );

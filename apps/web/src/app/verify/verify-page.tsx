@@ -11,7 +11,7 @@ import { ErrorBox } from '@/tx/error-box';
 import { Button } from '@/ui/button';
 import { TextField } from '@/ui/text-field';
 import { useVaultVerify } from '@/verify/hooks';
-import { ADDRESS_PLACEHOLDER, verifyCommand } from './lines';
+import { ADDRESS_PLACEHOLDER, LINE_IDS, type LineId, verifyCommand } from './lines';
 import { VerifyLoadingBody, VerifyReport, VerifyShell, type VerifySite } from './verify-report';
 
 /** The checks of one vault: the cheap rows first, then the policy proof in the worker. */
@@ -69,6 +69,12 @@ function VerifyLoading({ version }: { version: string }) {
   );
 }
 
+const WHAT = {
+  real: ['lineReal', 'lineRealHelp'],
+  rules: ['lineRules', 'lineRulesHelp'],
+  operators: ['lineOperators', 'lineOperatorsHelp'],
+} as const satisfies Record<LineId, readonly [string, string]>;
+
 /** `initial`: what the hash held when it was not an address, kept in the field so the reader sees what was wrong. */
 function OpenVerify({ initial }: { initial: string }) {
   const t = useT(messages);
@@ -100,10 +106,31 @@ function OpenVerify({ initial }: { initial: string }) {
             setError(false);
           }}
         />
-        <Button type="submit" data-testid="verify-open" className="sm:mt-7">
+        <Button type="submit" variant="primary" data-testid="verify-open" className="sm:mt-7">
           {t('open')}
         </Button>
       </form>
+      <section aria-labelledby="verify-what-title" className="flex flex-col gap-4 border-line border-t pt-6">
+        <h2 id="verify-what-title" className="font-display text-ink text-title">
+          {t('missingWhat')}
+        </h2>
+        <ol data-testid="verify-what" className="flex flex-col gap-4">
+          {LINE_IDS.map((id, i) => (
+            <li key={id} className="flex gap-4">
+              <span
+                aria-hidden="true"
+                className="voice-ledger grid size-8 shrink-0 place-items-center rounded-full border border-line-strong text-caption text-ink"
+              >
+                {i + 1}
+              </span>
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-body text-ink">{t(WHAT[id][0])}</span>
+                <span className="text-ink-muted text-small">{t(WHAT[id][1])}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
     </div>
   );
 }

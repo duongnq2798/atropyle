@@ -188,7 +188,7 @@ function ProofProgressBar({ progress }: { progress: ProofProgress }) {
         aria-label={t('progressLabel')}
         max={progress.total}
         value={progress.done}
-        className="h-1.5 w-full accent-thread"
+        className="h-1.5 w-full appearance-none overflow-hidden rounded-full bg-surface-3 [&::-moz-progress-bar]:bg-thread [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-thread"
       />
       <p className="voice-ledger text-caption text-ink-muted">{t('progress', { pct })}</p>
     </div>
@@ -240,9 +240,15 @@ function LineCard({
     >
       <StateMark state={state} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <h2 className="font-display text-ink text-title">{t(title)}</h2>
-          <span className={cn('rounded-full px-2.5 py-0.5 font-medium text-caption', CHIP[state])}>
+        {/* On a phone the chip follows the last word of the title, so it never sits alone on a line of its own. */}
+        <div className="sm:flex sm:items-center sm:justify-between sm:gap-3">
+          <h2 className="inline font-display text-ink text-title sm:block">{t(title)}</h2>
+          <span
+            className={cn(
+              'ml-2 inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 align-middle font-medium text-caption sm:ml-0 sm:shrink-0',
+              CHIP[state],
+            )}
+          >
             {t(STATE_KEY[state])}
           </span>
         </div>
@@ -357,9 +363,13 @@ function ProofBlock({ result }: { result: PolicyVerification }) {
       <NavLink
         href={ROUTES.proof}
         prefetch={false}
-        className={buttonClass({ variant: 'ghost', size: 'sm', className: 'self-start' })}
+        className={cn('group inline-flex items-center gap-1.5 self-start text-ink text-small', LINK)}
       >
         {t('proofLink')}
+        <ArrowRight
+          aria-hidden="true"
+          className="size-4 shrink-0 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover:translate-x-0.5"
+        />
       </NavLink>
     </section>
   );
@@ -417,6 +427,21 @@ function TechnicalChecks({ rows }: { rows: readonly VerifyRow[] }) {
   );
 }
 
+const SEED_FLAG = '--p9-seed';
+
+/** A sentence that names the seed flag: the flag is set as code and never breaks at its hyphens. */
+function WithFlag({ text }: { text: string }) {
+  const i = text.indexOf(SEED_FLAG);
+  if (i < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <code className="voice-ledger whitespace-nowrap text-ink">{SEED_FLAG}</code>
+      {text.slice(i + SEED_FLAG.length)}
+    </>
+  );
+}
+
 function CommandBox({ command, seeded }: { command: string; seeded: boolean }) {
   const t = useT(messages);
   return (
@@ -424,13 +449,21 @@ function CommandBox({ command, seeded }: { command: string; seeded: boolean }) {
       <h2 id="verify-cli-title" className="font-display text-ink text-title">
         {t('cliTitle')}
       </h2>
-      <p className="text-ink-muted text-small">{seeded ? `${t('cliHelp')} ${t('cliSeed')}` : t('cliHelp')}</p>
+      <p className="text-ink-muted text-small">
+        {t('cliHelp')}
+        {seeded ? (
+          <>
+            {' '}
+            <WithFlag text={t('cliSeed')} />
+          </>
+        ) : null}
+      </p>
       <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface-2 p-4">
         <code data-testid="verify-cli" className="voice-ledger min-w-0 flex-1 text-ink text-small leading-relaxed">
           {commandWords(command).map((w, i) => (
             <Fragment key={w.text}>
               {i > 0 ? ' ' : null}
-              <span className={w.long ? 'break-all' : 'whitespace-nowrap'}>{w.text}</span>
+              <span className={w.long ? '[overflow-wrap:anywhere]' : 'whitespace-nowrap'}>{w.text}</span>
             </Fragment>
           ))}
         </code>
@@ -486,6 +519,11 @@ export function VerifyReport({ vault, site, verification: v, proofRunning, progr
             href={explorer ? lineLink(line.id, { explorer, vault, cpu: site.cpu, block: v.blockNumber }) : null}
           >
             {line.id === 'rules' && proofRunning && progress ? <ProofProgressBar progress={progress} /> : null}
+            {/* Why the rules are not checked sits on their line, in its words: not a red box under a line that says
+                Not checked is no failure. */}
+            {line.id === 'rules' && v.policy.status === 'unavailable' ? (
+              <ErrorBox error={v.policy.error} bare="message" className="text-ink text-small" />
+            ) : null}
             {line.id === 'operators' && line.state === 'unknown' && v.rpcs < 2 ? (
               <OperatorsHint quorumGroups={site.quorumGroups} />
             ) : null}
@@ -495,7 +533,6 @@ export function VerifyReport({ vault, site, verification: v, proofRunning, progr
       <p className="text-caption text-ink-muted">{t('atBlock', { block: formatCount(v.blockNumber, lang) })}</p>
       {overall === 'pass' ? <NextCard vault={vault} /> : null}
       {proofError ? <ErrorBox error={proofError.error} onRetry={proofError.retry} testId="verify-proof-error" /> : null}
-      {v.policy.status === 'unavailable' ? <ErrorBox error={v.policy.error} /> : null}
       {v.policy.status === 'verified' ? <ProofBlock result={v.policy.result} /> : null}
       <TechnicalChecks rows={rows} />
       <CommandBox command={command} seeded={seed !== null} />
