@@ -24,6 +24,12 @@ const CHECK_IN: VaultAction = { type: 'checkIn' };
 /** The new knot, at the start of a full thread: the period starts again from it. */
 const TIED_KNOT = [0] as const;
 
+/**
+ * Once tied, "now" stands just past the new knot (the period has begun from it), so its dot never covers the knot: drawn
+ * at the same point, the knot would be hidden under it.
+ */
+const TIED_REMAINING = 0.96;
+
 /** When the wallet opened, the transaction left and the receipt came, on this machine's clock (performance.now). */
 type Marks = Record<'wallet' | 'sent' | 'tied', number | null>;
 const NO_MARKS: Marks = { wallet: null, sent: null, tied: null };
@@ -173,7 +179,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
-        remaining={restarting ? 1 : threadRemaining(s, now)}
+        remaining={tied ? TIED_REMAINING : restarting ? 1 : threadRemaining(s, now)}
         knots={tied ? TIED_KNOT : undefined}
         pendingKnot={phase === 'wallet' || phase === 'sent'}
         signature={view.vault}

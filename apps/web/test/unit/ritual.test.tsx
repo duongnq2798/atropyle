@@ -150,6 +150,10 @@ describe('the check-in ritual', () => {
     expect(screen.getByTestId('owner-checkin-tx-done').contains(screen.getByTestId('owner-ritual-face'))).toBe(true);
     expect(knots()).toBe(1);
     expect(screen.getByTestId('owner-ritual-face').querySelector('[data-part="pending"]')).toBeNull();
+    // The knot at the thread's start, "now" just past it: the dot never hides the knot.
+    const face = screen.getByTestId('owner-ritual-face');
+    expect(face.querySelector<HTMLElement>('[data-part="knot"]')?.style.left).toBe('0%');
+    expect(face.querySelector<HTMLElement>('[data-part="now-at"]')?.style.transform).not.toMatch(/^translate\(0%/);
     expect(onChanged).toHaveBeenCalledWith(RESULT);
     // The runner's own 12 ms pulse marks the receipt (useTxRunner.finish): the ritual adds none.
     expect(spies.pulse).not.toHaveBeenCalled();
