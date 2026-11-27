@@ -319,10 +319,17 @@ test('the sticky header stays at the top while a reader scrolls, and clear of th
     page.evaluate(() => {
       const header = document.querySelector('header.site-header')?.getBoundingClientRect();
       const thread = document.querySelector('[data-testid="vault-course"] > :first-child')?.getBoundingClientRect();
-      return { header: header && { top: header.top, bottom: header.bottom }, thread: thread?.top, y: window.scrollY };
+      const proof = document.querySelector('[data-testid="proof-line"]')?.getBoundingClientRect();
+      return {
+        header: header && { top: header.top, bottom: header.bottom, height: header.height },
+        thread: thread?.top,
+        proof: proof?.bottom ?? 0,
+        y: window.scrollY,
+      };
     });
   const top = await read();
-  expect(top.header?.top).toBe(0);
+  // At the top the proof line stands above the header; once scrolled past it, the header holds the top.
+  expect(top.header?.top).toBe(top.proof);
   expect(top.thread ?? 0, 'the thread starts below the header').toBeGreaterThan(top.header?.bottom ?? Infinity);
   const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   for (const y of [200, 600, Math.round(max / 2), max]) {
@@ -330,7 +337,7 @@ test('the sticky header stays at the top while a reader scrolls, and clear of th
     await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
     const at = await read();
     expect(at.header?.top, `header at scrollY ${at.y}`).toBe(0);
-    expect(at.header?.bottom, `header height at scrollY ${at.y}`).toBe(top.header?.bottom);
+    expect(at.header?.height, `header height at scrollY ${at.y}`).toBe(top.header?.height);
   }
 });
 
@@ -425,20 +432,40 @@ test('screens: the vault page', async ({ page, state, atro, wallet }, info) => {
   await page.getByTestId('vault-poke-tx-send').click();
   await stateIs(page, 'releasedInherit');
   await expect(page.getByTestId('vault-moment')).toHaveAttribute('data-moment', 'moved');
+  // Released, not delivered yet: the owner still holds the assets, and anyone may deliver them (7B-P1).
+  const released = async () => {
+    await stateIs(page, 'releasedInherit');
+    await connected();
+    await expect(page.getByTestId('vault-distribute')).toBeVisible();
+    await openHistory();
+  };
+  await captureScreens(page, 'vault-released', { shots, ready: released });
   await page.getByTestId('vault-distribute').click();
   await page.getByTestId('vault-distribute-tx-send').click();
   await expect(page.getByTestId('vault-transfers-0')).toHaveAttribute('data-ok', 'true');
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await settle(page);
-    await page.screenshot({ path: `test-results/screens/vault-delivered/night-en-${width}.png`, fullPage: true });
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.screenshot({
+      path: `test-results/screens/vault-delivered-transfers/night-en-${width}.png`,
+      fullPage: true,
+    });
   }
-  const released = async () => {
+  // Delivered, after a reload: the header, its countdown and the card say where the assets went (7B-P1).
+  const delivered = async () => {
     await stateIs(page, 'releasedInherit');
     await connected();
+    await expect(page.getByTestId('vault-standing')).toHaveAttribute('data-key', 'guestReleasedInheritDone');
     await openHistory();
   };
-  await captureScreens(page, 'vault-released', { shots, ready: released });
+  await captureScreens(page, 'vault-delivered', { shots, ready: delivered });
+
+  // No address at all: the empty state, as the static HTML paints it (7B-P1).
+  const empty = () => expect(page.getByTestId('vault-missing')).toBeVisible();
+  await page.goto(`${state.siteUrl}vault/`);
+  await empty();
+  await captureScreens(page, 'vault-empty', { shots, ready: empty });
 
   // The open form, after an address it rejects.
   const missing = () => expect(page.getByTestId('vault-missing')).toBeVisible();
