@@ -18,16 +18,26 @@ import { threadRemaining, threadStateOf } from '@/thread/state';
 import { Thread } from '@/thread/thread';
 import type { FlowProgress } from './action-flow';
 import { LazyActionFlow } from './lazy-action-flow';
-import { dueOf, formatSeconds, type HoldState, IDLE_PROGRESS, type RitualPhase, ritualPhase } from './owner-view';
+import {
+  dueOf,
+  FACE_EDGE,
+  faceRemaining,
+  formatSeconds,
+  type HoldState,
+  IDLE_PROGRESS,
+  type RitualPhase,
+  ritualPhase,
+} from './owner-view';
 import type { PanelProps } from './vault-page';
 
 const CHECK_IN: VaultAction = { type: 'checkIn' };
 
 /**
  * The new knot, near the start of a full thread: the period starts again from it. A step in from the very start, since
- * the Thread clips what crosses its box: 5 % clears the tied knot and its ring (18 px) even on a 390 px phone.
+ * the Thread clips what crosses its box: 5 % (FACE_EDGE) clears the tied knot and its ring (18 px) even on a 390 px
+ * phone.
  */
-const TIED_KNOT = [0.05] as const;
+const TIED_KNOT = [FACE_EDGE] as const;
 
 /**
  * Once tied, the lit thread starts at the new knot: "now" stands on it, and the knot (Thread `tiedKnots`: solid, larger
@@ -145,8 +155,9 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
 
   const onHoldStart = useCallback(() => {
     setHold('on');
-    // The thread recharges over the hold, straight (motion-safe only); an early release springs it back.
-    if (!calm) reveal.current?.setRange(0, 100, { linear: HOLD_MS });
+    // The thread recharges over the hold, straight (motion-safe only), up to where the new knot will tie; an early
+    // release springs it back.
+    if (!calm) reveal.current?.setRange(FACE_EDGE * 100, 100, { linear: HOLD_MS });
   }, [calm]);
 
   const onHoldEnd = useCallback((confirmed: boolean) => {
@@ -176,20 +187,21 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   // threadRemaining would draw no pending knot. A hold keeps the old props, so the reveal window's recharge
   // (setRange) is not cut by a prop change.
   const restarting = phase === 'wallet' || phase === 'sent' || tied;
-  // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one.
+  // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one. A
+  // span: until the receipt it is the face of the hold, inside the button (HoldButton `face`).
   const face = (
-    <m.div
+    <m.span
       key={tied ? 'tied' : 'open'}
       data-testid="owner-ritual-face"
       data-ritual={phase}
       initial={tied ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: sec(calm ? REDUCED_MS : DURATION.base) }}
-      className="w-full"
+      className="block w-full"
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
-        remaining={restarting ? TIED_REMAINING : threadRemaining(s, now)}
+        remaining={restarting ? TIED_REMAINING : faceRemaining(threadRemaining(s, now))}
         knots={tied ? TIED_KNOT : undefined}
         tiedKnots={tied}
         pendingKnot={phase === 'wallet' || phase === 'sent'}
@@ -197,7 +209,7 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         revealRef={reveal}
         className="h-12 w-full sm:h-16"
       />
-    </m.div>
+    </m.span>
   );
 
   // Grouped in the reader's way, as the Receipt's Block line above it ("1,234,567", "1.234.567"); data-block stays raw.
@@ -259,6 +271,9 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         nested
         testId="owner-checkin"
         confirm="hold"
+        // The ritual is the card's first thing, straight under its heading: the thread on the button's face, then
+        // what the wallet should show (spec §4.6.3 "one big button").
+        holdPlacement="top"
         auto
         hold={{
           hint,

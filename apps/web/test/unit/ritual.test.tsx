@@ -120,6 +120,8 @@ describe('the check-in ritual', () => {
     expect(screen.getByTestId('owner-checkin').getAttribute('data-auto')).toBe('true');
     expect(props().action).toEqual({ type: 'checkIn' });
     expect(props().confirm).toBe('hold');
+    // The ritual is the card's first thing, before the step and its wallet mirror (TxCard holdPlacement).
+    expect(props().holdPlacement).toBe('top');
     expect(props().hold?.showKnot).toBe(false);
     expect(props().hold?.doneLabel).toBe('Now sign in your wallet');
     expect(phase()).toBe('idle');
@@ -211,7 +213,8 @@ describe('the check-in ritual', () => {
   it('recharges the thread over the hold with motion, and an early release springs it back', () => {
     ritual();
     act(() => props().hold?.onHoldStart?.());
-    expect(spies.setRange).toHaveBeenCalledWith(0, 100, { linear: HOLD_MS });
+    // Up to where a fresh knot ties (FACE_EDGE, 5 %), never to the face's edge, where "now" would be cut in half.
+    expect(spies.setRange).toHaveBeenCalledWith(5, 100, { linear: HOLD_MS });
     act(() => props().hold?.onHoldEnd?.(false));
     expect(spies.reset).toHaveBeenCalled();
   });

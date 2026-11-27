@@ -26,6 +26,21 @@ export function ritualPhase(hold: HoldState, p: FlowProgress): RitualPhase {
   return hold === 'off' ? 'idle' : 'holding';
 }
 
+/**
+ * How far in from either end of the ritual's face "now" stands at the least: where a fresh knot ties (ritual.tsx
+ * TIED_KNOT). The Thread clips what crosses its box, so a mark at 0 % or 100 % would be cut in half.
+ */
+export const FACE_EDGE = 0.05;
+
+/**
+ * The share of the period left, as the ritual's face draws it: "now" never closer to an end than FACE_EDGE, so it and
+ * its halo are whole. The face is the button's, not the vault's timeline (its header draws that one to the second);
+ * none left stays none, and the face then draws no "now".
+ */
+export function faceRemaining(remaining: number): number {
+  return remaining <= 0 ? 0 : Math.min(1 - FACE_EDGE, Math.max(FACE_EDGE, remaining));
+}
+
 /** "0.8 s", "0,8 s": one decimal, the language's own separator, never broken from its unit. */
 export function formatSeconds(ms: number, lang: Lang): string {
   const s = (Math.max(0, ms) / 1000).toFixed(1);
