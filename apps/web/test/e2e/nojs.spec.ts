@@ -62,10 +62,19 @@ async function expectVerify(page: Page): Promise<void> {
   await expect(main.getByTestId('verify-loading')).toBeHidden();
 }
 
+/** `/vault/` with no address (7B-P1): its empty state is in the static HTML, and no skeleton waits for a script. */
+async function expectVaultEmpty(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'Open a vault' }));
+  const main = page.getByRole('main');
+  await expectSeen(main.getByText('Paste the address of a vault', { exact: false }));
+  await expect(main.getByTestId('vault-loading')).toBeHidden();
+}
+
 /** Every page that must read without JavaScript. Plan 7C Task 3 adds 'proof/'. */
 const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [
   { path: '', content: expectHome },
   { path: 'verify/', content: expectVerify },
+  { path: 'vault/', content: expectVaultEmpty },
 ];
 if (PAGES.length === 0) throw new Error('nojs.spec.ts checks no page');
 

@@ -9,6 +9,7 @@ import { useMounted } from '@/lib/use-mounted';
 import { messages } from '@/messages/verify-page.messages';
 import { ErrorBox } from '@/tx/error-box';
 import { Button } from '@/ui/button';
+import { FirstPaint } from '@/ui/first-paint';
 import { TextField } from '@/ui/text-field';
 import { useVaultVerify } from '@/verify/hooks';
 import { ADDRESS_PLACEHOLDER, LINE_IDS, type LineId, verifyCommand } from './lines';
@@ -135,12 +136,29 @@ function OpenVerify({ initial }: { initial: string }) {
   );
 }
 
-/** `/verify/#<address>`: the hash is read after mount ('' at prerender), so the first paint is the loading frame. */
+/**
+ * `/verify/#<address>`: the hash is read after mount ('' at prerender). The static HTML holds both first paints, the
+ * form and the loading frame, and the boot script's mark shows the one the hash fits (first-paint.tsx); without
+ * JavaScript, the frame and its command.
+ */
 export function VerifyPage({ site }: { site: VerifySite }) {
   const hash = useLocationHash();
   const mounted = useMounted();
-  if (!mounted) return <VerifyLoading version={site.version} />;
-  const text = hash.slice(1).trim();
-  if (!isAddressText(text)) return <OpenVerify key={text} initial={text} />;
-  return <VerifyScreen key={text.toLowerCase()} vault={text as Addr} site={site} />;
+  const text = mounted ? hash.slice(1).trim() : '';
+  const address = mounted && isAddressText(text);
+  return (
+    <FirstPaint
+      mounted={mounted}
+      mark="address"
+      noScript="wait"
+      empty={address ? null : <OpenVerify key={text} initial={text} />}
+      wait={
+        !mounted ? (
+          <VerifyLoading version={site.version} />
+        ) : address ? (
+          <VerifyScreen key={text.toLowerCase()} vault={text as Addr} site={site} />
+        ) : null
+      }
+    />
+  );
 }
