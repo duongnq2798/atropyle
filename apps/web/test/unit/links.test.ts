@@ -3,6 +3,7 @@ import { DOCS_BASE_URL } from '../../src/lib/docs';
 import {
   docsHome,
   explorerAddress,
+  explorerBlock,
   explorerName,
   explorerTx,
   LICENSE_URL,
@@ -16,6 +17,9 @@ describe('links', () => {
       'https://www.oklink.com/xlayer/address/0xAb',
     );
     expect(explorerTx('https://www.oklink.com/xlayer', '0x12')).toBe('https://www.oklink.com/xlayer/tx/0x12');
+    expect(explorerBlock('https://www.oklink.com/xlayer/', 76_600_000n)).toBe(
+      'https://www.oklink.com/xlayer/block/76600000',
+    );
     expect(explorerName('https://www.oklink.com/xlayer')).toBe('OKLink');
     expect(explorerName('http://127.0.0.1:1')).toBe('Explorer');
     expect(explorerName('not a url')).toBe('Explorer');
