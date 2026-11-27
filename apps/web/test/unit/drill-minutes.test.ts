@@ -2,6 +2,7 @@
 import { computeTimeline, type EvalState, modelEngine, PRESETS, STATE_CODES } from '@atropyle/sdk';
 import { describe, expect, it } from 'vitest';
 import { KEEPER_CADENCE_S } from '../../src/config/facts';
+import { messages as create } from '../../src/messages/create.messages';
 import { messages as home } from '../../src/messages/home.messages';
 import { messages as me } from '../../src/messages/me.messages';
 
@@ -62,6 +63,16 @@ describe('the Drill on /me/', () => {
     for (const lang of ['en', 'vi'] as const) {
       const numbers = [...me[lang].rehearse.matchAll(/\d+/g)].map((m) => Number(m[0]));
       expect(numbers, lang).toEqual([drillMinutes()]);
+    }
+  });
+});
+
+describe('the Drill on the create page', () => {
+  it('promises the same minutes as the home page, and no fee number', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const numbers = [...create[lang].kindDrillHelp.matchAll(/\d+/g)].map((m) => Number(m[0]));
+      expect(numbers, lang).toEqual([drillMinutes()]);
+      expect(create[lang].feeFree, lang).not.toMatch(/\d/);
     }
   });
 });

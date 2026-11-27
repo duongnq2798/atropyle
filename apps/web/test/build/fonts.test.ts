@@ -1,7 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RANGES, SUBSETS } from '../../src/fonts/ranges';
+import { ITALIC_SUBSETS, RANGES, SUBSETS } from '../../src/fonts/ranges';
 import { outOf } from './paths';
 
 function walk(dir: string): string[] {
@@ -30,6 +30,7 @@ interface Face {
   family: string;
   ranges: [number, number][] | null;
   sizeAdjust: boolean;
+  style: string;
 }
 
 function faces(out: string): Face[] {
@@ -46,6 +47,7 @@ function faces(out: string): Face[] {
       family: families[families.length - 1] ?? '',
       ranges: range ? parseRanges(range[1]) : null,
       sizeAdjust: /size-adjust:/.test(body),
+      style: /font-style:\s*([^;]+)/.exec(body)?.[1].trim() ?? 'normal',
     };
   });
 }
@@ -76,7 +78,7 @@ for (const target of ['vercel', 'deweb'] as const) {
 
     for (const family of ['Atropyle Fraunces', 'Atropyle Inter', 'Atropyle Mono']) {
       it(`${family} has one face per subset, each with its own unicode range`, () => {
-        const ours = faces(out).filter((f) => f.family === family);
+        const ours = faces(out).filter((f) => f.family === family && f.style !== 'italic');
         expect(ours).toHaveLength(3);
         const got = ours.map((f) => JSON.stringify(f.ranges)).sort();
         const want = SUBSETS.map((s) => JSON.stringify(parseRanges(RANGES[s]))).sort();
@@ -94,7 +96,7 @@ for (const target of ['vercel', 'deweb'] as const) {
       it(`${token} names the faces that exist: ${family}, then ${family} Fallback`, () => {
         const stack = tokenFamilies(builtCss(out), token);
         expect(stack[0]).toBe(family);
-        expect(faces(out).filter((f) => f.family === stack[0])).toHaveLength(3);
+        expect(faces(out).filter((f) => f.family === stack[0] && f.style !== 'italic')).toHaveLength(3);
         expect(stack[1]).toBe(`${family} Fallback`);
         const fallback = faces(out).filter((f) => f.family === stack[1]);
         expect(fallback).toHaveLength(1);
@@ -123,6 +125,26 @@ for (const target of ['vercel', 'deweb'] as const) {
       // The rule of the class Address and the account button give the capitals, not any rule at 650.
       expect(css).toMatch(/\.font-\\\[650\\\]\{[^}]*font-weight:650/);
       expect(css).not.toMatch(/"SOFT"|"WONK"/);
+    });
+
+    it('Atropyle Fraunces has the two italic faces of the Letter voice, Latin and Vietnamese, never preloaded', () => {
+      const italic = faces(out).filter((f) => f.family === 'Atropyle Fraunces' && f.style === 'italic');
+      expect(italic.map((f) => JSON.stringify(f.ranges)).sort()).toEqual(
+        ITALIC_SUBSETS.map((s) => JSON.stringify(parseRanges(RANGES[s]))).sort(),
+      );
+      const html = readFileSync(join(out, 'index.html'), 'utf8');
+      expect(html).not.toMatch(/standard_italic/);
+    });
+
+    it('draws the Letter voice in italic Fraunces, and no first paint of /, /create/ or /proof/ uses it', () => {
+      const css = builtCss(out);
+      expect(css).toMatch(/\.voice-letter\{[^}]*font-style:italic/);
+      // /create/ and /proof/ live on other branches until the web v2 branches merge: each page is read where it is built.
+      const pages = ['index.html', 'create/index.html', 'proof/index.html'].filter((p) => existsSync(join(out, p)));
+      expect(pages).toContain('index.html');
+      for (const page of pages) {
+        expect(readFileSync(join(out, page), 'utf8'), page).not.toMatch(/voice-letter/);
+      }
     });
 
     it('never reaches a font CDN', () => {

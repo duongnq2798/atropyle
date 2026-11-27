@@ -16,3 +16,15 @@ export const FONT_FILES: readonly { file: string; pkg: string }[] = [
   ...SUBSETS.map((s) => ({ file: `inter-${s}-wght-normal.woff2`, pkg: 'inter' })),
   ...SUBSETS.map((s) => ({ file: `jetbrains-mono-${s}-wght-normal.woff2`, pkg: 'jetbrains-mono' })),
 ];
+
+/**
+ * The Letter voice (spec §18.4.2 T11): Fraunces italic, standard files, Latin and Vietnamese only. A heir letter in
+ * a Latin-extended language falls back to the synthesis-free upright face; latin-ext italic would add 50 kB for none
+ * of the two languages the app speaks.
+ */
+export const ITALIC_SUBSETS = ['vietnamese', 'latin'] as const satisfies readonly Subset[];
+
+export const ITALIC_FILES: readonly { file: string; pkg: string }[] = ITALIC_SUBSETS.map((s) => ({
+  file: `fraunces-${s}-standard-italic.woff2`,
+  pkg: 'fraunces',
+}));

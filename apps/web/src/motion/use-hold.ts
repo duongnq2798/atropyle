@@ -20,6 +20,8 @@ export interface HoldOptions {
   onConfirm(): void;
   /** Released early; `progress` is the share of the hold that was done (0–1). */
   onCancel?(progress: number): void;
+  /** A hold began: a pointer or Space went down. Enter and an assistive click confirm without one. */
+  onStart?(): void;
 }
 
 export interface HoldBind {
@@ -51,7 +53,7 @@ const KEY_CLICK_MS = 250;
  * Enter confirms at once. Space is a hold. A click with `detail === 0` comes from assistive technology and
  * confirms; a mouse click (detail ≥ 1) does nothing. The timer, not the animation, decides.
  */
-export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCancel }: HoldOptions): {
+export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCancel, onStart }: HoldOptions): {
   phase: HoldPhase;
   bind: HoldBind;
 } {
@@ -61,10 +63,10 @@ export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCan
   const startedAt = useRef(0);
   const settling = useRef(false);
   const keyAt = useRef(-Infinity);
-  const latest = useRef({ onConfirm, onCancel });
+  const latest = useRef({ onConfirm, onCancel, onStart });
 
   useEffect(() => {
-    latest.current = { onConfirm, onCancel };
+    latest.current = { onConfirm, onCancel, onStart };
   });
 
   const confirm = useCallback(() => {
@@ -86,6 +88,7 @@ export function useHold({ duration = HOLD_MS, disabled = false, onConfirm, onCan
     startedAt.current = Date.now();
     setPhase('holding');
     hold.current = setTimeout(confirm, duration);
+    latest.current.onStart?.();
   }, [disabled, duration, confirm]);
 
   const cancel = useCallback(() => {

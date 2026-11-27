@@ -41,7 +41,8 @@ export interface SliderProps {
   className?: string;
 }
 
-const THUMB = cn(
+/** The thumb's look: also for a bare Slider (the share splitter) that keeps the standard thumb on its own track. */
+export const SLIDER_THUMB = cn(
   'block size-6 rounded-full border-2 border-thread bg-surface-1 shadow-sm',
   'motion-safe:transition-transform motion-safe:duration-150 hover:scale-110',
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-thread',
@@ -108,7 +109,7 @@ export function Slider({
           aria-valuetext={valueText?.(v, i)}
           aria-describedby={thumbDescribedBy}
           data-testid={testId ? `${testId}-thumb-${i}` : undefined}
-          className={bare ? thumbClassName : cn(THUMB, thumbClassName)}
+          className={bare ? thumbClassName : cn(SLIDER_THUMB, thumbClassName)}
         >
           {thumbContent?.(v, i)}
         </S.Thumb>

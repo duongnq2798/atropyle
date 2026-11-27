@@ -25,7 +25,7 @@ function page(o: { pathname?: string; hash?: string; stored?: string | null; sto
     },
   });
   runInNewContext(BOOT_SCRIPT, ctx);
-  return { replace, setAttribute, theme: attrs.get('data-theme') ?? null };
+  return { replace, setAttribute, theme: attrs.get('data-theme') ?? null, hash: attrs.get('data-hash') ?? null };
 }
 
 describe('legacyTarget', () => {
@@ -96,5 +96,38 @@ describe('boot script', () => {
     expect(() => page({ storageThrows: true })).not.toThrow();
     expect(page({ storageThrows: true }).theme).toBeNull();
     expect(page({ storageThrows: true, hash: '#/proof' }).replace).toHaveBeenCalledWith('/proof/');
+  });
+});
+
+describe('the boot script marks what the fragment holds (7B-P1)', () => {
+  const A = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+  it('marks an address on /vault/ and /verify/, a request on /sign/', () => {
+    for (const pathname of ['/vault/', '/vault', '/vault/index.html', '/verify/']) {
+      expect(page({ pathname, hash: `#${A}` }).hash, pathname).toBe('address');
+    }
+    expect(page({ pathname: '/sign/', hash: `#p=${PAYLOAD}` }).hash).toBe('request');
+    expect(page({ pathname: '/sign/', hash: `#v=1&p=${PAYLOAD}` }).hash).toBe('request');
+  });
+
+  it('marks nothing for an empty or broken fragment, or on another page', () => {
+    for (const [pathname, hash] of [
+      ['/vault/', ''],
+      ['/vault/', '#0x1234'],
+      ['/vault/', `#${A}x`],
+      ['/verify/', '#p=abc'],
+      ['/sign/', ''],
+      ['/sign/', `#${A}`],
+      ['/', `#${A}`],
+      ['/create/', `#${A}`],
+    ]) {
+      expect(page({ pathname, hash }).hash, `${pathname}${hash}`).toBeNull();
+    }
+  });
+
+  it('still applies the theme beside the mark', () => {
+    const p = page({ pathname: '/vault/', hash: `#${A}`, stored: 'light' });
+    expect(p.theme).toBe('light');
+    expect(p.hash).toBe('address');
   });
 });

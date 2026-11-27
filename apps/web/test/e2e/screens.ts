@@ -63,6 +63,12 @@ export async function captureScreens(
     await page.setViewportSize({ width: shot.width, height: 900 });
     await o.ready?.(page);
     await settle(page);
+    // A `ready` that scrolled (a click, a focus) would leave the sticky header and the fixed docks where that scroll
+    // put them, in the middle of a full-page shot. At the top, they are drawn where a reader first sees them (7B-P1).
+    await page.evaluate(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      return new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    });
     const scheme = shot.theme === 'dark' ? 'night' : 'vellum';
     await page.screenshot({
       path: `test-results/screens/${name}/${scheme}-${shot.lang}-${shot.width}.png`,

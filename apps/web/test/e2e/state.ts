@@ -23,10 +23,16 @@ export function readState(): E2EState {
 
 export const rpcCall: (url: string, method: string, params?: unknown[]) => Promise<unknown> = rpc;
 
-/** evm_revert consumes the snapshot, so a new one is taken for the next test. */
+/**
+ * evm_revert consumes the snapshot, so a new one is taken for the next test. anvil's clock keeps the wall time across
+ * a revert, so without the pin the seeded Drill vaults (a 60 s period) would age with the suite: the next block lands
+ * minutes after the seed, and a late spec meets a vault that has moved on. Every test starts one second after the seed.
+ */
 export async function resetChain(s: E2EState): Promise<E2EState> {
   const ok = await rpcCall(s.rpcUrl, 'evm_revert', [s.snapshot]);
   if (ok !== true) throw new Error(`evm_revert(${s.snapshot}) failed`);
+  const head = (await rpcCall(s.rpcUrl, 'eth_getBlockByNumber', ['latest', false])) as { timestamp: string };
+  await rpcCall(s.rpcUrl, 'evm_setTime', [Number(BigInt(head.timestamp)) + 1]);
   const next = { ...s, snapshot: (await rpcCall(s.rpcUrl, 'evm_snapshot')) as string };
   writeState(next);
   return next;

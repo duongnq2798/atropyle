@@ -115,6 +115,24 @@ describe('TxCard', () => {
     expect(screen.queryByTestId('tx-progress')).toBeNull();
   });
 
+  it('passes the hold words to the HoldButton: no "Confirmed" and no knot before the receipt', () => {
+    const send = vi.fn();
+    const single: TxPlan = { ...PLAN, steps: [step('distribute')] };
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(single, { send })}
+        label="Receive"
+        confirm="hold"
+        hold={{ hint: 'Hold to receive, or press Enter', doneLabel: 'Now confirm in your wallet', showKnot: false }}
+      />,
+    );
+    expect(screen.getByText('Hold to receive, or press Enter')).toBeTruthy();
+    expect(sendButton().querySelector('[data-part="knot"]')).toBeNull();
+    fireEvent.keyDown(sendButton(), { key: 'Enter' });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Confirmed')).toBeNull();
+  });
+
   it('shows each step in plain words, its status, its transaction and its technical details', () => {
     const view = applyStep(applyStep(txView(PLAN), { index: 0, phase: 'confirmed', hash: H }), {
       index: 1,

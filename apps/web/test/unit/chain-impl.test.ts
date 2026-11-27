@@ -27,8 +27,26 @@ describe('chain impl', () => {
     const loaded = await loadVault(sdk, PEOPLE.vault, () => clock);
     expect(registered).toHaveBeenCalledWith({ blockNumber: snap.status.blockNumber });
     expect(engineFor).toHaveBeenCalledWith(snap.binding.cpu, snap.binding.policyId);
+    // The factory's word comes first: only a vault it created has its policy read.
+    expect(registered.mock.invocationCallOrder[0]).toBeLessThan(engineFor.mock.invocationCallOrder[0]);
     expect(timelineOf).toHaveBeenCalledWith(engine, snap);
     expect(loaded).toEqual({ snap, timeline: fixtureTimeline(), registered: true, fetchedAtMs: 42 });
+  });
+
+  it('never reads the policy of a contract the factory did not create', async () => {
+    const snap = fixtureSnapshot();
+    const registered = vi.fn(async () => false);
+    // A fake may name any CPU: reading it would fail the whole page with POLICY_MISMATCH (parked 7A).
+    const engineFor = vi.fn(async () => {
+      throw Object.assign(new Error('not a policy'), { code: 'POLICY_MISMATCH' });
+    });
+    const sdk = {
+      atro: { vault: () => ({ snapshot: async () => snap, registered }), engineFor },
+      deployment: fixtureDeployment(),
+    } as unknown as Sdk;
+    const loaded = await loadVault(sdk, PEOPLE.vault, () => 7);
+    expect(engineFor).not.toHaveBeenCalled();
+    expect(loaded).toEqual({ snap, registered: false, timeline: null, fetchedAtMs: 7 });
   });
 
   it('finds the roles of an account and none for a stranger or garbage', () => {

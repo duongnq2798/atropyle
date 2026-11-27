@@ -234,7 +234,7 @@ describe('SignPage: what the link asks', () => {
     window.history.replaceState(null, '', '/sign/');
     show({ lang: 'vi' });
     const box = await screen.findByTestId('sign-empty');
-    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('Ở đây chưa có yêu cầu ký nào');
+    expect(within(box).getByRole('heading', { level: 2 }).textContent).toBe('Ở đây chưa có yêu\u00a0cầu ký nào');
     expect(within(box).getByRole('link', { name: 'Tạo vault' })).toBeTruthy();
   });
 
@@ -686,7 +686,7 @@ describe('SignPage createVault terms', () => {
     expect(screen.getByTestId('sign-terms-0-guardians').textContent).toBe('Không có người giám hộ.');
     expect(screen.getByTestId('sign-terms-0-routes').textContent).toContain('không cần ai ký');
     expect([...screen.getByTestId('sign-terms-0-earliest').querySelectorAll('p')].map((p) => p.textContent)).toEqual([
-      'Sớm nhất tài sản có thể rời ví của bạn',
+      'Sớm\u00a0nhất tài\u00a0sản có\u00a0thể rời ví của bạn',
       '4 phút sau khi vault được tạo',
       'Không trước 2027-01-15 08:02 UTC',
     ]);
@@ -793,7 +793,7 @@ describe('SignPage Drill retype gate', () => {
   it('speaks Vietnamese', async () => {
     drillPage('vi');
     const gate = await screen.findByTestId('sign-confirm');
-    expect(gate.querySelector('h2')?.textContent).toBe('Gõ lại các địa chỉ trước khi ký');
+    expect(gate.querySelector('h2')?.textContent).toBe('Gõ lại các địa\u00a0chỉ trước khi ký');
     expect(screen.getByLabelText(/^Người thừa kế 2 \(30%\) của vault ở bước 1/)).toBe(
       screen.getByTestId('sign-confirm-1'),
     );

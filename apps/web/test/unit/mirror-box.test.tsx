@@ -213,4 +213,20 @@ describe('MirrorBox', () => {
     expect(within(box).queryAllByTestId(/^tx-mirror-\d+-danger-/)).toHaveLength(0);
     expect(within(box).getByTestId('tx-mirror-reject')).toBeTruthy();
   });
+
+  it('a token of the plan whose name was not read is not called unlisted', () => {
+    // After a reload the create page knows each token's kind from the form, not its name (formTokens).
+    const nameless: MirrorContext = {
+      ...CONTEXT,
+      tokens: [{ address: USDG, kind: 'erc20', symbol: null, decimals: null }],
+    };
+    const one: TxPlan = { ...PLAN, steps: PLAN.steps.slice(0, 1) };
+    const { unmount } = renderWithProviders(
+      <MirrorBox calls={mirrorPlan(one, nameless)} explorer={null} testId="tx" />,
+    );
+    expect(screen.getByTestId('tx-mirror-0-token').textContent).toContain('In this plan, name not read');
+    unmount();
+    renderWithProviders(<MirrorBox calls={mirrorPlan(one, { ...CONTEXT, tokens: [] })} explorer={null} testId="tx" />);
+    expect(screen.getByTestId('tx-mirror-0-token').textContent).toContain('Not listed in this plan');
+  });
 });

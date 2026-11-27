@@ -1,5 +1,5 @@
-/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7C Task 3 added `/proof/`, Plan 7B adds `/create/`. */
-export const LIGHTHOUSE_ROUTES: readonly string[] = ['/', '/proof/'];
+/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`: Plan 7B added `/create/`, Plan 7C Task 3 `/proof/`. */
+export const LIGHTHOUSE_ROUTES: readonly string[] = ['/', '/create/', '/proof/'];
 
 export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
 

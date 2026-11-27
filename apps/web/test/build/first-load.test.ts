@@ -28,6 +28,12 @@ import { outOf } from './paths';
  * - The time machine (7B T5): NEW_WALLET of its scenario logic, `0x${'7e'.repeat(20)}` (src/flows/impl/time-machine.ts),
  *   in either form a minifier leaves, and Radix Slider's `"SliderThumb"` (@radix-ui/react-slider), which only the
  *   Scrubber carries. The home stage loads both on intent (R18.18), the vault page and the wizard when they show it.
+ * - The time machine's view (src/flows/time-machine/time-machine.tsx, 7B): the template of its moment test ids,
+ *   `${testId}-moment-${i}`. Its shell, in the first load of the page that shows it, has no such template. Every
+ *   page loads the view through timeMachineViewChunk (lazy.tsx).
+ * - The owner tab (src/app/vault/owner-tab.tsx, in one chunk with the guardian and heir panels: panelsChunk in
+ *   lazy-panels.tsx): the ritual's test id "owner-ritual", in ritual.tsx. Its editor (edit-config.tsx, through editConfigChunk) loads apart from it, on the
+ *   first part the owner picks: its test id "owner-edit-fields" is in that file only.
  * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
  * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
  * or a tooltip, or read the chain, from its first paint, inside its 240 kB. /proof/ is held to the same, ruling R17 of
@@ -66,6 +72,9 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   'the Ask X Layer calls': { markers: [/["'`]0xe8281a1a/], pages: 'shell' },
   // 7C T10 (T10-R8): route-suggest.ts and not-found.messages.ts ride the 404 hint's chunk, never a first load.
   'the 404 suggestion': { markers: [/["'`]Did you mean this page\?["'`]/], pages: 'all' },
+  "the time machine's view": { markers: [/\}-moment-\$\{/], pages: 'all' },
+  'the owner tab': { markers: [/["'`]owner-ritual["'`]/], pages: 'all' },
+  'the owner editor': { markers: [/["'`]owner-edit-fields["'`]/], pages: 'all' },
 };
 
 /**

@@ -29,6 +29,8 @@ export const PREDICTED_DASH = '5 5';
 export const BEAT_SECONDS = { slow: 2.4, mid: 1.6, fast: 1 } as const;
 export type ThreadBeat = keyof typeof BEAT_SECONDS;
 const SAMPLES = 16;
+/** A vault's own wave samples twice as finely: its third harmonic runs up to four cycles across the box. */
+const SIGNED_SAMPLES = 32;
 const BRANCH_END_X = 594;
 const BAND = { top: 24, bottom: 96 } as const;
 /** How far the outer strands of a fray stand from the thread, halfway through the alarm window. */
@@ -41,8 +43,92 @@ const SCALE = 1_000_000n;
 const r = (n: number): number => Math.round(n * 100) / 100;
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1);
 
-export function waveY(x: number): number {
-  return VIEW.mid + VIEW.amp * Math.sin((x / VIEW.w) * Math.PI * 2 * CYCLES);
+/** One harmonic of a vault's own wave: `f` cycles across VIEW.w, starting at `phase`, weighing `w`. */
+export interface Harmonic {
+  readonly f: number;
+  readonly phase: number;
+  readonly w: number;
+}
+/** Three harmonics whose weights sum to 1, so the wave stays within VIEW.mid ± VIEW.amp. */
+export type ThreadSignature = readonly Harmonic[];
+
+/** Spec §18.4.2 T6: the three harmonics run 1.5 to 4 cycles across VIEW.w, one band each. */
+export const HARMONIC_BANDS = [
+  [1.5, 2],
+  [2, 3],
+  [3, 4],
+] as const;
+/** The weights of the second and third harmonics before CALM; the first takes the rest. */
+const WEIGHT_BANDS = [
+  [0.1, 0.3],
+  [0.05, 0.2],
+] as const;
+/**
+ * The clamp of spec §18.4.2 T6: the second and third harmonics together turn the slope at most this share of what
+ * the first one does (w2·f2 + w3·f3 ≤ CALM · w1·f1), so no knot or gate lands on a wiggle. At 0.4, turning points
+ * stay more than a sixth of the box apart (20 000 random waves: at least 124 units); at 0.5, two came 7.5 apart.
+ */
+export const CALM = 0.4;
+/**
+ * The shape of isAddressText (src/lib/address.ts): a lowercase 0x, then 40 hex digits in any case. The SDK's toAddress
+ * also takes 0X or no prefix at all; the thread does not, on purpose: it draws a vault's own wave only for the form
+ * an address is shown in, and anything else draws the default wave.
+ */
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** FNV-1a over the text, then murmur3's finaliser, so that every hex digit moves every bit. */
+function mix(text: string, seed: number): number {
+  let h = seed;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/**
+ * A vault's own wave (R18.3): the same in the header, the preview, the letter and print, for every reader. Six bytes
+ * hashed from the 40 hex digits in lowercase, so the case of the address changes nothing and a lookalike address
+ * gets another wave; two bytes per harmonic: 6 bits of frequency, 6 of phase, 4 of weight. null for text that is not
+ * an address, and the Thread draws the default wave. A look, never a check: people compare the address itself.
+ */
+export function threadSignature(address: string): ThreadSignature | null {
+  // The shape is checked before any lowercasing, so 0X… stays null; then only the 40 digits are lowered.
+  const text = address.trim();
+  if (!ADDRESS.test(text)) return null;
+  const hex = text.slice(2).toLowerCase();
+  const a = mix(hex, 0x811c9dc5);
+  const b = mix(hex, 0x050c5d1f);
+  const raw = [a >>> 16, a & 0xffff, b >>> 16].map((word, i) => {
+    const [lo, hi] = HARMONIC_BANDS[i];
+    return {
+      f: lo + ((hi - lo) * (word >>> 10)) / 63,
+      phase: (2 * Math.PI * ((word >>> 4) & 63)) / 64,
+      q: (word & 15) / 15,
+    };
+  });
+  const [f1, f2, f3] = raw.map((h) => h.f);
+  let w2 = WEIGHT_BANDS[0][0] + (WEIGHT_BANDS[0][1] - WEIGHT_BANDS[0][0]) * raw[1].q;
+  let w3 = WEIGHT_BANDS[1][0] + (WEIGHT_BANDS[1][1] - WEIGHT_BANDS[1][0]) * raw[2].q;
+  const turn = w2 * f2 + w3 * f3;
+  if (turn > CALM * f1 * (1 - w2 - w3)) {
+    // Scale w2 and w3 by t, with w1 = 1 − t(w2 + w3), so that t · turn = CALM · f1 · w1 exactly.
+    const t = (CALM * f1) / (turn + CALM * f1 * (w2 + w3));
+    w2 *= t;
+    w3 *= t;
+  }
+  const w = [1 - w2 - w3, w2, w3];
+  return raw.map((h, i) => ({ f: h.f, phase: h.phase, w: w[i] }));
+}
+
+/** The wave at x: the default one, or a vault's own (threadSignature) when `sig` is set. */
+export function waveY(x: number, sig?: ThreadSignature | null): number {
+  if (!sig) return VIEW.mid + VIEW.amp * Math.sin((x / VIEW.w) * Math.PI * 2 * CYCLES);
+  let y = 0;
+  for (const h of sig) y += h.w * Math.sin((x / VIEW.w) * Math.PI * 2 * h.f + h.phase);
+  return VIEW.mid + VIEW.amp * y;
 }
 
 /** Catmull-Rom through the points (tension 0.5), written as cubic Bézier segments. */
@@ -63,13 +149,14 @@ export function smoothPath(points: readonly Point[]): string {
   return d;
 }
 
-/** The wave from x0 to x1, always `samples` segments long. */
-export function waveSegment(x0: number, x1: number, samples = SAMPLES): string {
+/** The wave from x0 to x1, always the same number of segments: 16, or 32 on a vault's own wave. */
+export function waveSegment(x0: number, x1: number, samples?: number, sig?: ThreadSignature | null): string {
+  const n = samples ?? (sig ? SIGNED_SAMPLES : SAMPLES);
   const a = Math.min(x0, x1);
   const b = Math.max(x0, x1);
-  const pts: Point[] = Array.from({ length: samples + 1 }, (_, i) => {
-    const x = a + ((b - a) * i) / samples;
-    return [x, waveY(x)];
+  const pts: Point[] = Array.from({ length: n + 1 }, (_, i) => {
+    const x = a + ((b - a) * i) / n;
+    return [x, waveY(x, sig)];
   });
   return smoothPath(pts);
 }
@@ -156,6 +243,60 @@ export function beatOf(left: number): ThreadBeat {
   return 'fast';
 }
 
+/** At most one post per guardian a vault can have (LIMITS.maxGuardians; thread-geometry.test.ts keeps them equal). */
+export const MAX_POSTS = 5;
+/**
+ * A post's width and the gap between two, in percent of the arch's inside (the gate less its walls): five posts and
+ * six gaps fill it, 5 × 8 + 6 × 10 = 100, so the walls count as neighbours and every gap is wider than a post.
+ */
+export const POST_WIDTH = 8;
+export const POST_GAP = 10;
+/** A standing post's height, in percent of the gate's box. */
+export const POST_HEIGHT = 34;
+/** An unlit post's height, in percent of a standing one: a guardian who has not confirmed is not standing yet. */
+export const POST_STUB = 40;
+/**
+ * How far the bar reaches past the first and the k-th post, in the same percent: half a post. Over one post it is then
+ * a bar (a T once that guardian stands), not a dot; and it ends nearer post k than post k + 1.
+ */
+export const BAR_OVERHANG = POST_WIDTH / 2;
+
+export interface ThreadPosts {
+  /** One post per guardian, 1 to MAX_POSTS. */
+  n: number;
+  /** How many must confirm: the bar covers the first k posts (BAR_OVERHANG past each end); 0 draws no bar. */
+  k: number;
+  /**
+   * How many have confirmed: the first `lit` posts stand, filled; the others are stubs (POST_STUB). A count: which
+   * guardian it was, the list says.
+   */
+  lit: number;
+  /** The left edge of each post, in percent of the arch's inside; the group is centred. */
+  left: number[];
+  bar: { left: number; width: number } | null;
+}
+
+const whole = (v: number, max: number): number => (Number.isFinite(v) ? Math.min(max, Math.max(0, Math.floor(v))) : 0);
+
+/** The posts a gate can draw: n up to MAX_POSTS, k and lit up to n; null when there is no post to draw. */
+export function postsOf(p: ThreadInput['posts']): ThreadPosts | null {
+  if (!p) return null;
+  const n = whole(p.n, MAX_POSTS);
+  if (n === 0) return null;
+  const k = whole(p.k, n);
+  const lit = whole(p.lit, n);
+  const span = n * POST_WIDTH + (n - 1) * POST_GAP;
+  const x0 = (100 - span) / 2;
+  return {
+    n,
+    k,
+    lit,
+    left: Array.from({ length: n }, (_, i) => r(x0 + i * (POST_WIDTH + POST_GAP))),
+    bar:
+      k > 0 ? { left: r(x0 - BAR_OVERHANG), width: r(k * POST_WIDTH + (k - 1) * POST_GAP + 2 * BAR_OVERHANG) } : null,
+  };
+}
+
 export interface ThreadInput {
   /** Share of the current period still left, 0–1. Read by `active` and `grace`, and only without `axis`. */
   remaining?: number;
@@ -171,6 +312,19 @@ export interface ThreadInput {
   pendingKnot?: boolean;
   /** Index of the branch of the reader (an heir): drawn in `thread`, the others in `ink-muted` at 35 %. */
   highlight?: number;
+  /**
+   * The vault's address: the wave becomes the vault's own (threadSignature); text that is not an address draws the
+   * default wave. Whatever is laid over such a Thread by hand must then place itself with waveY(x, signature): the
+   * Scrubber does not, so the time machine draws the default wave (T6 passes no signature to it).
+   */
+  signature?: string;
+  /** The guardians at the gate: n of them, k must confirm, `lit` have. Drawn only where a gate stands. */
+  posts?: { n: number; k: number; lit: number };
+  /**
+   * The recovery exit (loom-preview): a dashed path that leaves the course before the gate, for a plan whose guardians
+   * can move it to a new wallet. Drawn on `releasedInherit` only.
+   */
+  exit?: boolean;
 }
 
 /** `plain` takes the state's colour; `highlight` and `muted` come from `highlight`. */
@@ -203,17 +357,26 @@ export interface ThreadGeometry {
   dash: string | null;
   /** The glow's beat, or null when the state does not pulse (only `active` does). */
   beat: ThreadBeat | null;
+  /** The guardians' posts in the gate (postsOf), or null: no gate, no guardian, or no `posts`. */
+  posts: ThreadPosts | null;
+  /** The recovery exit: its path and where it ends, or null. */
+  exit: { d: string; end: Point } | null;
+  /** The wave is a vault's own: `signature` was an address. */
+  signed: boolean;
 }
 
-function knotsOn(fractions: readonly number[] | undefined, end: number): Point[] {
+type Wave = (x: number) => number;
+type Drawn = Omit<ThreadGeometry, 'posts' | 'signed'>;
+
+function knotsOn(fractions: readonly number[] | undefined, end: number, wy: Wave): Point[] {
   const xs = [...new Set((fractions ?? []).map((f) => r(clamp01(f) * end)))].sort((a, b) => a - b);
-  return xs.map((x): Point => [x, r(waveY(x))]);
+  return xs.map((x): Point => [x, r(wy(x))]);
 }
 
-function marksOn(axis: ThreadAxis): Point[] {
+function marksOn(axis: ThreadAxis, wy: Wave): Point[] {
   const inside = (axis.marks ?? []).filter((t) => t >= axis.from && t <= axis.to);
   const xs = [...new Set(inside.map((t) => courseX(t, axis)))].sort((a, b) => a - b);
-  return xs.map((x): Point => [x, r(waveY(x))]);
+  return xs.map((x): Point => [x, r(wy(x))]);
 }
 
 /** From the gate (gx, gy) to the branch end; the curve keeps its shape when the gate moves along the axis. */
@@ -222,23 +385,47 @@ function branch(gx: number, gy: number, y: number): string {
   return `M${gx} ${gy} C${r(gx + 60 * k)} ${gy} ${r(gx + 106 * k)} ${y} ${BRANCH_END_X} ${y}`;
 }
 
+/** How far before the gate the recovery exit leaves the course. */
+export const EXIT_LEAD = 120;
+
+/**
+ * The dashed recovery exit: off the course EXIT_LEAD before the gate, up to near the top edge, ending before the
+ * gate's arch, so it reads as another way out of the vault than the heirs' gate.
+ */
+function exitPath(gateX: number, wy: Wave): { d: string; end: Point } {
+  const x0 = Math.max(24, gateX - EXIT_LEAD);
+  const y0 = r(wy(x0));
+  const end: Point = [r(Math.max(x0 + 48, gateX - 36)), 12];
+  return { d: `M${r(x0)} ${y0} C${r(x0 + 40)} ${y0} ${r(end[0] - 30)} ${end[1]} ${end[0]} ${end[1]}`, end };
+}
+
 /** Three strands from x0 to x1 that part from the thread and meet again at the gate. */
-function frayStrands(x0: number, x1: number): string[] {
+function frayStrands(x0: number, x1: number, wy: Wave, samples: number): string[] {
   return [-1, 0, 1].map((side) =>
     smoothPath(
-      Array.from({ length: SAMPLES + 1 }, (_, i): Point => {
-        const x = x0 + ((x1 - x0) * i) / SAMPLES;
-        return [x, waveY(x) + side * FRAY_SPREAD * Math.sin((Math.PI * i) / SAMPLES)];
+      Array.from({ length: samples + 1 }, (_, i): Point => {
+        const x = x0 + ((x1 - x0) * i) / samples;
+        return [x, wy(x) + side * FRAY_SPREAD * Math.sin((Math.PI * i) / samples)];
       }),
     ),
   );
 }
 
 export function threadGeometry(state: ThreadState, input: ThreadInput = {}): ThreadGeometry {
+  const sig = input.signature ? threadSignature(input.signature) : null;
+  const g = draw(state, input, sig);
+  return { ...g, posts: g.gate ? postsOf(input.posts) : null, signed: sig !== null };
+}
+
+/** Everything but the posts, on the vault's own wave when `sig` is set. */
+function draw(state: ThreadState, input: ThreadInput, sig: ThreadSignature | null): Drawn {
+  const wy: Wave = (x) => waveY(x, sig);
+  const seg = (x0: number, x1: number): string => waveSegment(x0, x1, undefined, sig);
+  const samples = sig ? SIGNED_SAMPLES : SAMPLES;
   const axis = input.axis ? drawnAxis(input.axis) : undefined;
   const gateX = axis?.releaseAt != null ? courseX(axis.releaseAt, axis) : GATE_X;
-  const gateY = r(waveY(gateX));
-  const base: ThreadGeometry = {
+  const gateY = r(wy(gateX));
+  const base: Drawn = {
     track: '',
     lit: '',
     litFrom: 0,
@@ -256,9 +443,10 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     ghost: null,
     dash: input.predicted ? PREDICTED_DASH : null,
     beat: null,
+    exit: null,
   };
-  const knotsAt = (end: number): Point[] => (axis ? marksOn(axis) : knotsOn(input.knots, end));
-  const withPending = (g: ThreadGeometry): ThreadGeometry => ({
+  const knotsAt = (end: number): Point[] => (axis ? marksOn(axis, wy) : knotsOn(input.knots, end, wy));
+  const withPending = (g: Drawn): Drawn => ({
     ...g,
     pending: input.pendingKnot && g.now ? g.now : null,
   });
@@ -266,15 +454,15 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
   if ((state === 'active' || state === 'grace') && axis) {
     const nowX = base.nowX;
     // Outside the axis "now" would stand at an edge and tell the wrong time: it is left out, like a mark.
-    const now: Point | null = axis.now >= axis.from && axis.now <= axis.to ? [nowX, r(waveY(nowX))] : null;
+    const now: Point | null = axis.now >= axis.from && axis.now <= axis.to ? [nowX, r(wy(nowX))] : null;
     const alarmX = axis.alarmAt != null ? courseX(axis.alarmAt, axis) : gateX;
     if (state === 'active') {
       // Nothing past the gate is lit, also where the alarm would come later (a gate cut short to a story's release).
       const litTo = Math.min(alarmX, gateX);
       return withPending({
         ...base,
-        track: waveSegment(0, VIEW.w),
-        lit: waveSegment(0, VIEW.w),
+        track: seg(0, VIEW.w),
+        lit: seg(0, VIEW.w),
         litFrom: Math.min(nowX, litTo),
         litTo,
         now,
@@ -289,14 +477,14 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     const x1 = gateX > alarmX ? gateX : x0 + FRAY_MIN;
     return withPending({
       ...base,
-      track: waveSegment(0, x0),
-      lit: waveSegment(0, x0),
+      track: seg(0, x0),
+      lit: seg(0, x0),
       litFrom: Math.min(nowX, x1),
       litTo: x1,
       now,
       knots: knotsAt(x0),
       gate: [gateX, gateY],
-      fibers: frayStrands(x0, x1),
+      fibers: frayStrands(x0, x1, wy, samples),
     });
   }
 
@@ -304,17 +492,17 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     const end = state === 'grace' ? FRAY_X : VIEW.w;
     const left = input.remaining === undefined ? 1 : Number.isNaN(input.remaining) ? 1 : clamp01(input.remaining);
     const xNow = r(end * (1 - left));
-    const fy = r(waveY(FRAY_X));
+    const fy = r(wy(FRAY_X));
     return withPending({
       ...base,
-      track: waveSegment(0, end),
-      lit: waveSegment(0, end),
+      track: seg(0, end),
+      lit: seg(0, end),
       litFrom: xNow,
       // In grace the window reaches past FRAY_X, over the strands.
       litTo: VIEW.w,
-      now: left > 0 ? [xNow, r(waveY(xNow))] : null,
+      now: left > 0 ? [xNow, r(wy(xNow))] : null,
       nowX: xNow,
-      knots: knotsOn(input.knots, end),
+      knots: knotsOn(input.knots, end, wy),
       fibers:
         state === 'grace'
           ? [
@@ -332,17 +520,17 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     // the release ring and "now" stay on the thread up to the bend. Elsewhere it bends at BEND_X, with no gate.
     const timed = axis?.releaseAt != null;
     const bx = timed ? Math.min(gateX, GATE_MAX_X) : BEND_X;
-    const by = r(waveY(bx));
+    const by = r(wy(bx));
     const [ex, ey] = RECOVERY_END;
     // The curve keeps its shape wherever the bend stands, like a branch from the gate.
     const k = (ex - bx) / (ex - BEND_X);
     return {
       ...base,
-      lit: `${waveSegment(0, bx)} C${r(bx + 90 * k)} ${by} ${r(ex - 70 * k)} ${ey} ${ex} ${ey}`,
+      lit: `${seg(0, bx)} C${r(bx + 90 * k)} ${by} ${r(ex - 70 * k)} ${ey} ${ex} ${ey}`,
       // Past the bend the course is a ghost: a mark there is left out.
       knots: knotsAt(bx).filter(([x]) => x <= bx),
       gate: timed ? [bx, by] : null,
-      ghost: waveSegment(bx, VIEW.w),
+      ghost: seg(bx, VIEW.w),
       dots: [{ at: RECOVERY_END, tone: 'plain' }],
     };
   }
@@ -356,20 +544,21 @@ export function threadGeometry(state: ThreadState, input: ThreadInput = {}): Thr
     const tone = (i: number): ThreadTone => (!valid ? 'plain' : i === h ? 'highlight' : 'muted');
     return {
       ...base,
-      lit: waveSegment(0, gateX),
+      lit: seg(0, gateX),
       // The course ends at the gate and the branches take over: a mark past the gate is left out.
       knots: knotsAt(gateX).filter(([x]) => x <= gateX),
       gate: [gateX, gateY],
       branches: ys.map((y, i) => ({ d: branch(gateX, gateY, y), width: widths[i], tone: tone(i) })),
       dots: ys.map((y, i) => ({ at: [BRANCH_END_X, y] as Point, tone: tone(i) })),
+      exit: state === 'releasedInherit' && input.exit ? exitPath(gateX, wy) : null,
     };
   }
 
   // expired: a short thread that curls up.
-  const ey = r(waveY(BEND_X));
+  const ey = r(wy(BEND_X));
   return {
     ...base,
-    lit: waveSegment(0, BEND_X),
+    lit: seg(0, BEND_X),
     // The thread ends in the curl: a mark past it is left out.
     knots: knotsAt(BEND_X).filter(([x]) => x <= BEND_X),
     curl: `M${BEND_X} ${ey} c36 0 64 -12 64 6 s-22 26 -38 12 s2 -22 18 -14 s6 10 -4 12`,

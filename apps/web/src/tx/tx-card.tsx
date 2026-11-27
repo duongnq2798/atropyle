@@ -6,6 +6,7 @@ import { type ReactNode, type Ref, useEffect, useId, useRef, useState } from 're
 import { CHAIN_ID } from '@/chain/hooks';
 import { useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
+import { focusInView } from '@/lib/focus';
 import { formatAmount } from '@/lib/format';
 import { explorerTx } from '@/lib/links';
 import { messages } from '@/messages/tx.messages';
@@ -17,7 +18,7 @@ import { Banner } from '@/ui/banner';
 import { Button } from '@/ui/button';
 import { CopyButton } from '@/ui/copy-button';
 import { ExternalLink } from '@/ui/external-link';
-import { HoldButton } from '@/ui/hold-button';
+import { HoldButton, type HoldWords } from '@/ui/hold-button';
 import { Spinner } from '@/ui/spinner';
 import { UntrustedText } from '@/ui/untrusted-text';
 import { connectSheet } from '@/wallet/connect-sheet-slot';
@@ -277,10 +278,17 @@ export interface TxCardProps {
   confirm?: 'click' | 'hold';
   /** `danger` for a plan that cannot be undone (planIsIrreversible). */
   tone?: 'thread' | 'danger';
+  /** With `confirm="hold"`: the hint, the words once held and whether a knot ties (R18.16). */
+  hold?: HoldWords;
   /** The page's own gate is closed (on /sign/, a vote not typed again): Send stays disabled. */
   disabled?: boolean;
   /** The Receipt's footer slot: the page's next step, for example a link to the vault. */
   receiptFooter?: ReactNode;
+  /**
+   * The card stands under a heading of the page that already names its action (the owner tab's "Check in"): its own
+   * heading is one step smaller (text-lead), so one card never holds two equal headings.
+   */
+  nested?: boolean;
   testId?: string;
   className?: string;
 }
@@ -292,8 +300,10 @@ export function TxCard({
   title,
   confirm = 'click',
   tone = 'thread',
+  hold,
   disabled = false,
   receiptFooter,
+  nested = false,
   testId = 'tx',
   className,
 }: TxCardProps) {
@@ -312,9 +322,10 @@ export function TxCard({
   const sendButton = () => enabledButton(sendArea.current);
   const { plan, view, busy, result, blocker, offset, mirror, mode, unsettled } = runner;
 
-  // The Receipt replaces the button that had focus: focus goes to the card's heading, which now says it is done.
+  // The Receipt replaces the button that had focus: focus goes to the card's heading, which now says it is done. A tall
+  // card (the check-in ritual's) can leave that heading under the sticky header: focusInView moves it clear (2.4.11).
   useEffect(() => {
-    if (result && mayMoveFocus(section.current)) heading.current?.focus();
+    if (result && mayMoveFocus(section.current)) focusInView(heading.current);
   }, [result]);
   // An unsettled outcome replaces Send with Check again, and takes focus to it; once settled without a result (the
   // bundle failed part-way, the step reverted), Send comes back and takes it again. A result is the effect above.
@@ -325,8 +336,8 @@ export function TxCard({
     if (wasUnsettled.current === isUnsettled) return;
     wasUnsettled.current = isUnsettled;
     if (result || !mayMoveFocus(section.current)) return;
-    if (isUnsettled) recheckButton.current?.focus();
-    else (enabledButton(sendArea.current) ?? heading.current)?.focus();
+    if (isUnsettled) focusInView(recheckButton.current);
+    else focusInView(enabledButton(sendArea.current) ?? heading.current);
   }, [isUnsettled, result]);
 
   const callOf = (i: number): MirrorCall | null => mirror?.[i] ?? null;
@@ -409,7 +420,13 @@ export function TxCard({
         className={cn('flex flex-col gap-2', confirm === 'hold' ? 'items-center' : 'items-stretch sm:items-end')}
       >
         {confirm === 'hold' ? (
-          <HoldButton data-testid={`${testId}-send`} tone={tone} disabled={busy || locked} onConfirm={runner.send}>
+          <HoldButton
+            data-testid={`${testId}-send`}
+            tone={tone}
+            disabled={busy || locked}
+            onConfirm={runner.send}
+            {...hold}
+          >
             {sendLabel}
           </HoldButton>
         ) : (
@@ -446,7 +463,10 @@ export function TxCard({
           id={headingId}
           ref={heading}
           tabIndex={-1}
-          className="flex items-center gap-2 font-display text-ink text-title outline-none"
+          className={cn(
+            'flex items-center gap-2 font-display text-ink outline-none',
+            nested ? 'text-lead' : 'text-title',
+          )}
         >
           {result ? (
             <CircleCheck aria-hidden="true" size={20} strokeWidth={1.5} className="shrink-0 text-thread" />
