@@ -1,5 +1,6 @@
 'use client';
 
+import { CircleCheck } from 'lucide-react';
 import * as m from 'motion/react-m';
 import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '@/i18n/provider';
@@ -8,6 +9,16 @@ import { messages as ui } from '@/messages/ui.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
 import { DURATION, EASE_OUT_EXPO, HOLD_MS, REDUCED_MS, SPRING, sec } from '@/motion/tokens';
 import { useHold } from '@/motion/use-hold';
+import {
+  BAR_BOX,
+  FACE_BOX,
+  HOLD_HINT,
+  OBJECT,
+  OBJECT_BAR,
+  OBJECT_BUTTON,
+  OBJECT_COLUMN,
+  OBJECT_FRAME,
+} from './hold-object';
 
 /**
  * A caller's pointer, key, context menu and blur handlers run before the hold's, and its `aria-describedby` joins
@@ -24,7 +35,7 @@ export interface HoldButtonProps
   duration?: number;
   /**
    * Replaces the default "Hold to confirm, or press Enter". A node, so a caller can say a live wait under a disabled
-   * hold (the check-in ritual's "Waiting for X Layer · 1.7 s", its ticking seconds aria-hidden).
+   * hold (the check-in ritual's seconds under "Waiting for X Layer", aria-hidden as they tick).
    */
   hint?: ReactNode;
   /**
@@ -47,8 +58,15 @@ export interface HoldButtonProps
   onHoldEnd?(confirmed: boolean): void;
 }
 
-/** The words, the knot and the face of a hold, as TxCard and ActionFlow pass them through. */
-export type HoldWords = Pick<HoldButtonProps, 'hint' | 'doneLabel' | 'showKnot' | 'face' | 'onHoldStart' | 'onHoldEnd'>;
+/**
+ * The words, the knot and the face of a hold, as TxCard and ActionFlow pass them through. `busyLabel` is TxCard's, not
+ * the button's: the button's own words while its transaction is busy, in place of "Sending…". The check-in ritual
+ * names each phase there ("Now sign in your wallet", then "Waiting for X Layer"): nothing is sent until the owner signs.
+ */
+export type HoldWords = Pick<
+  HoldButtonProps,
+  'hint' | 'doneLabel' | 'showKnot' | 'face' | 'onHoldStart' | 'onHoldEnd'
+> & { busyLabel?: ReactNode };
 
 const SIZE = {
   md: 'h-12 px-6 text-body gap-2',
@@ -71,44 +89,6 @@ const TONE = {
   thread: { fill: 'bg-thread/15', line: 'bg-thread', knot: 'bg-thread', hover: 'hover:border-thread' },
   danger: { fill: 'bg-danger/15', line: 'bg-danger', knot: 'bg-danger', hover: 'hover:border-danger' },
 } as const;
-
-/**
- * The ritual's object (a hold with a face): its frame and the face's paper in the tone, and the bar in the primary
- * action's accent (button-class.ts `primary`). Its fill sweeps the bar towards the ink, away from the label's own
- * colour (deeper on vellum, brighter on night), so the label only gains contrast as the hold fills; a sweep in the
- * label's colour left it at 3.9:1 on vellum halfway through. Disabled (the wallet is open, the transaction waits for
- * its block), the face keeps its thread at full strength, since it shows the pending knot; only the frame and the bar
- * go quiet. `end` tints the band of a HoldEnd where the bar stood: quiet, since nothing is left to press. Its tints are
- * ones the site already ships: the layout's stylesheet sits just under the 100 kB above which Turbopack stops merging
- * it with the fonts' (test/build/home.test.ts), and every new utility adds to it.
- */
-const OBJECT = {
-  thread: {
-    frame: 'border-thread bg-thread/6',
-    bar: 'bg-thread text-on-thread group-enabled:group-hover:bg-thread/90',
-    fill: 'bg-ink/25',
-    knot: 'bg-on-thread',
-    end: 'border-thread/40 bg-thread/12',
-  },
-  danger: {
-    frame: 'border-danger bg-danger/6',
-    bar: 'bg-danger text-on-danger group-enabled:group-hover:bg-danger/90',
-    fill: 'bg-ink/25',
-    knot: 'bg-on-danger',
-    end: 'border-danger/45 bg-danger/8',
-  },
-} as const;
-
-/**
- * The geometry of the ritual's object, shared by a hold with a face and its end (HoldEnd), so the face stands at the
- * same place in both: its column (the full width up to 28rem, centred by the caller), its frame, and the face's box
- * in it. The knot a hold left pending then ties where it stood.
- */
-const OBJECT_COLUMN = 'flex w-full max-w-md flex-col items-center gap-2';
-const OBJECT_FRAME = 'flex w-full flex-col overflow-hidden rounded-3xl border';
-const FACE_BOX = 'block w-full px-4 pt-4 pb-3 sm:px-6';
-/** The bar's height: the end's outcome stands in as much room as the label had. */
-const BAR_BOX = 'min-h-14 w-full items-center justify-center';
 
 /**
  * The check-in ritual (spec §4.6): hold to tie a knot on the thread. A thread runs under the label and tightens
@@ -258,30 +238,11 @@ export function HoldButton({
     ) : null;
 
   const button = face ? (
-    <button
-      {...press}
-      className={cn(
-        'group relative isolate select-none font-medium',
-        OBJECT_FRAME,
-        'touch-manipulation transition-[border-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
-        'disabled:cursor-not-allowed disabled:border-line-strong',
-        o.frame,
-        className,
-      )}
-    >
+    <button {...press} className={cn(OBJECT_BUTTON, o.frame, className)}>
       <span data-part="face" className={FACE_BOX}>
         {face}
       </span>
-      <span
-        data-part="bar"
-        className={cn(
-          'relative isolate flex gap-3 px-6 py-3 text-lead',
-          BAR_BOX,
-          'shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] transition-colors duration-150 ease-out-expo',
-          'group-disabled:bg-surface-3 group-disabled:text-ink-muted group-disabled:shadow-none',
-          o.bar,
-        )}
-      >
+      <span data-part="bar" className={cn(OBJECT_BAR, o.bar)}>
         <m.span
           aria-hidden
           className={cn('-z-10 absolute inset-0 origin-left', o.fill)}
@@ -331,7 +292,7 @@ export function HoldButton({
   return (
     <span className={face ? OBJECT_COLUMN : 'inline-flex flex-col items-center gap-2'}>
       {button}
-      <span id={hintId} aria-live="polite" className="text-center text-caption text-ink-muted">
+      <span id={hintId} aria-live="polite" className={HOLD_HINT}>
         {phase === 'done'
           ? doneLabel === undefined
             ? t('holdDone')
@@ -347,7 +308,10 @@ export function HoldButton({
 export interface HoldEndProps {
   /** The hold's face, as it is once the hold is over: the check-in ritual's thread with its tied knot. */
   face: ReactNode;
-  /** The outcome, where the bar stood: the ritual's "Tied at block 1,234,567 · 4.1 s". */
+  /**
+   * The outcome, where the bar stood: the ritual's "Tied at block 1,234,567 · 4.1 s". Phrasing content (a span), since
+   * it runs on from the check in front of it.
+   */
   children?: ReactNode;
   tone?: 'thread' | 'danger';
   testId?: string;
@@ -357,7 +321,9 @@ export interface HoldEndProps {
  * A hold with a face, once its transaction is recorded (TxCard `holdPlacement="top"`): the same object without the
  * button. Its column, frame and face box are the hold's own (OBJECT_COLUMN, OBJECT_FRAME, FACE_BOX), so the thread on
  * the face does not move and its pending knot fills in place; the frame is lit again in the tone, and the outcome
- * stands where the bar stood, in as much room. Nothing in it can be pressed: what comes next is the caller's.
+ * stands where the bar stood, in as much room. The band reads done, never disabled: it stands on the face's own paper
+ * (no tint of its own, where the waiting bar was grey), under a rule in the tone, the outcome in ink after the check
+ * the card's heading carries once done. Nothing in it can be pressed: what comes next is the caller's.
  */
 export function HoldEnd({ face, children, tone = 'thread', testId }: HoldEndProps) {
   const o = OBJECT[tone];
@@ -367,8 +333,17 @@ export function HoldEnd({ face, children, tone = 'thread', testId }: HoldEndProp
         <span data-part="face" className={FACE_BOX}>
           {face}
         </span>
-        <div data-part="end" className={cn('flex border-t px-4 py-3 text-center sm:px-6', BAR_BOX, o.end)}>
-          {children}
+        <div data-part="end" className={cn('flex border-t px-4 py-3 text-center text-ink sm:px-6', BAR_BOX, o.end)}>
+          {/* The check flows with the outcome's first line, so a wrapped outcome stays one centred block with it. */}
+          <span className="text-balance">
+            <CircleCheck
+              aria-hidden="true"
+              size={20}
+              strokeWidth={1.5}
+              className={cn('mr-2 inline-block align-middle', o.check)}
+            />
+            {children}
+          </span>
         </div>
       </div>
     </div>

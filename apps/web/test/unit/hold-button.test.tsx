@@ -555,6 +555,44 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('its end reads done, never disabled: no background of its own, a check in the tone before the outcome, in ink', () => {
+    const tokens = (el: Element | null | undefined) => (el?.className ?? '').split(/\s+/).filter(Boolean);
+    const backgrounds = (el: Element | null | undefined) =>
+      tokens(el)
+        .filter((c) => /(^|:)bg-/.test(c))
+        .map((c) => c.replace(/^.*:/, ''));
+    const view = renderWithProviders(
+      <HoldButton onConfirm={() => {}} disabled face={<span data-testid="face" />}>
+        Waiting for X Layer
+      </HoldButton>,
+    );
+    // The sent phase: the disabled bar, quiet on its own grey (group-disabled:bg-surface-3).
+    const waiting = backgrounds(screen.getByRole('button').querySelector('[data-part="bar"]'));
+    expect(waiting).toContain('bg-surface-3');
+    view.unmount();
+    renderWithProviders(
+      <HoldEnd face={<span data-testid="face" />}>
+        <span data-testid="tied">Tied at block 7</span>
+      </HoldEnd>,
+    );
+    const end = document.querySelector<HTMLElement>('[data-part="end"]');
+    if (!end) throw new Error('no end');
+    // The band stands on the face's own paper: no tint that could pass for the disabled bar it replaces.
+    expect(backgrounds(end)).toEqual([]);
+    for (const c of waiting) expect(tokens(end)).not.toContain(c);
+    // Only the rule under the face, in the tone, and the outcome in ink.
+    for (const c of ['border-t', 'border-thread/40', 'text-ink']) expect(tokens(end)).toContain(c);
+    // The check the card's heading carries once done, in the tone, before the outcome: one outcome, read as done.
+    const check = end.querySelector('svg');
+    expect(check?.getAttribute('aria-hidden')).toBe('true');
+    expect(check?.getAttribute('class')).toContain('text-thread');
+    expect(check?.getAttribute('width')).toBe('20');
+    expect(check?.getAttribute('stroke-width')).toBe('1.5');
+    expect(
+      (check?.compareDocumentPosition(screen.getByTestId('tied')) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('without a face it stays the pill, its thread under the label', () => {
     const { button } = setup();
     expect(button.className).toContain('rounded-full');
@@ -660,5 +698,7 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expectTypeOf<HoldWords>().toHaveProperty('face');
     expectTypeOf<HoldWords>().toHaveProperty('onHoldStart');
     expectTypeOf<HoldWords>().toHaveProperty('onHoldEnd');
+    // The words of the button itself while its transaction is busy (TxCard), in place of "Sending…".
+    expectTypeOf<HoldWords>().toHaveProperty('busyLabel');
   });
 });
