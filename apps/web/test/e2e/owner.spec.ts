@@ -2,11 +2,12 @@ import type { AtropyleClient } from '@atropyle/sdk';
 import type { Page } from '@playwright/test';
 import { type Address, createPublicClient, erc20Abi, http } from 'viem';
 import { anvil } from 'viem/chains';
+import { HOLD_MS } from '../../src/motion/tokens.ts';
 import { ANVIL, expect, test } from './fixtures.ts';
-import { expectAccessible, setStoredTheme } from './helpers.ts';
+import { expectAccessible, setStoredLang, setStoredTheme, settle } from './helpers.ts';
 import { mint, walletFor } from './onchain.ts';
-import { captureScreens, FULL_MATRIX, shouldCapture } from './screens.ts';
-import { type E2EState, warp } from './state.ts';
+import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
+import { type E2EState, rpcCall, warp } from './state.ts';
 import type { TestWallet } from './wallet.ts';
 
 /** Every seeded Drill's owner (scripts/lib/seed.ts). */
@@ -136,6 +137,44 @@ async function focusState(page: Page): Promise<string> {
   });
 }
 
+/**
+ * The ritual's title at the top of what a reader sees, just under the sticky site header, as a phone scrolls it there.
+ * Returns where the header ends.
+ */
+async function ritualTitleAtTop(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const title = document.getElementById('owner-ritual-title');
+    if (!title) throw new Error('no ritual title');
+    const below = document.querySelector('header.site-header')?.getBoundingClientRect().bottom ?? 0;
+    window.scrollBy({ top: title.getBoundingClientRect().top - below, behavior: 'instant' });
+    return below;
+  });
+}
+
+/**
+ * The test wallet answers eth_sendTransaction only once the test lets it: the ritual stays in its wallet phase, as
+ * while a real wallet shows its prompt. Returns the call that lets it go.
+ */
+async function holdTheWallet(page: Page): Promise<() => Promise<void>> {
+  await page.evaluate(() => {
+    type Call = (method: string, params: unknown[]) => Promise<unknown>;
+    const w = window as unknown as { __atropyleWallet: Call; __letGo?: () => void };
+    const real = w.__atropyleWallet;
+    w.__atropyleWallet = async (method, params) => {
+      if (method === 'eth_sendTransaction') {
+        await new Promise<void>((r) => {
+          w.__letGo = r;
+        });
+      }
+      return real(method, params);
+    };
+  });
+  return async () => {
+    await page.waitForFunction(() => typeof (window as unknown as { __letGo?: unknown }).__letGo === 'function');
+    await page.evaluate(() => (window as unknown as { __letGo: () => void }).__letGo());
+  };
+}
+
 /** The order of the ritual's phases: a recorded run may skip some (a fast wallet), never go back. */
 const ORDER = ['idle', 'holding', 'wallet', 'sent', 'tied'];
 
@@ -215,6 +254,46 @@ test('the owner checks in with the ritual, and the knot ties only with the recei
   await again.click();
   await expect(ritual).toHaveAttribute('data-ritual', 'idle');
   await expect(page.getByTestId('owner-checkin-tx-send')).toBeVisible();
+});
+
+test('on a phone the hold is in view with the ritual title, and the wallet mirror stays under it', async ({
+  page,
+  state,
+  wallet,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openAsOwner(page, state, wallet, state.seeded.guarded);
+  await ritualIdle(page);
+  // Everything that stands above the hold is on the page: the lead, the due line and the Drill's minutes.
+  await expect(page.getByTestId('owner-drill')).toBeVisible();
+  await expect(page.getByTestId('owner-due')).toBeVisible();
+  const send = page.getByTestId('owner-checkin-tx-send');
+  const below = await ritualTitleAtTop(page);
+  const title = await page.locator('#owner-ritual-title').boundingBox();
+  expect(Math.abs((title?.y ?? -1) - below)).toBeLessThanOrEqual(1);
+  // The whole hold, its thread on its face, between the header and the bottom of the screen, and nothing over it.
+  const hold = await send.boundingBox();
+  if (!hold) throw new Error('no hold');
+  expect(hold.y).toBeGreaterThanOrEqual(below);
+  expect(hold.y + hold.height).toBeLessThanOrEqual(844);
+  expect(hold.width).toBeGreaterThanOrEqual(240);
+  await expect(send.getByTestId('owner-ritual-face')).toBeVisible();
+  const hit = await send.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  });
+  expect(hit).toBe(true);
+  // What the wallet should show follows the hold on the same card, and stays there while the wallet asks.
+  const mirror = page.getByTestId('owner-checkin-tx-mirror-0');
+  await expect(mirror).toBeVisible();
+  expect((await mirror.boundingBox())?.y ?? 0).toBeGreaterThan(hold.y + hold.height);
+  const letGo = await holdTheWallet(page);
+  await send.press('Enter');
+  await expect(page.getByTestId('owner-ritual')).toHaveAttribute('data-ritual', 'wallet');
+  await expect(mirror).toBeVisible();
+  await expect(page.getByTestId('owner-checkin-tx').getByTestId('owner-checkin-tx-mirror-0')).toHaveCount(1);
+  await letGo();
+  await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
 });
 
 test('the keyboard keeps its place: Save, Send and Start over, then the check-in and its Start over', async ({
@@ -327,6 +406,129 @@ test('a released vault: no more check-ins, Deliver for anyone, Revoke still ther
   expect(await allowanceOf(atro, state, vault)).toBe(0n);
 });
 
+/**
+ * The check-in ritual's card alone, in each of its phases, for the design review: idle (30 s after the last check-in,
+ * so the hold has a thread to recharge), holding (stopped halfway through the hold, then let go early), sent (anvil
+ * holds the block back) and tied, into
+ * test-results/screens/owner-ritual-<phase>/<night|vellum>-<lang>-<width>.png. At 390 px, idle is also shot as a phone
+ * shows it once the ritual's title is scrolled to the top: owner-ritual-fold/<scheme>-<lang>-390.png (844 px tall).
+ * The sticky header stays out of a shot of one card.
+ */
+async function ritualPhases(page: Page, state: E2EState, shots: readonly Shot[]): Promise<void> {
+  // Tall enough for the whole card at every width (about 1,200 px at 390): a shot that has to scroll it moves the
+  // button under the pressed pointer, and Chromium then lets the hold go.
+  const TALL = 1_400;
+  const card = page.locator('section[aria-labelledby="owner-ritual-title"]');
+  const send = page.getByTestId('owner-checkin-tx-send');
+  const ritual = page.getByTestId('owner-ritual');
+  const style = 'header.site-header { visibility: hidden !important; }';
+  let theme: Shot['theme'] | null = null;
+  let lang: Shot['lang'] | null = null;
+  for (const shot of shots) {
+    if (shot.theme !== theme) {
+      await setStoredTheme(page, shot.theme);
+      theme = shot.theme;
+    }
+    if (shot.lang !== lang) {
+      await setStoredLang(page, shot.lang);
+      lang = shot.lang;
+    }
+    await page.setViewportSize({ width: shot.width, height: TALL });
+    // Each width starts at rest, 30 s on: a reload forgets the last width's receipt.
+    await warp(state, 30);
+    await page.reload();
+    await connected(page);
+    await ritualIdle(page);
+    const name = `${shot.theme === 'dark' ? 'night' : 'vellum'}-${shot.lang}-${shot.width}.png`;
+    const at = (phase: string) => `test-results/screens/owner-ritual-${phase}/${name}`;
+    await settle(page);
+    await card.screenshot({ path: at('idle'), style });
+
+    if (shot.width === 390) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await ritualTitleAtTop(page);
+      await page.screenshot({ path: `test-results/screens/owner-ritual-fold/${name}` });
+      await page.setViewportSize({ width: 390, height: TALL });
+    }
+
+    // Holding: the hold's own timer (HOLD_MS, useHold) stretched to a minute for this one press, so the shot, however
+    // slow, catches a hold and never a check-in. Halfway through the hold, counted from the press itself, the two
+    // clocks that draw it stop for the shot: the thread's recharge (a Web Animation, move.ts) pauses, and motion's
+    // frames (the bar's fill) read one moment from performance.now. Then both run again, the hold lets go early, and
+    // the page is at rest once "keep holding" is gone.
+    await page.evaluate((ms) => {
+      const w = window as unknown as { __setTimeout?: typeof setTimeout; __downAt?: number };
+      const real = window.setTimeout;
+      w.__setTimeout = real;
+      window.setTimeout = ((fn: TimerHandler, delay?: number, ...rest: unknown[]) =>
+        real(fn, delay === ms ? 60_000 : delay, ...rest)) as typeof setTimeout;
+      w.__downAt = undefined;
+      const down = () => {
+        w.__downAt = performance.now();
+      };
+      window.addEventListener('pointerdown', down, { capture: true, once: true });
+    }, HOLD_MS);
+    try {
+      await card.scrollIntoViewIfNeeded();
+      const box = await send.boundingBox();
+      if (!box) throw new Error('no hold');
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75);
+      await page.mouse.down();
+      await page.evaluate(async (half) => {
+        const w = window as unknown as { __downAt?: number; __now?: () => number; __paused?: Animation[] };
+        const left = (w.__downAt ?? performance.now()) + half - performance.now();
+        if (left > 0) await new Promise((done) => setTimeout(done, left));
+        const now = performance.now.bind(performance);
+        const frozen = now();
+        w.__now = now;
+        performance.now = () => frozen;
+        w.__paused = document.getAnimations().filter((a) => a.playState === 'running');
+        for (const a of w.__paused) a.pause();
+      }, HOLD_MS / 2);
+      await expect(ritual).toHaveAttribute('data-ritual', 'holding');
+      await card.screenshot({ path: at('holding'), style });
+      // Still held once the shot is taken: nothing let the hold go while it was shot.
+      expect(await ritual.getAttribute('data-ritual')).toBe('holding');
+    } finally {
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          __setTimeout?: typeof setTimeout;
+          __now?: () => number;
+          __paused?: Animation[];
+        };
+        if (w.__now) performance.now = w.__now;
+        for (const a of w.__paused ?? []) a.play();
+        if (w.__setTimeout) window.setTimeout = w.__setTimeout;
+        w.__now = undefined;
+        w.__paused = undefined;
+      });
+      await page.mouse.up();
+    }
+    await expect(ritual).toHaveAttribute('data-ritual', 'idle');
+    await page.waitForTimeout(1_500);
+    await settle(page);
+
+    // Sent: the wallet has sent it and anvil holds the block back, so the wait and its seconds are on screen.
+    await rpcCall(state.rpcUrl, 'evm_setAutomine', [false]);
+    try {
+      await send.press('Enter');
+      await expect(ritual).toHaveAttribute('data-ritual', 'sent', { timeout: 30_000 });
+      await page.waitForTimeout(1_300);
+      await card.screenshot({ path: at('sent'), style, animations: 'allow' });
+    } finally {
+      await rpcCall(state.rpcUrl, 'evm_mine');
+      await rpcCall(state.rpcUrl, 'evm_setAutomine', [true]);
+    }
+
+    // Tied: the receipt, its thread and its solid knot.
+    await expect(page.getByTestId('owner-tied')).toBeVisible({ timeout: 30_000 });
+    await settle(page);
+    await card.screenshot({ path: at('tied'), style });
+  }
+  await setStoredLang(page, 'en');
+  await setStoredTheme(page, 'dark');
+}
+
 test('screens', async ({ page, state, atro, wallet }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   test.setTimeout(30 * 60_000);
@@ -337,6 +539,7 @@ test('screens', async ({ page, state, atro, wallet }, info) => {
   const BOTH = [...FULL_MATRIX.filter((s) => s.theme === 'light'), ...FULL_MATRIX.filter((s) => s.theme === 'dark')];
 
   await openAsOwner(page, state, wallet, guarded);
+  await ritualPhases(page, state, BOTH);
   const idle = async () => {
     await connected(page);
     await ritualIdle(page);
