@@ -4,7 +4,7 @@ import { type Address, type Hex, toHex } from 'viem';
 import { ANVIL, expect, test } from './fixtures.ts';
 import { connectFrom } from './flows.ts';
 import { expectAccessible, expectAccessibleInBothThemes, setStoredLang, setStoredTheme, settle } from './helpers.ts';
-import { captureScreens, FULL_MATRIX, type Shot, shouldCapture, VELLUM_MATRIX } from './screens.ts';
+import { captureScreens, FULL_MATRIX, type Shot, shouldCapture } from './screens.ts';
 import { type E2EState, rpcCall } from './state.ts';
 
 const OWNER = ANVIL[1];
@@ -620,6 +620,11 @@ test('a reload after the vault exists only sends what is left', async ({ page, s
   // The chain proved createVault ran: the session now says so, and a second reload resumes the same way.
   expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('atropyle:create') ?? '{}').offset)).toBe(1);
   await expectAccessibleInBothThemes(page, banner);
+  // The banner is the first thing under the title; one press brings the steps below the summary into view.
+  await expect(banner).toBeInViewport();
+  await page.getByTestId('create-resume-jump').click();
+  await expect(page.locator('#create-sign')).toBeFocused();
+  await expect(page.getByTestId('create-tx-step-0')).toBeInViewport();
 
   await connectFrom(page, page.getByTestId('create-connect'));
   await expect(page.getByTestId('create-tx-step-0')).toHaveAttribute('data-phase', 'ready');
@@ -644,7 +649,7 @@ test('screens of the resumed wizard', async ({ page, state, atro }, info) => {
     await expect(page.getByTestId('create-tx-step-0')).toBeVisible();
   };
   await resumed();
-  await captureScreens(page, 'create-resume', { shots: VELLUM_MATRIX, ready: resumed });
+  await captureScreens(page, 'create-resume', { shots: FULL_MATRIX, ready: resumed });
 
   // A saved plan that cannot be read, saved before createVault was: both ways out show.
   await page.evaluate(() => {
@@ -657,5 +662,5 @@ test('screens of the resumed wizard', async ({ page, state, atro }, info) => {
     await expect(page.getByTestId('create-resume-discard')).toBeVisible();
   };
   await failed();
-  await captureScreens(page, 'create-resume-failed', { shots: VELLUM_MATRIX, ready: failed });
+  await captureScreens(page, 'create-resume-failed', { shots: FULL_MATRIX, ready: failed });
 });

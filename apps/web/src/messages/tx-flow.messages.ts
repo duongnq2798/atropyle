@@ -54,6 +54,7 @@ export const messages = defineMessages(
     approveAllNone: 'None of this collection: this removes the permission',
     approveRaw: 'An amount or an id of {raw}',
     tokenUnknown: 'Not listed in this plan',
+    tokenNameless: 'In this plan, name not read',
     dangerUnlimited:
       'No limit: this covers all of this token in this wallet, now and later, not only the amount in your plan.',
     dangerAll:
@@ -133,6 +134,7 @@ export const messages = defineMessages(
     approveAllNone: 'Không token nào của bộ này: lệnh này thu hồi quyền',
     approveRaw: 'Một số lượng hoặc một mã {raw}',
     tokenUnknown: 'Không có trong kế hoạch này',
+    tokenNameless: 'Có trong kế\u00a0hoạch, chưa đọc được tên',
     dangerUnlimited:
       'Không giới hạn: quyền này phủ toàn bộ token này trong ví, bây giờ và sau này, không chỉ số trong kế hoạch.',
     dangerAll: 'Quyền này phủ mọi NFT của bộ này trong ví, bây giờ và sau này, không chỉ những NFT trong kế hoạch.',

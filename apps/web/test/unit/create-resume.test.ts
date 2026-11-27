@@ -124,6 +124,15 @@ describe('resumePlan', () => {
     await expect(resumePlan(c.atro, saved(drill, 0, 1), form)).rejects.toMatchObject({ code: 'LINK_INVALID' });
   });
 
+  it('says that the saved plan, not a signing link, cannot be read', async () => {
+    const c = chain('0x6080');
+    await expect(resumePlan(c.atro, { ...saved(drill, 0, 1), payload: 'x' }, form)).rejects.toMatchObject({
+      code: 'LINK_INVALID',
+      message: 'The plan saved in this tab cannot be read.',
+    });
+    expect(c.getCode).not.toHaveBeenCalled();
+  });
+
   it('does not resume a saved plan without its createVault step', async () => {
     const c = chain('0x6080');
     await expect(resumePlan(c.atro, saved(drill, -1, 0), form)).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });

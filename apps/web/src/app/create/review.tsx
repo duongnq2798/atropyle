@@ -327,6 +327,12 @@ function CreateTx(p: {
   return <TxCard runner={runner} label={t('send')} title={t('txTitle')} testId="create-tx" />;
 }
 
+/** Codes of a resume that fails the same way every time. */
+const FINAL_CODES = new Set(['LINK_INVALID', 'INVALID_OPTIONS']);
+
+/** The signing card's place, which the resume banner's button scrolls to. */
+const SIGN_ID = 'create-sign';
+
 export interface ReviewStepProps {
   flows: FlowsImpl;
   wizard: Wizard;
@@ -406,12 +412,88 @@ export function ReviewStep(p: ReviewStepProps) {
     patch(r.plan ? { offset: r.offset } : { offset: r.offset, step: 'done' });
   }, [resume.data, onPrepared, patch]);
   const resumeError = saved ? (resume.error ?? sdkQuery.error ?? null) : null;
+  // A saved plan that does not read, or that the checks refuse, gives the same answer again: no Retry (the RPC's own
+  // failures keep it).
+  const retryable = !FINAL_CODES.has((resumeError as { code?: unknown } | null)?.code as string);
   // A payload without its vault was written by hand: it can only be dropped.
   const orphan = s.payload !== null && s.vault === null && !p.prepared;
   const createdOnChain = s.createStep >= 0 && s.offset > s.createStep;
   return (
     <div data-testid="create-review" className="space-y-10">
       <p className="text-body text-ink-muted">{t('reviewIntro')}</p>
+      {/* After a reload the first thing in view says where the plan stands: the summary below is long. */}
+      {saved && !resumeError ? (
+        <div data-testid="create-resuming" aria-busy="true" className="space-y-2">
+          <p className="text-ink-muted text-small">{t('resuming')}</p>
+          <SkeletonText lines={3} />
+        </div>
+      ) : null}
+      {resumeError || orphan ? (
+        // One box: the banner says what went wrong in this page's words, the error inside it gives the SDK's reason,
+        // its code and Retry, without a hint written for signing links (ErrorBox bare).
+        <Banner
+          tone="warn"
+          testId="create-resume-failed"
+          title={t('resumeFailed')}
+          action={
+            <div className="flex flex-wrap gap-3">
+              {createdOnChain ? null : (
+                // Same salt: if the vault exists after all, the SDK refuses the new prepare; never a second vault.
+                <Button
+                  variant="secondary"
+                  data-testid="create-resume-discard"
+                  onClick={() => patch({ payload: null, vault: null, createStep: -1, offset: 0 })}
+                >
+                  {t('resumeDiscard')}
+                </Button>
+              )}
+              {s.vault ? (
+                // The vault may exist even when the saved offset says not: its page finishes the approvals.
+                <NavLink
+                  href={vaultHref(s.vault)}
+                  className={buttonClass({ variant: createdOnChain ? 'secondary' : 'ghost' })}
+                >
+                  {t('resumeVault')}
+                </NavLink>
+              ) : null}
+            </div>
+          }
+        >
+          {resumeError ? (
+            <ErrorBox
+              bare="message"
+              error={resumeError}
+              testId="create-resume-error"
+              className="pt-1"
+              onRetry={retryable ? () => (resume.error ? resume.refetch() : sdkQuery.refetch()) : undefined}
+            />
+          ) : null}
+        </Banner>
+      ) : null}
+      {p.prepared?.resumed ? (
+        <Banner
+          tone="info"
+          testId="create-resume"
+          action={
+            // The steps are below the whole summary: one press brings them, and the focus with them.
+            <Button
+              variant="secondary"
+              data-testid="create-resume-jump"
+              onClick={() => {
+                const el = document.getElementById(SIGN_ID);
+                el?.scrollIntoView({ block: 'start' });
+                el?.focus({ preventScroll: true });
+              }}
+            >
+              {t('resumeJump')}
+            </Button>
+          }
+        >
+          {p.prepared.resumed.created
+            ? t('resumeCreated', { done: p.prepared.base, total: p.prepared.resumed.total })
+            : t('resumeSame', { done: p.prepared.base, total: p.prepared.resumed.total })}
+        </Banner>
+      ) : null}
       <PlanSummary wizard={wizard} explorer={explorer} />
       <PlanTimeMachine flows={flows} wizard={wizard} owner={owner} />
       {!owner ? (
@@ -481,67 +563,16 @@ export function ReviewStep(p: ReviewStepProps) {
           {t('prepare')}
         </Button>
       ) : null}
-      {saved && !resumeError ? (
-        <div data-testid="create-resuming" aria-busy="true" className="space-y-2">
-          <p className="text-ink-muted text-small">{t('resuming')}</p>
-          <SkeletonText lines={3} />
-        </div>
-      ) : null}
-      {resumeError || orphan ? (
-        <div className="space-y-3">
-          <Banner
-            tone="warn"
-            testId="create-resume-failed"
-            action={
-              <div className="flex flex-wrap gap-3">
-                {createdOnChain ? null : (
-                  // Same salt: if the vault exists after all, the SDK refuses the new prepare; never a second vault.
-                  <Button
-                    variant="secondary"
-                    data-testid="create-resume-discard"
-                    onClick={() => patch({ payload: null, vault: null, createStep: -1, offset: 0 })}
-                  >
-                    {t('resumeDiscard')}
-                  </Button>
-                )}
-                {s.vault ? (
-                  // The vault may exist even when the saved offset says not: its page finishes the approvals.
-                  <NavLink
-                    href={vaultHref(s.vault)}
-                    className={buttonClass({ variant: createdOnChain ? 'secondary' : 'ghost' })}
-                  >
-                    {t('resumeVault')}
-                  </NavLink>
-                ) : null}
-              </div>
-            }
-          >
-            {t('resumeFailed')}
-          </Banner>
-          {resumeError ? (
-            <ErrorBox
-              error={resumeError}
-              testId="create-resume-error"
-              onRetry={() => (resume.error ? resume.refetch() : sdkQuery.refetch())}
-            />
-          ) : null}
-        </div>
-      ) : null}
-      {p.prepared?.resumed ? (
-        <Banner tone="info" testId="create-resume">
-          {p.prepared.resumed.created
-            ? t('resumeCreated', { done: p.prepared.base, total: p.prepared.resumed.total })
-            : t('resumeSame', { done: p.prepared.base, total: p.prepared.resumed.total })}
-        </Banner>
-      ) : null}
       {p.prepared ? (
-        <CreateTx
-          prepared={p.prepared}
-          tokens={checked ? planTokens(checked) : formTokens(f.assets, s.feeToken)}
-          onLock={p.onLock}
-          onOffset={(offset) => patch({ offset })}
-          onDone={(vault) => patch({ vault, step: 'done' })}
-        />
+        <div id={SIGN_ID} tabIndex={-1} className="outline-none">
+          <CreateTx
+            prepared={p.prepared}
+            tokens={checked ? planTokens(checked) : formTokens(f.assets, s.feeToken)}
+            onLock={p.onLock}
+            onOffset={(offset) => patch({ offset })}
+            onDone={(vault) => patch({ vault, step: 'done' })}
+          />
+        </div>
       ) : null}
       {p.frozen ? <p className="text-ink-muted text-small">{t('frozen')}</p> : null}
       {check.error ? <ErrorBox error={check.error} onRetry={() => check.refetch()} /> : null}

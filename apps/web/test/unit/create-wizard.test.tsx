@@ -1,5 +1,5 @@
 import type { SignPayload, SignRequestCheck } from '@atropyle/sdk';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sessionKV } from '../../src/app/create/use-wizard';
 import { Wizard } from '../../src/app/create/wizard';
@@ -173,14 +173,16 @@ describe('create wizard', () => {
     expect(screen.getByTestId('create-back')).toBeDisabled();
     // The review step comes in its own chunk (Ruling 5), whose cold import in Vitest can take seconds.
     const banner = await screen.findByTestId('create-resume-failed', {}, { timeout: 30_000 });
-    expect(banner.querySelector('a')).toHaveAttribute(
+    expect(within(banner).getByRole('link', { name: 'Finish from the vault page' })).toHaveAttribute(
       'href',
       expect.stringMatching(new RegExp(`/vault/#${PEOPLE.vault}$`)),
     );
     // createVault is on chain (saved offset): preparing again could only be refused, so it is not offered.
     expect(screen.queryByTestId('create-resume-discard')).toBeNull();
-    // The error box words the error once its decoder chunk is in.
-    expect(await screen.findByTestId('create-resume-error', {}, { timeout: 30_000 })).toBeInTheDocument();
+    // The error, inside the banner, is worded once its decoder chunk is in: the saved plan, not a link.
+    expect(await within(banner).findByTestId('create-resume-error', {}, { timeout: 30_000 })).toHaveTextContent(
+      'The plan saved in this tab cannot be read.',
+    );
     expect(screen.queryByTestId('create-prepare')).toBeNull();
     expect(screen.queryByTestId('create-tx')).toBeNull();
     // The payload does not decode: nothing was read or inspected.

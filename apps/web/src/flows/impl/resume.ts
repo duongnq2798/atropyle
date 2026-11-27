@@ -57,7 +57,13 @@ export async function resumePlan(
   saved: ResumeInput,
   form: CreateForm,
 ): Promise<Resumed> {
-  const p = decodePayload(saved.payload);
+  let p: SignPayload;
+  try {
+    p = decodePayload(saved.payload);
+  } catch {
+    // The SDK's words are about a signing link; this is the plan the page saved in this tab.
+    throw new AtropyleError('LINK_INVALID', { message: 'The plan saved in this tab cannot be read.' });
+  }
   const total = p.steps.length;
   if (saved.createStep < 0 || saved.createStep >= total) {
     throw new AtropyleError('INVALID_OPTIONS', { message: 'The saved plan has no step that creates the vault.' });

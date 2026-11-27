@@ -191,7 +191,8 @@ function CallFields({
               {call.token?.symbol ? (
                 <UntrustedText value={call.token.symbol} max={32} className="voice-ledger" />
               ) : (
-                <span className="text-ink-muted">{t('tokenUnknown')}</span>
+                // A token of the plan whose name was not read (an NFT, or a plan resumed after a reload) is still listed.
+                <span className="text-ink-muted">{t(call.token ? 'tokenNameless' : 'tokenUnknown')}</span>
               )}
             </Field>
             {spender && !isZero(spender) ? (
