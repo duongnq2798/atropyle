@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
+import { captureScreens, shouldCapture } from './screens.ts';
 
 /**
  * Spec §11 asks CLS 0 on /create/ (a Lighthouse route), and §18.2 rule 6 says the first paint is the final layout.
@@ -86,4 +87,24 @@ test('the static HTML of /create/ already holds the strip place at 390', async (
   await expect(page.getByTestId('create-strip-frame')).toBeVisible();
   const frame = await page.getByTestId('create-strip-frame').boundingBox();
   expect(frame?.height).toBe(72);
+});
+
+test('screens of the first paint', async ({ page, state }, info) => {
+  test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
+  // The static HTML alone, as a slow phone shows it before the page mounts. The language applies after hydration, so
+  // only English; the frame shows below lg.
+  await page.route(
+    (url) => url.pathname.endsWith('.js'),
+    (route) => route.abort(),
+  );
+  await page.goto(`${state.siteUrl}create/`);
+  const frame = () => expect(page.getByTestId('create-strip-frame')).toBeVisible();
+  await captureScreens(page, 'create-first-paint', {
+    shots: [
+      { theme: 'light', lang: 'en', width: 390 },
+      { theme: 'light', lang: 'en', width: 768 },
+      { theme: 'dark', lang: 'en', width: 390 },
+    ],
+    ready: frame,
+  });
 });
