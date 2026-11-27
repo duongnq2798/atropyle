@@ -339,4 +339,36 @@ describe('/verify/', () => {
     );
     expect(within(screen.getByTestId('verify-proof')).getByRole('heading').textContent).toContain(`chứng${nbsp}minh`);
   });
+
+  it('keeps the last word of the next step with its line, balanced', async () => {
+    impl.runVaultVerify.mockResolvedValue(verified(proof()));
+    show();
+    const next = await screen.findByTestId('verify-next');
+    const label = within(next).getByText(/^Next:/);
+    expect(label.textContent).toBe('Next: see what this vault leaves you');
+    expect(label).toHaveClass('[text-wrap:balance]', 'min-w-0');
+  });
+
+  it('stacks the disc above the answer on a phone, so the heading gets the whole card', async () => {
+    impl.runVaultVerify.mockResolvedValue(verified(proof()));
+    show();
+    await waitFor(() => expect(screen.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass'));
+    const box = screen.getByTestId('verify-verdict-title').parentElement?.parentElement;
+    expect(box).toHaveClass('flex-col', 'sm:flex-row');
+    expect(box?.firstElementChild).toHaveClass('size-10', 'sm:size-12');
+  });
+
+  it('lets the failed answer in Vietnamese break after "không", and keeps the other compounds whole', async () => {
+    const checks = ALL_OK.map((c) => (c.name === 'factory.isVault' ? { name: c.name, ok: false } : c));
+    impl.runVaultVerify.mockImplementation((_s: unknown, _v: string, o: { policy: boolean }) =>
+      o.policy ? new Promise(() => undefined) : Promise.resolve(verification({ ok: false, checks })),
+    );
+    show({ lang: 'vi' });
+    await waitFor(() => expect(screen.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'fail'));
+    const title = screen.getByTestId('verify-verdict-title').textContent ?? '';
+    const nbsp = ' ';
+    expect(title).toContain('không đạt');
+    for (const word of ['bước', 'Đừng', 'đừng']) expect(title).toMatch(new RegExp(`${word}${nbsp}`));
+    expect(screen.getByTestId('verify-verdict-title').parentElement?.parentElement).toHaveClass('flex-col');
+  });
 });

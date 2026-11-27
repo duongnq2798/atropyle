@@ -306,7 +306,9 @@ function NextCard({ vault }: { vault: Addr }) {
       data-testid="verify-next"
       className="group flex items-center justify-between gap-4 rounded-2xl border border-alive/45 bg-alive/8 p-5 text-ink text-lead transition-colors duration-150 hover:border-thread sm:p-6"
     >
-      <span>{t('next')}</span>
+      <span data-testid="verify-next-label" className="min-w-0 [text-wrap:balance]">
+        {t('next')}
+      </span>
       <ArrowRight
         aria-hidden="true"
         className="size-5 shrink-0 motion-safe:transition-transform motion-safe:duration-150 motion-safe:group-hover:translate-x-1"
@@ -528,18 +530,21 @@ function Verdict({ overall }: { overall: Overall }) {
   return (
     <div
       role={overall === 'fail' ? 'alert' : undefined}
-      className={cn('flex items-start gap-4 rounded-2xl border p-5 sm:gap-5 sm:p-6', o.box)}
+      className={cn('flex flex-col items-start gap-3 rounded-2xl border p-5 sm:flex-row sm:gap-5 sm:p-6', o.box)}
     >
       {o.disc ? (
-        <span aria-hidden="true" className={cn('grid size-12 shrink-0 place-items-center rounded-full', o.disc.box)}>
-          <o.disc.Icon size={24} strokeWidth={2.25} />
+        <span
+          aria-hidden="true"
+          className={cn('grid size-10 shrink-0 place-items-center rounded-full sm:size-12', o.disc.box)}
+        >
+          <o.disc.Icon size={24} strokeWidth={2.25} className="size-5 sm:size-6" />
         </span>
       ) : (
         <span
           aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-full border border-line-strong text-thread"
+          className="grid size-10 shrink-0 place-items-center rounded-full border border-line-strong text-thread sm:size-12"
         >
-          <Spinner size={22} />
+          <Spinner size={22} className="[&>svg]:size-[18px] sm:[&>svg]:size-[22px]" />
         </span>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

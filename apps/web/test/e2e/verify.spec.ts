@@ -1,7 +1,7 @@
 import { getDeployment, VERSION } from '@atropyle/sdk';
 import type { Page } from '@playwright/test';
 import { ANVIL, expect, test } from './fixtures.ts';
-import { expectAccessibleInBothThemes } from './helpers.ts';
+import { expectAccessibleInBothThemes, setStoredLang } from './helpers.ts';
 import { OKX_ORIGINS } from './network.ts';
 import { captureScreens, FULL_MATRIX, SCREEN_MATRIX, shouldCapture, VELLUM_MATRIX } from './screens.ts';
 
@@ -110,6 +110,52 @@ test('while the proof runs the rules line is checking, and a failed row is red a
   await expect(page.getByTestId('verify-row-proxy')).toHaveAttribute('data-state', 'fail');
 });
 
+/** The lines a text wraps into, as their widths in px, from the client rects of a range over its text. */
+const lineWidths = (page: Page, testId: string) =>
+  page.getByTestId(testId).evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lines = new Map<number, { left: number; right: number }>();
+    for (const r of range.getClientRects()) {
+      if (r.width === 0) continue;
+      const key = Math.round(r.top + r.height / 2);
+      const near = [...lines.keys()].find((k) => Math.abs(k - key) < r.height / 2);
+      const line = near === undefined ? undefined : lines.get(near);
+      if (line) {
+        line.left = Math.min(line.left, r.left);
+        line.right = Math.max(line.right, r.right);
+      } else lines.set(key, { left: r.left, right: r.right });
+    }
+    return [...lines.values()].map((l) => Math.round(l.right - l.left));
+  });
+
+test('on a phone the answer and the next step wrap without a stranded word', async ({ page, state }) => {
+  // Spec §18.1: no line of a heading on its own with one short word. Shortest line ≥ 40% of the longest, at most
+  // `max` lines at 390 px; at 320 px the rag rule holds and the narrower measure may take one line more.
+  const cases = [
+    { hash: 'fail', id: 'verify-verdict-title', max: { en: 4, vi: 5 } },
+    { hash: 'pass', id: 'verify-verdict-title', max: { en: 2, vi: 3 } },
+    { hash: 'pass', id: 'verify-next-label', max: { en: 2, vi: 2 } },
+  ] as const;
+  for (const lang of ['en', 'vi'] as const) {
+    await page.goto(new URL('e2e/verify/#pass', state.siteUrl).href);
+    await setStoredLang(page, lang);
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const c of cases) {
+        await page.goto(new URL(`e2e/verify/#${c.hash}`, state.siteUrl).href);
+        await expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', c.hash);
+        const widths = await lineWidths(page, c.id);
+        const where = `${c.id} #${c.hash} ${lang} ${width}px: ${widths.join(', ')}`;
+        test.info().annotations.push({ type: 'rag', description: where });
+        expect(widths.length, where).toBeLessThanOrEqual(c.max[lang] + (width < 390 ? 1 : 0));
+        expect(Math.min(...widths) / Math.max(...widths), where).toBeGreaterThanOrEqual(0.4);
+      }
+    }
+  }
+  await setStoredLang(page, 'en');
+});
+
 test('screens: verify', async ({ page, state }, info) => {
   test.skip(!shouldCapture(info.project.name), 'SCREENS=1 only');
   // A full-page shot keeps the sticky header where the page was scrolled to: every shot starts from the top.
@@ -139,7 +185,12 @@ test('screens: verify', async ({ page, state }, info) => {
   await page.goto(new URL('e2e/verify/#running', state.siteUrl).href);
   await captureScreens(page, 'verify-running', { shots: [...phones, ...nightPhone], ready: at('pending') });
   await page.goto(new URL('e2e/verify/#fail', state.siteUrl).href);
-  await captureScreens(page, 'verify-fail', { shots: [...VELLUM_MATRIX, SCREEN_MATRIX[0]], ready: at('fail') });
+  // The narrowest phone too (320 px), where the failed answer has the least room.
+  const narrow = (['en', 'vi'] as const).map((lang) => ({ theme: 'light', lang, width: 320 }) as const);
+  await captureScreens(page, 'verify-fail', {
+    shots: [...VELLUM_MATRIX, SCREEN_MATRIX[0], ...narrow],
+    ready: at('fail'),
+  });
   await captureScreens(page, 'verify-fail-details', {
     shots: phones.filter((s) => s.lang === 'en'),
     ready: async () => {

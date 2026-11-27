@@ -35,7 +35,7 @@ export const messages = defineMessages(
     stateUnknown: 'Not checked',
     stateChecking: 'Checking…',
     checkOn: 'Check it yourself on {name}',
-    next: 'Next: see what this vault leaves you',
+    next: 'Next: see what this vault leaves\u00a0you',
     proofTitle: 'The rules, proven on this device',
     proofRules: 'All {rules} rules hold for every one of the {n} inputs, checked in {s} s at block {block}.',
     proofBad: 'At least one rule is broken. Do not use this vault.',
@@ -80,8 +80,7 @@ export const messages = defineMessages(
     overallOkHelp: 'Mỗi dòng bên dưới nói điều gì đã được kiểm, và chỗ để bạn tự kiểm lại.',
     overallNo: 'Chưa kiểm được đầy đủ vault này.',
     overallNoHelp: 'Dòng ghi Chưa kiểm không phải là lỗi: trang này chưa kiểm được nó từ đây.',
-    overallFail:
-      'Có ít nhất một bước\u00a0kiểm không\u00a0đạt. Đừng\u00a0gửi gì vào vault này và đừng\u00a0ký gì cho nó.',
+    overallFail: 'Có ít nhất một bước\u00a0kiểm không đạt. Đừng\u00a0gửi gì vào vault này và đừng\u00a0ký gì cho nó.',
     overallFailHelp: 'Dòng ghi Không cho biết bước kiểm nào không đạt.',
     checkingPolicy: 'Đang kiểm luật của vault với mọi đầu vào có thể có…',
     checkingHelp: 'Dưới một phút trên laptop, vài phút trên điện thoại. Không gì rời khỏi máy bạn.',
