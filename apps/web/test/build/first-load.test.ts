@@ -23,6 +23,9 @@ import { outOf } from './paths';
  * - The time machine's view (src/flows/time-machine/time-machine.tsx): the template of its moment test ids,
  *   `${testId}-moment-${i}`. Its shell, in the first load of the page that shows it, has no such template. Every
  *   page loads the view through timeMachineViewChunk (lazy.tsx).
+ * - The owner tab (src/app/vault/owner-tab.tsx, through ownerTabChunk in lazy-panels.tsx): the ritual's test id
+ *   "owner-ritual", in ritual.tsx. Its editor (edit-config.tsx, through editConfigChunk) loads apart from it, on the
+ *   first part the owner picks: its test id "owner-edit-fields" is in that file only.
  * The motion features stay out of every page. The QR encoder, the overlays, viem and the SDK stay out of the pages that
  * are only the shell (`/` and the 404 pages; Decision 13 for viem and the SDK): a route of Plan 7B may show a QR code
  * or a tooltip, or read the chain, from its first paint, inside its 240 kB.
@@ -42,6 +45,8 @@ const LAZY: Record<string, { markers: readonly RegExp[]; pages: 'all' | 'shell' 
   viem: { markers: [/["'`]viem@/], pages: 'shell' },
   'the SDK': { markers: [/["'`]Run again with --verbose and report the output\.["'`]/], pages: 'shell' },
   'the time machine': { markers: [/\}-moment-\$\{/], pages: 'all' },
+  'the owner tab': { markers: [/["'`]owner-ritual["'`]/], pages: 'all' },
+  'the owner editor': { markers: [/["'`]owner-edit-fields["'`]/], pages: 'all' },
 };
 
 function walk(dir: string): string[] {
