@@ -53,7 +53,7 @@ export function OwnerTab(p: PanelProps) {
     <div data-testid="owner-tab" className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <h2 className="text-title text-ink">{t('title')}</h2>
-        <p className="text-body text-ink-muted">{t('lead')}</p>
+        <p className="text-body text-ink-muted">{t(open ? 'lead' : 'leadClosed')}</p>
       </header>
 
       <section aria-labelledby="owner-ritual-title" className={CARD}>

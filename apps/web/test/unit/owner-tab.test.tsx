@@ -101,6 +101,8 @@ describe('the owner tab', () => {
     expect(screen.getByTestId('owner-closed').getAttribute('data-kind')).toBe('released');
     expect(screen.getByRole('heading', { name: 'No more check-ins' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Check in' })).toBeNull();
+    expect(document.body.textContent).toContain('This vault takes no more check-ins.');
+    expect(document.body.textContent).not.toContain('Check in before each period ends.');
     expect(screen.getByTestId('vault-distribute')).toBeTruthy();
     expect(screen.getByTestId('owner-revoke-card').textContent).toContain('The vault has passed on.');
     expect(screen.queryByTestId('owner-edit')).toBeNull();

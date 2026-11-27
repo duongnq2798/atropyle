@@ -4,6 +4,7 @@ export const messages = defineMessages(
   {
     title: 'You own this vault',
     lead: 'Check in before each period ends. Everything below changes the vault only with a transaction you sign.',
+    leadClosed: 'This vault takes no more check-ins. What you can still do is below, each with a transaction you sign.',
     ritualTitle: 'Check in',
     ritualLead:
       'Hold the button to tie a knot on your thread, then sign in your wallet. A check-in resets the missed check-ins, cancels an alarm and stops a pending recovery.',
@@ -70,6 +71,8 @@ export const messages = defineMessages(
   {
     title: 'Bạn là chủ\u00a0vault này',
     lead: 'Hãy điểm\u00a0danh trước khi mỗi kỳ kết\u00a0thúc. Mọi thay đổi bên dưới chỉ xảy\u00a0ra bằng một giao\u00a0dịch do bạn ký.',
+    leadClosed:
+      'Vault này không còn nhận điểm\u00a0danh. Những\u00a0gì bạn vẫn làm được nằm bên dưới, mỗi việc bằng một giao\u00a0dịch do bạn ký.',
     ritualTitle: 'Điểm\u00a0danh',
     ritualLead:
       'Giữ nút để thắt một nút trên sợi\u00a0chỉ của bạn, rồi ký trong ví. Mỗi lần điểm\u00a0danh xoá số\u00a0lần bỏ lỡ, huỷ báo\u00a0động và ngăn việc khôi\u00a0phục đang chờ.',
