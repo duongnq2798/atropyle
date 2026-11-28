@@ -1,6 +1,16 @@
 # Atropyle
 
-Atropyle is the inheritance and recovery rule nobody has to trust, already live on X Layer.
+**The chain never finds out that you died.**
+
+Your daughter finds the address in your desk. On a block explorer, there it all is, to the last decimal. She can watch it for the rest of her life. She can never move it, because the only key went with you.
+
+In 2020, [Chainalysis estimated](https://www.chainalysis.com/blog/bitcoin-market-march-2020/) that 3.75 million of the 18.27 million bitcoin mined were lost.
+
+Self-custody gave us our keys and never wrote the last chapter. Atropyle writes it: an inheritance and wallet-recovery vault, live on X Layer mainnet since 22 November 2026. Miss enough check-ins, and anyone can sound an alarm that one check-in cancels. If the silence holds, your heirs receive what you left them. Lose your key, and if you allowed it, your guardians can steer everything to your new wallet.
+
+Plans like this usually rest on someone's promise: a lawyer with your seed phrase, a company that must outlive you. This one rests on 199 gates in X Layer's TapeOut processor, a circuit nobody can change, not even us. It decides when assets may leave, not who gets how much ([where the proof stops](#limits)). Anyone can move a vault forward, so your heirs never need us to still be here.
+
+The circuit can only ever meet 67,108,864 cases. Don't take our word for a single one.
 
 **Check it without a wallet:**
 
@@ -15,7 +25,7 @@ Atropyle is the inheritance and recovery rule nobody has to trust, already live 
 
 ## What it does
 
-An Atropyle vault decides what happens to a wallet's tokens and NFTs when its owner can no longer sign. The assets never move into the vault: they stay in the owner's wallet, and the vault holds an approval for each one.
+An Atropyle vault is not a safe. It is a standing instruction for the day you can no longer sign: who receives your tokens and NFTs, in what shares, on what conditions. Your assets never move into it. They stay in your own wallet, yours to use, move or sell, and the vault holds only an approval for each one, which you can revoke with any wallet. The circuit decides when, if ever, it may use them.
 
 - **Check-ins.** The owner chooses a period (at least 1 day) and a threshold of 1 to 15 missed periods. Any transaction the owner signs to the vault counts as a check-in.
 - **Alarm and window.** Once the owner has missed the threshold, anyone can raise the alarm. The alarm opens a window of at least 3 days. One check-in from the owner during the window cancels it, and nothing moves.
