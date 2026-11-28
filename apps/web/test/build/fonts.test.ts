@@ -59,16 +59,22 @@ function builtCss(out: string): string {
     .join('\n');
 }
 
-/** The families of a built font token, quotes stripped, in order: `--font-sans:'A','A Fallback',ui-sans-serif` gives [A, A Fallback, ui-sans-serif]. */
+/** The families of a built font token, quotes stripped, in order: `--font-mono:'A','A Fallback',ui-monospace` gives [A, A Fallback, ui-monospace]. */
 function tokenFamilies(css: string, token: string): string[] {
   const m = new RegExp(`${token}:\\s*([^;}]+)`).exec(css);
   if (!m) return [];
   return m[1].split(',').map((x) => x.replace(/['"]/g, '').trim());
 }
 
+/**
+ * The stacks as the build ships them. Tailwind leaves out a theme variable that no rule reads: the voices read
+ * --font-display and --font-mono, while the sans stack reaches the page as --default-font-family, the family that
+ * Tailwind's base gives <html> (font-sans utilities write it out). Tailwind scans the app, not these tests
+ * (globals.css), so a token named here is never kept for this file's sake.
+ */
 const STACKS = [
   ['--font-display', 'Atropyle Fraunces'],
-  ['--font-sans', 'Atropyle Inter'],
+  ['--default-font-family', 'Atropyle Inter'],
   ['--font-mono', 'Atropyle Mono'],
 ] as const;
 

@@ -37,13 +37,15 @@ export function shouldCapture(projectName: string): boolean {
  * Full-page screenshots for the design review, into test-results/screens/<name>/<night|vellum>-<lang>-<width>.png
  * (ignored by git, never compared). The theme and the language change through the stored choice and a reload
  * (Ruling R18.17), so the screen must survive a reload: its state lives in the hash or in session storage, or
- * `ready` brings it back (it runs before every shot, after the reload and the resize, so it must be idempotent: open
- * a menu only when it is closed). Ends in night and English, at the viewport it started with.
+ * `ready` brings it back. `ready` runs before every shot, after the reload and the resize, so it must be idempotent
+ * (open a menu only when it is closed); it also waits for what hydration draws (a canvas), since settle() only waits
+ * for animations. `shots` replaces the matrix (and `vellum`) for a screen that needs more widths. Ends in night and
+ * English, at the viewport it started with.
  */
 export async function captureScreens(
   page: Page,
   name: string,
-  o: { vellum?: boolean; shots?: readonly Shot[]; ready?: () => Promise<void> } = {},
+  o: { vellum?: boolean; shots?: readonly Shot[]; ready?: (page: Page) => Promise<void> } = {},
 ): Promise<void> {
   const start = page.viewportSize();
   const shots = o.shots ?? (o.vellum ? [...SCREEN_MATRIX, ...VELLUM_MATRIX] : SCREEN_MATRIX);
@@ -59,7 +61,7 @@ export async function captureScreens(
       lang = shot.lang;
     }
     await page.setViewportSize({ width: shot.width, height: 900 });
-    await o.ready?.();
+    await o.ready?.(page);
     await settle(page);
     // A `ready` that scrolled (a click, a focus) would leave the sticky header and the fixed docks where that scroll
     // put them, in the middle of a full-page shot. At the top, they are drawn where a reader first sees them (7B-P1).

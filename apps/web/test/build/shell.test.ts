@@ -29,6 +29,14 @@ for (const target of ['vercel', 'deweb'] as const) {
       expect(html).toMatch(/<html lang="en"/);
     });
 
+    it("writes the boot script's text once, in the head: Next's payload carries no second copy (7C-F1)", () => {
+      for (const file of ['index.html', '404.html', 'create/index.html']) {
+        const html = read(file);
+        expect(html.split('location.replace(').length - 1, file).toBe(1);
+        expect(html.indexOf('location.replace('), file).toBeLessThan(html.indexOf('</head>'));
+      }
+    });
+
     it('opens at night: no theme attribute, one night theme colour, a dark colour scheme', () => {
       const html = read('index.html');
       expect(html.match(/<html[^>]*>/)?.[0]).not.toContain('data-theme');

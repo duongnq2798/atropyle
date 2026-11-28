@@ -15,8 +15,25 @@ describe('ExternalLink before mount on DeWEB (7B-P1)', () => {
     );
     const span = new DOMParser().parseFromString(out, 'text/html').querySelector('[data-external="pending"]');
     expect(span?.textContent).toBe('X Layer');
-    expect(span?.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(span?.querySelector('.ext-arrow[aria-hidden="true"]')).not.toBeNull();
     expect(out).not.toContain('href="https://web3.okx.com');
+  });
+
+  it('draws the arrow through a CSS mask, not an inline SVG: every footer prints three of them (7C-F1)', () => {
+    const out = renderToString(
+      <Providers kv={memoryKV()}>
+        <ExternalLink href="https://web3.okx.com/xlayer">X Layer</ExternalLink>
+        <ExternalLink href="https://web3.okx.com/xlayer" variant="flow">
+          Built on X Layer
+        </ExternalLink>
+      </Providers>,
+    );
+    const doc = new DOMParser().parseFromString(out, 'text/html');
+    expect(doc.querySelectorAll('[data-external="pending"] .ext-arrow')).toHaveLength(2);
+    expect(doc.querySelector('[data-external="pending"] svg')).toBeNull();
+    // The flow variant keeps the last word and the arrow together.
+    expect(doc.querySelector('.whitespace-nowrap')?.textContent).toBe('Layer');
+    expect(doc.querySelector('.whitespace-nowrap .ext-arrow')).not.toBeNull();
   });
 
   it('draws no arrow for a refused URL or an icon-only link', () => {
@@ -30,7 +47,7 @@ describe('ExternalLink before mount on DeWEB (7B-P1)', () => {
       </Providers>,
     );
     const doc = new DOMParser().parseFromString(out, 'text/html');
-    expect(doc.querySelector('[data-external="refused"] svg')).toBeNull();
-    expect(doc.querySelector('[data-external="pending"] svg')).toBeNull();
+    expect(doc.querySelector('[data-external="refused"] .ext-arrow')).toBeNull();
+    expect(doc.querySelector('[data-external="pending"] .ext-arrow')).toBeNull();
   });
 });

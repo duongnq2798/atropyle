@@ -1,5 +1,12 @@
 import { defineMessages } from '@/i18n/core';
 
+/**
+ * `~` is a space where a line must not break; glue() turns it into U+00A0, as in proof.messages.ts. Vietnamese writes
+ * the syllables of one word with spaces between them ("cảnh báo", "người thừa kế"), so a heading, a button or a short
+ * label could break inside a word; vi-compounds-showcase.test.ts holds them. "X Layer" is one name in both languages.
+ */
+const glue = (s: string): string => s.replaceAll('~', '\u00A0');
+
 export const messages = defineMessages(
   {
     beta: 'Beta — unaudited',
@@ -21,12 +28,12 @@ export const messages = defineMessages(
     baseUnits: 'base units',
   },
   {
-    beta: 'Beta — chưa kiểm toán',
+    beta: glue('Beta — chưa kiểm~toán'),
     loading: 'Đang tải…',
-    retry: 'Thử lại',
-    copy: 'Sao chép',
-    copied: 'Đã sao chép',
-    back: 'Quay lại',
+    retry: glue('Thử~lại'),
+    copy: glue('Sao~chép'),
+    copied: glue('Đã sao~chép'),
+    back: glue('Quay~lại'),
     next: 'Tiếp',
     cancel: 'Huỷ',
     close: 'Đóng',
@@ -34,8 +41,8 @@ export const messages = defineMessages(
     no: 'Không',
     none: 'Không có',
     unknown: 'Không rõ',
-    docs: 'Tài liệu',
-    error: 'Có lỗi xảy ra',
+    docs: glue('Tài~liệu'),
+    error: glue('Có lỗi xảy~ra'),
     untrustedNote: 'Tên và ký hiệu lấy từ contract token. Ai cũng có thể ghi bất cứ gì vào đó.',
     baseUnits: 'đơn vị gốc',
   },

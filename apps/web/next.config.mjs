@@ -33,5 +33,11 @@ export default function config() {
     // node_modules live at the monorepo root.
     turbopack: { root: fileURLToPath(new URL('../..', import.meta.url)) },
     env: { NEXT_PUBLIC_APP_VERSION: pkg.version },
+    // Turbopack copies a shared module into every async chunk that uses it while the chunk it would make is under
+    // minChunkSize (50 kB by default). With the vault page, the wizard, the showcase pages and their lazy panels,
+    // those copies alone took the site's JavaScript past 900 kB (R23: 1003 kB, of which about 330 kB were copies).
+    // At 20 kB a shared piece gets its chunk sooner: 877 kB in all, and each page's first load grows by 2 to 4 kB of
+    // extra files, inside its budget (the merge of Plans 7B and 7C).
+    experimental: { turbopackChunking: { minChunkSize: 20_000 } },
   };
 }

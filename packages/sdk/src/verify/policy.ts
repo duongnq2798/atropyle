@@ -97,6 +97,11 @@ export interface PolicyVerification {
 
 export interface VerifyPolicyOptions {
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Blocks of 32 combinations between two onProgress calls: a positive whole number, 65 536 by default (32 calls for
+   * the full proof). The last block always reports, so a run ends at done === total.
+   */
+  progressEvery?: number;
   /** Test hook: enumerate only `blocks` × 32 combinations. Omit for the full 2^26 proof. */
   blocks?: number;
   /** Seed of the P9 vectors (a number, nothing to do with a wallet), 0 to 2^64 - 1. Omitted: a random one, in `p9.seed`. */
@@ -177,6 +182,13 @@ export async function readPolicyBundle(
 
 /** Spec §5.4 steps 2-5 on a bundle. CPU-heavy (2^26 combinations): run it in a Web Worker in browsers. */
 export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptions = {}): Promise<PolicyVerification> {
+  // A caller's mistake must not read as a failed proof: the enumeration below turns its own errors into `issues`.
+  if (o.progressEvery !== undefined && !(Number.isSafeInteger(o.progressEvery) && o.progressEvery >= 1)) {
+    throw new AtropyleError('INVALID_OPTIONS', {
+      message: `progressEvery must be a positive whole number, got ${o.progressEvery}.`,
+      hint: 'Pass a whole number of blocks of at least 1, or leave progressEvery out.',
+    });
+  }
   const t0 = performance.now();
   const issues: string[] = [];
   const root = b.netlists.find((n) => n.id === b.policyId);
@@ -282,7 +294,12 @@ export async function evaluatePolicyBundle(b: PolicyBundle, o: VerifyPolicyOptio
     if (fetched.program.gateCount !== root.gateCount) {
       issues.push(`the compiled policy has ${fetched.program.gateCount} gates; circuitInfo reports ${root.gateCount}`);
     }
-    const report = proveProgram(fetched.program, { onProgress: o.onProgress, blocks: o.blocks, maxFailures: 16 });
+    const report = proveProgram(fetched.program, {
+      onProgress: o.onProgress,
+      progressEvery: o.progressEvery,
+      blocks: o.blocks,
+      maxFailures: 16,
+    });
     combos = report.combos;
     firstFailures = report.firstFailures;
     report.violations.forEach((v, i) => {

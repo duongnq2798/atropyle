@@ -10,7 +10,7 @@ import { memoryKV } from '../../src/lib/store';
 import { MotionProvider } from '../../src/motion/provider';
 import { DURATION, REDUCED_MS } from '../../src/motion/tokens';
 import { type HoldBind, useHold } from '../../src/motion/use-hold';
-import { HoldButton, type HoldButtonProps, type HoldWords } from '../../src/ui/hold-button';
+import { HoldButton, type HoldButtonProps, HoldEnd, type HoldWords } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
 function setup(props: { disabled?: boolean } = {}) {
@@ -478,16 +478,126 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expect(onHoldEnd).toHaveBeenCalledWith(true);
   });
 
-  it('draws the face above the button, at full width', () => {
+  it('makes the face and the button one object: the thread on its face, the label on an accent bar under it', () => {
     renderWithProviders(
       <HoldButton onConfirm={() => {}} face={<span data-testid="face" />}>
         Check in
       </HoldButton>,
     );
-    const face = screen.getByTestId('face');
     const button = screen.getByRole('button', { name: 'Check in' });
-    expect(face.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(button.parentElement?.className).toContain('w-full');
+    const face = screen.getByTestId('face');
+    const bar = button.querySelector<HTMLElement>('[data-part="bar"]');
+    if (!bar) throw new Error('no bar');
+    // In the button's own box, above its label: one press target, one focus ring, one shake.
+    expect(button.contains(face)).toBe(true);
+    expect(face.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bar.textContent).toBe('Check in');
+    // Large: the column's full width up to 28rem, a bar of at least 3.5rem, the label in the lead size, and the
+    // primary action's accent, never the neutral pill of a secondary action.
+    expect(button.className).toContain('w-full');
+    expect(button.parentElement?.className).toContain('max-w-md');
+    expect(button.className).not.toContain('rounded-full');
+    expect(button.className).not.toContain('bg-surface-2');
+    for (const c of ['min-h-14', 'text-lead', 'bg-thread', 'text-on-thread']) expect(bar.className).toContain(c);
+    // The fill sweeps the bar towards the ink, away from the label's colour: the label only gains contrast as it fills.
+    const fill = bar.querySelector<HTMLElement>('span.origin-left');
+    expect(fill?.className).toContain('bg-ink/25');
+    expect(fill?.className).not.toContain('bg-on-thread');
+    // The pill's own line under the label stays out: the face is the thread.
+    expect(button.querySelector('[data-part="underline"]')).toBeNull();
+  });
+
+  it('disabled, the face keeps its thread at full strength: only the bar goes quiet', () => {
+    renderWithProviders(
+      <HoldButton onConfirm={() => {}} disabled face={<span data-testid="face" />}>
+        Sending…
+      </HoldButton>,
+    );
+    const button = screen.getByRole('button', { name: 'Sending…' });
+    expect(button.className).not.toContain('disabled:opacity-50');
+    expect(button.querySelector('[data-part="bar"]')?.className).toContain('group-disabled:');
+  });
+
+  it("its end (HoldEnd) keeps the face where the hold had it: the hold's column, frame and face box, the outcome where the bar stood", () => {
+    const tokens = (el: Element | null | undefined) => new Set((el?.className ?? '').split(/\s+/).filter(Boolean));
+    const view = renderWithProviders(
+      <HoldButton onConfirm={() => {}} face={<span data-testid="face" />}>
+        Check in
+      </HoldButton>,
+    );
+    const heldBox = screen.getByTestId('face').parentElement;
+    const held = {
+      box: tokens(heldBox),
+      frame: tokens(heldBox?.parentElement),
+      column: tokens(heldBox?.parentElement?.parentElement),
+    };
+    view.unmount();
+    renderWithProviders(
+      <HoldEnd face={<span data-testid="face" />}>
+        <p data-testid="tied">Tied at block 7</p>
+      </HoldEnd>,
+    );
+    const box = screen.getByTestId('face').parentElement;
+    const frame = box?.parentElement;
+    const column = frame?.parentElement;
+    // The same box, in the same frame, in the same column: the knot a hold left pending ties where it stood.
+    expect(box?.getAttribute('data-part')).toBe('face');
+    expect(tokens(box)).toEqual(held.box);
+    for (const c of tokens(frame)) expect(held.frame, `frame ${c}`).toContain(c);
+    for (const c of ['w-full', 'border', 'rounded-3xl', 'border-thread']) expect(tokens(frame)).toContain(c);
+    for (const c of tokens(column)) expect(held.column, `column ${c}`).toContain(c);
+    expect(tokens(column)).toContain('max-w-md');
+    // The outcome where the bar stood, under the face, as tall as the bar; nothing to press any more.
+    const end = frame?.querySelector<HTMLElement>('[data-part="end"]');
+    expect(end?.contains(screen.getByTestId('tied'))).toBe(true);
+    expect((box?.compareDocumentPosition(end as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(end?.className).toContain('min-h-14');
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('its end reads done, never disabled: no background of its own, a check in the tone before the outcome, in ink', () => {
+    const tokens = (el: Element | null | undefined) => (el?.className ?? '').split(/\s+/).filter(Boolean);
+    const backgrounds = (el: Element | null | undefined) =>
+      tokens(el)
+        .filter((c) => /(^|:)bg-/.test(c))
+        .map((c) => c.replace(/^.*:/, ''));
+    const view = renderWithProviders(
+      <HoldButton onConfirm={() => {}} disabled face={<span data-testid="face" />}>
+        Waiting for X Layer
+      </HoldButton>,
+    );
+    // The sent phase: the disabled bar, quiet on its own grey (group-disabled:bg-surface-3).
+    const waiting = backgrounds(screen.getByRole('button').querySelector('[data-part="bar"]'));
+    expect(waiting).toContain('bg-surface-3');
+    view.unmount();
+    renderWithProviders(
+      <HoldEnd face={<span data-testid="face" />}>
+        <span data-testid="tied">Tied at block 7</span>
+      </HoldEnd>,
+    );
+    const end = document.querySelector<HTMLElement>('[data-part="end"]');
+    if (!end) throw new Error('no end');
+    // The band stands on the face's own paper: no tint that could pass for the disabled bar it replaces.
+    expect(backgrounds(end)).toEqual([]);
+    for (const c of waiting) expect(tokens(end)).not.toContain(c);
+    // Only the rule under the face, in the tone, and the outcome in ink.
+    for (const c of ['border-t', 'border-thread/40', 'text-ink']) expect(tokens(end)).toContain(c);
+    // The check the card's heading carries once done, in the tone, before the outcome: one outcome, read as done.
+    const check = end.querySelector('svg');
+    expect(check?.getAttribute('aria-hidden')).toBe('true');
+    expect(check?.getAttribute('class')).toContain('text-thread');
+    expect(check?.getAttribute('width')).toBe('20');
+    expect(check?.getAttribute('stroke-width')).toBe('1.5');
+    expect(
+      (check?.compareDocumentPosition(screen.getByTestId('tied')) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('without a face it stays the pill, its thread under the label', () => {
+    const { button } = setup();
+    expect(button.className).toContain('rounded-full');
+    expect(button.querySelector('[data-part="bar"]')).toBeNull();
+    expect(button.querySelector('[data-part="underline"]')).not.toBeNull();
   });
 
   it('shakes again on a second early release (parked item 59)', () => {
@@ -588,5 +698,7 @@ describe('the hold callbacks and the face (Task 10)', () => {
     expectTypeOf<HoldWords>().toHaveProperty('face');
     expectTypeOf<HoldWords>().toHaveProperty('onHoldStart');
     expectTypeOf<HoldWords>().toHaveProperty('onHoldEnd');
+    // The words of the button itself while its transaction is busy (TxCard), in place of "Sending…".
+    expectTypeOf<HoldWords>().toHaveProperty('busyLabel');
   });
 });

@@ -37,13 +37,15 @@ function Variant({ variant, template, limits }: { variant: 'wide' | 'narrow'; te
   return (
     <span data-variant={variant} className={variant === 'wide' ? 'hidden md:inline' : 'md:hidden'}>
       {before}
-      {/* prefetch stays off until /proof/ exists (Quyết định 22; 7C T3 turns it on). NavLink, like the footer's
-          "Known limits": a plain next/link would leave without the route's view transition (Task 15, outcome B). */}
-      <NavLink href={ROUTES.proof} prefetch={false} title={POLICY_NETLIST_KECCAK} className={GOLD}>
+      {/* Prefetched (spec §18 rule 12, 7C T3): /proof/ is one tap from every page. A Windows build needs the postbuild
+          step of scripts/lib/segments.ts for that, or the prefetch file of /proof/ lands in a folder and every
+          prefetch logs a 404. NavLink, like the footer's "Known limits": a plain next/link would leave without the
+          route's view transition (Task 15, outcome B). */}
+      <NavLink href={ROUTES.proof} title={POLICY_NETLIST_KECCAK} className={GOLD}>
         {SHORT}
       </NavLink>
       {between}
-      <NavLink href={LIMITS_HREF} prefetch={false} className={variant === 'wide' ? GOLD : MUTED}>
+      <NavLink href={LIMITS_HREF} className={variant === 'wide' ? GOLD : MUTED}>
         {limits}
         <ArrowRight aria-hidden="true" strokeWidth={2} className={ARROW} />
       </NavLink>

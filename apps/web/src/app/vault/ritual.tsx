@@ -8,6 +8,7 @@ import type { RitualDrill } from '@/flows/impl/ritual';
 import { usePolicyEngine } from '@/flows/time-machine/use-engine';
 import type { Params } from '@/i18n/core';
 import { useLang, useT } from '@/i18n/provider';
+import { formatCount } from '@/lib/count';
 import { chainDate } from '@/lib/when';
 import { messages } from '@/messages/owner.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
@@ -15,18 +16,29 @@ import type { RevealWindowHandle } from '@/motion/reveal-window';
 import { DURATION, HOLD_MS, REDUCED_MS, sec } from '@/motion/tokens';
 import { threadRemaining, threadStateOf } from '@/thread/state';
 import { Thread } from '@/thread/thread';
+import { HoldCardShape } from '@/tx/hold-card-shape';
 import type { FlowProgress } from './action-flow';
 import { LazyActionFlow } from './lazy-action-flow';
-import { dueOf, formatSeconds, type HoldState, IDLE_PROGRESS, type RitualPhase, ritualPhase } from './owner-view';
+import {
+  dueOf,
+  FACE_EDGE,
+  faceRemaining,
+  formatSeconds,
+  type HoldState,
+  IDLE_PROGRESS,
+  type RitualPhase,
+  ritualPhase,
+} from './owner-view';
 import type { PanelProps } from './vault-page';
 
 const CHECK_IN: VaultAction = { type: 'checkIn' };
 
 /**
  * The new knot, near the start of a full thread: the period starts again from it. A step in from the very start, since
- * the Thread clips what crosses its box: 5 % clears the tied knot and its ring (18 px) even on a 390 px phone.
+ * the Thread clips what crosses its box: 5 % (FACE_EDGE) clears the tied knot and its ring (18 px) even on a 390 px
+ * phone.
  */
-const TIED_KNOT = [0.05] as const;
+const TIED_KNOT = [FACE_EDGE] as const;
 
 /**
  * Once tied, the lit thread starts at the new knot: "now" stands on it, and the knot (Thread `tiedKnots`: solid, larger
@@ -144,8 +156,9 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
 
   const onHoldStart = useCallback(() => {
     setHold('on');
-    // The thread recharges over the hold, straight (motion-safe only); an early release springs it back.
-    if (!calm) reveal.current?.setRange(0, 100, { linear: HOLD_MS });
+    // The thread recharges over the hold, straight (motion-safe only), up to where the new knot will tie; an early
+    // release springs it back.
+    if (!calm) reveal.current?.setRange(FACE_EDGE * 100, 100, { linear: HOLD_MS });
   }, [calm]);
 
   const onHoldEnd = useCallback((confirmed: boolean) => {
@@ -175,20 +188,22 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
   // threadRemaining would draw no pending knot. A hold keeps the old props, so the reveal window's recharge
   // (setRange) is not cut by a prop change.
   const restarting = phase === 'wallet' || phase === 'sent' || tied;
-  // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one.
+  // Keyed on `tied`: the solid knot comes in a fade (REDUCED_MS under reduced motion), in place of the hollow one. A
+  // span: until the receipt it is the face of the hold, inside the button (HoldButton `face`); then the face of the
+  // hold's end, in the same box at the same place (TxCard `holdPlacement="top"`, HoldEnd).
   const face = (
-    <m.div
+    <m.span
       key={tied ? 'tied' : 'open'}
       data-testid="owner-ritual-face"
       data-ritual={phase}
       initial={tied ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: sec(calm ? REDUCED_MS : DURATION.base) }}
-      className="w-full"
+      className="block w-full"
     >
       <Thread
         state={tied ? 'active' : threadStateOf(s)}
-        remaining={restarting ? TIED_REMAINING : threadRemaining(s, now)}
+        remaining={restarting ? TIED_REMAINING : faceRemaining(threadRemaining(s, now))}
         knots={tied ? TIED_KNOT : undefined}
         tiedKnots={tied}
         pendingKnot={phase === 'wallet' || phase === 'sent'}
@@ -196,37 +211,37 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         revealRef={reveal}
         className="h-12 w-full sm:h-16"
       />
-    </m.div>
+    </m.span>
   );
 
+  // Grouped in the reader's way, as the Receipt's Block line above it ("1,234,567", "1.234.567"); data-block stays raw.
+  const blockText = block === null ? '' : formatCount(block, lang);
   const since = marks.sent ?? marks.wallet;
   const elapsed = (to: number | null) => formatSeconds(to !== null && since !== null ? to - since : 0, lang);
-  // TxCard draws the HoldButton (and so hold.face) only until runner.result, then the Receipt in its place
-  // (tx-card.tsx: `if (result) action = <Receipt … footer={receiptFooter} />`). The same face rides in both slots, so the
-  // vault's thread stays on screen and the solid knot ties in the receipt; only one of the two is ever mounted.
-  const footer = (
-    <>
-      {face}
-      {block !== null ? (
-        <p data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-small text-ink">
-          {t('ritualTied', { block: String(block), seconds: elapsed(marks.tied) })}
-        </p>
-      ) : null}
-    </>
-  );
+  // TxCard draws the HoldButton until runner.result, then, the hold being up front, the hold's end in its place: the
+  // same face (hold.face) in the same box, and this line where the bar stood, before the Receipt's rows. The knot fills
+  // where it waited and the line says it in sight, the climax never under the ledger and the hash.
+  const footer =
+    block !== null ? (
+      // A span: it runs on from the check in front of it, in the hold's end (HoldEnd), which balances the lines.
+      <span data-testid="owner-tied" data-block={String(block)} className="voice-ledger text-body text-ink">
+        {t('ritualTied', { block: blockText, seconds: elapsed(marks.tied) })}
+      </span>
+    ) : null;
   const key = STATUS_KEY[phase];
   const date = (ts: bigint) => chainDate(ts, lang, view.drill);
-  // The words under the hold, by phase: how to hold, then where to sign, then the wait itself with its seconds. The
-  // status line below says each phase to a screen reader, so the wait here is for the eye only (aria-hidden): the
-  // ticking seconds are never read out.
+  // The bar names each busy phase itself (TxCard `busyLabel`), never "Sending…" while the wallet asks: "Now sign in
+  // your wallet", then "Waiting for X Layer". The line under the hold says only what the bar does not: how to hold,
+  // what to check before signing, then the wait's seconds. The status line below says each phase to a screen reader,
+  // so the seconds are for the eye only (aria-hidden): the ticking is never read out.
+  const busyLabel = phase === 'sent' ? t('ritualSent') : t('ritualSign');
   const hint =
     phase === 'sent' ? (
-      <span aria-hidden className="tabular-nums">
-        {t('ritualSent')}
-        <span className="voice-ledger">{` · ${elapsed(clock)}`}</span>
+      <span aria-hidden className="voice-ledger tabular-nums">
+        {elapsed(clock)}
       </span>
     ) : phase === 'wallet' ? (
-      t('ritualSign')
+      t('ritualSignHint')
     ) : (
       t('ritualHint')
     );
@@ -256,16 +271,25 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         nested
         testId="owner-checkin"
         confirm="hold"
+        // The ritual is the card's first thing, straight under its heading: the thread on the button's face, then
+        // what the wallet should show (spec §4.6.3 "one big button").
+        holdPlacement="top"
         auto
         hold={{
           hint,
-          doneLabel: phase === 'sent' ? hint : t('ritualSign'),
+          // Once held, before the wallet opens, the bar still says "Check in": the line says where to sign. From the
+          // wallet on, the bar says it, and the line keeps its own words.
+          doneLabel: phase === 'sent' || phase === 'wallet' ? hint : t('ritualSign'),
+          busyLabel,
           showKnot: false,
           face,
           onHoldStart,
           onHoldEnd,
         }}
         receiptFooter={footer}
+        // While the check-in prepares, its card and its hold already stand where they will, the face on it: when the
+        // plan lands, only the step and what the wallet should show come in under the hold.
+        preparing={<HoldCardShape title={t('ritualTxTitle')} nested face={face} hint={hint} />}
         onProgress={setProgress}
         onDone={onDone}
         onReset={onReset}
@@ -275,9 +299,9 @@ export function Ritual({ flows, sdk, loaded, view, account, onChanged }: PanelPr
         // Once tied, the last words invite the next check-in; a stuck wallet or wait still starts over.
         resetLabel={tied ? t('ritualAgain') : undefined}
       />
-      {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the receipt's footer. */}
+      {/* Every phase for a screen reader: the eye reads the same in the hold's hint, then in the hold's end. */}
       <p data-testid="owner-ritual-status" role="status" className="sr-only">
-        {key ? t(key, { block: block === null ? '' : String(block) }) : null}
+        {key ? t(key, { block: blockText }) : null}
       </p>
     </div>
   );

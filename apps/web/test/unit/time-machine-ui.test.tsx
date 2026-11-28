@@ -324,7 +324,8 @@ describe('a time machine that cannot load', () => {
       [
         'vi',
         'Vault của bạn không bị ảnh hưởng: không có gì được ký hay gửi đi. Kiểm tra kết nối rồi thử lại.',
-        'Thử lại',
+        // The button binds "Thử lại" with U+00A0 (common.messages.ts), and a role's name is matched as it is.
+        'Thử lại',
       ],
     ] as const) {
       let retried = 0;

@@ -1,7 +1,7 @@
 'use client';
 
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
-import { lazyChunk } from '@/lib/lazy-chunk';
+import { inOwnTask, lazyChunk } from '@/lib/lazy-chunk';
 import type * as Steps from './steps';
 
 export type StepsModule = typeof Steps;
@@ -15,7 +15,8 @@ export const STEPS_KEY = ['atropyle', 'createSteps'] as const;
 export function useStepsChunk(): UseQueryResult<StepsModule> {
   return useQuery({
     queryKey: STEPS_KEY,
-    queryFn: stepsChunk.load,
+    // In a task of its own, not in the commit that hydrates the page (7C-F1, src/lib/lazy-chunk.ts).
+    queryFn: inOwnTask(stepsChunk.load),
     initialData: () => stepsChunk.peek() ?? undefined,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,

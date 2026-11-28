@@ -180,7 +180,7 @@ describe('SubscribeForm on the hosted build', () => {
     expect(screen.getByLabelText('Email address')).toBe(field());
     expect(live()).toBeEmptyDOMElement();
     type('  ana@example.com ');
-    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng Việt' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }));
     press();
     await waitFor(() => expect(mode()).toBe('done'));
     expect(api.subscribe).toHaveBeenCalledTimes(1);
@@ -211,7 +211,7 @@ describe('SubscribeForm on the hosted build', () => {
     const radio = (name: string) => screen.getByRole<HTMLInputElement>('radio', { name });
     expect(radio('English').checked).toBe(true);
     fireEvent.click(screen.getByText('flip'));
-    await waitFor(() => expect(radio('Tiếng Việt').checked).toBe(true));
+    await waitFor(() => expect(radio('Tiếng\u00A0Việt').checked).toBe(true));
     expect(screen.getByLabelText('Địa chỉ email')).toBe(field());
     fireEvent.click(radio('English'));
     fireEvent.click(screen.getByText('flip'));

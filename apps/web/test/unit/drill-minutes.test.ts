@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { KEEPER_CADENCE_S } from '../../src/config/facts';
 import { messages as create } from '../../src/messages/create.messages';
 import { messages as home } from '../../src/messages/home.messages';
+import { messages as me } from '../../src/messages/me.messages';
 
 /** A Drill with no guardians, checked in at t = 0: the vault that "Rehearse it" on the home page starts. */
 const DRILL: EvalState = {
@@ -44,6 +45,25 @@ describe('the Drill on the home page', () => {
 
   it('the fee note states no number of its own', () => {
     for (const lang of ['en', 'vi'] as const) expect(home[lang].heroDrillNote, lang).not.toMatch(/\d/);
+  });
+});
+
+describe('the facts of the home hero', () => {
+  it('state no number of their own: the date comes through {date} (spec §18.2 principle 3)', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      for (const key of ['heroFactCustody', 'heroFactLive', 'heroHeirDoor'] as const) {
+        expect(home[lang][key], `${lang}.${key}`).not.toMatch(/\d/);
+      }
+    }
+  });
+});
+
+describe('the Drill on /me/', () => {
+  it('promises the same minutes as the home page, in both languages', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const numbers = [...me[lang].rehearse.matchAll(/\d+/g)].map((m) => Number(m[0]));
+      expect(numbers, lang).toEqual([drillMinutes()]);
+    }
   });
 });
 

@@ -1,5 +1,5 @@
-/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`; Plan 7B adds `/create/`, Plan 7C Task 3 adds `/proof/`. */
-export const LIGHTHOUSE_ROUTES: readonly string[] = ['/', '/create/'];
+/** Spec §11 runs Lighthouse on `/`, `/create/` and `/proof/`: Plan 7B added `/create/`, Plan 7C Task 3 `/proof/`. */
+export const LIGHTHOUSE_ROUTES: readonly string[] = ['/', '/create/', '/proof/'];
 
 export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
 
@@ -16,9 +16,49 @@ export const THRESHOLDS = {
 
 /**
  * Requests that must not happen while Lighthouse loads a route (spec §18, R18.18), as a substring of the URL or a
- * RegExp. Empty in Plan 7A; Plan 7C Task 6 adds the SDK, circuits and time-machine chunks of `/`.
+ * RegExp, beside the chunks of INTENT_MARKERS, which lighthouse.ts finds in the build.
  */
 export const FORBIDDEN_REQUESTS: Readonly<Record<string, readonly (string | RegExp)[]>> = {};
+
+/** A chunk known by a string only its code carries, as test/build/first-load.test.ts knows them. */
+export interface ChunkMarker {
+  what: string;
+  marker: RegExp;
+}
+
+/**
+ * Chunks a route may load only after the reader's intent (R18.18). The bundler names chunks by hash, so lighthouse.ts
+ * finds them in out/_next/static by these markers (chunksWith) and forbids them all. Spec §18.4.3 Task 6: on `/`, the
+ * SDK, the circuits and the time machine (its scenario logic and the Scrubber). The same markers as first-load.test.ts.
+ */
+export const INTENT_MARKERS: Readonly<Record<string, readonly ChunkMarker[]>> = {
+  '/': [
+    { what: 'the SDK', marker: /["'`]Run again with --verbose and report the output\.["'`]/ },
+    { what: 'the circuits', marker: /unknown cpu \$\{/ },
+    { what: 'the time machine logic', marker: /["'`]7e["'`]\.repeat\(20\)|0x(?:7e){20}/i },
+    { what: 'the Scrubber', marker: /["'`]SliderThumb["'`]/ },
+  ],
+};
+
+/**
+ * The URL path of every script in `files` that holds one of `markers`, sorted. A marker in no script throws: the build
+ * changed under it, and a gate that forbade nothing would pass.
+ */
+export function chunksWith(
+  files: readonly { path: string; code: string }[],
+  markers: readonly ChunkMarker[],
+): string[] {
+  const out = new Set<string>();
+  for (const { what, marker } of markers) {
+    const hits = files.filter((f) => marker.test(f.code));
+    if (hits.length === 0) throw new Error(`no chunk of the build holds ${what} (${marker}): update its marker`);
+    for (const f of hits) out.add(f.path);
+  }
+  return [...out].sort();
+}
+
+/** The element that must be each route's LCP, by the DOM path Lighthouse prints. `/`: its H1 (spec §18.4.3 Task 5′). */
+export const LCP_ELEMENT: Readonly<Record<string, RegExp>> = { '/': /(?:^|,)H1$/ };
 
 export interface Run {
   performance: number;
@@ -120,4 +160,31 @@ export function forbiddenRequests(lhr: LhrLike, patterns: readonly (string | Reg
     if (patterns.some((p) => (typeof p === 'string' ? url.includes(p) : url.search(p) !== -1))) out.push(url);
   }
   return out;
+}
+
+/**
+ * The DOM path of the run's LCP element (`1,HTML,1,BODY,…,0,H1`): the node item of the `lcp-breakdown-insight` audit,
+ * where Lighthouse 13 keeps it. Null when the run has none.
+ */
+export function lcpElementPath(lhr: LhrLike): string | null {
+  const details = lhr.audits['lcp-breakdown-insight']?.details;
+  if (!hasItems(details)) return null;
+  for (const item of details.items) {
+    if (typeof item !== 'object' || item === null || (item as { type?: unknown }).type !== 'node') continue;
+    const path = (item as { path?: unknown }).path;
+    return typeof path === 'string' ? path : null;
+  }
+  return null;
+}
+
+/**
+ * The LCP gate of a route, from the LCP element of each measured run: one line per element other than the one it
+ * wants. A run Lighthouse could not measure (runtimeError: still NO_NAVSTART after its retries) names no element and
+ * stays out, as one such run among three does not move the median; a route with no element to read fails.
+ */
+export function lcpFailures(route: string, seen: readonly string[]): string[] {
+  const want = LCP_ELEMENT[route];
+  if (want === undefined) return [];
+  if (seen.length === 0) return ['no measured run reported an LCP element'];
+  return [...new Set(seen)].filter((p) => !want.test(p)).map((p) => `LCP element ${p}, expected one matching ${want}`);
 }

@@ -13,13 +13,14 @@ export const SHARE = {
   image: {
     /**
      * At the root of the site, from share/ under the same name (npm run og:image); only a build that knows its origin
-     * carries it. A new image gets a new name: X and other readers keep a card, image included, by its URL.
+     * carries it. A new image gets a new name: X and other readers keep a card, image included, by its URL. v1 was
+     * og.png and v2 the night card of PR #24; v3 is the card on vellum.
      */
-    path: 'og-v2.png',
+    path: 'og-v3.png',
     type: 'image/png',
     width: 1200,
     height: 630,
-    alt: 'Atropyle. A circuit decides, not an admin. Inheritance and wallet recovery on X Layer: check in now and then; if you stop, your heirs can claim. A gold thread with three check-in knots runs across the dark card, above the line Run the proof in your browser, at atropyle.xyz/#/proof.',
+    alt: 'Atropyle. A circuit decides, not an admin. Inheritance and wallet recovery on X Layer: check in now and then; if you stop, your heirs can claim. On a light card, a gold thread is woven under the title and runs through the real policy circuit, above the line Run the proof in your browser, at atropyle.xyz/#/proof.',
   },
 } as const;
 

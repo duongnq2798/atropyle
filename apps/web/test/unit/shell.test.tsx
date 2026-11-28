@@ -1,7 +1,11 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import NotFound from '../../src/app/not-found';
+import { XLAYER_EXPLORER } from '../../src/config/env';
+import { MAINNET_FACTORY } from '../../src/config/facts';
 import { HomeHero } from '../../src/home/hero';
+import { DEPTHS } from '../../src/home/netlist-geometry';
+import { WeaveArt } from '../../src/home/weave-svg';
 import { REPO_URL } from '../../src/lib/links';
 import { KEYS } from '../../src/lib/store';
 import { messages as home } from '../../src/messages/home.messages';
@@ -23,6 +27,12 @@ vi.mock('next/navigation', () => ({
 
 const root = document.documentElement;
 afterEach(() => root.removeAttribute('data-theme'));
+
+/**
+ * Text as a reader hears it. The hero glues words with no-break spaces (glue() in home.messages.ts): text and names
+ * are compared with every space read as one, as a screen reader says them and as getByText already reads text.
+ */
+const spoken = (s: string | null | undefined): string => (s ?? '').replace(/\s+/g, ' ');
 
 describe('Frame', () => {
   it('skips to the main content without touching the hash', () => {
@@ -95,10 +105,10 @@ describe('settings', () => {
   it('switches language with native radios and remembers it', async () => {
     const { kv } = renderWithProviders(<LangSwitch />);
     expect(screen.getByRole('group', { name: 'Language' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng Việt' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }));
     await waitFor(() => expect(document.documentElement.lang).toBe('vi'));
     expect(kv.get(KEYS.lang)).toBe('vi');
-    expect((screen.getByRole('radio', { name: 'Tiếng Việt' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('opens at night, then switches to vellum, to match device and back to night', async () => {
@@ -120,8 +130,8 @@ describe('settings', () => {
   it('names the three themes in Vietnamese', async () => {
     renderWithProviders(<ThemeSwitch />, { lang: 'vi' });
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Đêm' })).toBeTruthy());
-    expect(screen.getByRole('radio', { name: 'Giấy da' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Theo thiết bị' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Giấy\u00A0da' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Theo thiết\u00A0bị' })).toBeTruthy();
   });
 
   it('opens the navigation as a sheet on narrow screens', async () => {
@@ -160,32 +170,135 @@ describe('pages', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('the home page asks its question, offers a Drill that says what it costs, and the proof', () => {
-    renderWithProviders(<HomeHero />);
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'What happens to your crypto when you can no longer sign?' }),
-    ).toBeTruthy();
+  it('the home page asks its question, offers a Drill that says what it costs, the proof, and three facts', () => {
+    const { container } = renderWithProviders(<HomeHero art={<WeaveArt />} />);
+    const h1 = screen.getByRole('heading', {
+      level: 1,
+      name: 'What happens to your crypto when you can no longer sign?',
+    });
+    // No eyebrow: the question opens the hero (spec §18.4.3 Task 4), its answer follows, then the two ways in, the
+    // circuit asked and the facts: the Drill offer stays on a laptop's first screen (ruling R-T5p-7). The weave, a
+    // decoration, comes last in the column's markup, so gzip finds its copy in Next's payload (ruling R-T5p-1);
+    // home.spec.ts checks the order a reader sees. Focus follows the markup: no tabindex reorders it.
+    expect(h1.previousElementSibling).toBeNull();
+    const weave = container.querySelector('.weave');
+    const part = (el: Element): string =>
+      el === h1
+        ? 'question'
+        : el === weave
+          ? 'weave'
+          : el.matches('[data-testid="hero-facts"]')
+            ? 'facts'
+            : el.querySelector('fieldset')
+              ? 'ask'
+              : el.querySelector('a[href="/create/#drill"]')
+                ? 'ways in'
+                : /^Nothing, unless you plan for it\./.test(el.textContent ?? '')
+                  ? 'answer'
+                  : el.tagName;
+    expect([...(h1.parentElement?.children ?? [])].map(part)).toEqual([
+      'question',
+      'answer',
+      'ways in',
+      'ask',
+      'facts',
+      'weave',
+    ]);
+    expect(h1.parentElement?.querySelector('[tabindex]')).toBeNull();
+    expect(weave?.getAttribute('aria-hidden')).toBe('true');
+    expect(weave?.querySelectorAll('.weave-col')).toHaveLength(DEPTHS);
+    // R18.4, the markup side (weave-css.test.ts holds the CSS side): in the weave only the thread's glow svg carries
+    // an animation class; no path and no group does.
+    const animated = [...(weave?.querySelectorAll('[class*="animate-"]') ?? [])].map((e) => e.tagName.toLowerCase());
+    expect(animated).toEqual(['svg']);
+    expect(weave?.querySelector('path[class*="animate-"], g[class*="animate-"]')).toBeNull();
+    const named = container.querySelector<HTMLElement>('[data-weave="thread"]');
+    expect(named?.style.viewTransitionName).toBe('atropyle-thread');
     // The number in heroDrill is pinned by drill-minutes.test.ts.
     const drill = screen.getByRole('link', { name: home.en.heroDrill });
     expect(drill.getAttribute('href')).toBe('/create/#drill');
     const note = document.getElementById(drill.getAttribute('aria-describedby') ?? '');
-    expect(note?.textContent).toBe('No Atropyle fee. You pay only X Layer network gas, in OKB.');
+    expect(spoken(note?.textContent)).toBe('No Atropyle fee. You pay only X Layer network gas, in OKB.');
     expect(screen.getByRole('link', { name: 'See the proof' }).getAttribute('href')).toBe('/proof/');
     const lead = screen.getByText(/^Nothing, unless you plan for it\./);
     // True for a vault without guardians too (spec §18.4.1 item 4).
     expect(lead.textContent).toContain('the people you chose receive');
     expect(lead.textContent).not.toContain('guardians confirm');
+    // The facts: custody, the mainnet date linked to the factory on OKLink, and the door for heirs.
+    const items = within(screen.getByTestId('hero-facts')).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0].textContent).toBe('Your tokens stay in your wallet');
+    const live = within(items[1]).getByRole('link');
+    expect(spoken(live.textContent)).toContain('Live on X Layer mainnet since 22 Nov 2026');
+    expect(live.getAttribute('href')).toBe(`${XLAYER_EXPLORER}/address/${MAINNET_FACTORY}`);
+    expect(live.getAttribute('target')).toBe('_blank');
+    const door = within(items[2]).getByRole('link', { name: 'Named as an heir or a guardian? Start here' });
+    expect(door.getAttribute('href')).toBe('/verify/');
   });
 
   it('the home page speaks Vietnamese', async () => {
-    renderWithProviders(<HomeHero />, { lang: 'vi' });
+    renderWithProviders(<HomeHero art={<WeaveArt />} />, { lang: 'vi' });
+    const named = (text: string) => (name: string) => spoken(name) === text;
     expect(
       await screen.findByRole('heading', {
         level: 1,
-        name: 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?',
+        name: named('Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?'),
       }),
     ).toBeTruthy();
     expect(screen.getByRole('link', { name: home.vi.heroDrill }).getAttribute('href')).toBe('/create/#drill');
-    expect(screen.getByText(home.vi.heroDrillNote)).toBeTruthy();
+    expect(screen.getByText('Atropyle không thu phí. Bạn chỉ trả gas của mạng X Layer, bằng OKB.')).toBeTruthy();
+    expect(screen.getByText('Token của bạn nằm yên trong ví')).toBeTruthy();
+    expect(
+      screen.getByRole('link', {
+        name: (n) => /^Đang chạy trên mainnet X Layer từ 22\/11\/2026/.test(spoken(n)),
+      }),
+    ).toBeTruthy();
+    const door = screen.getByRole('link', { name: named('Bạn là người thừa kế hay giám hộ? Bắt đầu ở đây') });
+    expect(door.getAttribute('href')).toBe('/verify/');
+  });
+
+  it('the home page asks the circuit: three native radios, the answer of the checked one, the circuit counted', () => {
+    const { container } = renderWithProviders(<HomeHero art={<WeaveArt />} />);
+    const section = container.querySelector('section.hero');
+    expect(section?.getAttribute('data-ask')).toBe('a');
+    const group = screen.getByRole('group', { name: 'Ask the circuit' });
+    const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
+    expect(radios.map((r) => spoken(r.closest('label')?.textContent))).toEqual([
+      'If I keep checking in',
+      'If I go silent',
+      'If my guardians lie while I keep checking in',
+    ]);
+    expect(radios.map((r) => r.checked)).toEqual([true, false, false]);
+    // Each radio is described by its own answer, so a screen reader hears it on the chip.
+    expect(radios.map((r) => document.getElementById(r.getAttribute('aria-describedby') ?? '')?.textContent)).toEqual([
+      home.en.answerAlive,
+      home.en.answerSilent,
+      home.en.answerLiar,
+    ]);
+    fireEvent.click(radios[1]);
+    expect(section?.getAttribute('data-ask')).toBe('s');
+    const caption = screen.getByText(/^The real policy circuit, 196 NAND gates and 3 latches in 39 layers/);
+    const run = within(caption).getByRole('link', { name: 'Run all 67,108,864 cases yourself' });
+    expect(run.getAttribute('href')).toBe('/proof/');
+    // The woven title: two copies of one thread inside the H1, out of the accessibility tree; the name stays.
+    const h1 = screen.getByRole('heading', {
+      level: 1,
+      name: 'What happens to your crypto when you can no longer sign?',
+    });
+    const woven = h1.querySelector('.title-weave');
+    expect(woven?.getAttribute('aria-hidden')).toBe('true');
+    expect(woven?.querySelectorAll('svg path')).toHaveLength(2);
+    // The release pin in the weave turns violet for the questions that open the gate.
+    expect(container.querySelector('.weave-pin')?.getAttribute('data-open')).toBe('s');
+  });
+
+  it('the home page asks the circuit in Vietnamese', async () => {
+    renderWithProviders(<HomeHero art={<WeaveArt />} />, { lang: 'vi' });
+    const named = (text: string) => (name: string) => spoken(name) === text;
+    expect(await screen.findByRole('group', { name: 'Hỏi circuit' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: named('Nếu tôi im lặng') })).toBeTruthy();
+    expect(screen.getByRole('link', { name: named('Tự chạy cả 67.108.864 trường hợp') }).getAttribute('href')).toBe(
+      '/proof/',
+    );
   });
 });

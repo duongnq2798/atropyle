@@ -44,12 +44,89 @@ async function expectFrame(page: Page): Promise<void> {
   await expectSeen(footer.locator('a[href="/verify/"]'));
 }
 
-/** `/`: the question, and the two ways in (rehearse it, see the proof). */
+/**
+ * `/`: the question, the two ways in (rehearse it, see the proof), the three facts with the door for heirs, the
+ * stage, and the story after it.
+ */
 async function expectHome(page: Page): Promise<void> {
   await expectSeen(page.getByRole('heading', { level: 1 }));
   const main = page.getByRole('main');
   await expectSeen(main.locator('a[href="/create/#drill"]').first());
   await expectSeen(main.locator('a[href="/proof/"]').first());
+  const facts = main.getByTestId('hero-facts');
+  await expectSeen(facts.getByText('Your tokens stay in your wallet'));
+  // The e2e build is DeWEB: without JavaScript the live fact stays text (ExternalLink, Quyết định 16). A regex reads
+  // the raw text, and home.messages.ts glues "X Layer" and "since {date}" with no-break spaces: \s matches them.
+  await expectSeen(facts.getByText(/^Live on X\sLayer mainnet since\s\d{1,2} [A-Z][a-z]{2} \d{4}$/));
+  await expectSeen(facts.locator('a[href="/verify/"]'));
+  // Ask the circuit without JavaScript (spec §18.4.3 Task 5′): native radios, and :has() lights and answers.
+  await expectSeen(main.locator('.ask-answer [data-for="a"]'));
+  await expect(main.locator('.ask-answer [data-for="s"]')).toBeHidden();
+  const silentOnly = main.locator('.weave-col path[data-v~="s"]:not([data-v~="a"])').first();
+  const unlit = await silentOnly.evaluate((p) => getComputedStyle(p).stroke);
+  await main.locator('label.ask-chip', { has: page.locator('input[value="s"]') }).click();
+  await expectSeen(main.locator('.ask-answer [data-for="s"]'));
+  await expect(main.locator('.ask-answer [data-for="a"]')).toBeHidden();
+  await expect.poll(() => silentOnly.evaluate((p) => getComputedStyle(p).stroke)).not.toBe(unlit);
+  // The stage without JavaScript (7C T6): the default story, prerendered and dated, with its controls inert.
+  const stage = main.getByTestId('home-stage');
+  await expectSeen(stage.getByRole('heading', { level: 2, name: 'Every day, decided by the circuit' }));
+  await expect(stage).toHaveAttribute('data-engine', 'prerender');
+  await expectSeen(stage.getByTestId('home-stage-caption').getByText('Day 0 · Your first check-in'));
+  for (const row of ['Day 180 · Silence. The alarm', 'Day 194 · Through the gate']) {
+    await expectSeen(stage.getByTestId('home-stage-beats').getByText(row));
+  }
+  await expect(stage.locator('input[value="recover"]')).toBeDisabled();
+  await expect(stage.getByTestId('home-stage-beat-0')).toBeDisabled();
+  // The story after the stage (7C T7a): server HTML, English shown and Vietnamese hidden, every way on a link.
+  await expectSeen(main.getByTestId('home-quiet1').locator('.say-en'));
+  await expect(main.getByTestId('home-quiet1').locator('.say-vi')).toBeHidden();
+  await expectSeen(main.locator('#trust .trust-cases .say-en'));
+  await expectSeen(main.locator('#trust a[href="/proof/#limits"]'));
+  await expectSeen(main.getByTestId('home-agent-transcript').getByText('atropyle_prepare_create_vault'));
+  await expectSeen(main.getByTestId('home-agent-install'));
+  await expectSeen(main.locator('#rehearse a[href="/create/#drill"]'));
+  await expectSeen(main.locator('#rehearse a[href="/verify/"]'));
+}
+
+/** `/proof/`: the question, the empty map and its key, the seal's source row, the command, and every limit. */
+async function expectProof(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1 }));
+  const main = page.getByRole('main');
+  await expectSeen(main.getByRole('img').first());
+  await expectSeen(main.getByTestId('proof-seal').locator('[data-group="0"] [data-row="source"]'));
+  await expect(main.getByTestId('proof-seal').locator('[data-group="0"] [data-row="source"]')).toHaveText(
+    KECCAK.slice(2, 6),
+  );
+  await expectSeen(main.getByTestId('proof-cli').getByText('npx -y atropyle verify'));
+  await expectSeen(main.getByText('The proof runs in your browser and needs JavaScript.', { exact: false }));
+  const limits = main.locator('#limits');
+  await expectSeen(limits.getByRole('heading', { level: 2 }));
+  await expect(limits.getByTestId('proof-limit')).toHaveCount(6);
+  for (let i = 0; i < 6; i++) await expectSeen(limits.getByTestId('proof-limit').nth(i));
+  await expectSeen(main.getByTestId('proof-limits-close'));
+}
+
+/** `/me/` (7C T8): the title, what connecting shares, and the command that reads the same list with no wallet. */
+async function expectMe(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'My vaults' }));
+  await expectSeen(page.getByRole('heading', { level: 2, name: 'Connect a wallet to see its vaults' }));
+  await expectSeen(page.getByTestId('me-cli').getByText('npx -y atropyle vaults <address>'));
+}
+
+/** `/developers/`: the pinned commands, the published line and the contracts, all prerendered (ruling T10-R6). */
+async function expectDevelopers(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1 }));
+  const main = page.getByRole('main');
+  await expectSeen(main.getByTestId('dev-published'));
+  await expectSeen(main.getByText(`npx -y atropyle@${VERSION} verify`));
+  await expectSeen(main.getByTestId('dev-contract-factory'));
+}
+
+/** `/privacy/`: every claim reads without JavaScript. */
+async function expectPrivacy(page: Page): Promise<void> {
+  await expectSeen(page.getByRole('heading', { level: 1, name: 'Privacy' }));
+  await expectSeen(page.getByRole('main').getByText('A sign-up you do not confirm within 48 hours is deleted.'));
 }
 
 /** `/verify/` (7B T12): the question and, without JavaScript, the command that runs the same check; no skeleton. */
@@ -70,9 +147,13 @@ async function expectVaultEmpty(page: Page): Promise<void> {
   await expect(main.getByTestId('vault-loading')).toBeHidden();
 }
 
-/** Every page that must read without JavaScript. Plan 7C Task 3 adds 'proof/'. */
+/** Every page that must read without JavaScript. */
 const PAGES: readonly { path: string; content(page: Page): Promise<void> }[] = [
   { path: '', content: expectHome },
+  { path: 'proof/', content: expectProof },
+  { path: 'me/', content: expectMe },
+  { path: 'developers/', content: expectDevelopers },
+  { path: 'privacy/', content: expectPrivacy },
   { path: 'verify/', content: expectVerify },
   { path: 'vault/', content: expectVaultEmpty },
 ];

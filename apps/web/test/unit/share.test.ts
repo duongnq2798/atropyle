@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { SHARE, SHARE_IMAGE_URL } from '@/config/share';
@@ -11,13 +11,13 @@ import { addShareImage, SHARE_IMAGE_FILE } from '../../scripts/lib/share-image';
 const DEPLOYMENT = fileURLToPath(new URL('../../../../deployments/xlayer.json', import.meta.url));
 const deployment = JSON.parse(readFileSync(DEPLOYMENT, 'utf8')) as { webUrl: string };
 
-/** Width and height from the IHDR chunk, after checking the PNG signature. */
-function pngSize(bytes: Uint8Array): { width: number; height: number } {
+/** Width, height and colour type from the IHDR chunk, after checking the PNG signature. */
+function pngHeader(bytes: Uint8Array): { width: number; height: number; colorType: number } {
   const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   expect([...bytes.subarray(0, 8)]).toEqual(signature);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   expect(new TextDecoder().decode(bytes.subarray(12, 16))).toBe('IHDR');
-  return { width: view.getUint32(16), height: view.getUint32(20) };
+  return { width: view.getUint32(16), height: view.getUint32(20), colorType: bytes[25] };
 }
 
 const temps: string[] = [];
@@ -26,9 +26,10 @@ afterAll(() => {
 });
 
 describe('the share card', () => {
-  it('lives on the production host, the webUrl of the X Layer deployment', () => {
+  it('lives on the production host, the webUrl of the X Layer deployment, under a versioned name', () => {
     expect(SHARE.origin).toBe(deployment.webUrl);
     expect(SHARE_IMAGE_URL).toBe(`https://atropyle.xyz/${SHARE.image.path}`);
+    // X keeps a card by its image URL: a changed image needs the next name (og-v3 is the vellum card).
     expect(SHARE.image.path).toMatch(/^og-v\d+\.png$/);
   });
 
@@ -39,11 +40,31 @@ describe('the share card', () => {
     expect(SHARE.image.alt.length).toBeLessThanOrEqual(420);
   });
 
-  it('is a committed 1200x630 PNG, well under the 5 MB X allows', () => {
+  it('is a committed, opaque 1200x630 PNG, well under the 5 MB X allows', () => {
     const bytes = new Uint8Array(readFileSync(SHARE_IMAGE_FILE));
-    expect(pngSize(bytes)).toEqual({ width: SHARE.image.width, height: SHARE.image.height });
+    const { width, height, colorType } = pngHeader(bytes);
+    expect({ width, height }).toEqual({ width: SHARE.image.width, height: SHARE.image.height });
     expect({ width: SHARE.image.width, height: SHARE.image.height }).toEqual({ width: 1200, height: 630 });
+    // 2 is truecolour without alpha: a card with see-through pixels shows the reader's own background.
+    expect(colorType).toBe(2);
     expect(bytes.byteLength).toBeLessThan(400_000);
+  });
+
+  it('is the only image under share/: an old card left behind would ship with nothing linking it', () => {
+    expect(readdirSync(dirname(SHARE_IMAGE_FILE))).toEqual([SHARE.image.path]);
+  });
+
+  it('says what the vellum card shows, with the browser proof and no npx', () => {
+    const text = [SHARE.title, SHARE.description, SHARE.image.alt].join(' ');
+    expect(text).not.toMatch(/npx|dark card|every step/i);
+    expect(SHARE.image.alt).toContain('light card');
+    expect(SHARE.image.alt).toContain('Run the proof in your browser');
+    expect(SHARE.image.alt).toContain('atropyle.xyz/#/proof');
+    const script = readFileSync(fileURLToPath(new URL('../../scripts/og-image.ts', import.meta.url)), 'utf8');
+    expect(script).not.toMatch(/npx|every step/);
+    // The arrow is a lucide icon drawn as SVG: U+2192 is in none of the self-hosted subsets (test/unit/glyphs.test.ts).
+    expect(script).not.toMatch(/&rarr;|\u2192|→/);
+    expect(script).toContain('Run the proof in your browser');
   });
 });
 

@@ -24,12 +24,39 @@ export function subscribeTheme(cb: () => void): () => void {
 }
 
 /**
+ * Set on <html> while a new theme is being styled. A theme change recolours every wire of the hero's weave, and its
+ * colour transitions are the sweep that only a reader's chip may start (R18.20): globals.css holds them back under
+ * this attribute.
+ */
+export const THEME_SWAP_ATTR = 'data-theme-swap';
+
+let swap = 0;
+
+/**
+ * Marks <html> for the frame that styles the new theme and the one after it; a later change restarts the count.
+ * Without requestAnimationFrame (no rendering), nothing is styled and nothing is marked.
+ */
+export function holdThemeTransitions(): void {
+  if (typeof requestAnimationFrame !== 'function') return;
+  const html = document.documentElement;
+  const mine = ++swap;
+  html.setAttribute(THEME_SWAP_ATTR, '');
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      if (mine === swap) html.removeAttribute(THEME_SWAP_ATTR);
+    }),
+  );
+}
+
+/**
  * Night removes the attribute; vellum and match device set it (Quyết định 14). `root` may be any element:
  * `data-theme="light"` on a letter or a print sheet makes just that element vellum. `system` means something only
- * on <html>, where the stylesheet's media query reads it.
+ * on <html>, where the stylesheet's media query reads it. A change on <html> holds the weave's transitions back.
  */
 export function applyTheme(choice: ThemeChoice, root: HTMLElement = document.documentElement): void {
-  if (choice === 'dark') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', choice);
+  const next = choice === 'dark' ? null : choice;
+  if (root === document.documentElement && root.getAttribute('data-theme') !== next) holdThemeTransitions();
+  if (next === null) root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', next);
   for (const l of listeners) l();
 }

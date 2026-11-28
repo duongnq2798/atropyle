@@ -215,8 +215,8 @@ export function createAtropyle(options: AtropyleOptions): AtropyleClient {
   };
   const verifyContext = () => verifyEnv ?? loadVerify();
   let policyCache: { seed: bigint | undefined; p: Promise<PolicyVerification> } | null = null;
-  // Note: a run that is cached or already in flight ignores the `onProgress` of a later caller. A call without a seed
-  // reuses the cached run whatever its seed; a call with another seed runs again.
+  // Note: a run that is cached or already in flight ignores the `onProgress` and `progressEvery` of a later caller. A
+  // call without a seed reuses the cached run whatever its seed; a call with another seed runs again.
   const verifyPolicy = (o: VerifyPolicyOptions = {}): Promise<PolicyVerification> =>
     guard(async () => {
       const run = async () => {

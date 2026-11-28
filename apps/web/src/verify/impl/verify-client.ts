@@ -6,7 +6,7 @@ import {
   readTransport,
 } from '@atropyle/sdk';
 import type { PolicyBundle, VaultVerification } from '@atropyle/sdk/verify';
-import { type Address, createPublicClient, type PublicClient } from 'viem';
+import { type Address, createPublicClient, type PublicClient, type Transport } from 'viem';
 import type { Sdk } from '@/chain/types';
 
 export type WorkerIn = { type: 'evaluate'; bundle: PolicyBundle; blocks?: number };
@@ -100,19 +100,23 @@ export function evaluateInWorker(bundle: PolicyBundle, o: EvalOptions = {}): Pro
 }
 
 /**
- * Same client as the SDK's own verify client: the vault comes from the URL, so a hostile contract must not make
- * viem follow an OffchainLookup to an attacker-chosen URL, and the quorum block must not be cached.
+ * Same clients as the SDK's own verify client: the vault comes from the URL, so a hostile contract must not make
+ * viem follow an OffchainLookup to an attacker-chosen URL, and the quorum block must not be cached. `operators` has
+ * one client per operator group, for P9, which asks each operator on its own so a wrong step() answer is pinned on
+ * the operator that gave it.
  */
-export async function quorumClient(sdk: Pick<Sdk, 'atro' | 'rpc'>): Promise<{ client: PublicClient; rpcs: number }> {
+export async function quorumClient(
+  sdk: Pick<Sdk, 'atro' | 'rpc'>,
+): Promise<{ client: PublicClient; rpcs: number; operators: PublicClient[] }> {
   const { quorumTransport } = await import('@atropyle/sdk/verify');
   const transports = sdk.rpc.verify.map((group) => readTransport(group));
-  const client = createPublicClient({
-    chain: sdk.atro.chain,
-    transport: quorumTransport(transports),
-    cacheTime: 0,
-    ccipRead: false,
-  }) as PublicClient;
-  return { client, rpcs: transports.length };
+  const clientOf = (transport: Transport) =>
+    createPublicClient({ chain: sdk.atro.chain, transport, cacheTime: 0, ccipRead: false }) as PublicClient;
+  return {
+    client: clientOf(quorumTransport(transports)),
+    rpcs: transports.length,
+    operators: transports.map(clientOf),
+  };
 }
 
 export function proofKey(sdk: Pick<Sdk, 'deployment' | 'rpc'>): string {
@@ -171,9 +175,13 @@ function start(
 ): Promise<PolicyVerification> {
   return (async () => {
     if (o.signal?.aborted) throw abortError();
-    const { readPolicyBundle } = await import('@atropyle/sdk/verify');
+    const { randomSeed, readPolicyBundle } = await import('@atropyle/sdk/verify');
     const q = await quorumClient(sdk);
-    const bundle = await readPolicyBundle(q.client, sdk.deployment, q.rpcs);
+    // P9, as `npx atropyle verify` runs it: 64 vectors of a fresh seed through the processor's own step(), on every
+    // operator. The worker compares them with the simulator of the on-chain netlist.
+    const bundle = await readPolicyBundle(q.client, sdk.deployment, q.rpcs, {
+      p9: { operators: q.operators, seed: randomSeed() },
+    });
     // A signal that aborted during the read starts no worker: evaluateInWorker rejects first.
     return evaluateInWorker(bundle, {
       blocks: o.blocks,

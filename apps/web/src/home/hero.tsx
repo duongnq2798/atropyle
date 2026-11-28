@@ -1,46 +1,92 @@
 'use client';
 
-import Link from 'next/link';
-import { useId } from 'react';
-import { useT } from '@/i18n/provider';
+import { type ReactNode, useId, useState } from 'react';
+import { XLAYER_EXPLORER } from '@/config/env';
+import { MAINNET_FACTORY, MAINNET_SINCE } from '@/config/facts';
+import { useLang, useT } from '@/i18n/provider';
+import { formatDay } from '@/lib/format';
+import { explorerAddress } from '@/lib/links';
 import { messages as home } from '@/messages/home.messages';
 import { createHref, ROUTES } from '@/routes';
-import { Thread } from '@/thread/thread';
+import { NavLink } from '@/shell/nav-link';
 import { buttonClass } from '@/ui/button';
+import { ExternalLink } from '@/ui/external-link';
+import { AskCircuit } from './ask-circuit';
+import { type HeroCase, LETTER } from './hero-cases';
+import { DOOR } from './look';
+import { TitleWeave } from './title-weave';
+
+/** The factory on X Layer mainnet: a fact about mainnet, whatever chain this build reads. */
+const FACTORY_URL = explorerAddress(XLAYER_EXPLORER, MAINNET_FACTORY);
 
 /**
- * The first scene of the home page (spec §5.1). Plan 7B adds the other five. The Drill offer carries its cost in a
- * note right under it, linked with aria-describedby, so no reader hears "6 minutes" without "network gas" (R18.11).
+ * Scene 1 of the home page (spec §5.1, §18.4.3 Task 4): the question and its answer, the two ways in, the circuit
+ * asked, three facts, and the weave of the real circuit. `art` is the weave, rendered on the server by app/page.tsx, so
+ * its numbers are in the HTML and in no script. From 64rem home.css lays it behind the whole section, faded under
+ * this text column (the left 7/12); on a phone it is a strip, and CSS `order` shows it between the ways in and the
+ * chips, so the chips and the wires they light share the screen. It comes last in the column's markup: its paths are
+ * in the HTML twice (the DOM and Next's payload), and gzip finds the second copy only within 32 KB of the first (ruling
+ * R-T5p-1). The chips ask the circuit what happens (ask-circuit.tsx) after the Drill offer, so the offer stays on the
+ * first screen of a laptop (ruling R-T5p-7); the H1 carries a woven thread (title-weave.tsx). The Drill offer carries
+ * its cost in a note right under it, linked with aria-describedby (R18.11). The facts are static: nothing here
+ * fetches; only Ask X Layer does, when pressed.
  */
-export function HomeHero() {
+export function HomeHero({ art }: { art: ReactNode }) {
   const t = useT(home);
+  const { lang } = useLang();
   const noteId = useId();
+  // The question the chips ask (Task 5′). CSS lights it through :has(); data-ask serves browsers without :has()
+  // (home.css) and "Ask X Layer" asks it.
+  const [choice, setChoice] = useState<HeroCase>('alive');
   return (
-    <section className="relative isolate flex flex-col gap-12 overflow-hidden pt-16 pb-20 md:pt-28">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 sm:px-6">
-        <p className="font-medium text-caption text-thread uppercase tracking-[0.16em]">{t('heroEyebrow')}</p>
-        <h1 className="max-w-4xl text-balance font-display text-display">{t('heroTitle')}</h1>
-        <p className="max-w-2xl text-pretty text-ink-muted text-lead">{t('heroLead')}</p>
-        <div className="flex flex-col gap-3 pt-2">
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={createHref('drill')}
-              prefetch={false}
-              aria-describedby={noteId}
-              className={buttonClass({ variant: 'primary', size: 'lg' })}
-            >
-              {t('heroDrill')}
-            </Link>
-            <Link href={ROUTES.proof} prefetch={false} className={buttonClass({ variant: 'secondary', size: 'lg' })}>
-              {t('heroProof')}
-            </Link>
+    <section className="hero relative isolate overflow-hidden" data-ask={LETTER[choice]}>
+      <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-16 sm:px-6 lg:pt-28 lg:pb-28">
+        <div className="flex flex-col gap-6 lg:w-7/12">
+          <h1 className="relative isolate text-balance font-display text-display lg:text-h1">
+            {t('heroTitle')}
+            <TitleWeave />
+          </h1>
+          <p className="max-w-2xl text-pretty text-ink-muted text-lead">{t('heroLead')}</p>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              <NavLink
+                href={createHref('drill')}
+                prefetch={false}
+                aria-describedby={noteId}
+                className={buttonClass({ variant: 'primary', size: 'lg' })}
+              >
+                {t('heroDrill')}
+              </NavLink>
+              <NavLink href={ROUTES.proof} className={buttonClass({ variant: 'secondary', size: 'lg' })}>
+                {t('heroProof')}
+              </NavLink>
+            </div>
+            <p id={noteId} className="text-balance text-ink-muted text-small">
+              {t('heroDrillNote')}
+            </p>
           </div>
-          <p id={noteId} className="text-ink-muted text-small">
-            {t('heroDrillNote')}
-          </p>
+          {/* order-2 and order-3: on a phone the weave's strip (order 1, home.css) comes before the chips. From 64rem a
+              wider gap sets the chips apart from the Drill offer's note. */}
+          <AskCircuit choice={choice} onChoice={setChoice} className="order-2 lg:mt-4" />
+          <ul
+            data-testid="hero-facts"
+            className="order-3 flex flex-col gap-2 text-balance border-line border-t pt-5 text-ink-muted text-small lg:flex-row lg:flex-wrap lg:gap-x-6"
+          >
+            <li>{t('heroFactCustody')}</li>
+            <li>
+              <ExternalLink href={FACTORY_URL}>
+                {t('heroFactLive', { date: formatDay(MAINNET_SINCE, lang) })}
+              </ExternalLink>
+            </li>
+            <li>
+              <NavLink href={ROUTES.verify} prefetch={false} className={DOOR}>
+                {t('heroHeirDoor')}
+              </NavLink>
+            </li>
+          </ul>
+          {art}
         </div>
       </div>
-      <Thread state="active" remaining={0.72} knots={[0.16, 0.34, 0.52]} shared className="w-full" />
     </section>
   );
 }

@@ -1,16 +1,20 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { chromium } from '@playwright/test';
 import { launch } from 'chrome-launcher';
 import lighthouse from 'lighthouse';
 import puppeteer from 'puppeteer-core';
 import {
   CATEGORIES,
+  chunksWith,
   FORBIDDEN_REQUESTS,
   failures,
   forbiddenRequests,
   hostNote,
+  INTENT_MARKERS,
   LIGHTHOUSE_ROUTES,
+  lcpElementPath,
+  lcpFailures,
   medianRun,
   type Run,
   runOf,
@@ -26,6 +30,31 @@ const REPORTS = join(APP_DIR, 'lighthouse-report');
 if (!existsSync(join(OUT_DIR, 'index.html')) || existsSync(join(OUT_DIR, 'e2e'))) {
   console.error('lighthouse: out/ must hold a production build. Run `npm run build -w apps/web` first.');
   process.exit(2);
+}
+
+/** Every script of the build, at the URL path a page requests it from. */
+const SCRIPTS = readdirSync(join(OUT_DIR, '_next', 'static'), { recursive: true, encoding: 'utf8' })
+  .filter((f) => f.endsWith('.js'))
+  .map((f) => {
+    const file = join(OUT_DIR, '_next', 'static', f);
+    return { path: `/${relative(OUT_DIR, file).split(sep).join('/')}`, code: readFileSync(file, 'utf8') };
+  });
+/** What each route must not request (R18.18): FORBIDDEN_REQUESTS, and the chunks that wait for the reader's intent. */
+let FORBIDDEN: Record<string, (string | RegExp)[]>;
+try {
+  FORBIDDEN = Object.fromEntries(
+    LIGHTHOUSE_ROUTES.map((r) => [
+      r,
+      [...(FORBIDDEN_REQUESTS[r] ?? []), ...chunksWith(SCRIPTS, INTENT_MARKERS[r] ?? [])],
+    ]),
+  );
+} catch (e) {
+  console.error(`lighthouse: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(2);
+}
+for (const r of LIGHTHOUSE_ROUTES) {
+  const n = FORBIDDEN[r].length;
+  if (n > 0) console.log(`${r}: ${n} chunks wait for intent and must not load`);
 }
 
 rmSync(REPORTS, { recursive: true, force: true });
@@ -66,6 +95,7 @@ try {
     const name = route === '/' ? 'home' : route.replaceAll('/', '');
     const runs: Run[] = [];
     const forbidden = new Set<string>();
+    const lcpSeen: string[] = [];
     for (let i = 1; i <= RUNS; i++) {
       // Every run gets a browser context of its own, so its page gets a renderer of its own: Chrome never shares a
       // renderer across contexts. Given only a port, Lighthouse opens each run's page in the default context, where
@@ -79,13 +109,25 @@ try {
       // route misses, and CI uploads the folder, so a runner's miss can be read in DevTools > Performance.
       writeFileSync(join(REPORTS, `${name}-${i}.trace.json`), JSON.stringify(result.artifacts.Trace));
       runs.push(runOf(result.lhr));
+      // Only a run Lighthouse measured names its LCP element. measure() hands back a run still NO_NAVSTART after its
+      // retries (runtimeError); it stays out here, as one such run among three does not move the median either.
+      const lcp = result.lhr.runtimeError ? null : lcpElementPath(result.lhr);
+      if (lcp !== null) lcpSeen.push(lcp);
       // R18.18: a chunk that must wait for intent fails the route when any of the runs loaded it.
-      for (const url of forbiddenRequests(result.lhr, FORBIDDEN_REQUESTS[route] ?? [])) forbidden.add(url);
+      for (const url of forbiddenRequests(result.lhr, FORBIDDEN[route])) forbidden.add(url);
     }
     const median = medianRun(runs);
-    const missed = [...failures(median), ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`)];
+    const missed = [
+      ...failures(median),
+      ...[...forbidden].map((url) => `loaded a forbidden request: ${url}`),
+      // Spec §18.4.3 Task 5′: the LCP of `/` is its H1 in every measured run (R27).
+      ...lcpFailures(route, lcpSeen),
+    ];
     // The median run carries its host's benchmarkIndex: simulated TBT scales with the host CPU (a CI runner's too).
     console.log(`${route}: ${JSON.stringify(median)}`);
+    console.log(
+      `  ${route}: LCP element ${[...new Set(lcpSeen)].join(' | ') || 'none'} (${lcpSeen.length} of ${RUNS} runs)`,
+    );
     const note = hostNote(median);
     if (note) console.warn(`  ${route}: ${note}`);
     for (const m of missed) console.error(`  ${route}: ${m}`);

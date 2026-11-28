@@ -5,7 +5,7 @@ import { useKV } from '@/lib/kv';
 import { KEYS } from '@/lib/store';
 import { detectLang, type Lang, type Messages, type Params, translate } from './core';
 
-interface LangValue {
+export interface LangValue {
   lang: Lang;
   setLang(l: Lang): void;
 }
@@ -36,6 +36,11 @@ export function LangProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(() => ({ lang, setLang }), [lang, setLang]);
+  return <LangContext value={value}>{children}</LangContext>;
+}
+
+/** Hands a LangProvider's value to a tree in a React root of its own (the home stage, home/stage-island.tsx). */
+export function LangBridge({ value, children }: { value: LangValue; children: ReactNode }) {
   return <LangContext value={value}>{children}</LangContext>;
 }
 

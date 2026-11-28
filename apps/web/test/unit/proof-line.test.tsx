@@ -31,7 +31,7 @@ describe('ProofLine', () => {
     const { line, wide, narrow } = variants();
     expect(line.tagName).toBe('P');
     expect(line.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-6', 'font-mono', 'text-caption']));
-    expect(wide.textContent).toBe(`Rules frozen in netlist ${SHORT} on X Layer · unaudited · limits`);
+    expect(wide.textContent).toBe(`Rules frozen in netlist ${SHORT} on X\u00A0Layer · unaudited · limits`);
     expect(narrow.textContent).toBe(`Rules ${SHORT} · unaudited`);
     expect(wide.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'md:inline']));
     expect(narrow.className.split(/\s+/)).toContain('md:hidden');
@@ -47,11 +47,11 @@ describe('ProofLine', () => {
 
   it('speaks Vietnamese in sentence case', async () => {
     renderWithProviders(<ProofLine />, { lang: 'vi' });
-    await waitFor(() => expect(variants().narrow.textContent).toBe(`Luật ${SHORT} · chưa kiểm toán`));
+    await waitFor(() => expect(variants().narrow.textContent).toBe(`Luật ${SHORT} · chưa kiểm\u00A0toán`));
     expect(variants().wide.textContent).toBe(
-      `Luật đóng băng trong netlist ${SHORT} trên X Layer · chưa kiểm toán · giới hạn`,
+      `Luật đóng\u00A0băng trong netlist ${SHORT} trên X\u00A0Layer · chưa kiểm\u00A0toán · giới\u00A0hạn`,
     );
-    expect(screen.getByRole('complementary', { name: 'Bằng chứng về luật' })).toContainElement(variants().line);
+    expect(screen.getByRole('complementary', { name: 'Bằng\u00A0chứng về luật' })).toContainElement(variants().line);
   });
 
   it('ends each limits link with an arrow icon that a screen reader skips, never the character →', () => {

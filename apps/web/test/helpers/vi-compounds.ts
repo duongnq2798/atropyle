@@ -4,8 +4,8 @@
  * prevent it. In headings, titles, buttons and short labels they are bound with U+00A0 (every space of the word).
  *
  * The one list for the tests of the Vietnamese typesetting rule (7B-P1). It holds the words of the rule, those of
- * the wizard (create-vi-compounds.test.ts) and those of the showcase pages (vi-compounds-showcase.test.ts on
- * feat/web-v2-showcase), so those tests can read it once the branches meet. Lower case, NFC.
+ * the wizard (create-vi-compounds.test.ts), of the Plan 7B pages (vi-compounds-flows.test.ts) and of the showcase
+ * pages (vi-compounds-showcase.test.ts), and every one of those tests reads it. Lower case, NFC.
  */
 export const VI_COMPOUNDS: readonly string[] = [
   // The words of the typesetting rule.

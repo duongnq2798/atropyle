@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 const FAVICON = read('../../public/favicon.svg');
-/** The web v2 site icon: the arch mark that the share card (apps/web/share/og-v2.png) shows too. */
+/** The web v2 site icon: the arch mark that the share card (apps/web/share/) and the app icons show too. */
 const V2_ICON = read('../../../web/src/app/icon.svg');
 
 /** The `d` of every `<path>`, in document order. */

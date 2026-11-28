@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const SRC = fileURLToPath(new URL('../../src/', import.meta.url));
-/** Modules that may reach a page's first bundle only as types (Quyết định 13). */
-const GUARDED = /^(?:@atropyle\/sdk|viem)(?:\/|$)|(?:^|\/)impl(?:\/|$)/;
+/**
+ * Modules that may reach a page's first bundle only as types (Quyết định 13), and the circuits package, which only
+ * tests and the e2e harness load.
+ */
+const GUARDED = /^(?:@atropyle\/(?:sdk|circuits)|viem)(?:\/|$)|(?:^|\/)impl(?:\/|$)/;
 const STATEMENT = /^\s*(?:import|export)\b([^;]*?)\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gm;
 
 /** Route segment folders only: a route group `(name)` or a private folder `_name` can render `/` itself. */
@@ -48,6 +51,8 @@ describe('lazy boundary', () => {
     expect(runtimeImports("export { loadVault } from './impl/vault';")).toEqual(['./impl/vault']);
     expect(runtimeImports("import '@atropyle/sdk/verify';")).toEqual(['@atropyle/sdk/verify']);
     expect(runtimeImports("import type { Address } from 'viem';")).toEqual([]);
+    expect(runtimeImports("import { buildAll } from '@atropyle/circuits';")).toEqual(['@atropyle/circuits']);
+    expect(runtimeImports("import type { Program } from '@atropyle/circuits';")).toEqual([]);
     expect(runtimeImports("export type { Sdk } from './impl/sdk';")).toEqual([]);
     expect(runtimeImports("const impl = await import('./impl');")).toEqual([]);
   });

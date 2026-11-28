@@ -1,5 +1,6 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { runningAnimations } from './helpers.ts';
+import { openSettings, runningAnimations } from './helpers.ts';
 
 const HERO = 'What happens to your crypto when you can no longer sign?';
 
@@ -20,8 +21,9 @@ test('without reduced motion the thread breathes, so the test above can fail', a
 });
 
 /**
- * The hero's Thread is the page's shared element (spec §4.1). It carries the name itself: React's <ViewTransition>
- * names an element only inside a transition React starts, and NavLink starts every one of them (outcome B below).
+ * The page's shared element (spec §4.1) is its thread. On `/` that is the thread layer of the weave (7C-T4), which
+ * carries the name itself: React's <ViewTransition> names an element only inside a transition React starts, and
+ * NavLink starts every one of them (outcome B below).
  */
 test('the hero thread carries the shared view-transition name, and it is the only element that does', async ({
   page,
@@ -32,9 +34,9 @@ test('the hero thread carries the shared view-transition name, and it is the onl
   const named = await page.evaluate(() =>
     [...document.querySelectorAll('*')]
       .filter((el) => getComputedStyle(el).viewTransitionName === 'atropyle-thread')
-      .map((el) => el.hasAttribute('data-thread')),
+      .map((el) => el.getAttribute('data-weave')),
   );
-  expect(named).toEqual([true]);
+  expect(named).toEqual(['thread']);
 });
 
 /**
@@ -118,4 +120,129 @@ test("the 404 page's own home link navigates in a view transition that ends when
   expect(committed, 'the home page never committed').toBeDefined();
   // Held to the cap, the update would end about a second after the click, long after the commit.
   expect((done ?? 0) - (committed ?? 0), 'the old picture stayed after the new page had committed').toBeLessThan(300);
+});
+
+/** The colour transitions running in the weave: each one's property, the depth of its group, its delay and duration. */
+function sweep(page: Page) {
+  return page.evaluate(() =>
+    document.getAnimations().flatMap((a) => {
+      if (!(a instanceof CSSTransition) || !(a.effect instanceof KeyframeEffect)) return [];
+      const el = a.effect.target;
+      if (!(el instanceof Element) || !el.closest('.weave')) return [];
+      const t = a.effect.getTiming();
+      return [
+        {
+          property: a.transitionProperty,
+          depth: Number(getComputedStyle(el).getPropertyValue('--d')),
+          delay: Number(t.delay),
+          duration: Number(t.duration),
+        },
+      ];
+    }),
+  );
+}
+
+test('a chip sweeps the circuit layer by layer in at most 1.3 s; never on load, never under reduced motion', async ({
+  page,
+  state,
+}) => {
+  const chip = (letter: string) => page.locator('label.ask-chip', { has: page.locator(`input[value="${letter}"]`) });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  expect(await sweep(page)).toEqual([]);
+  await chip('s').click();
+  const run = await sweep(page);
+  expect(run.length).toBeGreaterThan(0);
+  // The pin turns too, last (1440 px: it is shown). A transition names its longhand: Chromium runs `border-color` as
+  // border-top-color, border-right-color, border-bottom-color and border-left-color, never as the shorthand.
+  expect(run.some((r) => /^border-(?:top|right|bottom|left)-color$/.test(r.property))).toBe(true);
+  for (const r of run) {
+    expect(r.duration).toBe(160);
+    // calc(var(--d) * 28ms) reaches the timing as a float (17 * 28 came back as 476.00000000000006).
+    expect(r.delay).toBeCloseTo(r.depth * 28, 6);
+    expect(r.delay + r.duration).toBeLessThanOrEqual(1300);
+  }
+  await expect.poll(() => sweep(page)).toEqual([]);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await chip('a').click();
+  expect(await sweep(page)).toEqual([]);
+});
+
+/**
+ * The weave's transitions from now on: `transitionrun` fires for each one that starts, delayed or not, a frame after
+ * the style change that created it, and `transitioncancel` for each one stopped before its end.
+ */
+async function recordWeaveTransitions(page: Page): Promise<() => Promise<{ run: string[]; cancel: string[] }>> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __weave: { run: string[]; cancel: string[] } };
+    w.__weave = { run: [], cancel: [] };
+    for (const type of ['run', 'cancel'] as const) {
+      document.addEventListener(
+        `transition${type}`,
+        (e) => {
+          if (e.target instanceof Element && e.target.closest('.weave')) w.__weave[type].push(e.propertyName);
+        },
+        true,
+      );
+    }
+  });
+  return () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __weave: { run: string[]; cancel: string[] } };
+      const taken = { run: w.__weave.run.splice(0), cancel: w.__weave.cancel.splice(0) };
+      return taken;
+    });
+}
+
+/** Three frames, read without touching style: what a style change started has sent its events by then. */
+const frames = (page: Page) =>
+  page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))),
+  );
+
+test('a theme change never sweeps the circuit, nor does the device under match device: only a chip does (R18.20)', async ({
+  page,
+  state,
+}) => {
+  const chip = (letter: string) => page.locator('label.ask-chip', { has: page.locator(`input[value="${letter}"]`) });
+  await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: 'dark' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
+  const taken = await recordWeaveTransitions(page);
+  const html = page.locator('html');
+  const settings = await openSettings(page);
+  for (const [label, theme] of [
+    ['Vellum', 'light'],
+    ['Night', null],
+    ['Match device', 'system'],
+  ] as const) {
+    await settings.getByText(label, { exact: true }).click();
+    if (theme === null) await expect(html).not.toHaveAttribute('data-theme');
+    else await expect(html).toHaveAttribute('data-theme', theme);
+    expect(await sweep(page), label).toEqual([]);
+    await expect(html).not.toHaveAttribute('data-theme-swap');
+  }
+  // Not one transition started: data-theme-swap was on <html> when the new theme was styled.
+  await frames(page);
+  expect(await taken()).toEqual({ run: [], cancel: [] });
+  // Match device follows the device: it turns light. Chromium styles the new scheme before the media query's change
+  // event, where the hold starts, so the colours that started to move are stopped a frame later: nothing sweeps.
+  const bg = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--atro-bg').trim());
+  const night = await bg();
+  await page.emulateMedia({ colorScheme: 'light' });
+  await frames(page);
+  expect(await bg()).not.toBe(night);
+  expect(await sweep(page)).toEqual([]);
+  const flip = await taken();
+  expect(flip.cancel.length).toBe(flip.run.length);
+  // A chip still sweeps afterwards: the hold is gone, and the recorder sees a sweep when there is one.
+  await expect(html).not.toHaveAttribute('data-theme-swap');
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+  await chip('s').click();
+  expect((await sweep(page)).length).toBeGreaterThan(0);
+  await expect.poll(async () => (await taken()).run.includes('stroke')).toBe(true);
 });

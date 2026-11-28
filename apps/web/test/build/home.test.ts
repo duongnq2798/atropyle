@@ -1,0 +1,202 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { describe, expect, it } from 'vitest';
+import { GEOMETRY_FILE } from '../../scripts/lib/netlist-layout';
+import { XLAYER_EXPLORER } from '../../src/config/env';
+import { MAINNET_FACTORY, MAINNET_SINCE } from '../../src/config/facts';
+import { CIRCUIT } from '../../src/home/hero-circuit';
+import { ASK } from '../../src/home/impl/ask-calls';
+import { DEPTHS, NODES, THREAD, WIRE_V, WIRES } from '../../src/home/netlist-geometry';
+import { AGENT_INSTALL, AGENT_TOOLS } from '../../src/home/story-lines';
+import { wirePaths } from '../../src/home/weave-path';
+import { format } from '../../src/i18n/core';
+import { formatCount } from '../../src/lib/count';
+import { formatDay } from '../../src/lib/format';
+import { explorerAddress } from '../../src/lib/links';
+import { messages as home } from '../../src/messages/home.messages';
+import { messages as story } from '../../src/messages/story.messages';
+import { outOf } from './paths';
+
+/** The text a reader sees: tags and React's `<!-- -->` separators removed. */
+const textOf = (html: string) => html.replace(/<[^>]*>/g, '');
+const jsFiles = (root: string): string[] =>
+  readdirSync(join(root, '_next'), { recursive: true, encoding: 'utf8' })
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => join(root, '_next', f));
+/** The first two dots of the weave: a string only the drawing has, once it is drawn. */
+const MARKER = `M${NODES[0]} ${NODES[1]}h0M${NODES[2]} ${NODES[3]}h0`;
+/**
+ * The geometry and the wires' value signatures, as a minifier prints an array of whole numbers: what a chunk would
+ * hold if a client module imported weave-svg, weave-path or netlist-geometry. MARKER cannot catch that, since the path
+ * strings only exist once the code has run.
+ */
+const DATA = [
+  NODES.slice(0, 16).join(','),
+  WIRES.slice(0, 15).join(','),
+  THREAD.join(','),
+  WIRE_V.slice(0, 48).join(','),
+];
+/** gzip of index.html after the merge of 7B T5 into 7C (7C-T6-report.md, Step 0): the baseline of Task 6. */
+const MERGE_GZIP = { vercel: 15_936, deweb: 15_465 } as const;
+/**
+ * Task 6's stage: its HTML (about 3 kB gzip), and the weave's second copy (Next's payload), which the stage pushes
+ * past gzip's 32 KB window from its first copy, so it no longer compresses against it (about 3.3 kB; ruling R18 of
+ * 7C-T6).
+ */
+const T6_GZIP = 7_000;
+/**
+ * Task 7a's story after the stage, written by server components in both languages (src/i18n/say.tsx): its words are
+ * in the HTML twice (the DOM and Next's payload, past gzip's window from each other), in English and in Vietnamese,
+ * with the closing Thread and the spine (about 5 kB). Set before the first build, from the copy's own gzip (ruling
+ * R-T7a-3): a build over it trims words or markup, never this number.
+ */
+const T7A_GZIP = 6_000;
+/** The hero's section, from its <section> to its </section>: the stage below it has radios of its own. */
+const hero = (page: string) => {
+  const at = page.indexOf('<section class="hero');
+  expect(at).toBeGreaterThanOrEqual(0);
+  return page.slice(at, page.indexOf('</section>', at));
+};
+
+for (const target of ['vercel', 'deweb'] as const) {
+  describe(`${target} home`, () => {
+    const html = () => readFileSync(join(outOf(target), 'index.html'), 'utf8');
+    /** The hero's fact strip, from its <ul> to its </ul>. */
+    const facts = () => {
+      const page = html();
+      const at = page.indexOf('data-testid="hero-facts"');
+      expect(at).toBeGreaterThan(0);
+      return page.slice(page.lastIndexOf('<ul', at), page.indexOf('</ul>', at) + 5);
+    };
+
+    it('prerenders the weave of the real netlist and ships none of its numbers as JavaScript', () => {
+      const page = html();
+      expect(page).toMatch(/<div class="weave" aria-hidden="true">/);
+      expect(page.match(/class="weave-col"/g)).toHaveLength(DEPTHS);
+      expect(page).toContain(
+        '<div data-weave="thread" class="weave-layer" style="view-transition-name:atropyle-thread">',
+      );
+      // Once in the DOM and once in Next's payload of the same page, never a third time.
+      const copies = page.split(MARKER).length - 1;
+      expect(copies).toBeGreaterThanOrEqual(1);
+      expect(copies).toBeLessThanOrEqual(2);
+      // The data markers are written as the generated module writes them, so a chunk that bundled it would hold them.
+      const source = readFileSync(GEOMETRY_FILE, 'utf8');
+      for (const m of DATA) expect(source).toContain(m);
+      for (const file of jsFiles(outOf(target))) {
+        const js = readFileSync(file, 'utf8');
+        expect(js, file).not.toContain(MARKER);
+        for (const m of DATA) expect(js, file).not.toContain(m);
+      }
+      // The weave's CSS is in the layout's stylesheets (globals.css, src/home/home.css): still one render-blocking
+      // stylesheet, as the two modules stay under Turbopack's 100 kB cap on merging a CSS chunk.
+      expect(page.match(/<link[^>]*rel="stylesheet"/g)).toHaveLength(1);
+      const gz = gzipSync(page).length;
+      const first = page.indexOf(MARKER);
+      const apart = page.indexOf(MARKER, first + 1) - first;
+      console.info(
+        `${target} index.html: ${page.length} B, ${gz} B gzip (merge ${MERGE_GZIP[target]} B, +${gz - MERGE_GZIP[target]}, ` +
+          `T7a +${gz - MERGE_GZIP[target] - T6_GZIP}); ` +
+          `the weave's two copies ${apart} B apart (gzip reaches 32 768 B back)`,
+      );
+      expect(gz).toBeLessThanOrEqual(MERGE_GZIP[target] + T6_GZIP + T7A_GZIP);
+    });
+
+    it('asks the circuit without JavaScript: three native radios, three answers, the wires split by value', () => {
+      const page = html();
+      const radios = [...hero(page).matchAll(/<input[^>]*type="radio"[^>]*>/g)].map((m) => m[0]);
+      expect(radios.map((r) => /value="([a-z])"/.exec(r)?.[1])).toEqual(['a', 's', 'l']);
+      expect(radios.map((r) => /\schecked=""/.test(r))).toEqual([true, false, false]);
+      expect(page.match(/data-for="[asl]"/g)).toHaveLength(3);
+      // Once in the DOM (the RSC payload writes "data-v":…): one per lit signature of each layer.
+      expect(page.match(/ data-v="[asl ]+"/g)).toHaveLength(wirePaths().filter((p) => p.v !== 0).length);
+      expect(page).toMatch(/<span class="weave-pin" data-open="s"/);
+      // Both builds read chain 196 with the SDK's deployment: the ask is there, invisible until hydration (R19).
+      const ask = /<div[^>]*data-testid="ask-x-layer"[^>]*>/.exec(page)?.[0] ?? '';
+      expect(ask).toMatch(/class="[^"]*\binvisible\b/);
+      // The calldata stays in its lazy chunk (first-load.test.ts).
+      for (const data of Object.values(ASK)) expect(page).not.toContain(data.slice(10, 74));
+    });
+
+    it('opens on the question with no eyebrow, and states three static facts with the door for heirs', () => {
+      const page = html();
+      const main = page.slice(page.indexOf('<main'));
+      expect(main.slice(main.indexOf('<section'))).toMatch(/^<section[^>]*><div[^>]*><div[^>]*><h1/);
+      const strip = facts();
+      const text = textOf(strip);
+      expect(text).toContain(home.en.heroFactCustody);
+      expect(text).toContain(format(home.en.heroFactLive, { date: formatDay(MAINNET_SINCE, 'en') }));
+      expect(text).toContain(home.en.heroHeirDoor);
+      expect(strip).toContain('href="/verify/"');
+      const factory = explorerAddress(XLAYER_EXPLORER, MAINNET_FACTORY);
+      if (target === 'vercel') {
+        expect(strip).toContain(`href="${factory}"`);
+      } else {
+        // DeWEB: text until mount, no external href in the HTML (Quyết định 16, html-purity.test.ts).
+        expect(strip).not.toContain(factory);
+        expect(strip).toContain('data-external="pending"');
+      }
+    });
+
+    it('prerenders the stage: the default story, dated, with its controls inert until the page runs', () => {
+      const page = html();
+      const at = page.indexOf('data-testid="home-stage"');
+      expect(at).toBeGreaterThan(0);
+      const stage = page.slice(page.lastIndexOf('<section', at), page.indexOf('</section>', at));
+      expect(stage).toContain('data-engine="prerender"');
+      expect(stage).toContain('data-story="confirm"');
+      const text = textOf(stage);
+      for (const stamp of [
+        'Day 0 · You make a vault',
+        'Day 0 · Your first check-in',
+        'Days 1–179 · No check-in comes',
+        'Day 180 · Silence. The alarm',
+        'Day 183 · A guardian confirms',
+        'Day 194 · Through the gate',
+      ]) {
+        expect(text.replaceAll(' ', ' ')).toContain(stamp);
+      }
+      const inputs = [...stage.matchAll(/<input[^>]*>/g)].map((m) => m[0]);
+      expect(inputs).toHaveLength(4);
+      for (const input of inputs) expect(input).toMatch(/\sdisabled=""/);
+      expect(stage.match(/<button[^>]*\sdisabled=""/g)).toHaveLength(5);
+      // Ruling R2: the stage's code is in the first load, its simulator is not.
+      expect(stage).not.toContain('data-testid="home-stage-scrubber');
+    });
+
+    it('tells the story after the stage in server HTML, in order and in both languages, with no word of it in a script', () => {
+      const page = html();
+      const main = page.slice(page.indexOf('<main'), page.indexOf('</main>'));
+      const order = [
+        'data-testid="home-quiet1"',
+        'id="stage"',
+        'data-testid="home-quiet2"',
+        'id="trust"',
+        'id="agent"',
+        'id="rehearse"',
+      ].map((marker) => main.indexOf(marker));
+      for (const at of order) expect(at).toBeGreaterThan(0);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+      const text = textOf(main).replaceAll('\u00A0', ' ');
+      for (const lang of ['en', 'vi'] as const) {
+        for (const k of ['quiet1', 'quiet2', 'trustEdges', 'agentTitle', 'agentLine4', 'closeTitle'] as const) {
+          expect(text, `${lang}.${k}`).toContain(story[lang][k].replaceAll('\u00A0', ' '));
+        }
+        expect(main).toContain(`<span lang="${lang}" class="say-${lang}">${formatCount(CIRCUIT.cases, lang)}</span>`);
+      }
+      for (const tool of AGENT_TOOLS) expect(main).toContain(`>${tool}</code>`);
+      expect(main).toContain(AGENT_INSTALL);
+      for (const href of ['/proof/#limits', '/status/', '/developers/', '/create/#drill']) {
+        expect(main).toContain(`href="${href}"`);
+      }
+      // Server text only: / has no JavaScript to spare (7C-T6 report), and Say needs none.
+      for (const file of jsFiles(outOf(target))) {
+        const js = readFileSync(file, 'utf8');
+        for (const k of ['quiet2', 'agentLine4', 'closeTitle', 'trustLine'] as const) {
+          expect(js, file).not.toContain(story.en[k]);
+        }
+      }
+    });
+  });
+}

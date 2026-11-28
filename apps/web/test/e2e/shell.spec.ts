@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { expectAccessibleInBothThemes, openSettings, setStoredTheme } from './helpers.ts';
-import { captureScreens, shouldCapture } from './screens.ts';
+import { captureScreens, SCREEN_MATRIX, shouldCapture } from './screens.ts';
 
 const HERO = 'What happens to your crypto when you can no longer sign?';
 const HERO_VI = 'Chuyện gì xảy ra với tài sản crypto của bạn khi bạn không còn ký được nữa?';
@@ -100,7 +100,13 @@ test('screens of the home page and the 404 page, for the design review', async (
   test.setTimeout(300_000);
   await page.goto(state.siteUrl);
   await expect(page.getByRole('heading', { level: 1, name: HERO })).toBeVisible();
-  await captureScreens(page, 'home');
+  // C10's three, plus vellum at 1440: the weave is drawn in theme tokens, and vellum is one click away.
+  await captureScreens(page, 'home', { shots: [...SCREEN_MATRIX, { theme: 'light', lang: 'en', width: 1440 }] });
+  // 7C-T5′: the silent question after its sweep: lit wires, the violet pin (1440), the woven title in EN and VI.
+  await captureScreens(page, 'home-ask', {
+    shots: [SCREEN_MATRIX[0], SCREEN_MATRIX[1], { theme: 'dark', lang: 'vi', width: 1440 }],
+    ready: (p) => p.locator('label.ask-chip', { has: p.locator('input[value="s"]') }).click(),
+  });
   await page.goto(new URL('no-such-page/', state.siteUrl).href);
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
   await captureScreens(page, '404');

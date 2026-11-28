@@ -186,6 +186,24 @@ describe('evaluatePolicyBundle', () => {
     expect(d.issues).toEqual([]);
     expect(d.ok).toBe(true);
   });
+
+  it('reports progress at the cadence it is given', async () => {
+    const calls: [number, number][] = [];
+    await evaluatePolicyBundle(bundle(), { blocks: 10, progressEvery: 4, onProgress: (d, t) => calls.push([d, t]) });
+    expect(calls).toEqual([
+      [4, 10],
+      [8, 10],
+      [10, 10],
+    ]);
+  });
+
+  it('refuses a bad progress cadence instead of reporting a failed proof', async () => {
+    for (const progressEvery of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(evaluatePolicyBundle(bundle(), { blocks: 1, progressEvery })).rejects.toMatchObject({
+        code: 'INVALID_OPTIONS',
+      });
+    }
+  });
 });
 
 describe('evaluatePolicyBundle: P9 and the code pins', () => {

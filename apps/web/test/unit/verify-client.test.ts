@@ -126,10 +126,21 @@ describe('evaluateInWorker abort (ruling R14)', () => {
 describe('quorumClient', () => {
   it('never follows CCIP-Read and never caches the block number', async () => {
     const rpc = { read: [], verify: [['https://a.example'], ['https://b.example']], crossCheck: true, offchain: [] };
-    const { client, rpcs } = await quorumClient({ atro: { chain: { id: 196, name: 'X Layer' } }, rpc } as never);
+    const { client, rpcs, operators } = await quorumClient({
+      atro: { chain: { id: 196, name: 'X Layer' } },
+      rpc,
+    } as never);
     expect(rpcs).toBe(2);
     expect(client.cacheTime).toBe(0);
     expect(client.ccipRead).toBe(false);
+    // P9 asks each operator group on its own, with the same settings.
+    expect(operators).toHaveLength(2);
+    for (const op of operators) {
+      expect(op).not.toBe(client);
+      expect(op.cacheTime).toBe(0);
+      expect(op.ccipRead).toBe(false);
+      expect(op.chain?.id).toBe(196);
+    }
   });
 });
 

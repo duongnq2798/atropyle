@@ -13,5 +13,8 @@ export const POLICY_NETLIST_KECCAK = '0x70167214a030d2024e5b31d7be5f5664e5abad2d
  */
 export const MAINNET_SINCE = '2026-11-22';
 
+/** The AtropyleFactory on X Layer mainnet (`factory` of deployments/xlayer.json): the hero links it on OKLink. */
+export const MAINNET_FACTORY = '0x7eCbBECA8F90A868A12aF48B766264bf9c87a651';
+
 /** Seconds between keeper runs: the `atropyle-tick` pg_cron job in supabase/migrations. */
 export const KEEPER_CADENCE_S = 60;

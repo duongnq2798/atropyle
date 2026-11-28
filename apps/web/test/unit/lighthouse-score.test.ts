@@ -1,10 +1,15 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
+  chunksWith,
   failures,
   forbiddenRequests,
   hostNote,
+  INTENT_MARKERS,
+  LCP_ELEMENT,
   type LhrLike,
+  lcpElementPath,
+  lcpFailures,
   medianRun,
   type Run,
   runOf,
@@ -134,5 +139,79 @@ describe('lighthouse score', () => {
     );
     const noTable: LhrLike = { categories: {}, audits: { 'network-requests': { details: { type: 'opportunity' } } } };
     expect(() => forbiddenRequests(noTable, [])).toThrow(/no network-requests table/);
+  });
+
+  it('reads the LCP element from lcp-breakdown-insight, and wants the H1 on /', () => {
+    const lhr = (items: unknown[]): LhrLike => ({
+      categories: {},
+      audits: { 'lcp-breakdown-insight': { details: { type: 'list', items } } },
+    });
+    const h1 = {
+      type: 'node',
+      path: '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,0,H1',
+      selector: 'div.flex > h1',
+    };
+    expect(lcpElementPath(lhr([{ type: 'table', items: [] }, h1]))).toBe(h1.path);
+    expect(lcpElementPath(lhr([]))).toBeNull();
+    expect(lcpElementPath({ categories: {}, audits: {} })).toBeNull();
+    expect(LCP_ELEMENT['/'].test(h1.path)).toBe(true);
+    expect(LCP_ELEMENT['/'].test('1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,3,P')).toBe(false);
+  });
+
+  it('fails / unless every run that names an LCP element names its H1, and never passes by reading nothing', () => {
+    const h1 = '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,0,H1';
+    const lead = '1,HTML,1,BODY,0,DIV,2,MAIN,0,SECTION,0,DIV,0,DIV,3,P';
+    expect(lcpFailures('/', [h1, h1, h1])).toEqual([]);
+    // A run Lighthouse could not measure is left out by the caller: two H1 runs still pass.
+    expect(lcpFailures('/', [h1, h1])).toEqual([]);
+    expect(lcpFailures('/', [h1, lead, lead])).toEqual([`LCP element ${lead}, expected one matching /(?:^|,)H1$/`]);
+    expect(lcpFailures('/', [])).toEqual(['no measured run reported an LCP element']);
+    expect(lcpFailures('/proof/', [])).toEqual([]);
+  });
+});
+
+describe('the chunks / loads only on intent (R18.18)', () => {
+  // Each `code` is a chunk's source as the minifier writes it, template literals included.
+  const files = [
+    { path: '/_next/static/chunks/sdk.js', code: 'x={hint:"Run again with --verbose and report the output."}' },
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a chunk's source, not a template of this test
+    { path: '/_next/static/chunks/circuits.js', code: 'throw Error(`unknown cpu ${e}`)' },
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a chunk's source, not a template of this test
+    { path: '/_next/static/chunks/logic.js', code: 'let N=g(`0x${"7e".repeat(20)}`)' },
+    { path: '/_next/static/chunks/slider.js', code: 'S.displayName="SliderThumb"' },
+    { path: '/_next/static/chunks/page.js', code: 'nothing to see' },
+  ];
+
+  it('names every chunk that holds a marker of /: the SDK, the circuits and the time machine', () => {
+    expect(INTENT_MARKERS['/'].map((m) => m.what)).toEqual([
+      'the SDK',
+      'the circuits',
+      'the time machine logic',
+      'the Scrubber',
+    ]);
+    expect(chunksWith(files, INTENT_MARKERS['/'])).toEqual([
+      '/_next/static/chunks/circuits.js',
+      '/_next/static/chunks/logic.js',
+      '/_next/static/chunks/sdk.js',
+      '/_next/static/chunks/slider.js',
+    ]);
+  });
+
+  it('finds the logic in the form a minifier that folds the template leaves', () => {
+    const folded = [{ path: '/a.js', code: `g("0x${'7e'.repeat(20)}")` }];
+    expect(
+      chunksWith(
+        folded,
+        INTENT_MARKERS['/'].filter((m) => m.what === 'the time machine logic'),
+      ),
+    ).toEqual(['/a.js']);
+  });
+
+  it('throws when a marker is in no chunk, so the gate never passes by matching nothing', () => {
+    expect(() => chunksWith(files.slice(1), INTENT_MARKERS['/'])).toThrow(/no chunk of the build holds the SDK/);
+  });
+
+  it('holds nothing back on a route without markers', () => {
+    expect(chunksWith(files, INTENT_MARKERS['/proof/'] ?? [])).toEqual([]);
   });
 });

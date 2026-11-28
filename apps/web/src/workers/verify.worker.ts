@@ -9,12 +9,19 @@ const scope = self as unknown as {
   onmessage: ((e: MessageEvent<WorkerIn>) => void) | null;
 };
 
+/**
+ * Blocks between two progress ticks. 4096 blocks are 256 dots of each state on the 1024 × 1024 map of /proof/, so a
+ * full run ticks 512 times; the throttle below still posts at most one tick per 100 ms, plus the last one.
+ */
+const PROGRESS_EVERY = 4096;
+
 scope.onmessage = async (e) => {
   if (e.data?.type !== 'evaluate') return;
   let last = 0;
   try {
     const result = await evaluatePolicyBundle(e.data.bundle, {
       blocks: e.data.blocks,
+      progressEvery: PROGRESS_EVERY,
       onProgress: (done, total) => {
         const now = Date.now();
         if (now - last >= 100 || done === total) {

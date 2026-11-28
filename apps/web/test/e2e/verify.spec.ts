@@ -215,7 +215,7 @@ test('at 320 px a line keeps its chip with the title and its arrow by "OKLink" (
     await expect(page.getByTestId('verify-overall')).toHaveAttribute('data-overall', 'pass');
     for (const id of ['real', 'rules', 'operators']) {
       const link = `[data-testid="verify-line-${id}-link"] a`;
-      const gap = await sameLine(`${link} > span.whitespace-nowrap`, `${link} svg`);
+      const gap = await sameLine(`${link} > span.whitespace-nowrap`, `${link} .ext-arrow`);
       expect(gap, `${lang} ${id}: the arrow and the label's last word`).toBeLessThan(8);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
