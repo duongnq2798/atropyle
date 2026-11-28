@@ -6,21 +6,20 @@ Guidance for coding agents that work in this repository.
 
 Atropyle is an inheritance and wallet recovery vault on X Layer (chain 196). A circuit on the X Layer TapeOut processor decides every lifecycle transition of a vault, and so every release of its assets; the Solidity contracts decide who receives how much. Anyone can prove the circuit with `npx atropyle verify`.
 
-| Path               | What                                                                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts/`       | Solidity contracts (Foundry)                                                                                                      |
-| `circuits/`        | `@atropyle/circuits`: the policy circuit and its netlists                                                                         |
-| `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                               |
-| `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                           |
-| `packages/cli/`    | `atropyle`: the CLI                                                                                                               |
-| `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                                   |
-| `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                                |
-| `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines              |
-| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                             |
-| `apps/web-legacy/` | The previous web app (Vite + Preact). Until the v2 cutover it is the production site at https://atropyle.xyz (root `vercel.json`) |
-| `deployments/`     | Deployed addresses, per chain                                                                                                     |
-| `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper                   |
-| `supabase/`        | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                                        |
+| Path              | What                                                                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts/`      | Solidity contracts (Foundry)                                                                                                                                      |
+| `circuits/`       | `@atropyle/circuits`: the policy circuit and its netlists                                                                                                         |
+| `packages/sdk/`   | `@atropyle/sdk`: read, simulate, verify and prepare                                                                                                               |
+| `packages/mcp/`   | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                                                           |
+| `packages/cli/`   | `atropyle`: the CLI                                                                                                                                               |
+| `skills/`         | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                                                                   |
+| `.claude-plugin/` | Claude Code marketplace and plugin                                                                                                                                |
+| `examples/`       | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines                                              |
+| `apps/web/`       | The web app (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C. Vercel serves it at https://atropyle.xyz (root `vercel.json`) |
+| `deployments/`    | Deployed addresses, per chain                                                                                                                                     |
+| `apps/backend/`   | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper                                                   |
+| `supabase/`       | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                                                                        |
 
 ## Setup
 
@@ -42,7 +41,7 @@ cd contracts && forge build && cd ..
 npm run build
 npm run build -w packages/mcp
 npm run build -w packages/cli
-npm run build -w apps/web-legacy
+npm run build -w apps/web
 npm run build -w apps/backend
 ```
 
@@ -56,30 +55,15 @@ cd contracts && forge test && cd ..
 npm run test:integration -w packages/mcp
 npm run test:e2e -w packages/mcp
 npm run test:e2e -w packages/cli
-npm test -w apps/web-legacy
+npm test -w apps/web
 npm run test:e2e -w apps/backend
 ```
 
-The site scripts and the web app have their own checks. `npm run test:site` needs Foundry and the output of `forge build` in `contracts/`, so build the contracts first. `npm run e2e -w apps/web-legacy` needs Chromium, which `npm run playwright:install -w apps/web-legacy` installs once. The site build and check run for three targets: DeWEB, GitHub Pages and Vercel (production, built by the root `vercel.json`). The Vercel target also writes `docs/`: the error reference and the CLI schemas that `DOCS_BASE_URL` and the schema `$id`s point at. The size budget reads the built web app.
+The web app and the site scripts have their own checks. `npm run test:site` and `npm run e2e -w apps/web` need the output of `forge build` in `contracts/`, so build the contracts first. `test:build`, `worker:check`, `e2e` and `lighthouse` need Chromium, which `npm run playwright:install -w apps/web` installs once. `worker:check`, `e2e` and `site:build` leave their own build in `apps/web/out`, and `size` and `lighthouse` read the production build there, so run `npm run build -w apps/web` right before them. CI also checks the size budget on the vercel build of `test:build`. The site build and check run for two targets: DeWEB and Vercel (production, built by the root `vercel.json`, with no Foundry and no anvil). The Vercel target also writes `docs/`: the error reference and the CLI schemas that `DOCS_BASE_URL` and the schema `$id`s point at, and `site:check` fails if one of them, the 404 page or a page of the app is missing.
 
 ```bash
 cd contracts && forge build && cd ..
 npm run test:site
-npm run playwright:install -w apps/web-legacy
-npm run e2e -w apps/web-legacy
-npm run site:build -- --target deweb --no-docs
-npm run site:check -- --target deweb
-npm run site:build -- --target pages --no-docs
-npm run site:check -- --target pages
-npm run site:build -- --target vercel --no-docs
-npm run site:check -- --target vercel
-npm run build -w apps/web-legacy
-npm run size -w apps/web-legacy
-```
-
-The web app v2 in `apps/web` has its own checks. `test:build`, `worker:check`, `e2e` and `lighthouse` need Chromium, which `npm run playwright:install -w apps/web` installs once; the e2e, like the legacy one, also needs the output of `forge build` in `contracts/`. `worker:check` and `e2e` leave their own build in `apps/web/out`, and `size` and `lighthouse` read the production build there, so run `npm run build -w apps/web` right before them. CI also checks the size budget on the vercel build of `test:build`.
-
-```bash
 npm run typecheck -w apps/web
 npm test -w apps/web
 npm run playwright:install -w apps/web
@@ -87,6 +71,10 @@ npm run test:build -w apps/web
 SIZE_OUT=test/build/.out/vercel npm run size -w apps/web
 npm run worker:check -w apps/web
 npm run e2e -w apps/web
+npm run site:build -- --target deweb --no-docs
+npm run site:check -- --target deweb
+npm run site:build -- --target vercel --no-docs
+npm run site:check -- --target vercel
 npm run build -w apps/web
 npm run size -w apps/web
 npm run lighthouse -w apps/web
@@ -105,7 +93,7 @@ cd packages/cli && npx vitest run -u test/unit/help.test.ts && cd ../..
 
 `.claude-plugin/` packages the two skills and the MCP server (`npx -y @atropyle/mcp@<version>`). The plugin sets no environment, so its MCP server reads X Layer mainnet, where the contracts are deployed (`deployments/xlayer.json`, `docs/deployments.md`). `npx` runs the server published on npm. To try a change that is not published yet, run the CLI or the MCP server from this checkout (`node packages/cli/dist/bin.js`, `node packages/mcp/dist/bin.js`). For a local devnet, pass `--deployment deployments/local.json`, written by `npm run devnet` (tracked in git and regenerated each run; stage it only when the change is intended).
 
-The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/mcp/package.json` and `server.json` must match. A unit test fails when they differ. Version 0.1.0 of the four packages (`@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and `atropyle`) is on npm. A published version never changes, so a change to a package's README, code or error text reaches npm users only with a new version, which the maintainer publishes. The developers page of the previous web app (`apps/web-legacy/src/pages/developers.tsx`) takes its "on npm" line and its `npx` pins from the SDK's `VERSION`. https://atropyle.xyz builds from `main`, so a version bump goes to `main` only together with, or right after, the npm publish of that version.
+The version in `.claude-plugin/plugin.json` (and its `npx` argument), `packages/mcp/package.json` and `server.json` must match. A unit test fails when they differ. Version 0.1.0 of the four packages (`@atropyle/circuits`, `@atropyle/sdk`, `@atropyle/mcp` and `atropyle`) is on npm. A published version never changes, so a change to a package's README, code or error text reaches npm users only with a new version, which the maintainer publishes. The developers page (`apps/web/src/app/developers/page.tsx`) takes its npm version and its `npx` pins from the SDK's `VERSION` at build time. https://atropyle.xyz builds from `main`, so a version bump goes to `main` only together with, or right after, the npm publish of that version.
 
 ## Backend
 

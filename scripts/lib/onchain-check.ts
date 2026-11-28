@@ -112,7 +112,7 @@ export function collectReferences(text: string, kind: 'html' | 'css', fromDir = 
 
 /**
  * The only chain nodes the gateway counts as the site's own on X Layer (Plan 4, decision 4).
- * Mirrors ONCHAIN_RPCS in apps/web-legacy/src/lib/rpc.ts; a test keeps the two in step.
+ * Mirrors ONCHAIN_RPCS in apps/web/src/chain/impl/rpc.ts; a test keeps the two in step.
  */
 export const RPC_HOSTS = ['rpc.xlayer.tech', 'xlayerrpc.okx.com'] as const;
 
@@ -122,12 +122,13 @@ export const RPC_HOSTS = ['rpc.xlayer.tech', 'xlayerrpc.okx.com'] as const;
  */
 export const TEXT_ONLY_HOSTS: Readonly<Record<string, string>> = {
   'www.oklink.com': 'explorer links (<a href>) built from deployment.explorerUrl; navigation, not a request',
-  't.me': 'Telegram deep links to the bot; navigation, not a request',
   'atropyle.xyz':
     'the production site: share and handoff links (deployment.webUrl) and docs links (DOCS_BASE_URL); navigation, not a request',
-  'github.com': 'repository links on #/developers and in error hints; navigation, not a request',
-  'www.npmjs.com': 'package links on #/developers; navigation, not a request',
-  '*.tapekit.org': 'the site own gateway URL (deployment.webUrl) used in share links; navigation, not a request',
+  'github.com': 'repository links on /developers/ and in error hints; navigation, not a request',
+  'www.npmjs.com': 'package links on /developers/; navigation, not a request',
+  'web3.okx.com': 'the X Layer link (XLAYER_URL in src/lib/links.ts); navigation, not a request',
+  '*.tapekit.org':
+    'the DeWEB gateway host of the on-chain copy (deployments/deweb.json gatewayUrl); navigation, not a request',
   'viem.sh': 'viem error messages link to the viem docs; text only',
   '4byte.sourcify.dev': 'viem error text embeds this URL (signature lookup help); nothing fetches it',
   'abitype.dev': 'abitype error messages append a docs link ("Docs: https://abitype.dev..."); text only',
@@ -135,15 +136,31 @@ export const TEXT_ONLY_HOSTS: Readonly<Record<string, string>> = {
   'docs.soliditylang.org': 'viem error text links to the Solidity cheatsheet; text only',
   'ipfs.io': 'viem default IPFS gateway in NFT/avatar URI parsing; the web app never resolves ENS avatars or NFT URIs',
   'arweave.net': 'viem default Arweave gateway in NFT/avatar URI parsing; the web app never resolves them either',
-  'www.w3.org': 'SVG and XLink namespace URIs inside Preact; identifiers, never fetched',
-  '127.0.0.1': 'the SDK built-in local devnet deployment; only used when VITE_CHAIN=local',
-  localhost: 'webUrl of the SDK built-in local devnet deployment; only used when VITE_CHAIN=local',
+  'react.dev': 'React production error messages link to react.dev/errors/<code>; text only',
+  'nextjs.org': 'Next.js error messages link to its docs; text only',
+  'www.w3.org': 'SVG, MathML and XLink namespace URIs inside React DOM; identifiers, never fetched',
+  '127.0.0.1': 'the SDK built-in local devnet deployment; only used when NEXT_PUBLIC_CHAIN=local',
+  localhost: 'webUrl of the SDK built-in local devnet deployment; only used when NEXT_PUBLIC_CHAIN=local',
+};
+
+/**
+ * Exact URL literals, as jsUrls returns them, that name no host anyone could serve: single-label names that the code
+ * only parses. Matched whole, so `https://a@b` passes and `https://a@evil.example` does not (userinfo stays a finding).
+ * Every entry needs a reason, as in TEXT_ONLY_HOSTS.
+ */
+export const TEXT_ONLY_URLS: Readonly<Record<string, string>> = {
+  'https://a':
+    "the URL feature test of core-js in Next's nomodule polyfill chunk: new URL('b?a=1&b=2&c=3', 'https://a'); parsed, never fetched",
+  'https://a@b': "the same feature test reads new URL('https://a@b').username; parsed, never fetched",
+  'https://x': "the same feature test reads new URL('https://x', undefined).host; parsed, never fetched",
+  'http://n':
+    "Next's useSearchParams parses the URL against this base while it renders on the server; parsed, never fetched",
 };
 
 /** Hosts the page requests only after an explicit user opt-in that warns about the badge. */
 export const OPT_IN_HOSTS: Readonly<Record<string, string>> = {
   'xlayer.drpc.org':
-    'second RPC operator for verify; only after "Cross-check" on #/status, which warns the badge is lost',
+    'second RPC operator for verify; only after "Cross-check" on /status/, which warns the badge is lost',
 };
 
 export function hostAllowed(host: string): boolean {
@@ -166,6 +183,7 @@ const INLINE_SCRIPT = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
 
 /** True when a URL found in JavaScript must be reported: unparseable, has userinfo, or its real host is not allowed. */
 function jsUrlProblem(url: string): boolean {
+  if (Object.hasOwn(TEXT_ONLY_URLS, url)) return false;
   let u: URL;
   try {
     u = new URL(url);

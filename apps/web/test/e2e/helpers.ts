@@ -5,7 +5,7 @@ import { KEYS } from '../../src/lib/store.ts';
 /** WCAG 2.2 AA, the bar of spec §11. */
 export const AXE_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
-/** The stored theme choices the tests use: `dark` is night (the default), `light` is vellum (spec §18.4.1). */
+/** The stored theme choices the tests use: `light` is vellum (the default), `dark` is night (spec §18.4.1). */
 export type E2ETheme = 'dark' | 'light';
 export type E2ELang = 'en' | 'vi';
 
@@ -59,16 +59,15 @@ export async function expectAccessible(page: Page): Promise<void> {
 }
 
 /**
- * Ruling R18.17: switches the theme the way a person's choice does, through the stored choice and a reload. Night
- * does not follow the system preference, so emulateMedia({ colorScheme }) cannot change the theme. The reload restarts
+ * Ruling R18.17: switches the theme the way a person's choice does, through the stored choice and a reload. Neither
+ * vellum nor night follows the system preference, so emulateMedia({ colorScheme }) cannot change the theme. The reload restarts
  * the page from its URL: state in the hash or in session storage survives, an open dialog does not.
  */
 export async function setStoredTheme(page: Page, theme: E2ETheme): Promise<void> {
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [KEYS.theme, theme] as const);
   await page.reload();
-  // The boot script applies the stored choice before the first paint: vellum sets the attribute, night removes it.
-  if (theme === 'light') await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  else await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+  // The boot script applies the stored choice before the first paint, and always sets the attribute (7C-T12).
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 }
 
 /** The language, the same way; it applies after hydration, so this waits for <html lang>. */
@@ -80,7 +79,7 @@ export async function setStoredLang(page: Page, lang: E2ELang): Promise<void> {
 
 /**
  * No axe violation in vellum, then in night, each set through the stored choice (setStoredTheme); the page ends in
- * night, the default. Each theme reloads the page: pass `ready` when the page fills in after load (a vault read from
+ * night, where the suite starts (fixtures.ts firstTheme). Each theme reloads the page: pass `ready` when the page fills in after load (a vault read from
  * the chain), and use expectAccessible instead while a dialog is open.
  */
 export async function expectAccessibleInBothThemes(page: Page, ready?: Locator): Promise<void> {

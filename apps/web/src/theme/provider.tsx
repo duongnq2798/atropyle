@@ -41,7 +41,7 @@ function prefersLight(): boolean {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const kv = useKV();
-  // The prerendered page is night: the HTML carries no theme attribute (R18.1).
+  // The prerendered page is vellum: the HTML carries no theme attribute and :root is vellum (7C-T12).
   const choice = useSyncExternalStore(subscribeTheme, readThemeAttr, () => DEFAULT_THEME);
   const light = useSyncExternalStore(subscribeScheme, prefersLight, () => false);
 

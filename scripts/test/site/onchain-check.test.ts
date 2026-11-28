@@ -11,6 +11,7 @@ import {
   RPC_HOSTS,
   scanHtml,
   TEXT_ONLY_HOSTS,
+  TEXT_ONLY_URLS,
 } from '../../lib/onchain-check';
 import { makeSiteFile } from '../../lib/site-files';
 
@@ -107,6 +108,8 @@ test('host lists allow *.suffix patterns and every entry has a reason', () => {
   expect(hostAllowed('xlayer.drpc.org')).toBe(true);
   expect(hostAllowed('4byte.sourcify.dev')).toBe(true);
   expect(hostAllowed('health.atropyle.invalid')).toBe(false);
+  expect(hostAllowed('t.me')).toBe(false);
+  expect(hostAllowed('react.dev')).toBe(true);
   for (const reason of [...Object.values(TEXT_ONLY_HOSTS), ...Object.values(OPT_IN_HOSTS)]) {
     expect(reason.length).toBeGreaterThan(10);
   }
@@ -123,7 +126,7 @@ test('jsUrls accepts bracketed IPv6 hosts and ports', () => {
 });
 
 test('RPC_HOSTS equals the hosts of the web ONCHAIN_RPCS', () => {
-  const src = readFileSync(fileURLToPath(new URL('../../../apps/web-legacy/src/lib/rpc.ts', import.meta.url)), 'utf8');
+  const src = readFileSync(fileURLToPath(new URL('../../../apps/web/src/chain/impl/rpc.ts', import.meta.url)), 'utf8');
   const list = /ONCHAIN_RPCS[^=]*=\s*\[([^\]]*)\]/.exec(src);
   expect(list).not.toBeNull();
   const hosts = [...(list?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => new URL(m[1]).hostname);
@@ -154,4 +157,19 @@ test('inline <script> bodies in HTML are scanned for hosts', () => {
   expect(checkSite([file('index.html', html)]).js).toEqual([
     { path: 'index.html', url: 'https://evil.example', where: 'js' },
   ]);
+});
+
+test('TEXT_ONLY_URLS passes only its exact literals: the polyfill feature test and the Next server base', () => {
+  const ok = checkSite([
+    file(
+      '_next/static/chunks/p.js',
+      'new URL("https://a@b").username;new URL("b?a=1","https://a");new URL("https://x",void 0).host;new URL(u,"http://n")',
+    ),
+  ]);
+  expect(ok.js).toEqual([]);
+  const bad = checkSite([
+    file('_next/static/chunks/q.js', 'fetch("https://a@evil.example");fetch("https://ab");fetch("http://n.evil")'),
+  ]);
+  expect(bad.js.map((f) => f.url)).toEqual(['https://a@evil.example', 'https://ab', 'http://n.evil']);
+  for (const reason of Object.values(TEXT_ONLY_URLS)) expect(reason.length).toBeGreaterThan(20);
 });

@@ -79,10 +79,12 @@ describe('boot script', () => {
     expect(setAttribute).not.toHaveBeenCalled();
   });
 
-  it('applies a stored vellum or match-device choice and leaves night to the stylesheet', () => {
-    expect(page({ stored: 'light' }).setAttribute).toHaveBeenCalledWith('data-theme', 'light');
-    expect(page({ stored: 'system' }).setAttribute).toHaveBeenCalledWith('data-theme', 'system');
-    for (const stored of ['dark', 'blue', '', null]) expect(page({ stored }).setAttribute).not.toHaveBeenCalled();
+  it('always leaves a theme on <html>: a stored night or match device, else vellum', () => {
+    expect(page({ stored: 'dark' }).theme).toBe('dark');
+    expect(page({ stored: 'system' }).theme).toBe('system');
+    for (const stored of ['light', 'blue', '', null, 'Dark', ' light']) {
+      expect(page({ stored }).theme, String(stored)).toBe('light');
+    }
   });
 
   it('leaves <html> as parseTheme reads the stored value', () => {
@@ -94,7 +96,7 @@ describe('boot script', () => {
 
   it('boot survives a localStorage that throws', () => {
     expect(() => page({ storageThrows: true })).not.toThrow();
-    expect(page({ storageThrows: true }).theme).toBeNull();
+    expect(page({ storageThrows: true }).theme).toBe('light');
     expect(page({ storageThrows: true, hash: '#/proof' }).replace).toHaveBeenCalledWith('/proof/');
   });
 });

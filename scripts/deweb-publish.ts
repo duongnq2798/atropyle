@@ -1,6 +1,6 @@
 // npm run deweb:publish -- [--dry-run | --emit contracts/deweb-calls/<name>.json | --unlocked <addr>]
 //                          [--dir site-dist/deweb] [--rpc <url>] [--site deployments/deweb.json] [--container <addr>]
-//                          [--prune] [--fallback index.html]
+//                          [--prune] [--fallback 404.html]
 // No mode flag means a dry run: it reads the chain and prints the plan and the fee. Nothing here takes a key.
 // --emit writes the calls that are left for contracts/script/07_DewebPublish.s.sol, which the circuit holder
 // broadcasts from their own terminal with their keystore. --unlocked sends with eth_sendTransaction, and only to a
@@ -111,7 +111,7 @@ async function main(argv: readonly string[]): Promise<void> {
   }
 
   const dir = resolve(ROOT, args.dir);
-  const problems = siteProblems(dir, 'deweb');
+  const problems = siteProblems(dir, 'deweb', { pages: false });
   if (problems.length > 0) throw new Fail(problems.map((p) => `- ${p}`).join('\n'));
   const local = loadSite(dir);
   const site = readSite(resolve(ROOT, args.site));

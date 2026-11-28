@@ -4,7 +4,7 @@ export const messages = defineMessages(
   {
     title: 'Is this vault real?',
     intro:
-      'Anyone can send you a link to a vault. This page checks it against X00a0Layer itself, here in your browser, through RPC operators that do not depend on each other. It does not trust this website.',
+      'Anyone can send you a link to a vault. This page checks it against X\u00a0Layer itself, here in your browser, through RPC operators that do not depend on each other. It does not trust this website.',
     loading: 'Reading the vault from X\u00a0Layer…',
     noScript:
       'This check runs in your browser and needs JavaScript. The command below runs the same check on your computer.',

@@ -1,8 +1,0 @@
-[
-  {
-    "name": "web: every JS and CSS file of the build, the verify worker included",
-    "path": ["dist/assets/*.js", "dist/assets/*.css"],
-    "limit": "400 kB",
-    "gzip": true
-  }
-]

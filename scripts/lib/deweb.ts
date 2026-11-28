@@ -20,7 +20,7 @@ import {
   toHex,
   type WalletClient,
 } from 'viem';
-import { CHUNK_MAX, type SiteFile } from './site-files';
+import { CHUNK_MAX, DEFAULT_FALLBACK, type SiteFile } from './site-files';
 
 /**
  * DeWEB on X Layer, read-only checks of 18/11/2026 (Plan 4, decision 11). The impls match the gateway's expectedImpl.
@@ -542,7 +542,7 @@ export function parsePublishArgs(argv: readonly string[]): PublishArgs {
     rpcUrl: 'https://rpc.xlayer.tech',
     site: 'deployments/deweb.json',
     prune: false,
-    fallback: 'index.html',
+    fallback: DEFAULT_FALLBACK,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];

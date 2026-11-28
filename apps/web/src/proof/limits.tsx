@@ -59,7 +59,7 @@ const ROWS: readonly Row[] = [
     protect: 'limit5Do',
     links: [{ href: LIMIT_LINKS.disappears, label: 'limit5Link' }],
   },
-  // /sign/ comes with Plan 7B: no prefetch until it exists (Quyết định 22).
+  // limit6 links to /sign/; like every link of this list it does not prefetch (7C-T12 Ruling 12).
   {
     title: 'limit6Title',
     body: 'limit6Body',

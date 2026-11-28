@@ -111,20 +111,36 @@ describe('settings', () => {
     expect((screen.getByRole('radio', { name: 'Tiếng\u00A0Việt' }) as HTMLInputElement).checked).toBe(true);
   });
 
-  it('opens at night, then switches to vellum, to match device and back to night', async () => {
+  it('opens in vellum, then switches to night, to match device and back to vellum', async () => {
     const { kv } = renderWithProviders(<ThemeSwitch />);
     const radio = (name: string) => screen.getByRole('radio', { name }) as HTMLInputElement;
-    await waitFor(() => expect(radio('Night').checked).toBe(true));
-    expect(screen.getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['dark', 'light', 'system']);
+    await waitFor(() => expect(radio('Vellum').checked).toBe(true));
+    expect(screen.getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['light', 'dark', 'system']);
+    fireEvent.click(radio('Night'));
+    await waitFor(() => expect(root.getAttribute('data-theme')).toBe('dark'));
+    expect(kv.get(KEYS.theme)).toBe('dark');
+    fireEvent.click(radio('Match device'));
+    await waitFor(() => expect(root.getAttribute('data-theme')).toBe('system'));
     fireEvent.click(radio('Vellum'));
     await waitFor(() => expect(root.getAttribute('data-theme')).toBe('light'));
     expect(kv.get(KEYS.theme)).toBe('light');
-    fireEvent.click(radio('Match device'));
-    await waitFor(() => expect(root.getAttribute('data-theme')).toBe('system'));
-    fireEvent.click(radio('Night'));
-    await waitFor(() => expect(root.hasAttribute('data-theme')).toBe(false));
-    expect(kv.get(KEYS.theme)).toBe('dark');
-    expect(radio('Night').checked).toBe(true);
+    expect(radio('Vellum').checked).toBe(true);
+  });
+
+  it('marks the checked theme and language with a ring that holds on vellum (WCAG 1.4.11)', () => {
+    renderWithProviders(
+      <>
+        <ThemeSwitch />
+        <LangSwitch />
+      </>,
+    );
+    const radios = screen.getAllByRole('radio');
+    expect(radios.length).toBe(5);
+    for (const r of radios) {
+      expect(r.closest('label')?.className, r.getAttribute('value') ?? '').toContain(
+        'has-checked:ring-1 has-checked:ring-line-strong',
+      );
+    }
   });
 
   it('names the three themes in Vietnamese', async () => {

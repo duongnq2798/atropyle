@@ -3,6 +3,15 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build && npm run site:build -- --target vercel --no-docs",
   "outputDirectory": "site-dist/vercel",
+  "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.atropyle.xyz" }],
+      "destination": "https://atropyle.xyz/:path*",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -18,7 +27,7 @@
       ]
     },
     {
-      "source": "/assets/(.*)",
+      "source": "/_next/static/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
   ]

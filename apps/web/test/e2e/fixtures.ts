@@ -2,6 +2,8 @@ import { type AtropyleClient, createAtropyle, type Deployment, parseDeployment }
 import { test as base, expect, type Page } from '@playwright/test';
 import type { Address } from 'viem';
 import { ANVIL_ACCOUNTS } from '../../../../scripts/lib/anvil.ts';
+import { KEYS } from '../../src/lib/store.ts';
+import type { E2ETheme } from './helpers.ts';
 import { offchain, recordRequests, routeRpcToAnvil } from './network.ts';
 import { type E2EState, readState, resetChain } from './state.ts';
 import { installWallet, type TestWallet, type WalletOptions } from './wallet.ts';
@@ -38,7 +40,16 @@ interface Fixtures {
   wallet: (o: Omit<WalletOptions, 'rpcUrl'>) => Promise<TestWallet>;
 }
 
-export const test = base.extend<Fixtures>({
+interface Options {
+  /**
+   * The theme stored before the page's first load, when the test has stored none: the suite was written while night was
+   * the default (7C-T12 Ruling 11). null leaves storage empty, for the tests of the default (theme-default.spec.ts).
+   */
+  firstTheme: E2ETheme | null;
+}
+
+export const test = base.extend<Fixtures & Options>({
+  firstTheme: ['dark', { option: true }],
   // biome-ignore lint/correctness/noEmptyPattern: Playwright passes fixture dependencies as the first argument
   state: async ({}, use) => {
     await use(await resetChain(readState()));
@@ -59,7 +70,19 @@ export const test = base.extend<Fixtures>({
     await use([]);
   },
   // Three nets under every test: no request leaves the site and the OKX nodes, no policy violation, no uncaught error.
-  page: async ({ page, state, requests, cspViolations }, use) => {
+  page: async ({ page, state, requests, cspViolations, firstTheme }, use) => {
+    if (firstTheme !== null) {
+      await page.addInitScript(
+        ([key, value]) => {
+          try {
+            if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, value);
+          } catch {
+            // A document without storage (about:blank, a test that blocks it) gets the default.
+          }
+        },
+        [KEYS.theme, firstTheme] as const,
+      );
+    }
     await routeRpcToAnvil(page, state.rpcUrl);
     recordRequests(page, requests);
     await recordCspViolations(page, cspViolations);

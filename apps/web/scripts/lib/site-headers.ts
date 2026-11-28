@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const VERCEL_JSON = fileURLToPath(new URL('../../vercel.json', import.meta.url));
+/** The production config, at the repository root (7C-T12): e2e and Lighthouse serve exactly its headers. */
+export const VERCEL_JSON = fileURLToPath(new URL('../../../../vercel.json', import.meta.url));
 
 interface HeaderRule {
   source: string;

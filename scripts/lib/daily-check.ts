@@ -63,8 +63,8 @@ const SITE_TIMEOUT_MS = 15_000;
 /** Redirects followed on the site's own host (http to https, a trailing slash) before giving up. */
 const MAX_SITE_REDIRECTS = 5;
 /**
- * The built app's <title> starts with its name: "Atropyle" (apps/web-legacy) or "Atropyle: ..." (apps/web). A parked
- * or forwarded domain answers 200 with its own page, whose title is empty, the domain name or an ad.
+ * The built app's <title> starts with its name: "Atropyle: ..." (apps/web, SHARE.title), or "Atropyle" alone on a
+ * page that sets no title. A parked or forwarded domain answers 200 with its own page, whose title is empty, the domain name or an ad.
  */
 export const APP_TITLE = /<title[^>]*>\s*Atropyle(?![\w.])/;
 /** Earlier transactions inspected when the newest ones are neither poke nor distribute. */

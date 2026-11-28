@@ -36,7 +36,7 @@ export function warningKey(w: Warning): string {
 }
 
 /**
- * The numbers of a RECOVERY_POWER warning, so a page can say it in the viewer's language (web-legacy's WarningText):
+ * The numbers of a RECOVERY_POWER warning, so a page can say it in the viewer's language (as the previous web app did):
  * k guardians of n can move everything once the alarm window (seconds) ends. Read from `params`, the typed numbers
  * the SDK built `message` from, never from `message`. null for any other warning, or when a number is missing or not
  * a safe integer: the page then shows the SDK's English `message`.

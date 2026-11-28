@@ -337,7 +337,7 @@ describe('parsePublishArgs', () => {
       site: 'deployments/deweb.json',
       container: null,
       prune: false,
-      fallback: 'index.html',
+      fallback: '404.html',
     });
     expect(parsePublishArgs(['--dry-run', '--prune', '--container', CONTAINER.toLowerCase()])).toMatchObject({
       mode: { kind: 'dry-run' },

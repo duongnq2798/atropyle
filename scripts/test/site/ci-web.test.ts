@@ -13,6 +13,7 @@ interface Step {
   if?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
+  'working-directory'?: string;
 }
 interface Job {
   permissions?: Record<string, string>;
@@ -31,67 +32,120 @@ const scriptsOf = (dir: string): string[] =>
     (JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8')) as { scripts?: Record<string, string> })
       .scripts ?? {},
   );
+const isNpmScript = (c: string): boolean => c.startsWith('npm run ') || c.startsWith('npm test');
+
+/** Every command of the job, as Plan 7C Task 12 leaves it. */
+const WEB_COMMANDS = [
+  'npm ci',
+  'forge build',
+  'npm run build',
+  'npm run typecheck -w apps/web',
+  'npm test -w apps/web',
+  'npm run test:site',
+  'npm run playwright:install -w apps/web',
+  'npm run test:build -w apps/web',
+  'npm run worker:check -w apps/web',
+  'npm run e2e -w apps/web',
+  'npm run site:build -- --target deweb --no-docs',
+  'npm run site:check -- --target deweb',
+  'npm run site:build -- --target vercel --no-docs',
+  'npm run site:check -- --target vercel',
+  'npm run build -w apps/web',
+  'npm run size -w apps/web',
+  'npm run lighthouse -w apps/web',
+];
 
 test('the web job reads only, holds no secret and signs nothing', () => {
   expect(job).toBeDefined();
   expect(job.permissions).toEqual({ contents: 'read' });
-  // The parsed job has no comments, so this checks commands, env and inputs only. test:site itself runs deweb-publish
-  // and a local forge script against its own anvil with an unlocked account; the job never calls them directly.
   expect(JSON.stringify(job)).not.toMatch(
-    /secrets\.|PRIVATE_KEY|DEWEB_OPERATOR_KEY|KEEPER_KEY|--broadcast|cast send|deweb:publish|eth_sendRawTransaction/,
+    /secrets\.|PRIVATE_KEY|DEWEB_OPERATOR_KEY|KEEPER_KEY|SUPABASE_ACCESS_TOKEN|VERCEL_TOKEN|--broadcast|cast send|deweb:publish|eth_sendRawTransaction/,
   );
 });
 
-test('the web job checks out submodules without keeping credentials, and pins Foundry and the browser install', () => {
+test('the web job checks out without keeping credentials and pins every action', () => {
   const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
-  expect(checkout?.with?.submodules).toBe(true);
   expect(checkout?.with?.['persist-credentials']).toBe(false);
-  expect(commands()).toContain('npm run playwright:install -w apps/web-legacy');
-  expect(commands().some((c) => c.startsWith('npx'))).toBe(false);
-  const foundry = job.steps.find((s) => s.uses?.startsWith('foundry-rs/foundry-toolchain'));
-  expect(foundry?.with?.version).toBe('v1.9.0');
-  const order = job.steps.map((s) => s.uses?.split('@')[0] ?? s.run ?? '');
-  expect(order.indexOf('foundry-rs/foundry-toolchain')).toBeLessThan(order.indexOf('npm run test:site'));
-  expect(order.indexOf('forge build')).toBeLessThan(order.indexOf('npm run test:site'));
   for (const s of job.steps) if (s.uses) expect(s.uses, s.uses).toMatch(/@v\d+$/);
+  expect(commands().some((c) => c.startsWith('npx'))).toBe(false);
 });
 
-test('the web job runs the unit, script and e2e tests, both site checks and the size budget', () => {
+test('the web job builds the SDK first, then tests, then builds both targets', () => {
   const c = commands();
-  for (const want of [
-    'npm ci',
-    'npm run build',
-    'npm run typecheck -w apps/web-legacy',
-    'npm test -w apps/web-legacy',
-    'npm run test:site',
-    'npm run e2e -w apps/web-legacy',
+  for (const want of WEB_COMMANDS) expect(c, want).toContain(want);
+  expect(c.indexOf('npm run build')).toBeLessThan(c.indexOf('npm test -w apps/web'));
+  expect(c.indexOf('npm run build')).toBeLessThan(c.indexOf('npm run test:site'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(
+    c.indexOf('npm run worker:check -w apps/web'),
+  );
+  // test/build/reveal-sync.test.ts launches Chromium.
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(c.indexOf('npm run test:build -w apps/web'));
+});
+
+test('the web job installs Foundry 1.9.0 and builds the contracts before test:site and e2e', () => {
+  const foundry = job.steps.find((s) => s.uses?.startsWith('foundry-rs/foundry-toolchain@'));
+  expect(foundry?.with?.version).toBe('v1.9.0');
+  expect(job.steps.find((s) => s.run === 'forge build')?.['working-directory']).toBe('contracts');
+  const c = commands();
+  expect(c.indexOf('forge build')).toBeLessThan(c.indexOf('npm run test:site'));
+  expect(c.indexOf('forge build')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+  expect(c.indexOf('npm run playwright:install -w apps/web')).toBeLessThan(c.indexOf('npm run e2e -w apps/web'));
+});
+
+test('size and Lighthouse read a fresh production build, made after every other build', () => {
+  const c = commands();
+  const build = c.indexOf('npm run build -w apps/web');
+  for (const before of [
+    'npm run test:build -w apps/web',
+    'npm run worker:check -w apps/web',
+    'npm run e2e -w apps/web',
     'npm run site:build -- --target deweb --no-docs',
-    'npm run site:check -- --target deweb',
-    'npm run site:build -- --target pages --no-docs',
-    'npm run site:check -- --target pages',
-    'npm run size -w apps/web-legacy',
+    'npm run site:build -- --target vercel --no-docs',
   ]) {
-    expect(c, want).toContain(want);
+    expect(c.indexOf(before), before).toBeLessThan(build);
   }
-  expect(c.indexOf('npm run build')).toBeLessThan(c.indexOf('npm test -w apps/web-legacy'));
-  const deweb = job.steps.find((s) => s.run?.includes('--target deweb'));
-  expect(deweb?.env?.VITE_WORKER_URL).toBe('https://health.atropyle.invalid');
+  // The last size run reads out/; the one before it reads the vercel build of test:build (next test).
+  expect(build).toBeLessThan(c.lastIndexOf('npm run size -w apps/web'));
+  expect(c.lastIndexOf('npm run size -w apps/web')).toBeLessThan(c.indexOf('npm run lighthouse -w apps/web'));
+});
+
+test('size also measures the vercel build of test:build, the only bundle with the backend client', () => {
+  const at = job.steps.findIndex((s) => s.env?.SIZE_OUT === 'test/build/.out/vercel');
+  expect(at, 'a size step with SIZE_OUT=test/build/.out/vercel').toBeGreaterThan(-1);
+  expect(job.steps[at]?.run).toBe('npm run size -w apps/web');
+  expect(job.steps.findIndex((s) => s.run === 'npm run test:build -w apps/web')).toBeLessThan(at);
+  const others = job.steps.filter((s, i) => i !== at && s.run?.includes('npm run size'));
+  expect(others.length).toBe(1);
+  for (const s of others) expect(s.env?.SIZE_OUT, s.run).toBeUndefined();
+});
+
+test('the DeWEB site is built with a backend URL that must not reach it, and nothing builds Pages or the old app', () => {
+  const site = job.steps.find((s) => s.run?.includes('site:build -- --target deweb'));
+  expect(site?.env?.NEXT_PUBLIC_API_URL).toBe('https://api.atropyle.invalid/functions/v1');
+  // Written so that the repository-wide greps for the old app and for Pages (gate §6) do not match this line.
+  expect(JSON.stringify(workflow)).not.toMatch(/--target[ =]pages|web-(?:legacy|next)/);
+  const c = commands();
+  expect(c.indexOf('npm run e2e -w apps/web')).toBeLessThan(
+    c.indexOf('npm run site:build -- --target deweb --no-docs'),
+  );
+});
+
+test('the Vercel site is built and checked the way the root vercel.json builds it', () => {
+  const root = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8')) as { buildCommand: string };
+  const c = commands();
+  for (const want of root.buildCommand.split('&&').map((s) => s.trim())) expect(c, want).toContain(want);
+  expect(c).toContain('npm run site:check -- --target vercel');
+  const step = job.steps.find((s) => s.run?.includes('site:build -- --target vercel'));
+  expect(step?.env?.NEXT_PUBLIC_API_URL).toBeUndefined();
 });
 
 test('the web job runs only npm scripts that exist', () => {
-  const runs = commands().filter((c) => c.startsWith('npm run ') || c.startsWith('npm test'));
-  expect(runs.length).toBeGreaterThanOrEqual(11);
+  const runs = commands().filter(isNpmScript);
+  expect(runs.length).toBeGreaterThanOrEqual(WEB_COMMANDS.filter(isNpmScript).length);
   for (const c of runs) {
     const m = /^npm (?:run ([\w:-]+)|(test))(?: -w (\S+))?/.exec(c);
     expect(m, c).not.toBeNull();
     const [, script, npmTest, workspace] = m as RegExpExecArray;
     expect(scriptsOf(workspace ?? '.'), c).toContain(script ?? npmTest);
   }
-});
-
-test('the size budget is 400 kB gzip for all JS and CSS files together', () => {
-  const budget = JSON.parse(readFileSync(join(ROOT, 'apps/web-legacy/.size-limit.json'), 'utf8'));
-  expect(budget).toEqual([
-    { name: expect.any(String), path: ['dist/assets/*.js', 'dist/assets/*.css'], limit: '400 kB', gzip: true },
-  ]);
 });

@@ -52,18 +52,17 @@ afterEach(() => {
 });
 
 describe('theme', () => {
-  it('parses night, vellum and match device; anything else is night', () => {
-    expect(DEFAULT_THEME).toBe('dark');
-    expect(THEME_CHOICES).toEqual(['dark', 'light', 'system']);
+  it('parses vellum, night and match device; anything else is vellum', () => {
+    expect(DEFAULT_THEME).toBe('light');
+    expect(THEME_CHOICES).toEqual(['light', 'dark', 'system']);
     for (const c of THEME_CHOICES) expect(parseTheme(c)).toBe(c);
     for (const raw of ['', null, undefined, 'Dark', ' light', 'auto', '"><script>'])
-      expect(parseTheme(raw)).toBe('dark');
+      expect(parseTheme(raw)).toBe('light');
   });
 
-  it('night removes data-theme; vellum and match device set it', () => {
-    root.setAttribute('data-theme', 'light');
+  it('every choice sets data-theme; no attribute reads as vellum', () => {
     applyTheme('dark');
-    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(root.getAttribute('data-theme')).toBe('dark');
     expect(readThemeAttr()).toBe('dark');
     applyTheme('light');
     expect(root.getAttribute('data-theme')).toBe('light');
@@ -71,38 +70,41 @@ describe('theme', () => {
     expect(root.getAttribute('data-theme')).toBe('system');
     expect(readThemeAttr()).toBe('system');
     root.setAttribute('data-theme', 'purple');
-    expect(readThemeAttr()).toBe('dark');
+    expect(readThemeAttr()).toBe('light');
+    root.removeAttribute('data-theme');
+    expect(readThemeAttr()).toBe('light');
   });
 
-  it('vellum can be scoped to one element without touching the page', () => {
+  it('a theme can be scoped to one element without touching the page', () => {
     const letter = document.createElement('article');
     applyTheme('light', letter);
     expect(letter.getAttribute('data-theme')).toBe('light');
     expect(root.hasAttribute('data-theme')).toBe(false);
     applyTheme('dark', letter);
-    expect(letter.hasAttribute('data-theme')).toBe(false);
+    expect(letter.getAttribute('data-theme')).toBe('dark');
+    expect(root.hasAttribute('data-theme')).toBe(false);
   });
 
-  it('a stored garbage theme falls back to night', async () => {
-    stubScheme(true);
-    root.setAttribute('data-theme', 'light');
+  it('a stored garbage theme falls back to vellum', async () => {
+    stubScheme(false);
+    root.setAttribute('data-theme', 'dark');
     const kv = memoryKV();
     kv.set(KEYS.theme, 'sepia"><img src=x>');
     const { result } = renderHook(() => useTheme(), { wrapper: wrap(kv) });
-    await waitFor(() => expect(result.current.choice).toBe('dark'));
-    expect(root.hasAttribute('data-theme')).toBe(false);
-    expect(result.current.resolved).toBe('dark');
+    await waitFor(() => expect(result.current.choice).toBe('light'));
+    expect(root.getAttribute('data-theme')).toBe('light');
+    expect(result.current.resolved).toBe('light');
   });
 
-  it('a device that prefers light still opens at night', async () => {
-    stubScheme(true);
+  it('a device that prefers dark still opens in vellum', async () => {
+    stubScheme(false);
     const { result } = renderHook(() => useTheme(), { wrapper: wrap(memoryKV()) });
-    await waitFor(() => expect(result.current.choice).toBe('dark'));
-    expect(result.current.resolved).toBe('dark');
-    expect(root.hasAttribute('data-theme')).toBe(false);
+    await waitFor(() => expect(result.current.choice).toBe('light'));
+    expect(result.current.resolved).toBe('light');
+    expect(root.getAttribute('data-theme')).toBe('light');
   });
 
-  it('prerenders at night', () => {
+  it('prerenders in vellum', () => {
     const html = renderToString(
       <KVProvider kv={memoryKV()}>
         <ThemeProvider>
@@ -110,7 +112,7 @@ describe('theme', () => {
         </ThemeProvider>
       </KVProvider>,
     );
-    expect(html).toContain('dark/dark');
+    expect(html).toContain('light/light');
   });
 
   it('applies the stored theme, then remembers a new choice', async () => {
@@ -126,7 +128,7 @@ describe('theme', () => {
     expect(kv.get(KEYS.theme)).toBe('system');
     act(() => result.current.setChoice('dark'));
     expect(result.current.choice).toBe('dark');
-    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(root.getAttribute('data-theme')).toBe('dark');
     expect(kv.get(KEYS.theme)).toBe('dark');
   });
 
@@ -189,7 +191,10 @@ describe('a theme change holds back the transitions of the weave', () => {
   });
 
   it('marks nothing when the theme stays, nor for a scoped element', () => {
+    // The boot script leaves <html> in night when storage holds it; choosing night again changes nothing.
+    root.setAttribute('data-theme', 'dark');
     applyTheme('dark');
+    expect(root.getAttribute('data-theme')).toBe('dark');
     expect(root.hasAttribute(THEME_SWAP_ATTR)).toBe(false);
     const letter = document.createElement('article');
     applyTheme('light', letter);

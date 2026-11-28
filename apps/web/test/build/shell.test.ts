@@ -37,14 +37,14 @@ for (const target of ['vercel', 'deweb'] as const) {
       }
     });
 
-    it('opens at night: no theme attribute, one night theme colour, a dark colour scheme', () => {
+    it('opens in vellum: no theme attribute in the HTML (the boot script sets it), one vellum theme colour, a light colour scheme', () => {
       const html = read('index.html');
       expect(html.match(/<html[^>]*>/)?.[0]).not.toContain('data-theme');
       const colours = metas(html, 'theme-color');
       expect(colours).toHaveLength(1);
-      expect(colours[0]).toContain('content="#0b0d12"');
+      expect(colours[0]).toContain('content="#f6f1e7"');
       expect(colours[0]).not.toContain('media=');
-      expect(metas(html, 'color-scheme')).toEqual([expect.stringContaining('content="dark"')]);
+      expect(metas(html, 'color-scheme')).toEqual([expect.stringContaining('content="light"')]);
     });
 
     it('prerenders the proof line and the footer on every page, and the home and 404 text', () => {

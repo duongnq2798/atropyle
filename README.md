@@ -14,7 +14,7 @@ The circuit can only ever meet 67,108,864 cases. Don't take our word for a singl
 
 **Check it without a wallet:**
 
-- Open the proof page, [https://atropyle.xyz/#/proof](https://atropyle.xyz/#/proof), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. A vault page shows the same checks for one vault, for example the test Drill vault at [`#/v/0x481F…f4b9/verify`](https://atropyle.xyz/#/v/0x481F28748959036B48bc6779797228D74f15f4b9/verify), which expires on 29 November 2026 at 08:28:06 UTC and can still be read after that.
+- Open the proof page, [https://atropyle.xyz/proof/](https://atropyle.xyz/proof/), and press "Run the proof". Your browser reads the policy circuit from X Layer and checks all 67,108,864 combinations of state and input. A vault page shows the same checks for one vault, for example the test Drill vault at [`/verify/#0x481F…f4b9`](https://atropyle.xyz/verify/#0x481F28748959036B48bc6779797228D74f15f4b9), which expires on 29 November 2026 at 08:28:06 UTC and can still be read after that.
 - Or run one command, read-only:
 
   ```bash
@@ -163,21 +163,20 @@ The deployer and the treasury are team wallets, listed with a public source for 
 
 ## Repository layout
 
-| Path               | What                                                                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts/`       | Solidity contracts (Foundry)                                                                                                      |
-| `circuits/`        | `@atropyle/circuits`: the policy circuit and its netlists                                                                         |
-| `packages/sdk/`    | `@atropyle/sdk`: read, simulate, verify and prepare                                                                               |
-| `packages/mcp/`    | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                           |
-| `packages/cli/`    | `atropyle`: the CLI                                                                                                               |
-| `skills/`          | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                                   |
-| `.claude-plugin/`  | Claude Code marketplace and plugin                                                                                                |
-| `examples/`        | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines              |
-| `apps/web/`        | The web app v2 (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C                             |
-| `apps/web-legacy/` | The previous web app (Vite + Preact). Until the v2 cutover it is the production site at https://atropyle.xyz (root `vercel.json`) |
-| `deployments/`     | Deployed addresses, per chain                                                                                                     |
-| `apps/backend/`    | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper                   |
-| `supabase/`        | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                                        |
+| Path              | What                                                                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts/`      | Solidity contracts (Foundry)                                                                                                                                      |
+| `circuits/`       | `@atropyle/circuits`: the policy circuit and its netlists                                                                                                         |
+| `packages/sdk/`   | `@atropyle/sdk`: read, simulate, verify and prepare                                                                                                               |
+| `packages/mcp/`   | `@atropyle/mcp`: the MCP server (stdio) and the shared operations (`@atropyle/mcp/ops`)                                                                           |
+| `packages/cli/`   | `atropyle`: the CLI                                                                                                                                               |
+| `skills/`         | Agent Skills `atropyle-estate-planning` and `atropyle-guardian`                                                                                                   |
+| `.claude-plugin/` | Claude Code marketplace and plugin                                                                                                                                |
+| `examples/`       | `agent-mcp-client`: an MCP client that never signs, and client configs. `node-quickstart`: the SDK in about 40 lines                                              |
+| `apps/web/`       | The web app (Next.js 16 static export, targets `vercel` and `deweb`), built by Plans 7A, 7B and 7C. Vercel serves it at https://atropyle.xyz (root `vercel.json`) |
+| `deployments/`    | Deployed addresses, per chain                                                                                                                                     |
+| `apps/backend/`   | `@atropyle/backend` (private): Supabase Edge Functions, email templates (React Email, EN and VI) and the keeper                                                   |
+| `supabase/`       | Postgres migrations, the `pg_cron` schedule and the CLI config of the eight Edge Functions                                                                        |
 
 ## Development
 

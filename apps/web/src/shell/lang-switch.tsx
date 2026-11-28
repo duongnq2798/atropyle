@@ -23,7 +23,7 @@ export function LangSwitch() {
           <label
             key={o.value}
             lang={o.value}
-            className="cursor-pointer rounded-full px-3 py-1.5 text-center text-ink-muted text-small transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
+            className="cursor-pointer rounded-full px-3 py-1.5 text-center text-ink-muted text-small transition-colors duration-150 hover:text-ink has-checked:bg-surface-1 has-checked:text-ink has-checked:shadow-sm has-checked:ring-1 has-checked:ring-line-strong has-focus-visible:outline-2 has-focus-visible:outline-thread has-focus-visible:outline-offset-2"
           >
             <input
               type="radio"

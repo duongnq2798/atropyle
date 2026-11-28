@@ -51,7 +51,7 @@ test('walkSite returns sorted posix paths and skips dot files and source maps', 
   writeFileSync(join(root, 'assets', 'b.js'), '');
   writeFileSync(join(root, 'assets', 'a.css'), '');
   writeFileSync(join(root, 'assets', 'b.js.map'), '{}');
-  writeFileSync(join(root, '.nojekyll'), '');
+  writeFileSync(join(root, '.hidden'), '');
   writeFileSync(join(root, '.git', 'HEAD'), '');
   expect(walkSite(root)).toEqual(['assets/a.css', 'assets/b.js', 'index.html']);
 });

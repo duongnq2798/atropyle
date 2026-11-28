@@ -1,10 +1,17 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DOCS_BASE_URL, ERROR_INFO, errorDocsUrl } from '../../../packages/sdk/src/index';
-import { DOCS_ORIGIN, errorsPage, SCHEMAS_DIR, writeSiteDocs } from '../../lib/site-docs';
+import {
+  DOCS_ORIGIN,
+  errorAnchors,
+  errorsPage,
+  referencedDocsPaths,
+  SCHEMAS_DIR,
+  writeSiteDocs,
+} from '../../lib/site-docs';
 
 const out = mkdtempSync(join(tmpdir(), 'atropyle-docs-'));
 afterAll(() => rmSync(out, { recursive: true, force: true }));
@@ -51,5 +58,26 @@ describe('the docs of the production site', () => {
     expect(page).toContain('<p>a &lt;b&gt; &amp; <code>c</code></p>');
     expect(page).toContain('<p class="hint">&quot;q&quot;</p>');
     expect(page).toContain('<section id="x_y">');
+  });
+
+  it('lists every docs path the SDK, the CLI and the schema $ids link to, and writes each one', () => {
+    const paths = referencedDocsPaths();
+    expect(paths.slice(0, 2)).toEqual(['docs/index.html', 'docs/reference/errors.html']);
+    const schemas = readdirSync(SCHEMAS_DIR)
+      .filter((f) => f.endsWith('.json'))
+      .sort();
+    expect(paths.slice(2)).toEqual(schemas.map((f) => `docs/schemas/${f}`));
+    for (const p of paths) expect(written, p).toContain(p);
+    expect(errorAnchors()).toEqual(Object.keys(ERROR_INFO).map((code) => code.toLowerCase()));
+  });
+
+  it('refuses a schema whose $id is not under DOCS_BASE_URL', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atropyle-schemas-'));
+    try {
+      writeFileSync(join(dir, 'x.json'), JSON.stringify({ $id: 'https://elsewhere.example/x.json' }));
+      expect(() => referencedDocsPaths(dir)).toThrow(`x.json: its $id is not under ${DOCS_BASE_URL}/`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
