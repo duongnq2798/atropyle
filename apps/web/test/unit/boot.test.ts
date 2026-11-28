@@ -14,9 +14,12 @@ function page(o: { pathname?: string; hash?: string; stored?: string | null; sto
   const setAttribute = vi.fn((name: string, value: string) => {
     attrs.set(name, value);
   });
+  const location = { pathname: o.pathname ?? '/', hash: o.hash ?? '', replace };
+  const listeners = new Map<string, () => void>();
   const ctx: Record<string, unknown> = {
-    location: { pathname: o.pathname ?? '/', hash: o.hash ?? '', replace },
+    location,
     document: { documentElement: { setAttribute } },
+    addEventListener: (type: string, fn: () => void) => listeners.set(type, fn),
   };
   Object.defineProperty(ctx, 'localStorage', {
     get() {
@@ -25,7 +28,18 @@ function page(o: { pathname?: string; hash?: string; stored?: string | null; sto
     },
   });
   runInNewContext(BOOT_SCRIPT, ctx);
-  return { replace, setAttribute, theme: attrs.get('data-theme') ?? null, hash: attrs.get('data-hash') ?? null };
+  /** The visitor changes only the fragment (a pasted link on an open page): no load, so only a listener sees it. */
+  const changeHash = (hash: string) => {
+    location.hash = hash;
+    listeners.get('hashchange')?.();
+  };
+  return {
+    replace,
+    setAttribute,
+    changeHash,
+    theme: attrs.get('data-theme') ?? null,
+    hash: attrs.get('data-hash') ?? null,
+  };
 }
 
 describe('legacyTarget', () => {
@@ -73,6 +87,25 @@ describe('legacyTarget', () => {
 });
 
 describe('boot script', () => {
+  it('redirects a legacy link pasted on a page that is already open', () => {
+    const p = page();
+    expect(p.replace).not.toHaveBeenCalled();
+    p.changeHash('#/proof');
+    expect(p.replace).toHaveBeenCalledWith('/proof/');
+    p.changeHash('#/v/0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC/verify');
+    expect(p.replace).toHaveBeenLastCalledWith('/verify/#0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
+  });
+
+  it('leaves in-page anchors and other pages alone when the fragment changes', () => {
+    const home = page();
+    home.changeHash('#main');
+    home.changeHash('#/nope');
+    expect(home.replace).not.toHaveBeenCalled();
+    const vault = page({ pathname: '/vault/' });
+    vault.changeHash('#/sign?p=a');
+    expect(vault.replace).not.toHaveBeenCalled();
+  });
+
   it('redirects a legacy link before it touches the theme', () => {
     const { replace, setAttribute } = page({ hash: '#/v/0xabc/verify', stored: 'light' });
     expect(replace).toHaveBeenCalledWith('/verify/#0xabc');

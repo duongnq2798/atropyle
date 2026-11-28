@@ -34,6 +34,21 @@ test('legacy links land on the new routes', async ({ page, state }) => {
   }
 });
 
+test('a legacy link opened on the home page that is already open still lands on its new route', async ({
+  page,
+  state,
+}) => {
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // Same document, only the fragment changes: no load, so only the boot script's hashchange listener can move it.
+  await page.goto(`${state.siteUrl}#/proof`);
+  await page.waitForURL((u) => u.pathname === '/proof/');
+  await page.goto(state.siteUrl);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.goto(`${state.siteUrl}#/v/${VAULT}/verify`);
+  await page.waitForURL((u) => `${u.pathname}${u.hash}` === `/verify/#${VAULT}`);
+});
+
 test('unknown hashes and hashes on other pages stay where they are', async ({ page, state }) => {
   for (const rest of ['#/', '#/nope', '#/v/a/edit', '#drill', '#p=abc', 'no-such-page/#/sign?p=a']) {
     // From another document each time: a hash-only change would not load the page, and the boot script would not run.
