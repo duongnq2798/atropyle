@@ -37,11 +37,12 @@ export function LazyActionFlow(props: ActionFlowProps) {
     return <ActionFlow {...props} pressed={pressed} />;
   }
   if (q.error) return <ErrorBox error={q.error} onRetry={() => void q.refetch()} testId={`${props.testId}-error`} />;
-  // An auto action has no button to press (the check-in ritual): it waits as ActionFlow's own preparing state does.
+  // An auto action has no button to press (the check-in ritual): it waits as ActionFlow's own preparing state does,
+  // in the page's own shape of what comes when it gives one (`preparing`: the ritual's card and hold).
   if (props.auto) {
     return (
       <div data-testid={`${props.testId}-preparing`} aria-busy="true" className="flex flex-col gap-2">
-        <SkeletonText lines={2} />
+        {props.preparing ?? <SkeletonText lines={2} />}
       </div>
     );
   }

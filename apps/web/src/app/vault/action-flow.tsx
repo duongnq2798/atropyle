@@ -35,6 +35,8 @@ export interface ActionFlowProps {
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
   hold?: HoldWords;
+  /** Where the hold stands on its TxCard: `top` is the check-in ritual's, straight under the card's heading. */
+  holdPlacement?: 'end' | 'top';
   variant?: ButtonVariant;
   auto?: boolean;
   /** Its button was pressed before this chunk loaded (LazyActionFlow): prepare once, as the press asked. */
@@ -55,6 +57,12 @@ export interface ActionFlowProps {
   onProgress?(p: FlowProgress): void;
   /** Start over was pressed: the page lets go of what it kept from the last plan (a receipt it showed, a done card). */
   onReset?(): void;
+  /**
+   * What stands while an auto flow prepares (here, and in LazyActionFlow before this chunk), in place of the text
+   * skeleton: the check-in ritual's HoldCardShape, its card and its hold where they will stand once the plan lands.
+   * The page builds it, so it rides the page's chunk and not the first load of /vault/.
+   */
+  preparing?: ReactNode;
 }
 
 function ActionTx(p: {
@@ -65,6 +73,7 @@ function ActionTx(p: {
   confirm?: 'click' | 'hold';
   tone?: 'thread' | 'danger';
   hold?: HoldWords;
+  holdPlacement?: 'end' | 'top';
   tokens?: readonly MirrorToken[];
   receiptFooter?: ReactNode;
   nested?: boolean;
@@ -112,6 +121,7 @@ function ActionTx(p: {
       confirm={p.confirm}
       tone={p.tone}
       hold={p.hold}
+      holdPlacement={p.holdPlacement}
       receiptFooter={p.receiptFooter}
       nested={p.nested}
       testId={p.testId}
@@ -182,6 +192,7 @@ export function ActionFlow(p: ActionFlowProps) {
             confirm={p.confirm}
             tone={p.tone}
             hold={p.hold}
+            holdPlacement={p.holdPlacement}
             tokens={p.tokens}
             receiptFooter={p.receiptFooter}
             nested={p.nested}
@@ -208,9 +219,14 @@ export function ActionFlow(p: ActionFlowProps) {
           )}
         </>
       ) : p.auto && !a.error ? (
+        // The page's own shape of what comes (the check-in ritual's card and hold), or a line of text.
         <div data-testid={`${p.testId}-preparing`} aria-busy="true" className="flex flex-col gap-2">
-          <p className="text-small text-ink-muted">{t('preparing')}</p>
-          <SkeletonText lines={2} />
+          {p.preparing ?? (
+            <>
+              <p className="text-small text-ink-muted">{t('preparing')}</p>
+              <SkeletonText lines={2} />
+            </>
+          )}
         </div>
       ) : (
         // `loading`, not `disabled`: a keyboard user who pressed it keeps their place (Button).

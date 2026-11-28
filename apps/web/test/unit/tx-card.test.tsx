@@ -8,6 +8,7 @@ import type { MirrorContext } from '../../src/tx/mirror';
 import { TxCard } from '../../src/tx/tx-card';
 import { applyStep, txView } from '../../src/tx/tx-view';
 import type { TxRunner } from '../../src/tx/use-tx-runner';
+import type { HoldWords } from '../../src/ui/hold-button';
 import { renderWithProviders } from '../helpers/render';
 
 const A = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
@@ -379,5 +380,179 @@ describe('TxCard', () => {
     expect(screen.queryByTestId('tx-send')).toBeNull();
     fireEvent.click(screen.getByTestId('tx-recheck'));
     expect(recheck).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the hold up front (holdPlacement="top", the check-in ritual)', () => {
+  const CHECK_IN: TxPlan = {
+    ...PLAN,
+    steps: [
+      {
+        ...step(`Check in as the owner of vault ${V}: this resets the timer.`),
+        data: encodeFunctionData({ abi: vaultAbi, functionName: 'checkIn' }),
+      },
+    ],
+  };
+  const ctx: MirrorContext = { factory: '0x1111111111111111111111111111111111111111', feeTokens: [], tokens: [] };
+  const follows = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  const card = (holdPlacement?: 'end' | 'top') =>
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, { mirror: mirrorPlan(CHECK_IN, ctx), mode: 'steps' })}
+        label="Check in"
+        title="Your check-in"
+        confirm="hold"
+        hold={{ face: <span data-testid="face" />, showKnot: false }}
+        holdPlacement={holdPlacement}
+      />,
+    );
+
+  it('draws the hold straight under the heading, then the step, its wallet mirror and its details', () => {
+    card('top');
+    const heading = screen.getByRole('heading', { name: 'Your check-in' });
+    const send = sendButton();
+    const row = screen.getByTestId('tx-step-0');
+    const mirror = screen.getByTestId('tx-mirror-0');
+    expect(follows(heading, send)).toBe(true);
+    expect(follows(send, row)).toBe(true);
+    expect(follows(send, mirror)).toBe(true);
+    expect(row.contains(mirror)).toBe(true);
+    // Nothing between the heading and the hold: the header is the heading alone.
+    expect(heading.closest('header')?.textContent).toBe('Your check-in');
+    expect(send.contains(screen.getByTestId('face'))).toBe(true);
+  });
+
+  it('keeps hex in Technical details: the SDK sentence and the signer move there, the mirror keeps its contract', () => {
+    card('top');
+    const tx = screen.getByTestId('tx');
+    const details = screen.getByTestId('tx-step-0').querySelector('details');
+    if (!details) throw new Error('no details');
+    expect(details.textContent).toContain('Check in as the owner of vault');
+    expect(details.querySelector(`[data-address="${V}"]`)).not.toBeNull();
+    expect(within(details).getByText('Signed by')).toBeTruthy();
+    expect(details.querySelector(`[data-address="${A}"]`)).not.toBeNull();
+    // Outside the details, only the wallet mirror names an address: what the wallet itself will show.
+    const loose = [...tx.querySelectorAll('[data-address]')].filter(
+      (e) => !details.contains(e) && !screen.getByTestId('tx-mirror-0').contains(e),
+    );
+    expect(loose).toHaveLength(0);
+    expect(screen.getByTestId('tx-step-0').textContent).toContain('Ready');
+  });
+
+  it('a hash with no explorer to link it is a technical detail too, while the block is awaited', () => {
+    const view = applyStep(txView(CHECK_IN), { index: 0, phase: 'pending', hash: H });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, {
+          view,
+          busy: true,
+          committed: true,
+          mirror: mirrorPlan(CHECK_IN, ctx),
+          mode: 'steps',
+        })}
+        label="Check in"
+        confirm="hold"
+        holdPlacement="top"
+      />,
+    );
+    const row = screen.getByTestId('tx-step-0');
+    const details = row.querySelector('details');
+    if (!details) throw new Error('no details');
+    expect(within(row).getByText('Waiting for the block')).toBeTruthy();
+    expect(details.textContent).toContain(H);
+    expect(row.textContent?.replace(details.textContent ?? '', '')).not.toContain(H);
+  });
+
+  const busy = (hold: HoldWords) => {
+    const view = applyStep(txView(CHECK_IN), { index: 0, phase: 'signing' });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, { view, busy: true, mirror: mirrorPlan(CHECK_IN, ctx), mode: 'steps' })}
+        label="Check in"
+        title="Your check-in"
+        confirm="hold"
+        hold={hold}
+        holdPlacement="top"
+      />,
+    );
+    const bar = sendButton().querySelector('[data-part="bar"]');
+    if (!bar) throw new Error('no bar');
+    return bar;
+  };
+
+  it('while busy, the hold says its own words (hold.busyLabel), never "Sending…" while the wallet asks', () => {
+    const bar = busy({ face: <span data-testid="face" />, showKnot: false, busyLabel: 'Now sign in your wallet' });
+    expect(bar.textContent).toBe('Now sign in your wallet');
+    expect(sendButton()).toHaveAccessibleName('Now sign in your wallet');
+    expect(screen.getByTestId('tx').textContent).not.toContain('Sending');
+    // The words are the card's, not an attribute of the button.
+    expect(
+      sendButton()
+        .getAttributeNames()
+        .filter((a) => a.toLowerCase().includes('busy')),
+    ).toEqual([]);
+  });
+
+  it('without its own words, a busy hold still says "Sending…"', () => {
+    const bar = busy({ face: <span data-testid="face" />, showKnot: false });
+    expect(bar.textContent).toBe('Sending…');
+  });
+
+  const recorded = (holdPlacement?: 'end' | 'top') => {
+    const view = applyStep(txView(CHECK_IN), { index: 0, phase: 'confirmed', hash: H });
+    renderWithProviders(
+      <TxCard
+        runner={runnerOf(CHECK_IN, {
+          view,
+          confirmed: 1,
+          committed: true,
+          result: { vault: V, steps: [] },
+          receipt: [{ index: 0, action: 'checkIn', hash: H, blockNumber: 7n, time: null, events: [] }],
+        })}
+        label="Check in"
+        title="Your check-in"
+        confirm="hold"
+        hold={{ face: <span data-testid="face" />, showKnot: false }}
+        holdPlacement={holdPlacement}
+        receiptFooter={<p data-testid="tied">Tied at block 7</p>}
+      />,
+    );
+  };
+
+  it("once recorded, the hold's end stands where the hold stood: its face, the footer where the bar was, then the Receipt", () => {
+    recorded('top');
+    const action = screen.getByTestId('tx-action');
+    const end = screen.getByTestId('tx-end');
+    const done = screen.getByTestId('tx-done');
+    const face = screen.getByTestId('face');
+    const tied = screen.getByTestId('tied');
+    // First under the heading, as the hold was: the knot ties in sight, before the ledger rows and the hash.
+    expect(action.firstElementChild?.contains(end)).toBe(true);
+    expect(end.contains(face)).toBe(true);
+    expect(end.contains(tied)).toBe(true);
+    expect(follows(face, tied)).toBe(true);
+    expect(follows(end, done)).toBe(true);
+    expect(done.contains(tied)).toBe(false);
+    expect(done.contains(face)).toBe(false);
+    // The hold's own box, out of the button: nothing to press once the transaction is recorded.
+    expect(face.parentElement?.getAttribute('data-part')).toBe('face');
+    expect(screen.queryByTestId('tx-send')).toBeNull();
+    expect(action.firstElementChild?.className).toContain('items-center');
+  });
+
+  it("by default the footer stays the Receipt's own, after its rows", () => {
+    recorded();
+    expect(screen.queryByTestId('tx-end')).toBeNull();
+    expect(screen.getByTestId('tx-done').contains(screen.getByTestId('tied'))).toBe(true);
+  });
+
+  it('by default the hold closes the card, after the steps, with the signer in the header', () => {
+    card();
+    const row = screen.getByTestId('tx-step-0');
+    expect(follows(row, sendButton())).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Your check-in' }).closest('header')?.textContent).toContain(
+      'Signed by',
+    );
+    expect(row.querySelector('details')?.textContent).not.toContain('Check in as the owner of vault');
   });
 });
