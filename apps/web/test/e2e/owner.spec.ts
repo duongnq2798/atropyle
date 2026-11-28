@@ -437,9 +437,14 @@ test('while the check-in prepares, its hold stands where it will: only the steps
   await expect(preparing).toHaveCount(0);
   // The hold did not move: the plan only appended the step and what the wallet should show under it.
   expect(Math.abs((await holdTop(page)) - before)).toBeLessThanOrEqual(1);
-  const hold = await page.getByTestId('owner-checkin-tx-send').boundingBox();
-  const mirror = await page.getByTestId('owner-checkin-tx-mirror-0').boundingBox();
-  expect(mirror?.y ?? 0).toBeGreaterThan((hold?.y ?? 0) + (hold?.height ?? 0));
+  // Both boxes in one frame: two separate boundingBox() calls can straddle a scroll and compare different frames.
+  const gap = await page.evaluate(() => {
+    const hold = document.querySelector('[data-testid="owner-checkin-tx-send"]');
+    const mirror = document.querySelector('[data-testid="owner-checkin-tx-mirror-0"]');
+    if (!hold || !mirror) throw new Error('no hold or mirror');
+    return mirror.getBoundingClientRect().top - hold.getBoundingClientRect().bottom;
+  });
+  expect(gap).toBeGreaterThan(0);
 });
 
 test('the keyboard keeps its place: Save, Send and Start over, then the check-in and its Start over', async ({
