@@ -32,14 +32,24 @@ export function legacyTarget(pathname: string, hash: string): string | null {
  * script never runs is vellum too; the attribute is what the `[data-theme=light]` variants of the components read.
  */
 export function boot(themeKey: string, legacy: (pathname: string, hash: string) => string | null): void {
-  try {
-    const target = legacy(location.pathname, location.hash);
-    if (target !== null) {
-      location.replace(target);
-      return;
+  function redirect(): boolean {
+    try {
+      const target = legacy(location.pathname, location.hash);
+      if (target !== null) {
+        location.replace(target);
+        return true;
+      }
+    } catch {
+      // A failed redirect leaves the visitor on the home page, which works on its own.
     }
+    return false;
+  }
+  if (redirect()) return;
+  // An old link pasted on an open page changes only the fragment: no load, so the check above never sees it.
+  try {
+    addEventListener('hashchange', redirect);
   } catch {
-    // A failed redirect leaves the visitor on the home page, which works on its own.
+    // Without the listener such a link stays on the home page, as it did before.
   }
   let theme = 'light';
   try {
