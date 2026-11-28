@@ -49,4 +49,22 @@ describe('i18n', () => {
       }
     }
   });
+
+  it('no message carries an escape that lost its backslash', () => {
+    // `X00a0Layer` once reached the /verify/ page: a no-break space escape that lost its backslash and its u. A real
+    // no-break space never contains the text "00a0", so any such text in a resolved value is a broken escape.
+    const mods = (import.meta as ImportMeta & { glob: EagerGlob }).glob<{ messages: Messages<string> }>(
+      '../../src/**/*.messages.ts',
+      { eager: true },
+    );
+    const broken: string[] = [];
+    for (const [file, mod] of Object.entries(mods)) {
+      for (const lang of ['en', 'vi'] as const) {
+        for (const [key, value] of Object.entries(mod.messages[lang])) {
+          if (/00a0/i.test(value)) broken.push(`${file} ${lang}.${key}: ${value}`);
+        }
+      }
+    }
+    expect(broken).toEqual([]);
+  });
 });
