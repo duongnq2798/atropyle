@@ -8,7 +8,7 @@ In 2020, [Chainalysis estimated](https://www.chainalysis.com/blog/bitcoin-market
 
 Self-custody gave us our keys and never wrote the last chapter. Atropyle writes it: an inheritance and wallet-recovery vault, live on X Layer mainnet since 22 November 2026. Miss enough check-ins, and anyone can sound an alarm that one check-in cancels. If the silence holds, your heirs receive what you left them. Lose your key, and if you allowed it, your guardians can steer everything to your new wallet.
 
-Plans like this usually rest on someone's promise: a lawyer with your seed phrase, a company that must outlive you. This one rests on 199 gates in X Layer's TapeOut processor, a circuit nobody can change, not even us. It decides when assets may leave, not who gets how much ([where the proof stops](#limits)). Anyone can move a vault forward, so your heirs never need us to still be here.
+Plans like this usually rest on someone's promise: a lawyer with your seed phrase, a company that must outlive you. This one rests on 199 gates on the TapeOut processor on X Layer: a circuit nobody can change, not even us. It decides when assets may leave, not who gets how much ([where the proof stops](#limits)). Anyone can move a vault forward, so your heirs never need us to still be here.
 
 The circuit can only ever meet 67,108,864 cases. Don't take our word for a single one.
 
