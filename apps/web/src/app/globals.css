@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/*
+ * Tailwind builds utilities from the app's sources, not from the tests: a class name a test asserts or a word in it
+ * ("filter", "collapse") would otherwise ship as a rule no page uses. With the owner tab and the showcase together,
+ * those 3.6 kB took this module over the 100 kB above which Turbopack stops merging it with the fonts' and the home
+ * page's rules, and every page loaded three render-blocking stylesheets (test/build/home.test.ts).
+ */
+@source not "../../test";
 
 /*
  * Atropyle tokens (spec §4.3, §4.4, Quyết định 7, 10, 11 of Plan 7A). The default palette and type scale are
