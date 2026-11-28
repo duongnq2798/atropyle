@@ -7,11 +7,12 @@ import { cn } from '@/lib/cn';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
-const BASE =
-  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium ' +
-  'transition-[background-color,border-color,color,translate,scale] duration-150 ease-out-expo ' +
-  'motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 ' +
-  'aria-disabled:pointer-events-none aria-disabled:opacity-50';
+/**
+ * The shared look: position, flex centring, the pill, the press and the disabled state, as one class that globals.css
+ * builds from the same utilities (`.btn`, components layer). Written out, its 17 utilities were about 330 bytes of
+ * HTML per button, twice in a server component's (7C-F1).
+ */
+const BASE = 'btn';
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-thread text-on-thread shadow-[inset_0_1px_0_0_rgb(255_255_255/0.18)] hover:bg-thread/90',

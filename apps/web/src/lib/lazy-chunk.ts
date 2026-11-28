@@ -72,6 +72,17 @@ export function lazyChunk<T>(importer: () => Promise<T>): LazyChunk<T> {
 }
 
 /**
+ * `load`, started in a task of its own rather than in the one that asks for it. A query that mounts with its page asks
+ * in the commit that hydrates the page, and an import() appends one script element per chunk of its group right
+ * there, each about a millisecond of main thread (four under Lighthouse's CPU throttling). On /create/ the flow chunk
+ * and the steps chunk appended 18 that way, the bulk of a 40-60 ms hydration task and of the page's Total Blocking
+ * Time (7C-F1). One task later, the chunks still load at once, and no task of the page grows long for them.
+ */
+export function inOwnTask<T>(load: () => Promise<T>): () => Promise<T> {
+  return () => new Promise<void>((resolve) => setTimeout(resolve, 0)).then(load);
+}
+
+/**
  * The module while `wanted`, loading it when needed, and from then on (so a sheet that closes keeps its close
  * animation and its focus return). Null until it has loaded; `onError` runs when that load fails.
  */

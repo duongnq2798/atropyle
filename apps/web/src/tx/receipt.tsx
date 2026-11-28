@@ -4,7 +4,8 @@ import { ArrowRight, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useLang, useT } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
-import { formatAmount, formatTimestamp } from '@/lib/format';
+import { formatCount } from '@/lib/count';
+import { formatTimestamp } from '@/lib/format';
 import { explorerName, explorerTx } from '@/lib/links';
 import { messages } from '@/messages/tx-flow.messages';
 import { StateBadge } from '@/thread/state-badge';
@@ -138,7 +139,8 @@ export function Receipt({ steps, titles, explorer, reading = false, testId = 'tx
               {g.blockNumber !== null ? (
                 <>
                   <dt className={LABEL}>{t('receiptBlock')}</dt>
-                  <dd className="voice-ledger text-ink">{formatAmount(g.blockNumber, 0)}</dd>
+                  {/* Grouped in the reader's way: 1,234,567 in English, 1.234.567 in Vietnamese. */}
+                  <dd className="voice-ledger text-ink">{formatCount(g.blockNumber, lang)}</dd>
                 </>
               ) : null}
               <dt className={LABEL}>{t('receiptChainTime')}</dt>

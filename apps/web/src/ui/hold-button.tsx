@@ -1,5 +1,6 @@
 'use client';
 
+import { CircleCheck } from 'lucide-react';
 import * as m from 'motion/react-m';
 import { type ButtonHTMLAttributes, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useT } from '@/i18n/provider';
@@ -8,6 +9,16 @@ import { messages as ui } from '@/messages/ui.messages';
 import { usePrefersReducedMotion } from '@/motion/provider';
 import { DURATION, EASE_OUT_EXPO, HOLD_MS, REDUCED_MS, SPRING, sec } from '@/motion/tokens';
 import { useHold } from '@/motion/use-hold';
+import {
+  BAR_BOX,
+  FACE_BOX,
+  HOLD_HINT,
+  OBJECT,
+  OBJECT_BAR,
+  OBJECT_BUTTON,
+  OBJECT_COLUMN,
+  OBJECT_FRAME,
+} from './hold-object';
 
 /**
  * A caller's pointer, key, context menu and blur handlers run before the hold's, and its `aria-describedby` joins
@@ -24,7 +35,7 @@ export interface HoldButtonProps
   duration?: number;
   /**
    * Replaces the default "Hold to confirm, or press Enter". A node, so a caller can say a live wait under a disabled
-   * hold (the check-in ritual's "Waiting for X Layer · 1.7 s", its ticking seconds aria-hidden).
+   * hold (the check-in ritual's seconds under "Waiting for X Layer", aria-hidden as they tick).
    */
   hint?: ReactNode;
   /**
@@ -35,8 +46,10 @@ export interface HoldButtonProps
   /** The knot that snaps in when the hold is done. False for a hold that only opens the wallet (R18.16). */
   showKnot?: boolean;
   /**
-   * Drawn above the button, inside the hold's own column, which then takes the full width: the check-in ritual's
-   * thread (spec §18.4.2 T10). The caller moves it with onHoldStart and onHoldEnd.
+   * The button's face (spec §4.6.3 "one big button", §18.4.2 T10): the check-in ritual's thread. With a face the hold
+   * is the ritual's object, not a pill: the face on top and the label on an accent bar under it, both in the button's
+   * own box (one press target, one focus ring, one shake), the full width of its column up to 28rem. The caller moves
+   * the face with onHoldStart and onHoldEnd.
    */
   face?: ReactNode;
   /** A hold began (a pointer or Space). Enter and an assistive click confirm without one. */
@@ -45,8 +58,15 @@ export interface HoldButtonProps
   onHoldEnd?(confirmed: boolean): void;
 }
 
-/** The words, the knot and the face of a hold, as TxCard and ActionFlow pass them through. */
-export type HoldWords = Pick<HoldButtonProps, 'hint' | 'doneLabel' | 'showKnot' | 'face' | 'onHoldStart' | 'onHoldEnd'>;
+/**
+ * The words, the knot and the face of a hold, as TxCard and ActionFlow pass them through. `busyLabel` is TxCard's, not
+ * the button's: the button's own words while its transaction is busy, in place of "Sending…". The check-in ritual
+ * names each phase there ("Now sign in your wallet", then "Waiting for X Layer"): nothing is sent until the owner signs.
+ */
+export type HoldWords = Pick<
+  HoldButtonProps,
+  'hint' | 'doneLabel' | 'showKnot' | 'face' | 'onHoldStart' | 'onHoldEnd'
+> & { busyLabel?: ReactNode };
 
 const SIZE = {
   md: 'h-12 px-6 text-body gap-2',
@@ -187,65 +207,92 @@ export function HoldButton({
       ? SPRING
       : { duration: sec(DURATION.base), ease: EASE_OUT_EXPO };
   const c = TONE[tone];
+  const o = OBJECT[tone];
+  const press = {
+    ...rest,
+    onPointerDown: compose(onPointerDown, bind.onPointerDown),
+    onPointerUp: compose(onPointerUp, bind.onPointerUp),
+    onPointerLeave: compose(onPointerLeave, bind.onPointerLeave),
+    onPointerCancel: compose(onPointerCancel, bind.onPointerCancel),
+    onKeyDown: compose(onKeyDown, bind.onKeyDown),
+    onKeyUp: compose(onKeyUp, bind.onKeyUp),
+    onClick: bind.onClick,
+    onContextMenu: compose(onContextMenu, bind.onContextMenu),
+    onBlur: compose(onBlur, bind.onBlur),
+    type: 'button' as const,
+    disabled,
+    'aria-describedby': describedBy ? `${describedBy} ${hintId}` : hintId,
+    'data-phase': phase,
+    'data-shake': shake ? '' : undefined,
+  };
+  const knotMark = (className: string) =>
+    showKnot ? (
+      <m.span
+        aria-hidden
+        data-part="knot"
+        className={cn('absolute size-2.5 rounded-full', className)}
+        initial={false}
+        animate={knot}
+        transition={knotMove}
+      />
+    ) : null;
 
-  return (
-    <span className={cn('inline-flex flex-col items-center gap-2', face ? 'w-full' : null)}>
-      {face ? <span className="w-full">{face}</span> : null}
-      <button
-        {...rest}
-        onPointerDown={compose(onPointerDown, bind.onPointerDown)}
-        onPointerUp={compose(onPointerUp, bind.onPointerUp)}
-        onPointerLeave={compose(onPointerLeave, bind.onPointerLeave)}
-        onPointerCancel={compose(onPointerCancel, bind.onPointerCancel)}
-        onKeyDown={compose(onKeyDown, bind.onKeyDown)}
-        onKeyUp={compose(onKeyUp, bind.onKeyUp)}
-        onClick={bind.onClick}
-        onContextMenu={compose(onContextMenu, bind.onContextMenu)}
-        onBlur={compose(onBlur, bind.onBlur)}
-        type="button"
-        disabled={disabled}
-        aria-describedby={describedBy ? `${describedBy} ${hintId}` : hintId}
-        data-phase={phase}
-        data-shake={shake ? '' : undefined}
-        className={cn(
-          'relative isolate inline-flex select-none items-center justify-center overflow-hidden rounded-full',
-          'touch-manipulation border border-line-strong bg-surface-2 font-medium text-ink',
-          'transition-[border-color,background-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          !disabled && c.hover,
-          SIZE[size],
-          className,
-        )}
-      >
+  const button = face ? (
+    <button {...press} className={cn(OBJECT_BUTTON, o.frame, className)}>
+      <span data-part="face" className={FACE_BOX}>
+        {face}
+      </span>
+      <span data-part="bar" className={cn(OBJECT_BAR, o.bar)}>
         <m.span
           aria-hidden
-          className={cn('-z-10 absolute inset-0 origin-left', c.fill)}
+          className={cn('-z-10 absolute inset-0 origin-left', o.fill)}
           initial={false}
           animate={fill}
           transition={grow}
         />
         {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
         <span>{children}</span>
-        <span aria-hidden className="absolute inset-x-8 bottom-2.5 h-px bg-line" />
-        <m.span
-          aria-hidden
-          className={cn('absolute inset-x-8 bottom-2.5 h-0.5 origin-left rounded-full', c.line)}
-          initial={false}
-          animate={fill}
-          transition={grow}
-        />
-        {showKnot ? (
-          <m.span
-            aria-hidden
-            data-part="knot"
-            className={cn('absolute right-7 bottom-1.5 size-2.5 rounded-full', c.knot)}
-            initial={false}
-            animate={knot}
-            transition={knotMove}
-          />
-        ) : null}
-      </button>
-      <span id={hintId} aria-live="polite" className="text-caption text-ink-muted">
+        {knotMark(cn('top-1/2 right-6 -translate-y-1/2', o.knot))}
+      </span>
+    </button>
+  ) : (
+    <button
+      {...press}
+      className={cn(
+        'relative isolate inline-flex select-none items-center justify-center overflow-hidden rounded-full',
+        'touch-manipulation border border-line-strong bg-surface-2 font-medium text-ink',
+        'transition-[border-color,background-color] duration-150 ease-out-expo motion-safe:data-shake:animate-shake',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        !disabled && c.hover,
+        SIZE[size],
+        className,
+      )}
+    >
+      <m.span
+        aria-hidden
+        className={cn('-z-10 absolute inset-0 origin-left', c.fill)}
+        initial={false}
+        animate={fill}
+        transition={grow}
+      />
+      {icon ? <span className="inline-flex shrink-0">{icon}</span> : null}
+      <span>{children}</span>
+      <span aria-hidden data-part="underline" className="absolute inset-x-8 bottom-2.5 h-px bg-line" />
+      <m.span
+        aria-hidden
+        className={cn('absolute inset-x-8 bottom-2.5 h-0.5 origin-left rounded-full', c.line)}
+        initial={false}
+        animate={fill}
+        transition={grow}
+      />
+      {knotMark(cn('right-7 bottom-1.5', c.knot))}
+    </button>
+  );
+
+  return (
+    <span className={face ? OBJECT_COLUMN : 'inline-flex flex-col items-center gap-2'}>
+      {button}
+      <span id={hintId} aria-live="polite" className={HOLD_HINT}>
         {phase === 'done'
           ? doneLabel === undefined
             ? t('holdDone')
@@ -255,5 +302,50 @@ export function HoldButton({
             : (hint ?? t('holdHint'))}
       </span>
     </span>
+  );
+}
+
+export interface HoldEndProps {
+  /** The hold's face, as it is once the hold is over: the check-in ritual's thread with its tied knot. */
+  face: ReactNode;
+  /**
+   * The outcome, where the bar stood: the ritual's "Tied at block 1,234,567 · 4.1 s". Phrasing content (a span), since
+   * it runs on from the check in front of it.
+   */
+  children?: ReactNode;
+  tone?: 'thread' | 'danger';
+  testId?: string;
+}
+
+/**
+ * A hold with a face, once its transaction is recorded (TxCard `holdPlacement="top"`): the same object without the
+ * button. Its column, frame and face box are the hold's own (OBJECT_COLUMN, OBJECT_FRAME, FACE_BOX), so the thread on
+ * the face does not move and its pending knot fills in place; the frame is lit again in the tone, and the outcome
+ * stands where the bar stood, in as much room. The band reads done, never disabled: it stands on the face's own paper
+ * (no tint of its own, where the waiting bar was grey), under a rule in the tone, the outcome in ink after the check
+ * the card's heading carries once done. Nothing in it can be pressed: what comes next is the caller's.
+ */
+export function HoldEnd({ face, children, tone = 'thread', testId }: HoldEndProps) {
+  const o = OBJECT[tone];
+  return (
+    <div data-testid={testId} className={OBJECT_COLUMN}>
+      <div className={cn(OBJECT_FRAME, o.frame)}>
+        <span data-part="face" className={FACE_BOX}>
+          {face}
+        </span>
+        <div data-part="end" className={cn('flex border-t px-4 py-3 text-center text-ink sm:px-6', BAR_BOX, o.end)}>
+          {/* The check flows with the outcome's first line, so a wrapped outcome stays one centred block with it. */}
+          <span className="text-balance">
+            <CircleCheck
+              aria-hidden="true"
+              size={20}
+              strokeWidth={1.5}
+              className={cn('mr-2 inline-block align-middle', o.check)}
+            />
+            {children}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }

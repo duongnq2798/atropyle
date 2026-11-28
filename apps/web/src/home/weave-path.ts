@@ -22,14 +22,20 @@ export interface WirePath {
 /**
  * The wires entering each NAND layer, one path per value signature, in op order inside each path; sorted by depth,
  * then signature. Each wire is drawn once, so splitting adds no `d` text, only one element per signature
- * (spec §18.4.3 Task 5′: a chip lights wires by their `data-v`).
+ * (spec §18.4.3 Task 5′: a chip lights wires by their `data-v`). Both inputs of a NAND tied to one signal are two
+ * entries of WIRES on the same line, so they carry the same signature too: drawn once, as a second copy only doubled
+ * the anti-aliased edge and the HTML, twice (the DOM and Next's payload; 7C-F1).
  */
 export function wirePaths(): WirePath[] {
   const by = new Map<number, string>();
+  const drawn = new Set<string>();
   for (let i = 0, w = 0; i < WIRES.length; i += 5, w++) {
     const [x1, y1, x2, y2, depth] = [WIRES[i], WIRES[i + 1], WIRES[i + 2], WIRES[i + 3], WIRES[i + 4]];
     const key = depth * 8 + WIRE_V[w];
-    by.set(key, `${by.get(key) ?? ''}M${x1} ${y1}${segment(x1, y1, x2, y2)}`);
+    const part = `M${x1} ${y1}${segment(x1, y1, x2, y2)}`;
+    if (drawn.has(`${key}${part}`)) continue;
+    drawn.add(`${key}${part}`);
+    by.set(key, `${by.get(key) ?? ''}${part}`);
   }
   return [...by.entries()].sort(([a], [b]) => a - b).map(([key, d]) => ({ depth: key >> 3, v: key & 7, d }));
 }

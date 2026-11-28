@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   dueOf,
   editAction,
+  FACE_EDGE,
+  faceRemaining,
   formatSeconds,
   formsOf,
   IDLE_PROGRESS,
@@ -32,6 +34,20 @@ describe('ritualPhase', () => {
         for (const committed of [false, true])
           for (const sent of [false, true])
             expect(ritualPhase(hold, { busy, committed, sent, finished: false })).not.toBe('tied');
+  });
+});
+
+describe('faceRemaining', () => {
+  it('keeps "now" a step in from both ends of the face, where the Thread would cut it in half', () => {
+    expect(FACE_EDGE).toBe(0.05);
+    // Just checked in: "now" stands where a fresh knot ties, not on the face's left edge.
+    expect(faceRemaining(1)).toBe(0.95);
+    expect(faceRemaining(0.999)).toBe(0.95);
+    expect(faceRemaining(0.5)).toBe(0.5);
+    // Nearly late: a step in from the right edge.
+    expect(faceRemaining(0.001)).toBe(0.05);
+    // Late: none left stays none, so the face draws no "now" (geometry.ts).
+    expect(faceRemaining(0)).toBe(0);
   });
 });
 

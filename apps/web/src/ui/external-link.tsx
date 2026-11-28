@@ -84,11 +84,13 @@ export function ExternalLink({
     ) : (
       children
     );
+  // Lucide's ArrowUpRight at 14 px, painted through a CSS mask (globals.css, `.ext-arrow`): an inline SVG cost about
+  // 330 bytes of HTML per link, and every page's footer prints three (7C-F1).
   const arrow =
     variant === 'inline' && icon ? (
-      <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.5} className="shrink-0" />
+      <span aria-hidden="true" className="ext-arrow" />
     ) : variant === 'flow' && icon ? (
-      <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.5} className="ml-1 inline-block align-[-0.125em]" />
+      <span aria-hidden="true" className="ext-arrow ml-1 align-[-0.125em]" />
     ) : null;
   // The arrow is drawn before the link comes too: the text keeps its width, and nothing beside it moves when the page
   // mounts (7B-P1: the footer's links moved 16 px on every deweb page).

@@ -71,7 +71,7 @@ export const messages = defineMessages(
     noGas: 'Ví của bạn sẽ ước tính',
     progressLabel: 'Tiến độ ký',
     progress: 'Đã xác nhận {done}/{total}',
-    preparing: 'Đang chuẩn bị…',
+    preparing: 'Đang chuẩn\u00a0bị…',
     sending: 'Đang gửi…',
     resume: 'Tiếp tục từ bước {n}',
     switchFirst: 'Ví sẽ hỏi chuyển sang {network} trước.',
